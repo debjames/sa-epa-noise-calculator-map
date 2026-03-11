@@ -1,0 +1,1672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SA Noise Tool</title>
+<link rel="icon" type="image/png" href="R.png">
+<link rel="apple-touch-icon" href="R.png">
+<style>
+:root{
+  --text:#111827;
+  --muted:#6b7280;
+  --border:#e5e7eb;
+  --bg:#ffffff;
+  --sheet:#ffffff;
+  --ok:#15803d;
+  --bad:#b91c1c;
+  --okbg: rgba(22,163,74,.10);
+  --badbg: rgba(220,38,38,.10);
+}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--text);}
+.container{max-width:1180px;margin:22px auto;padding:0 14px 34px;}
+.h1{font-size:25px;font-weight:700;margin:0 0 6px;}
+.h2{font-size:12px;font-weight:700;margin:0 0 6px;}
+.p1{font-size:10px;color:var(--muted);margin:0 0 14px;line-height:1.45;}
+.p{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.45;}
+.i{font-style: italic; font-weight: bold; font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.45;}
+  .sheet1{background:var(--sheet);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.03);padding:14px;margin-bottom: 14px;}
+.sheet{background:var(--sheet);border:1px solid var(--border);border-radius:14px;overflow:visible;box-shadow:0 1px 0 rgba(0,0,0,.03);}
+table{width:100%;border-collapse:collapse;}
+td,th{border:1px solid var(--border);padding:8px 10px;font-size:13px;vertical-align: middle; text-align: left;}
+th{background:rgba(242,203,0,1);font-weight:700;}
+.small{font-size:12px;color:var(--muted);}
+select{width:100%;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;background:white;}
+input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;background:white;box-sizing:border-box;}
+.num{text-align:center;}
+.center{text-align:center;}
+.left{text-align:left;}
+.logo{height: 100px; width: auto; display: block; margin-bottom:15px}
+.table-scroll{overflow-x:auto; width:100%;}
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid var(--border);font-size:12px;background:#fff;margin-right:6px;margin-top:6px;}
+.ok{color:var(--ok);font-weight:700;}
+.bad{color:var(--bad);font-weight:700;}
+.cell-ok{background:var(--okbg);}
+.cell-bad{background:var(--badbg);}
+.grid2{display:grid;grid-template-columns:1fr;gap:12px;padding:12px 14px;}
+.span2{grid-column:1 / -1;}
+@media (min-width: 980px){.grid2{grid-template-columns:1fr 1fr;}}
+@media print {.card, .sheet, table { break-inside: avoid; }}
+.card{border:1px solid var(--border);border-radius:14px;background:#fff;padding:12px;overflow:visible;}
+.card h2{font-size:14px;margin:0 0 10px;}
+.pdf-btn {background:#fff;border: 1px solid var(--border);border-radius:10px;padding: 10px 16px;border-radius: 10px;font-size: 13px;font-weight: 600;cursor: pointer;margin-bottom: 16px;}
+.pdf-btn:hover {opacity: 0.9;}
+.link-btn {display: inline-block;background:#fff;border: 1px solid var(--border);border-radius:10px;padding: 10px 16px;font-size: 13px;font-weight: 600;cursor: pointer;margin-bottom: 16px;}
+
+/* --- Tooltip styling --- */
+.tooltip {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dotted var(--muted);
+}
+
+.tooltip .tooltiptext {
+  visibility: hidden;
+  width: 280px;
+  background-color: #111827;
+  color: #fff;
+  text-align: left;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  position: absolute;
+  z-index: 9999;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* --- Characteristic penalty buttons --- */
+.penalty-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.penalty-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.penalty-btn:hover { background: #f9f9f9; }
+.penalty-btn.active {
+  background: rgba(242,203,0,1);
+  border-color: rgba(180,148,0,1);
+  font-weight: 700;
+}
+
+/* ===== Distance map ===== */
+.map-mode-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.map-mode-btn:hover { background: #f9f9f9; }
+.map-mode-btn.active {
+  background: rgba(242,203,0,1);
+  border-color: rgba(180,148,0,1);
+  font-weight: 700;
+}
+#noise-map { position: relative; z-index: 1; }
+.map-status-row { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:8px; font-size:12px; font-weight:600; }
+
+/* ===== Collapsible cards ===== */
+.card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.card-header h2 { margin:0; }
+.collapse-btn { background:none; border:none; cursor:pointer; font-size:13px; padding:3px 7px; color:var(--muted); border-radius:6px; line-height:1; }
+.collapse-btn:hover { background:#f3f4f6; }
+.card-body.collapsed { display:none; }
+.collapse-all-btn { background:#fff; border:1px solid var(--border); border-radius:10px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; margin-bottom:14px; }
+.collapse-all-btn:hover { opacity:0.85; }
+
+/* ===== Source contributions table ===== */
+.contrib-sub-h { font-size:12px; font-weight:700; margin:0 0 6px; }
+.contrib-section + .contrib-section { margin-top:16px; }
+
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
+</head>
+<body>
+
+<div id="pdfArea">
+
+<div class="container">
+  <img src="resonate-logo.png" alt="Resonate" class="logo">
+  <button class="collapse-all-btn" id="collapseAllBtn">Collapse All</button>
+  <div class="h1">SA environmental noise criteria & noise screening tool</div>
+  <div class="sheet1">
+  <div class="p">
+    Enter the prompted information to understand the environmental noise criteria in accordance with 
+    Part 5 of the <i>Environment Protection (Commercial & Industrial) Noise Policy 2023</i> and to understand the order
+    noise levels from various noise sources.
+  </div>
+  <div class="i">
+    Disclaimer: This tool is not designed to provide definitive predictions or confirm compliance.
+    It serves only as a preliminary screening tool to indicate the potential for compliance. 
+    For a reliable assessment and formal advice, please contact <a href="https://resonate-consultants.com/" target="_blank" rel="noopener">Resonate Consultants</a>.
+  </div>
+  </div>
+  
+  <div class="sheet">
+    <div class="grid2">
+      <div class="card span2">
+        <h2>Selections</h2>
+        <div class="p">
+          Determine the zones and subzones for the noise source and adjacent receivers from <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA website</a>
+        </div>
+          
+        <div class="table-scroll">
+        <table>
+          <tr>
+            <th style="width:18%;">Location</th><th style="width:27%;">Zone / Subzone</th><th style="width:15%;">Land use</th><th style="width:10%;" class="center">Distance to receiver, m</th><th style="width:10%;" class="num">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num">Night L<sub>max</sub><br>criterion</th>
+          </tr>
+
+          <tr>
+            <td><b>Noise source (zone/subzone)</b></td>
+            <td><select id="src"></select></td>
+            <td id="src_land" class="left"></td>
+            <td class="left"></td>
+            <td class="num"></td>
+            <td class="num"></td>
+            <td class="num"></td>
+          </tr>
+
+          <tr>
+            <td><b>Receiver zone/subzone 1</b></td>
+            <td><select id="r1"></select></td>
+            <td id="r1_land" class="left"></td>
+          <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r1" placeholder=""></td>
+          <td id="r1_daycrit" class="num"></td>
+          <td id="r1_nightcrit" class="num"></td>
+          <td id="r1_lmaxcrit" class="num"></td>
+          </tr>
+          <tr>
+            <td><b>Receiver zone/subzone 2</b></td>
+            <td><select id="r2"></select></td>
+            <td id="r2_land" class="left"></td>
+          <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r2" placeholder=""></td>
+          <td id="r2_daycrit" class="num"></td>
+          <td id="r2_nightcrit" class="num"></td>
+          <td id="r2_lmaxcrit" class="num"></td>
+          </tr>
+          <tr>
+            <td><b>Receiver zone/subzone 3</b></td>
+            <td><select id="r3"></select></td>
+            <td id="r3_land" class="left"></td>
+          <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r3" placeholder=""></td>
+          <td id="r3_daycrit" class="num"></td>
+          <td id="r3_nightcrit" class="num"></td>
+          <td id="r3_lmaxcrit" class="num"></td>
+          </tr>
+          <tr>
+            <td><b>Receiver zone/subzone 4</b></td>
+            <td><select id="r4"></select></td>
+            <td id="r4_land" class="left"></td>
+          <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r4" placeholder=""></td>
+          <td id="r4_daycrit" class="num"></td>
+          <td id="r4_nightcrit" class="num"></td>
+          <td id="r4_lmaxcrit" class="num"></td>
+          </tr>
+        </table>
+
+        <div style="margin-top:10px;">
+          <span class="badge">Day = 7 am–10 pm</span>
+          <span class="badge">Night = 10 pm–7 am</span>
+          
+<span class="badge tooltip">
+  Criteria = INL − 5
+  <span class="tooltiptext">
+    INL = Indicative Noise Level as defined in the Environment Protection 
+    (Commercial & Industrial) Noise Policy 2023 Clause 5. It is the averaged value 
+      of the Indicative Noise Factors for the applicable land use categories used to determine environmental noise criteria.
+  </span>
+</span>
+
+        </div>
+        </div>
+      </div>
+
+      <!-- ===== DISTANCE MAP CARD ===== -->
+      <div class="card span2">
+        <h2>Distance Map</h2>
+        <div class="p">Click the map to place the <strong>noise source</strong> and up to <strong>4 receiver</strong> locations. Straight-line distances are calculated automatically and entered in the table above. Markers can be dragged to fine-tune positions.</div>
+
+        <!-- Location search -->
+        <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+          <input type="text" id="mapSearchInput" placeholder="Search for an address or place…" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:13px;background:white;">
+          <button class="map-mode-btn" id="mapSearchBtn" style="white-space:nowrap;">&#128269; Search</button>
+        </div>
+        <div id="mapSearchResults" style="display:none;border:1px solid var(--border);border-radius:10px;background:#fff;margin-bottom:8px;max-height:180px;overflow-y:auto;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
+
+        <!-- Mode buttons -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
+          <button class="map-mode-btn active" id="mapMode-source" title="Click map to place noise source">&#128205; Noise Source</button>
+          <button class="map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1" style="border-left:3px solid #2563eb;">&#9679; Receiver 1</button>
+          <button class="map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;">&#9679; Receiver 2</button>
+          <button class="map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;">&#9679; Receiver 3</button>
+          <button class="map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4" style="border-left:3px solid #7c3aed;">&#9679; Receiver 4</button>
+          <button class="map-mode-btn" id="mapClearBtn" title="Remove all markers and clear distances" style="margin-left:auto;color:#dc2626;border-color:#dc2626;">&#128465; Clear All</button>
+        </div>
+
+        <!-- Status row -->
+        <div class="map-status-row">
+          <span id="map-status-source" style="color:#dc2626;">&#128205; Source: not placed</span>
+          <span id="map-status-r1"     style="color:#2563eb;">&#9679; R1: not placed</span>
+          <span id="map-status-r2"     style="color:#16a34a;">&#9679; R2: not placed</span>
+          <span id="map-status-r3"     style="color:#d97706;">&#9679; R3: not placed</span>
+          <span id="map-status-r4"     style="color:#7c3aed;">&#9679; R4: not placed</span>
+        </div>
+
+        <!-- Map container -->
+        <div id="noise-map" style="height:430px;border-radius:10px;border:1px solid var(--border);"></div>
+        <div class="small" style="margin-top:6px;">Map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors. Distances are straight-line (Euclidean) only and do not account for terrain.</div>
+      </div>
+
+    </div>
+
+
+    <div class="grid2" style="padding-top:0;">
+      <div class="card">
+        <h2>Day situation – L<sub>eq</sub> selected noise sources</h2>
+        <table id="daySrcTable">
+          <tr>
+            <th style="width:42%;">Source</th>
+            <th style="width:12%;" class="center">Quantity</th>
+            <th style="width:16%;" class="center">Operational min in 15 min</th>
+            <th style="width:16%;" class="center">Include barrier</th>
+            <th style="width:14%;" class="num">Total Lw</th>
+          </tr>
+          <tbody id="daySrcRows"></tbody>
+          <tr>
+            <th colspan="4" class="num">TOTAL</th>
+            <th class="num" id="daySrcTotal">0</th>
+          </tr>
+        </table>
+        <div class="small" style="margin-top:8px;">
+          Barrier toggle applies a simple −5 dB adjustment to the item’s Total Lw when set to Yes.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Night situation – L<sub>eq</sub> selected noise sources</h2>
+        <table id="nightSrcTable">
+          <tr>
+            <th style="width:42%;">Source</th>
+            <th style="width:12%;" class="center">Quantity</th>
+            <th style="width:16%;" class="center">Operational min in 15 min</th>
+            <th style="width:16%;" class="center">Include barrier</th>
+            <th style="width:14%;" class="num">Total Lw</th>
+          </tr>
+          <tbody id="nightSrcRows"></tbody>
+          <tr>
+            <th colspan="4" class="num">TOTAL</th>
+            <th class="num" id="nightSrcTotal">0</th>
+          </tr>
+        </table>
+        <div class="small" style="margin-top:8px;">
+          Barrier toggle applies a simple −5 dB adjustment to the item’s Total Lw when set to Yes.
+          </div>
+        <div style="margin-top:20px;"></div>
+        <h2>Night situation – L<sub>max</sub> selected noise source</h2>
+        <table id="nightLmaxTable">
+          <tr>
+            <th style="width:54%;">Source</th>
+            <th style="width:16%;" class="center">Quantity</th>
+            <th style="width:15%;" class="center">Include barrier</th>
+            <th style="width:15%;" class="num">Total Lw</th>
+          </tr>
+          <tbody id="nightLmaxRows"></tbody>
+          <tr>
+            <th colspan="3" class="num">TOTAL</th>
+            <th class="num" id="nightLmaxTotal">0</th>
+          </tr>
+        </table>
+        <div class="small" style="margin-top:8px;">
+          Barrier toggle applies a simple −5 dB adjustment to the item’s Total Lw when set to Yes.
+        </div>
+        
+      
+</div>
+    </div>
+   
+    <div class="grid2" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Source Contributions</h2>
+        <div class="p">Predicted sound pressure level at each receiver from individual sources, based on a point-source propagation model (−20 log<sub>10</sub> distance − 8 dB). Levels shown include any quantity, operational time, and barrier adjustments applied in the source tables above.</div>
+        <div class="contrib-section">
+          <div class="contrib-sub-h">Day L<sub>eq</sub> contributions at receivers (dB(A))</div>
+          <div class="table-scroll"><table id="contribDayTable"></table></div>
+        </div>
+        <div class="contrib-section">
+          <div class="contrib-sub-h">Night L<sub>eq</sub> contributions at receivers (dB(A))</div>
+          <div class="table-scroll"><table id="contribNightTable"></table></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Characteristic Penalty</h2>
+        <div class="p">Apply a <span class="tooltip">characteristic penalty
+    <span class="tooltiptext">
+      The presence of an annoying characteristic attracts a decibel penalty under clause 13(3) of the Noise Policy. A penalty is applied because 
+noise with such dominant characteristics are more noticeable and annoying when compared to a constant, broadband or steady noise.  For a penalty to be applied, the Noise Policy requires the characteristic to be fundamental to the nature and impact of the 
+noise. The characteristic should dominate the overall noise impact, rather than simply be part of it. Noise characteristics include tonal, impulsive, low frequency, intermittent and modulating. Refer to <a href="https://www.epa.sa.gov.au/files/15663_guide_noise_policy_2023.pdf" target="_blank">
+  SA EPA Noise Policy Guideline (2023)</a> for details on noise characters.
+    </span>
+     </span>     
+      to the predicted L<sub>eq</sub> levels before comparison with criteria. Select separately for day and night as required. The penalised level is shown in the results table.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;">
+          <div>
+            <div class="h2">Day L<sub>eq</sub> penalty</div>
+            <div class="penalty-group" id="dayPenaltyGroup">
+              <button class="penalty-btn active" data-val="0">No penalty (0 dB)</button>
+              <button class="penalty-btn" data-val="5">1 character (+5 dB)</button>
+              <button class="penalty-btn" data-val="8">2 characters (+8 dB)</button>
+              <button class="penalty-btn" data-val="10">3+ characters (+10 dB)</button>
+            </div>
+          </div>
+          <div>
+            <div class="h2">Night L<sub>eq</sub> penalty</div>
+            <div class="penalty-group" id="nightPenaltyGroup">
+              <button class="penalty-btn active" data-val="0">No penalty (0 dB)</button>
+              <button class="penalty-btn" data-val="5">1 character (+5 dB)</button>
+              <button class="penalty-btn" data-val="8">2 characters (+8 dB)</button>
+              <button class="penalty-btn" data-val="10">3+ characters (+10 dB)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card span2">
+        <h2>Predicted noise levels</h2>
+      <div class="table-scroll">
+    <table>
+      <tr>
+        <th style="width:16%;">Receiver (Zone / Subzone)</th>
+        <!--<th style="width:14%;" class="center">Receiver land use</th>-->
+
+        <th style="width:7%;" class="num">Day <br>L<sub>eq</sub> predicted</th>
+        <th style="width:7%;" class="num">Day <br>L<sub>eq</sub> criterion</th>
+        <th style="width:7%;" class="num">Day <br>L<sub>eq</sub> Δ</th>
+        <th style="width:7%;" class="center">Day <br>L<sub>eq</sub> OK?</th>
+
+        <th style="width:7%;" class="num">Night <br>L<sub>eq</sub> predicted</th>
+        <th style="width:7%;" class="num">Night <br>L<sub>eq</sub> criterion</th>
+        <th style="width:7%;" class="num">Night <br>L<sub>eq</sub> Δ</th>
+        <th style="width:7%;" class="center">Night <br>L<sub>eq</sub> OK?</th>
+
+        <th style="width:7%;" class="num">Night <br>L<sub>max</sub> predicted</th>
+        <th style="width:7%;" class="num">Night <br>L<sub>max</sub> criterion</th>
+        <th style="width:7%;" class="num">Night <br>L<sub>max</sub> Δ</th>
+        <th style="width:7%;" class="center">Night <br>L<sub>max</sub> OK?</th>
+      </tr>
+      <tbody id="rows"></tbody>
+    </table>
+
+    <div style="padding:12px 14px;">
+      <span class="badge">Δ = Predicted − Criterion (≤ 0 is compliant)</span>
+      <span class="badge">Residential/Rural Living caps: L<sub>eq</sub>52 day, L<sub>eq</sub>45 night, L<sub>max</sub> 60 night</span>
+    </div>
+  </div>
+  </div>
+  </div>
+  </div>
+  <div class="sheet1" style="margin-top:20px;">
+    <div class="h2">Sound pressure level calculator</div>
+    <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources.
+    It does not consider ground and air absorption or meteorological effects, which are more significant over large distances.
+    It is intended to be used a simple screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.
+    </div>
+    <div class="h2">Barrier attenuation</div>
+    <div class="p">The barrier provides overall 5 dB attenuation. This is a conservative indication of the attenuation provided by a solid acoustic barrier which blocks line of sight between the noise source and receiver.
+    Actual acoustic barrier attenuation may vary in complex terrain or environments with hard reflective surfaces in proximity to the source and/or receiver.
+    </div>
+    <div class="h2">Operational time</div>
+    <div class="p" style="margin-bottom:0;">The calculation provides an option to input the expected operational time during a 15 minute assessment period.
+    This will provide a 10·log time weighting to the source level to account for the contribution during the assessment period.
+    </div>
+  </div>
+  <div style="margin-top:14px;"></div>
+  <button class="pdf-btn" id="pdfBtn" type="button">Export PDF</button>
+</div>
+</div>
+
+
+<script>
+const DATA = [{"key": "Adelaide Park Lands Zone | (no subzone)", "zone": "Adelaide Park Lands Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Adelaide Park Lands Zone | Adelaide Aquatic Centre Subzone", "zone": "Adelaide Park Lands Zone", "subzone": "Adelaide Aquatic Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Business Neighbourhood Zone | (no subzone)", "zone": "Business Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Business Neighbourhood Zone | Melbourne Street West Subzone", "zone": "Business Neighbourhood Zone", "subzone": "Melbourne Street West Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Capital City Zone | (no subzone)", "zone": "Capital City Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Capital City Zone | City Frame Subzone", "zone": "Capital City Zone", "subzone": "City Frame Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Caravan and Tourist Park Zone | (no subzone)", "zone": "Caravan and Tourist Park Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | (no subzone)", "zone": "City Living Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | Medium-High Intensity Subzone", "zone": "City Living Zone", "subzone": "Medium-High Intensity Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | North Adelaide Low Intensity Subzone", "zone": "City Living Zone", "subzone": "North Adelaide Low Intensity Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | East Terrace Subzone", "zone": "City Living Zone", "subzone": "East Terrace Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Main Street Zone | (no subzone)", "zone": "City Main Street Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Main Street Zone | Gouger and Grote Street Subzone", "zone": "City Main Street Zone", "subzone": "Gouger and Grote Street Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Main Street Zone | Hindley Street Subzone", "zone": "City Main Street Zone", "subzone": "Hindley Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Main Street Zone | Rundle Mall Subzone", "zone": "City Main Street Zone", "subzone": "Rundle Mall Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Main Street Zone | Rundle Street Subzone", "zone": "City Main Street Zone", "subzone": "Rundle Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Main Street Zone | City High Street Subzone", "zone": "City Main Street Zone", "subzone": "City High Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Riverbank Zone | (no subzone)", "zone": "City Riverbank Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Cultural Institutions Subzone", "zone": "City Riverbank Zone", "subzone": "Cultural Institutions Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Entertainment Subzone", "zone": "City Riverbank Zone", "subzone": "Entertainment Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Health Subzone", "zone": "City Riverbank Zone", "subzone": "Health Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Innovation Subzone", "zone": "City Riverbank Zone", "subzone": "Innovation Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Coastal Waters and Offshore Islands Zone | (no subzone)", "zone": "Coastal Waters and Offshore Islands Zone", "subzone": "", "land_use_raw": "Rural Living, Rural Industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Commonwealth Facilities Zone | (no subzone)", "zone": "Commonwealth Facilities Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Community Facilities Zone | (no subzone)", "zone": "Community Facilities Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Community Facilities Zone | St Andrews Hospital Precinct Subzone", "zone": "Community Facilities Zone", "subzone": "St Andrews Hospital Precinct Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Community Facilities Zone | Women’s and Children’s Hospital and Memorial Hospital Precinct Subzone", "zone": "Community Facilities Zone", "subzone": "Women’s and Children’s Hospital and Memorial Hospital Precinct Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Community Facilities Zone | Neighbourhood Subzone", "zone": "Community Facilities Zone", "subzone": "Neighbourhood Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Conservation Zone | (no subzone)", "zone": "Conservation Zone", "subzone": "", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Aquaculture and Recreation Subzone", "zone": "Conservation Zone", "subzone": "Aquaculture and Recreation Subzone", "land_use_raw": "Rural Living, Rural industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Conservation Zone | Dwelling Subzone", "zone": "Conservation Zone", "subzone": "Dwelling Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Shack Relocation Subzone", "zone": "Conservation Zone", "subzone": "Shack Relocation Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Small Scale Settlement Subzone", "zone": "Conservation Zone", "subzone": "Small Scale Settlement Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Visitor Experience Subzone", "zone": "Conservation Zone", "subzone": "Visitor Experience Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Deferred Urban Zone | (no subzone)", "zone": "Deferred Urban Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Employment Zone | (no subzone)", "zone": "Employment Zone", "subzone": "", "land_use_raw": "Light Industry, Commercial", "inf_day": 60, "inf_night": 53, "is_single": 0, "single_cat": ""}, {"key": "Employment Zone | Roadside Service Centre Subzone", "zone": "Employment Zone", "subzone": "Roadside Service Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Employment Zone | Retail Activity Centre Subzone", "zone": "Employment Zone", "subzone": "Retail Activity Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Employment (Bulk Handling) Zone | (no subzone)", "zone": "Employment (Bulk Handling) Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Employment (Enterprise) Zone | (no subzone)", "zone": "Employment (Enterprise) Zone", "subzone": "", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Employment (Enterprise) Zone | Light Industry Subzone", "zone": "Employment (Enterprise) Zone", "subzone": "Light Industry Subzone", "land_use_raw": "Light industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Light Industry"}, {"key": "Established Neighbourhood Zone | (no subzone)", "zone": "Established Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "General Neighbourhood Zone | (no subzone)", "zone": "General Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Golf Course Estate Zone | (no subzone)", "zone": "Golf Course Estate Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Hills Face Zone | (no subzone)", "zone": "Hills Face Zone", "subzone": "", "land_use_raw": "Rural Living, Rural Industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Hills Neighbourhood Zone | (no subzone)", "zone": "Hills Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Home Industry Zone | (no subzone)", "zone": "Home Industry Zone", "subzone": "", "land_use_raw": "Residential, Light Industry", "inf_day": 55, "inf_night": 48, "is_single": 0, "single_cat": ""}, {"key": "Housing Diversity Neighbourhood Zone | (no subzone)", "zone": "Housing Diversity Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Infrastructure Zone | (no subzone)", "zone": "Infrastructure Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Infrastructure (Airfield) Zone | (no subzone)", "zone": "Infrastructure (Airfield) Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Infrastructure (Airfield) Zone | Residential Aviation Estate Subzone", "zone": "Infrastructure (Airfield) Zone", "subzone": "Residential Aviation Estate Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Infrastructure (Ferry and Marina Facilities) Zone | (no subzone)", "zone": "Infrastructure (Ferry and Marina Facilities) Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Infrastructure (Ferry and Marina Facilities) Zone | Wallaroo Marina Subzone", "zone": "Infrastructure (Ferry and Marina Facilities) Zone", "subzone": "Wallaroo Marina Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Local Activity Centre Zone | (no subzone)", "zone": "Local Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Master Planned Neighbourhood Zone | (no subzone)", "zone": "Master Planned Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Neighbourhood Zone | Emerging Activity Centre Subzone", "zone": "Master Planned Neighbourhood Zone", "subzone": "Emerging Activity Centre Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Neighbourhood Zone | Hills Subzone", "zone": "Master Planned Neighbourhood Zone", "subzone": "Hills Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Renewal Zone | (no subzone)", "zone": "Master Planned Renewal Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Township Zone | (no subzone)", "zone": "Master Planned Township Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Township Zone | Emerging Township Activity Centre Subzone", "zone": "Master Planned Township Zone", "subzone": "Emerging Township Activity Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Motorsport Park Zone | (no subzone)", "zone": "Motorsport Park Zone", "subzone": "", "land_use_raw": "Special industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Neighbourhood Zone | (no subzone)", "zone": "Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | American River Subzone", "zone": "Neighbourhood Zone", "subzone": "American River Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Roxby Downs Subzone", "zone": "Neighbourhood Zone", "subzone": "Roxby Downs Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Underground Subzone", "zone": "Neighbourhood Zone", "subzone": "Underground Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Wallaroo Landmark Subzone", "zone": "Neighbourhood Zone", "subzone": "Wallaroo Landmark Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Waterfront Subzone", "zone": "Neighbourhood Zone", "subzone": "Waterfront Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Productive Rural Landscape Zone | (no subzone)", "zone": "Productive Rural Landscape Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Productive Rural Landscape Zone | The Cedars Subzone", "zone": "Productive Rural Landscape Zone", "subzone": "The Cedars Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Recreation Zone | (no subzone)", "zone": "Recreation Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Recreation Zone | Adelaide Showgrounds Subzone", "zone": "Recreation Zone", "subzone": "Adelaide Showgrounds Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Remote Areas Zone | (no subzone)", "zone": "Remote Areas Zone", "subzone": "", "land_use_raw": "Rural Living, Residential, Rural Industry, Commercial, General Industry", "inf_day": 57, "inf_night": 49, "is_single": 0, "single_cat": ""}, {"key": "Residential Park Zone | (no subzone)", "zone": "Residential Park Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Resource Extraction Zone | (no subzone)", "zone": "Resource Extraction Zone", "subzone": "", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Rural Zone | (no subzone)", "zone": "Rural Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Zone | Kangaroo Island Subzone", "zone": "Rural Zone", "subzone": "Kangaroo Island Subzone", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Aquaculture Zone | (no subzone)", "zone": "Rural Aquaculture Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Horticulture Zone | (no subzone)", "zone": "Rural Horticulture Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Horticulture Zone | Windamere Park Subzone", "zone": "Rural Horticulture Zone", "subzone": "Windamere Park Subzone", "land_use_raw": "Residential, Rural Industry", "inf_day": 55, "inf_night": 48, "is_single": 0, "single_cat": ""}, {"key": "Rural Intensive Enterprise Zone | (no subzone)", "zone": "Rural Intensive Enterprise Zone", "subzone": "", "land_use_raw": "Rural Industry, General Industry", "inf_day": 61, "inf_night": 53, "is_single": 0, "single_cat": ""}, {"key": "Rural Living Zone | (no subzone)", "zone": "Rural Living Zone", "subzone": "", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Rural Living Zone | Animal Husbandry Subzone", "zone": "Rural Living Zone", "subzone": "Animal Husbandry Subzone", "land_use_raw": "Rural Living, Rural Industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Rural Living Zone | Intensive Horse Establishments Subzone", "zone": "Rural Living Zone", "subzone": "Intensive Horse Establishments Subzone", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Neighbourhood Zone | (no subzone)", "zone": "Rural Neighbourhood Zone", "subzone": "", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Rural Neighbourhood Zone | Bookmark Creek Subzone", "zone": "Rural Neighbourhood Zone", "subzone": "Bookmark Creek Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Rural Neighbourhood Zone | Adelaide Hills Subzone", "zone": "Rural Neighbourhood Zone", "subzone": "Adelaide Hills Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Rural Settlement Zone | (no subzone)", "zone": "Rural Settlement Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Rural Settlement Zone | Fisherman Bay Subzone", "zone": "Rural Settlement Zone", "subzone": "Fisherman Bay Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Rural Shack Settlement Zone | (no subzone)", "zone": "Rural Shack Settlement Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Strategic Employment Zone | (no subzone)", "zone": "Strategic Employment Zone", "subzone": "", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Strategic Employment Zone | Gillman Subzone", "zone": "Strategic Employment Zone", "subzone": "Gillman Subzone", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Strategic Employment Zone | National Naval Shipbuilding Subzone", "zone": "Strategic Employment Zone", "subzone": "National Naval Shipbuilding Subzone", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Strategic Employment Zone | Ports Subzone", "zone": "Strategic Employment Zone", "subzone": "Ports Subzone", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Strategic Employment Zone | Significant Industry Subzone", "zone": "Strategic Employment Zone", "subzone": "Significant Industry Subzone", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Strategic Innovation Zone | (no subzone)", "zone": "Strategic Innovation Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Strategic Innovation Zone | Rehabilitation Subzone", "zone": "Strategic Innovation Zone", "subzone": "Rehabilitation Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Strategic Innovation Zone | Flinders Subzone", "zone": "Strategic Innovation Zone", "subzone": "Flinders Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Strategic Innovation Zone | Repatriation Subzone", "zone": "Strategic Innovation Zone", "subzone": "Repatriation Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Strategic Innovation Zone | Activity Node Subzone", "zone": "Strategic Innovation Zone", "subzone": "Activity Node Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Suburban Activity Centre Zone | (no subzone)", "zone": "Suburban Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Suburban Business Zone | (no subzone)", "zone": "Suburban Business Zone", "subzone": "", "land_use_raw": "Residential, Light Industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Suburban Main Street Zone | (no subzone)", "zone": "Suburban Main Street Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Suburban Neighbourhood Zone | (no subzone)", "zone": "Suburban Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Tourism Development Zone | (no subzone)", "zone": "Tourism Development Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Tourism Development Zone | Monarto Safari Park Subzone", "zone": "Tourism Development Zone", "subzone": "Monarto Safari Park Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Tourism Development Zone | River Murray Experience Subzone", "zone": "Tourism Development Zone", "subzone": "River Murray Experience Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Tourism Development Zone | Winery Experience Subzone", "zone": "Tourism Development Zone", "subzone": "Winery Experience Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Township Neighbourhood Zone | (no subzone)", "zone": "Township Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Township Zone | (no subzone)", "zone": "Township Zone", "subzone": "", "land_use_raw": "Residential, Light Industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Township Zone | Nairne Redevelopment Subzone", "zone": "Township Zone", "subzone": "Nairne Redevelopment Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Township Activity Centre Zone | (no subzone)", "zone": "Township Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Township Main Street Zone | (no subzone)", "zone": "Township Main Street Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Activity Centre Zone | (no subzone)", "zone": "Urban Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Activity Centre Zone | Port Adelaide Centre Subzone", "zone": "Urban Activity Centre Zone", "subzone": "Port Adelaide Centre Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Corridor (Boulevard) Zone | (no subzone)", "zone": "Urban Corridor (Boulevard) Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Corridor (Business) Zone | (no subzone)", "zone": "Urban Corridor (Business) Zone", "subzone": "", "land_use_raw": "Light industry, Commercial", "inf_day": 60, "inf_night": 53, "is_single": 0, "single_cat": ""}, {"key": "Urban Corridor (Business) Zone | Urban Corridor Business Retail Subzone", "zone": "Urban Corridor (Business) Zone", "subzone": "Urban Corridor Business Retail Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Corridor (Living) Zone | (no subzone)", "zone": "Urban Corridor (Living) Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Urban Corridor (Living) Zone | Urban Corridor Living Retail Subzone", "zone": "Urban Corridor (Living) Zone", "subzone": "Urban Corridor Living Retail Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Corridor (Main Street) Zone | (no subzone)", "zone": "Urban Corridor (Main Street) Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Neighbourhood Zone | (no subzone)", "zone": "Urban Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential, Light industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Neighbourhood Zone | Main Street Subzone", "zone": "Urban Neighbourhood Zone", "subzone": "Main Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Neighbourhood Zone | Urban Neighbourhood Retail Subzone", "zone": "Urban Neighbourhood Zone", "subzone": "Urban Neighbourhood Retail Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Renewal Neighbourhood Zone | (no subzone)", "zone": "Urban Renewal Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Urban Renewal Neighbourhood Zone | Mixed Use Transition Subzone", "zone": "Urban Renewal Neighbourhood Zone", "subzone": "Mixed Use Transition Subzone", "land_use_raw": "Residential, Light Industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Renewal Neighbourhood Zone | Landscape Transition Subzone", "zone": "Urban Renewal Neighbourhood Zone", "subzone": "Landscape Transition Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Waterfront Neighbourhood Zone | (no subzone)", "zone": "Waterfront Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Workers’ Settlement Zone | (no subzone)", "zone": "Workers’ Settlement Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Open Space Zone | Rural Living in non-urban areas", "zone": "Open Space Zone", "subzone": "", "land_use_raw": "Rural Living in non-urban areas", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Open Space Zone | Residential in urban areas", "zone": "Open Space Zone", "subzone": "", "land_use_raw": "Residential in urban areas", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}];
+const SOURCE_LIBRARY_GROUPED = {
+  "Mechanical units": [
+    {"name":"Small exhaust fan (toilet, garbage room) - Lw 60 dB(A)","lw":60.4},
+    {"name":"Small kitchen exhaust fan - Lw 70 dB(A)","lw":70.4},
+    {"name":"Carpark exhaust fan Lw 85 dB(A) - outlet","lw":85.1},
+    {"name":"Large General exhaust fan—Lw 94 dB(A) / Lp 75 dB(A) at 3m","lw":94.0},
+    {"name":"Smoke Spill Fans—outlet—Lw 102 dB(Z) / Lw 95 dB(A) / Lp 75 dB(A) @ 3m","lw":95.5},
+    {"name":"Large Dust Extractor - Lw 97 dB(A) / 75 dB(A) @ 5m","lw":96.5},
+    {"name":"Medium Dust Extractor - Lw 91 dB(A) / 68 dB(A) @ 5m","lw":90.5},
+
+    {"name":"Condenser - small single fan outdoor unit (Lw 65 dB(A))","lw":65.7},
+    {"name":"Condenser - medium double fan outdoor unit (Lw 70 dB(A))","lw":70.7},
+    {"name":"Condenser - large double fan outdoor unit (Lw 80 dB(A))","lw":75.7},
+
+    {"name":"Air Conditioning Condenser (High Fan Speed) - Supermarket Lw 85 dB(A)","lw":84.5},
+    {"name":"Refrigeration Condenser (High Fan Speed) - Supermarket Lw 88 dB(A)","lw":87.6},
+
+    {"name":"Evaporative cooler—Braemar RPB600 Radiated—Lw 80 dB(A)","lw":80.3},
+    {"name":"Evaporative cooler—Braemar RPB700 Radiated—Lw 78 dB(A)","lw":77.9},
+    {"name":"Evaporative cooler—Braemar RPB900 Radiated—Lw 84 dB(A)","lw":84.6},
+    {"name":"Evaporative cooler—Braemar RPB1000 Radiated—Lw 89 dB(A)","lw":89.9},
+    {"name":"Evaporative cooler—Braemar RPB1200 Radiated—Lw 88 dB(A)","lw":88.9},
+    {"name":"Evaporative cooler—Braemar RPB1300 Radiated—Lw 89 dB(A)","lw":89.9},
+    {"name":"Evaporative cooler—Braemar RPB1400 Radiated—Lw 93 dB(A)","lw":92.9},
+    {"name":"Evaporative cooler—Braemar RPB1500 Radiated—Lw 94 dB(A)","lw":94.3},
+    {"name":"Evaporative cooler—Braemar RPB1800 Radiated—Lw 96 dB(A)","lw":96.5},
+
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard Lw 99 dB(A)","lw":99.0},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15 Lw 95 dB(A)","lw":95.0},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500  Standard+Option15LS Lw 91 dB(A)","lw":91.0},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500  Standard+Option15LS+ Lw 89 dB(A)","lw":88.8},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard Lw 99 dB(A)","lw":99.1},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350  Standard+Option15 Lw 94 dB(A)","lw":94.0},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350  Standard+Option15LS Lw 87 dB(A)","lw":87.1},
+    {"name":"Daikin air colled single screw chiller / heat pump Lw 102 dB(A)","lw":102.4},
+
+    {"name":"Cooling Tower (single unit, 5.5kW, 2.28x2.28x3.25mm) Lw 87 dB(A)","lw":87.4},
+
+    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed  with genset mounted muffler - @75% load 96 dB(A) Lw)","lw":95.8},
+    {"name":"Enclosed Generator Set 220kVA —Cummins C220 D5e 50 Hz (enclosed  with genset mounted muffler - @100% load 97 dB(A) Lw)","lw":96.6},
+    {"name":"Enclosed Generator Set 220kVA —Cummins C220 D5e 50 Hz (enclosed  with genset mounted muffler - @110% load 97 dB(A) Lw)","lw":96.8},
+    {"name":"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime - engine, no exhaust no muffler)","lw":117.1},
+    {"name":"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime - open exhaust)","lw":126.1},
+
+    {"name":"Firepump PowerMaXX DP4400N 2400 RPM 101 dB(A) @ 1m","lw":111.7}
+  ],
+
+  "Trucks": [
+    {"name":"Small truck idling","lw":90.3},
+    {"name":"Small truck driving slowly (Lw/m)","lw":99.3},
+    {"name":"Small truck exhaust (Lw/m)","lw":91.3},
+    {"name":"Small truck accelerating - Lmax","lw":106.3},
+
+    {"name":"Medium truck idling","lw":93.5},
+    {"name":"Medium truck driving slowly (Lw/m)","lw":102.3},
+    {"name":"Medium truck exhaust (Lw/m)","lw":94.3},
+    {"name":"Medium truck accelerating - Lmax","lw":109.2},
+
+    {"name":"Large truck idling","lw":96.1},
+    {"name":"Large truck driving slowly (Lw/m)","lw":105.2},
+    {"name":"Large truck exhaust (Lw/m)","lw":97.2},
+    {"name":"Large truck accelerating - Lmax","lw":112.2},
+
+    {"name":"Refrigerated truck condenser (small/medium truck)","lw":92.4},
+    {"name":"Refrigerated truck condenser (large truck)","lw":98.5},
+    {"name":"Truck air brake release Lmax","lw":111.1},
+    {"name":"Truck air horn Lmax","lw":118.7},
+
+    {"name":"Car idling","lw":75.0},
+    {"name":"Car driving slowly (Lw/m)","lw":81.0},
+    {"name":"Van idling","lw":80.0},
+    {"name":"Van driving slowly","lw":86.0},
+    {"name":"Car engine start - Lmax","lw":98.3},
+    {"name":"Car door slam - Lmax","lw":98.0},
+    {"name":"Car driving slowly < 30 km/h","lw":47.0}
+  ],
+
+  "Fast food outlets": [
+    {"name":"Speaker box","lw":83.8},
+    {"name":"Speaker box - Lmax","lw":99.7},
+    {"name":"Voice at pickup window","lw":68.2}
+  ],
+
+  "Industrial (forklifts / warehouse)": [
+    {"name":"Electric forklift - typical activity","lw":84.1},
+    {"name":"Gas forklift - typical activity","lw":91.7},
+    {"name":"Diesel forklift - typical activity","lw":100.1},
+    {"name":"Electric forklift - driving (Lw/m)","lw":53.0},
+    {"name":"Gas forklift - driving (Lw/m)","lw":62.0},
+    {"name":"Diesel forklift - driving (Lw/m)","lw":62.2},
+    {"name":"Forklift clanging forks - Lmax","lw":110.8},
+    {"name":"Forklift horn - Lmax","lw":111.3},
+    {"name":"Warehouse - internal reverberant level","lw":80.7},
+    {"name":"Vacuum","lw":88.1}
+  ],
+
+  "Car wash": [
+    {"name":"Car wash - manual","lw":96.0},
+    {"name":"Car wash - auto","lw":91.2}
+  ],
+
+  "Dog wash": [
+    {"name":"Dog wash","lw":86.0},
+    {"name":"Dog barking - SEL per bark","lw":101.0},
+    {"name":"Dog barking - Lmax","lw":95.0}
+  ],
+
+  "Childcare": [
+    {"name":"10 children: 0 - 2 years","lw":77.6},
+    {"name":"10 children: 2 - 3 years","lw":84.6},
+    {"name":"10 children: 3 - 5 years","lw":86.6}
+  ],
+
+  "Patrons": [
+    {"name":"Outdoor patron","lw":74.2},
+    {"name":"Patron in bar setting (SA)","lw":74.2},
+    {"name":"Vertical consumption ('worst-case' crowd) - per person","lw":88.0},
+    {"name":"Taverns with significant food offerings - per person","lw":83.0},
+    {"name":"Restaurant dining - per person","lw":78.0},
+    {"name":"Small smoking areas (<40 patrons) - per person","lw":73.0},
+    {"name":"Male talker - normal vocal effort","lw":58.0},
+    {"name":"Male talker - raised vocal effort","lw":66.3},
+    {"name":"Male talker - loud vocal effort","lw":75.6}
+  ],
+
+  "Music": [
+    {"name":"Background music - conversation and normal effort - Leq","lw":70.0},
+    {"name":"Background music - conversation and normal effort - L10","lw":72.0},
+    {"name":"Background music - conversation and raised effort - Leq","lw":75.0},
+    {"name":"Background music - conversation and raised effort - L10","lw":77.0},
+    {"name":"Foreground music - Acoustic amplified - Leq","lw":80.0},
+    {"name":"Foreground music - Acoustic amplified - L10","lw":82.0},
+    {"name":"Foreground music - Ambient DJ - Leq","lw":85.2},
+    {"name":"Foreground music - Ambient DJ - L10","lw":87.2},
+    {"name":"Foreground music - Function room / wedding - Leq","lw":89.6},
+    {"name":"Foreground music - Function room / wedding - L10","lw":91.6},
+    {"name":"Foreground music - nightclub - Leq","lw":95.4},
+    {"name":"Foreground music - nightclub - L10","lw":97.4}
+  ],
+
+  "Gymnasium": [
+    {"name":"Gymnasium - general sporting activity, overall reverberant level","lw":75.2}
+  ]
+};
+
+function flattenGrouped(grouped){
+  return Object.values(grouped).reduce((acc, arr) => acc.concat(arr), []);
+}
+function filterGrouped(grouped, predicate){
+  const out = {};
+  for (const [group, arr] of Object.entries(grouped)){
+    const f = arr.filter(predicate);
+    if (f.length) out[group] = f;
+  }
+  return out;
+}
+
+const SOURCE_LIBRARY_ALL = flattenGrouped(SOURCE_LIBRARY_GROUPED);
+const SOURCE_LIBRARY = SOURCE_LIBRARY_ALL.filter(s => !/lmax/i.test(String(s.name)));
+const SOURCE_LIBRARY_LMAX = SOURCE_LIBRARY_ALL.filter(s => /lmax/i.test(String(s.name)));
+const SOURCE_LIBRARY_GROUPED_NON_LMAX = filterGrouped(SOURCE_LIBRARY_GROUPED, s => !/lmax/i.test(String(s.name)));
+const SOURCE_LIBRARY_GROUPED_LMAX = filterGrouped(SOURCE_LIBRARY_GROUPED, s => /lmax/i.test(String(s.name)));
+
+// Characteristic penalty state (dB added to predicted Leq before comparison)
+let dayPenalty = 0;
+let nightPenalty = 0;
+
+const byKey = new Map(DATA.map(r => [r.key, r]));
+const keys = DATA.map(r => r.key).sort((a,b)=>a.localeCompare(b));
+
+function fillSelect(id) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = "";
+  const blank = document.createElement('option');
+  blank.value = "";
+  blank.textContent = "— Select —";
+  sel.appendChild(blank);
+  for (const k of keys) {
+    const o = document.createElement('option');
+    o.value = k;
+    o.textContent = k;
+    sel.appendChild(o);
+  }
+}
+
+function fmt(x) {
+  if (x === null || x === undefined || x === "") return "";
+  const n = Number(x);
+  return Number.isFinite(n) ? String(Math.round(n)) : "";
+}
+
+function landDisplay(rec) {
+  if (!rec) return "";
+  return rec.is_single == 1 ? rec.single_cat : rec.land_use_raw;
+}
+
+function receiverSingleLand(rec) {
+  // Match the land-use text shown in the top table exactly:
+  // single-category => single_cat, otherwise => land_use_raw (comma-separated list)
+  if (!rec) return "";
+  return rec.is_single == 1 ? rec.single_cat : rec.land_use_raw;
+}
+
+function isResOrRuralLivingSingle(rec) {
+  return rec && rec.is_single == 1 && (rec.single_cat === "Residential" || rec.single_cat === "Rural Living");
+}
+
+
+// --- Noise source calculators (Day / Night) ---
+function log10(x){ return Math.log(x) / Math.LN10; }
+
+function rowTotalLw(baseLw, n, minutes){
+  if (!Number.isFinite(baseLw)) return 0;
+  if (!Number.isFinite(n) || n <= 0) return 0;
+
+  // Minutes is "operational minutes within a 15 minute period".
+  // If blank/missing, assume 15 minutes (i.e., no adjustment).
+  let m;
+  if (minutes === "" || minutes === null || minutes === undefined) m = 15;
+  else m = Number(minutes);
+
+  if (!Number.isFinite(m)) m = 15;
+  if (m <= 0) return 0;
+
+  return baseLw + 10 * log10(n) + 10 * log10(m / 15);
+}
+
+function energeticSum(dBArray){
+  let sum = 0;
+  for (const v of dBArray){
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) sum += Math.pow(10, n/10);
+  }
+  return sum > 0 ? 10 * log10(sum) : 0;
+}
+
+function round1(x){
+  const n = Number(x);
+  if (!Number.isFinite(n)) return "";
+  return String(Math.round(n * 10) / 10);
+}
+
+function getDayTotal(){
+  const el = document.getElementById('daySrcTotal');
+  if (!el) return NaN;
+  const n = Number(el.textContent);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function getNightTotal(){
+  const el = document.getElementById('nightSrcTotal');
+  if (!el) return NaN;
+  const n = Number(el.textContent);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function getNightLmaxTotal(){
+  const el = document.getElementById('nightLmaxTotal');
+  if (!el) return NaN;
+  const n = Number(el.textContent);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+
+function getReceiverDistance(idx1to4){
+  const el = document.getElementById(`dist_r${idx1to4}`);
+  if (!el) return NaN;
+  const n = Number(el.value);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function calcDayPredAtReceiver(totalDaySingleValue, distanceM){
+  // Day Pred = Total day single value - 20*log10(distance) - 8
+  if (!Number.isFinite(totalDaySingleValue) || !Number.isFinite(distanceM) || distanceM <= 0) return "";
+  const pred = totalDaySingleValue - 20 * log10(distanceM) - 8;
+  return Math.round(pred);
+}
+
+function calcNightPredAtReceiver(totalNightSingleValue, distanceM){
+  // Night Pred = Total night single value - 20*log10(distance) - 8
+  if (!Number.isFinite(totalNightSingleValue) || !Number.isFinite(distanceM) || distanceM <= 0) return "";
+  const pred = totalNightSingleValue - 20 * log10(distanceM) - 8;
+  return Math.round(pred);
+}
+
+function calcLmaxPredAtReceiver(totalLmaxSingleValue, distanceM){
+  // Lmax Pred = Total Lmax single value - 20*log10(distance) - 8
+  if (!Number.isFinite(totalLmaxSingleValue) || !Number.isFinite(distanceM) || distanceM <= 0) return "";
+  const pred = totalLmaxSingleValue - 20 * log10(distanceM) - 8;
+  return Math.round(pred);
+}
+
+
+function makeSourceSelect(value="", library=SOURCE_LIBRARY_GROUPED_NON_LMAX){
+  const sel = document.createElement("select");
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "— Select —";
+  sel.appendChild(blank);
+
+  // library can be either:
+  // - Array of {name,lw}
+  // - Object of { "Group name": [ {name,lw}, ... ], ... }  (renders <optgroup>)
+  if (Array.isArray(library)){
+    for (const s of library){
+      const o = document.createElement("option");
+      o.value = s.name;
+      o.textContent = s.name;
+      sel.appendChild(o);
+    }
+  } else if (library && typeof library === "object"){
+    for (const [groupName, arr] of Object.entries(library)){
+      const og = document.createElement("optgroup");
+      og.label = groupName;
+      for (const s of arr){
+        const o = document.createElement("option");
+        o.value = s.name;
+        o.textContent = s.name;
+        og.appendChild(o);
+      }
+      sel.appendChild(og);
+    }
+  }
+
+  sel.value = value;
+  return sel;
+}
+
+
+function makeYesNoSelect(value="No"){
+  const sel = document.createElement("select");
+  ["No","Yes"].forEach(v=>{
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = v;
+    sel.appendChild(o);
+  });
+  sel.value = value || "No";
+  return sel;
+}
+
+function loadLS(key){ const v = localStorage.getItem(key); return v === null ? "" : v; }
+function saveLS(key, val){ localStorage.setItem(key, String(val)); }
+
+function renderSourceTable(prefix, tbodyId, totalId, rows=5){
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  function recalcAll(){
+    const rowTotals = [];
+    for (let i=1; i<=rows; i++){
+      const lwCell = document.getElementById(`${prefix}_lw_${i}`);
+      if (lwCell){
+        const v = Number(lwCell.textContent);
+        if (Number.isFinite(v) && v > 0) rowTotals.push(v);
+      }
+    }
+    const total = energeticSum(rowTotals);
+    const totalCell = document.getElementById(totalId);
+    if (totalCell) totalCell.textContent = String(Math.round(total));
+
+    // Keep receiver table updated when totals change
+    if (prefix === 'day' || prefix === 'night' || prefix === 'lmax') render();
+  }
+
+  for (let i=1; i<=rows; i++){
+    const tr = document.createElement("tr");
+
+    const kSrc = `${prefix}_src_${i}`;
+    const kN = `${prefix}_n_${i}`;
+    const kMin = `${prefix}_min_${i}`;
+    const kBar = `${prefix}_bar_${i}`;
+
+    const srcVal = loadLS(kSrc);
+    const nVal = loadLS(kN);
+    const minVal = loadLS(kMin); // blank => assume 15 mins
+    const barVal = loadLS(kBar) || "No";
+
+    const tdSrc = document.createElement("td");
+    const tdN = document.createElement("td"); tdN.className="center";
+    const includeMinutes = (prefix === 'day' || prefix === 'night');
+    const tdMin = document.createElement("td"); tdMin.className="center";
+    const tdBar = document.createElement("td"); tdBar.className="center";
+    const tdLw = document.createElement("td"); tdLw.className="num"; tdLw.id = `${prefix}_lw_${i}`;
+
+    const libFlat = (prefix === 'lmax') ? SOURCE_LIBRARY_LMAX : SOURCE_LIBRARY;
+    const libGrouped = (prefix === 'lmax') ? SOURCE_LIBRARY_GROUPED_LMAX : SOURCE_LIBRARY_GROUPED_NON_LMAX;
+    const sel = makeSourceSelect(srcVal, libGrouped);
+    const inp = document.createElement("input");
+    inp.type="number"; inp.min="0"; inp.max="99"; inp.step="1"; inp.inputMode="numeric";
+    inp.value = (nVal === "" || nVal === null || nVal === undefined) ? "1" : nVal;
+
+    inp.id = `${prefix}_n_inp_${i}`;
+
+    const inpMin = document.createElement("input");
+    inpMin.type="number"; inpMin.min="0"; inpMin.max="15"; inpMin.step="1"; inpMin.inputMode="numeric";
+    // If nothing stored yet, default to 15 minutes so results match previous behaviour.
+    inpMin.value = (minVal === "" || minVal === null || minVal === undefined) ? "15" : minVal;
+    inpMin.id = `${prefix}_min_inp_${i}`;
+
+    const bar = makeYesNoSelect(barVal);
+
+    // Out-of-range warning elements
+    const nWarning = document.createElement('div');
+    nWarning.style.cssText = 'color:#dc2626;font-size:10px;margin-top:2px;display:none;';
+    nWarning.textContent = 'Max 99';
+    const minWarning = document.createElement('div');
+    minWarning.style.cssText = 'color:#dc2626;font-size:10px;margin-top:2px;display:none;';
+    minWarning.textContent = 'Max 15 min';
+
+    function recalcRow(){
+      const picked = libFlat.find(s => s.name === sel.value);
+      const base = picked ? Number(picked.lw) : NaN;
+      let n = Number(inp.value);
+      if (n > 99) { n = 99; inp.value = 99; nWarning.style.display = ''; }
+      else if (n < 0) { n = 0; inp.value = 0; nWarning.style.display = ''; }
+      else { nWarning.style.display = 'none'; }
+      let minsVal = includeMinutes ? Number(inpMin.value) : 15;
+      if (includeMinutes) {
+        if (minsVal > 15) { minsVal = 15; inpMin.value = 15; minWarning.style.display = ''; }
+        else if (minsVal < 0) { minsVal = 0; inpMin.value = 0; minWarning.style.display = ''; }
+        else { minWarning.style.display = 'none'; }
+      }
+      let lw = rowTotalLw(base, n, minsVal);
+      // If barrier included, apply a simple -5 dB adjustment to this item's Total Lw
+      if (bar.value === 'Yes' && lw > 0) lw = lw - 5;
+
+      tdLw.textContent = String(Math.round(lw));
+
+      saveLS(kSrc, sel.value);
+      saveLS(kN, inp.value);
+      if (includeMinutes) saveLS(kMin, inpMin.value);
+      else saveLS(kMin, "");
+      saveLS(kBar, bar.value);
+
+      recalcAll();
+    }
+
+    sel.addEventListener("change", recalcRow);
+    inp.addEventListener("input", recalcRow);
+    if (includeMinutes) inpMin.addEventListener("input", recalcRow);
+    bar.addEventListener("change", recalcRow);
+
+    tdSrc.appendChild(sel);
+    tdN.appendChild(inp);
+    tdN.appendChild(nWarning);
+    if (includeMinutes) { tdMin.appendChild(inpMin); tdMin.appendChild(minWarning); }
+    tdBar.appendChild(bar);
+
+    tr.appendChild(tdSrc);
+    tr.appendChild(tdN);
+    if (includeMinutes) tr.appendChild(tdMin);
+    tr.appendChild(tdBar);
+    tr.appendChild(tdLw);
+
+    tbody.appendChild(tr);
+    recalcRow();
+  }
+
+  recalcAll();
+}
+
+function calcCriteria(source, rec) {
+  if (!source || !rec) return {day:"", night:"", lmax:""};
+
+  const sameCatGI_SI =
+    source.is_single == 1 &&
+    rec.is_single == 1 &&
+    source.single_cat &&
+    source.single_cat === rec.single_cat &&
+    (source.single_cat === "General Industry" || source.single_cat === "Special Industry");
+
+  let dayCrit, nightCrit;
+  if (sameCatGI_SI) {
+    const base = (source.single_cat === "General Industry") ? 65 : 70;
+    dayCrit = base - 5;
+    nightCrit = base - 5;
+  } else {
+    dayCrit = Math.round((Number(source.inf_day) + Number(rec.inf_day))/2) - 5;
+    nightCrit = Math.round((Number(source.inf_night) + Number(rec.inf_night))/2) - 5;
+  }
+
+  let lmax = "";
+  if (isResOrRuralLivingSingle(rec)) {
+    dayCrit = Math.min(dayCrit, 52);
+    nightCrit = Math.min(nightCrit, 45);
+    lmax = 60;
+  }
+
+  return {day: dayCrit, night: nightCrit, lmax};
+}
+
+function loadPred(id) {
+  const v = localStorage.getItem("pred_"+id);
+  return v === null ? "" : v;
+}
+function savePred(id, val) {
+  localStorage.setItem("pred_"+id, val);
+}
+
+function clearPredRow(rowNum) {
+  // rowNum is 1..4
+  ["day","night","lmax"].forEach(suffix => {
+    localStorage.removeItem("pred_r"+rowNum+"_"+suffix);
+  });
+}
+
+function compCell(pred, crit) {
+  // returns {delta, ok} or blanks if missing
+  if (pred === "" || pred === null || pred === undefined || crit === "" || crit === null || crit === undefined) {
+    return { delta:"", ok:"" };
+  }
+  const p = Number(pred);
+  const c = Number(crit);
+  if (!Number.isFinite(p) || !Number.isFinite(c)) return { delta:"", ok:"" };
+  const d = Math.round((p - c) * 10) / 10; // 0.1 dB
+  return { delta: d, ok: d <= 0 };
+}
+
+function td(text, cls="") {
+  return `<td class="${cls}">${text ?? ""}</td>`;
+}
+
+function render() {
+  const srcKey = document.getElementById('src').value;
+  const src = byKey.get(srcKey);
+
+  document.getElementById('src_land').textContent = landDisplay(src);
+  const srcDayEl = document.getElementById('src_day');
+  const srcNightEl = document.getElementById('src_night');
+  if (srcDayEl) srcDayEl.textContent = fmt(src && src.inf_day);
+  if (srcNightEl) srcNightEl.textContent = fmt(src && src.inf_night);
+
+  const ids = ["r1","r2","r3","r4"];
+  const rKeys = ids.map(id => document.getElementById(id).value);
+  const recs = rKeys.map(k => byKey.get(k));
+
+  ids.forEach((id, idx) => {
+    const rec = recs[idx];
+    document.getElementById(id+"_land").textContent = landDisplay(rec);
+
+    // Criteria in the Selections table (same calculation as summary table)
+    const crit = calcCriteria(src, rec);
+    const dayEl = document.getElementById(`${id}_daycrit`);
+    const nightEl = document.getElementById(`${id}_nightcrit`);
+    const lmaxEl = document.getElementById(`${id}_lmaxcrit`);
+    if (dayEl) dayEl.textContent = fmt(crit.day);
+    if (nightEl) nightEl.textContent = fmt(crit.night);
+    if (lmaxEl) lmaxEl.textContent = crit.lmax === "" ? "" : fmt(crit.lmax);
+  });
+
+  const tbody = document.getElementById('rows');
+  tbody.innerHTML = "";
+
+  const dayTotal = getDayTotal();
+  const nightTotal = getNightTotal();
+  const nightLmaxTotal = getNightLmaxTotal();
+
+  recs.forEach((rec, i) => {
+    const tr = document.createElement('tr');
+    const keyText = rKeys[i] || "";
+    const crit = calcCriteria(src, rec);
+
+    const dayCrit = crit.day;
+    const nightCrit = crit.night;
+    const lmaxCrit = crit.lmax;
+
+    const rowId = `r${i+1}`;
+    const predDayId = `${rowId}_day`;
+    const predNightId = `${rowId}_night`;
+    // Predictions are automatically calculated from totals and receiver distance
+    const dist = getReceiverDistance(i+1);
+    let predDay = calcDayPredAtReceiver(dayTotal, dist);
+    let predNight = calcNightPredAtReceiver(nightTotal, dist);
+    let predLmax = calcLmaxPredAtReceiver(nightLmaxTotal, dist);
+
+    // If no source is selected (total = 0) and predicted result is < 0, show blank
+    if (dayTotal === 0 && predDay !== "" && predDay < 0) predDay = "";
+    if (nightTotal === 0 && predNight !== "" && predNight < 0) predNight = "";
+    if (nightLmaxTotal === 0 && predLmax !== "" && predLmax < 0) predLmax = "";
+
+    // Apply characteristic penalties to predicted Leq levels
+    const predDayPenalised = (predDay !== "" && predDay !== null && predDay !== undefined) ? predDay + dayPenalty : predDay;
+    const predNightPenalised = (predNight !== "" && predNight !== null && predNight !== undefined) ? predNight + nightPenalty : predNight;
+
+    const day = compCell(predDayPenalised, dayCrit);
+    const night = compCell(predNightPenalised, nightCrit);
+    const lmax = compCell(predLmax, lmaxCrit);
+
+    function okText(v) { return v === "" ? "" : (v ? "<span class='ok'>Yes</span>" : "<span class='bad'>No</span>"); }
+    function cellClass(v) { return v === "" ? "" : (v ? "cell-ok" : "cell-bad"); }
+
+    tr.innerHTML =
+      td(keyText) +
+
+      `<td class="num"><span id="${predDayId}" style="display:inline-block;min-width:48px;">${predDayPenalised}</span></td>` +
+      td(fmt(dayCrit), "num") +
+      td(day.delta === "" ? "" : String(day.delta), "num") +
+      td(okText(day.ok), "center "+cellClass(day.ok)) +
+
+      `<td class="num"><span id="${predNightId}" style="display:inline-block;min-width:48px;">${predNightPenalised}</span></td>` +
+      td(fmt(nightCrit), "num") +
+      td(night.delta === "" ? "" : String(night.delta), "num") +
+      td(okText(night.ok), "center "+cellClass(night.ok)) +
+
+      `<td class="num"><span style="display:inline-block;min-width:48px;">${predLmax}</span></td>` +
+      td(lmaxCrit === "" ? "" : fmt(lmaxCrit), "num") +
+      td(lmax.delta === "" ? "" : String(lmax.delta), "num") +
+      td(okText(lmax.ok), "center "+cellClass(lmax.ok));
+
+    tbody.appendChild(tr);
+  });
+
+  // Update source contribution tables whenever results re-render
+  if (typeof renderContributions === 'function') renderContributions();
+}
+
+
+
+
+function initReceiverDistances(){
+  // Independent distance-to-receiver inputs (not linked to number-of-sources).
+  for (let i=1; i<=4; i++){
+    const dist = document.getElementById(`dist_r${i}`);
+    if (!dist) continue;
+
+    // load saved distance (if any)
+    dist.value = loadLS(`dist_r_${i}`);
+    dist.max = "10000";
+
+    // Warning element for out-of-range distance
+    const distWarn = document.createElement('div');
+    distWarn.style.cssText = 'color:#dc2626;font-size:10px;margin-top:2px;display:none;';
+    distWarn.textContent = 'Max 10,000 m';
+    dist.parentElement.appendChild(distWarn);
+
+    const onDistChange = () => {
+      const v = Number(dist.value);
+      if (Number.isFinite(v) && v > 10000) {
+        dist.value = 10000;
+        distWarn.style.display = '';
+      } else {
+        distWarn.style.display = 'none';
+      }
+      saveLS(`dist_r_${i}`, dist.value);
+      render();
+    };
+
+    dist.addEventListener("input", onDistChange);
+    dist.addEventListener("change", onDistChange);
+    dist.addEventListener("blur", onDistChange);
+  }
+}
+
+function initPenaltyButtons() {
+  ['day', 'night'].forEach(period => {
+    const group = document.getElementById(`${period}PenaltyGroup`);
+    if (!group) return;
+
+    // Restore saved penalty value
+    const saved = localStorage.getItem(`penalty_${period}`);
+    const savedVal = saved !== null ? Number(saved) : 0;
+    if (period === 'day') dayPenalty = savedVal;
+    else nightPenalty = savedVal;
+
+    group.querySelectorAll('.penalty-btn').forEach(btn => {
+      const val = Number(btn.dataset.val);
+      if (val === savedVal) btn.classList.add('active');
+      else btn.classList.remove('active');
+
+      btn.addEventListener('click', () => {
+        group.querySelectorAll('.penalty-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (period === 'day') dayPenalty = val;
+        else nightPenalty = val;
+        localStorage.setItem(`penalty_${period}`, String(val));
+        render();
+      });
+    });
+  });
+}
+
+["src","r1","r2","r3","r4"].forEach(fillSelect);
+["src","r1","r2","r3","r4"].forEach(id => document.getElementById(id).addEventListener('change', () => {
+  // If a receiver selection changes, clear predicted values for that receiver row
+  if (id === "r1") clearPredRow(1);
+  if (id === "r2") clearPredRow(2);
+  if (id === "r3") clearPredRow(3);
+  if (id === "r4") clearPredRow(4);
+  render();
+}));
+
+function renderContribTable(tableId, prefix, numRows) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+
+  // Collect active receivers (have both a zone selection and a valid distance)
+  const receivers = [];
+  for (let r = 1; r <= 4; r++) {
+    const distEl = document.getElementById('dist_r' + r);
+    const recEl  = document.getElementById('r' + r);
+    const dist   = distEl ? Number(distEl.value) : NaN;
+    const key    = recEl  ? recEl.value           : '';
+    if (key && Number.isFinite(dist) && dist > 0) {
+      receivers.push({ r, dist });
+    }
+  }
+
+  // Collect source rows with a name and a valid Lw
+  const srcRows = [];
+  const tbodyEl = prefix === 'lmax'
+    ? document.getElementById('nightLmaxRows')
+    : document.getElementById(prefix + 'SrcRows');
+
+  if (tbodyEl) {
+    const trs = tbodyEl.querySelectorAll('tr');
+    trs.forEach(function(tr, idx) {
+      const i    = idx + 1;
+      const sel  = tr.querySelector('select');
+      const lwEl = document.getElementById(prefix + '_lw_' + i);
+      const name = sel ? sel.value : '';
+      const lw   = lwEl ? Number(lwEl.textContent) : NaN;
+      if (name && Number.isFinite(lw) && lw > 0) {
+        srcRows.push({ name, lw });
+      }
+    });
+  }
+
+  // Build table HTML
+  table.innerHTML = '';
+
+  // Header row
+  const thead = document.createElement('thead');
+  let hRow = '<tr><th style="width:42%;">Source</th><th class="num">Source Lw (dB(A))</th>';
+  if (receivers.length === 0) {
+    hRow += '<th class="num" style="color:var(--muted);">— enter distances above —</th>';
+  } else {
+    receivers.forEach(function(rv) {
+      hRow += '<th class="num">R' + rv.r + '<br><span style="font-weight:400;font-size:11px;">' + Math.round(rv.dist) + ' m</span></th>';
+    });
+  }
+  hRow += '</tr>';
+  thead.innerHTML = hRow;
+  table.appendChild(thead);
+
+  const tbodyOut = document.createElement('tbody');
+
+  if (srcRows.length === 0) {
+    const cols = 2 + Math.max(receivers.length, 1);
+    tbodyOut.innerHTML = '<tr><td colspan="' + cols + '" class="center" style="color:var(--muted);">No sources selected</td></tr>';
+    table.appendChild(tbodyOut);
+    return;
+  }
+
+  srcRows.forEach(function(s) {
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    tdName.textContent = s.name;
+    tr.appendChild(tdName);
+    const tdLw = document.createElement('td');
+    tdLw.className = 'num';
+    tdLw.textContent = Math.round(s.lw);
+    tr.appendChild(tdLw);
+    receivers.forEach(function(rv) {
+      const pred = Math.round(s.lw - 20 * log10(rv.dist) - 8);
+      const tdPred = document.createElement('td');
+      tdPred.className = 'num';
+      tdPred.textContent = pred;
+      tr.appendChild(tdPred);
+    });
+    tbodyOut.appendChild(tr);
+  });
+
+  // Total row
+  const allLw = srcRows.map(function(s){ return s.lw; });
+  const totalLw = energeticSum(allLw);
+  const totalRow = document.createElement('tr');
+  const thLabel = document.createElement('th');
+  thLabel.textContent = 'TOTAL';
+  totalRow.appendChild(thLabel);
+  const thLw = document.createElement('th');
+  thLw.className = 'num';
+  thLw.textContent = Math.round(totalLw);
+  totalRow.appendChild(thLw);
+  receivers.forEach(function(rv) {
+    const totalPred = Math.round(totalLw - 20 * log10(rv.dist) - 8);
+    const thPred = document.createElement('th');
+    thPred.className = 'num';
+    thPred.textContent = totalPred;
+    totalRow.appendChild(thPred);
+  });
+  tbodyOut.appendChild(totalRow);
+
+  table.appendChild(tbodyOut);
+}
+
+function renderContributions() {
+  renderContribTable('contribDayTable',   'day',   5);
+  renderContribTable('contribNightTable', 'night', 5);
+}
+
+function initCollapse() {
+  document.querySelectorAll('.card').forEach(function(card) {
+    const h2 = card.querySelector(':scope > h2');
+    if (!h2) return;
+
+    // Wrap everything after h2 in a card-body div
+    const body = document.createElement('div');
+    body.className = 'card-body';
+    const children = Array.from(card.children);
+    const h2Idx = children.indexOf(h2);
+    children.slice(h2Idx + 1).forEach(function(child) { body.appendChild(child); });
+    card.appendChild(body);
+
+    // Build header row
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    card.insertBefore(header, h2);
+    header.appendChild(h2);
+
+    const toggle = document.createElement('button');
+    toggle.className = 'collapse-btn';
+    toggle.title = 'Toggle section';
+    toggle.innerHTML = '&#x25B2;';
+    header.appendChild(toggle);
+
+    // Default-collapse specific sections
+    var DEFAULT_COLLAPSED = ['Source Contributions', 'Characteristic Penalty'];
+    var titleText = h2.textContent.trim();
+    var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t) === 0; });
+    if (startCollapsed) {
+      body.classList.add('collapsed');
+      toggle.innerHTML = '&#x25BC;';
+    }
+
+    toggle.addEventListener('click', function() {
+      const isNowCollapsed = body.classList.toggle('collapsed');
+      toggle.innerHTML = isNowCollapsed ? '&#x25BC;' : '&#x25B2;';
+    });
+  });
+
+  const collapseAllBtn = document.getElementById('collapseAllBtn');
+  if (collapseAllBtn) {
+    let allCollapsed = false;
+    collapseAllBtn.addEventListener('click', function() {
+      allCollapsed = !allCollapsed;
+      document.querySelectorAll('.card-body').forEach(function(b) {
+        if (allCollapsed) b.classList.add('collapsed');
+        else b.classList.remove('collapsed');
+      });
+      document.querySelectorAll('.collapse-btn').forEach(function(btn) {
+        btn.innerHTML = allCollapsed ? '&#x25BC;' : '&#x25B2;';
+      });
+      collapseAllBtn.textContent = allCollapsed ? 'Expand All' : 'Collapse All';
+    });
+  }
+}
+
+render();
+renderSourceTable('day','daySrcRows','daySrcTotal',5);
+initReceiverDistances();
+renderSourceTable('night','nightSrcRows','nightSrcTotal',5);
+renderSourceTable('lmax','nightLmaxRows','nightLmaxTotal',1);
+initPenaltyButtons();
+renderContributions();
+initCollapse();
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("pdfBtn");
+    const area = document.getElementById("pdfArea");
+
+    if (!btn) { alert("pdfBtn not found"); return; }
+    if (!area) { alert("pdfArea not found"); return; }
+    if (!window.html2canvas) { alert("html2canvas not loaded"); return; }
+    if (!window.jspdf) { alert("jsPDF not loaded"); return; }
+
+    btn.addEventListener("click", async () => {
+      try {
+        btn.disabled = true;
+        btn.textContent = "Exporting…";
+
+        // Temporarily show full width tables (no clipping)
+        const scrollers = area.querySelectorAll(".table-scroll");
+        scrollers.forEach(s => {
+          s.dataset.prevOverflow = s.style.overflowX || "";
+          s.style.overflowX = "visible";
+        });
+
+        const canvas = await html2canvas(area, {
+          scale: 2,
+          backgroundColor: "#ffffff",
+          useCORS: true
+        });
+
+        scrollers.forEach(s => (s.style.overflowX = s.dataset.prevOverflow));
+
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+        const pageW = 210, pageH = 297; // A4 portrait mm
+
+        // Set margins (mm)
+        const marginTop = 20;     // ← adjust this
+        const marginSides = 10;
+        const marginBottom = 15;
+        
+        let renderW = pageW;
+        let renderH = (canvas.height * renderW) / canvas.width;
+
+        if (renderH > pageH) {
+          renderH = pageH;
+          renderW = (canvas.width * renderH) / canvas.height;
+        }
+
+        const x = (pageW - renderW) / 2;
+        const y = (pageH - renderH) / 2;
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        pdf.addImage(imgData, "JPEG", x, y, renderW, renderH);
+        pdf.save("EPA-noise-calculator.pdf");
+      } catch (e) {
+        console.error(e);
+        alert("PDF export failed — check console for details.");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Export PDF";
+      }
+    });
+  });
+</script>
+
+<!-- ===== LEAFLET MAP ===== -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ---- colour / label config for each point type ---- */
+  var CFG = {
+    source: { color: '#dc2626', label: 'Noise Source', initial: 'S', distId: null      },
+    r1:     { color: '#2563eb', label: 'Receiver 1',   initial: '1', distId: 'dist_r1' },
+    r2:     { color: '#16a34a', label: 'Receiver 2',   initial: '2', distId: 'dist_r2' },
+    r3:     { color: '#d97706', label: 'Receiver 3',   initial: '3', distId: 'dist_r3' },
+    r4:     { color: '#7c3aed', label: 'Receiver 4',   initial: '4', distId: 'dist_r4' }
+  };
+  var ORDER = ['source', 'r1', 'r2', 'r3', 'r4'];
+
+  function initMap() {
+    if (typeof L === 'undefined') { console.warn('Leaflet not loaded'); return; }
+    var el = document.getElementById('noise-map');
+    if (!el) return;
+
+    /* Default view: Adelaide CBD */
+    var map = L.map('noise-map', { zoomControl: true }).setView([-34.9285, 138.6007], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 20
+    }).addTo(map);
+
+    var markers = {};   /* key -> L.marker  */
+    var latlngs = {};   /* key -> {lat,lng} */
+    var lines   = {};   /* key -> L.polyline */
+    var currentMode = 'source';
+
+    /* ---- custom pin icon ---- */
+    function makeIcon(cfg) {
+      var c = cfg.color;
+      var t = cfg.initial;
+      var html =
+        '<div style="' +
+          'background:' + c + ';' +
+          'color:#fff;' +
+          'border:2px solid rgba(255,255,255,0.85);' +
+          'border-radius:50% 50% 50% 0;' +
+          'width:30px;height:30px;' +
+          'display:flex;align-items:center;justify-content:center;' +
+          'font-size:12px;font-weight:700;' +
+          'box-shadow:0 2px 8px rgba(0,0,0,.4);' +
+          'transform:rotate(-45deg);' +
+        '">' +
+          '<span style="transform:rotate(45deg);">' + t + '</span>' +
+        '</div>';
+      return L.divIcon({ className: '', html: html, iconSize: [30,30], iconAnchor: [15,30], popupAnchor: [0,-32] });
+    }
+
+    /* ---- Haversine distance (metres) ---- */
+    function haversine(a, b) {
+      var R  = 6371000;
+      var r  = Math.PI / 180;
+      var φ1 = a.lat * r, φ2 = b.lat * r;
+      var dφ = (b.lat - a.lat) * r;
+      var dλ = (b.lng - a.lng) * r;
+      var s  = Math.sin(dφ/2)*Math.sin(dφ/2) +
+               Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)*Math.sin(dλ/2);
+      return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+    }
+
+    /* ---- redraw dashed lines + update distance inputs ---- */
+    function updateAll() {
+      var src = latlngs['source'];
+      ['r1','r2','r3','r4'].forEach(function(id) {
+        var rec = latlngs[id];
+        var cfg = CFG[id];
+        var statusEl = document.getElementById('map-status-' + id);
+
+        /* remove old line */
+        if (lines[id]) { map.removeLayer(lines[id]); delete lines[id]; }
+
+        if (src && rec) {
+          var dist = Math.round(haversine(src, rec));
+
+          /* draw dashed line */
+          lines[id] = L.polyline([src, rec], {
+            color: cfg.color, weight: 2, dashArray: '7,5', opacity: 0.75
+          }).addTo(map);
+
+          /* update distance input + fire change so existing listeners recalc */
+          var inp = cfg.distId ? document.getElementById(cfg.distId) : null;
+          if (inp) {
+            inp.value = dist;
+            inp.dispatchEvent(new Event('input',  { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+
+          if (statusEl) statusEl.textContent = '\u25CF ' + cfg.label + ': ' + dist + ' m';
+        } else {
+          /* clear distance input if source removed */
+          var inp2 = cfg.distId ? document.getElementById(cfg.distId) : null;
+          if (inp2 && !src) {
+            inp2.value = '';
+            inp2.dispatchEvent(new Event('input',  { bubbles: true }));
+            inp2.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (statusEl && rec) statusEl.textContent = '\u25CF ' + cfg.label + ': placed (place source to get distance)';
+        }
+      });
+    }
+
+    /* ---- place or move a marker ---- */
+    function placeMarker(mode, latlng) {
+      var cfg = CFG[mode];
+
+      /* remove old */
+      if (markers[mode]) map.removeLayer(markers[mode]);
+
+      var m = L.marker(latlng, {
+        icon: makeIcon(cfg),
+        draggable: true,
+        title: cfg.label
+      })
+      .bindPopup('<b>' + cfg.label + '</b><br>' +
+                 latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6))
+      .addTo(map);
+
+      markers[mode] = m;
+      latlngs[mode] = latlng;
+
+      /* update on drag */
+      m.on('drag', function (e) {
+        latlngs[mode] = e.target.getLatLng();
+        updateAll();
+      });
+      m.on('dragend', function (e) {
+        latlngs[mode] = e.target.getLatLng();
+        updateAll();
+      });
+
+      /* status label */
+      var statusEl = document.getElementById('map-status-' + mode);
+      if (statusEl) {
+        statusEl.textContent = (mode === 'source' ? '\uD83D\uDCCD Source' : '\u25CF ' + cfg.label) + ': placed';
+      }
+
+      updateAll();
+
+      /* auto-advance to next unplaced mode */
+      var idx = ORDER.indexOf(mode);
+      for (var i = idx + 1; i < ORDER.length; i++) {
+        if (!latlngs[ORDER[i]]) { setMode(ORDER[i]); break; }
+      }
+    }
+
+    /* ---- set active mode button ---- */
+    function setMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.map-mode-btn').forEach(function (b) {
+        b.classList.remove('active');
+      });
+      var btn = document.getElementById('mapMode-' + mode);
+      if (btn) btn.classList.add('active');
+    }
+
+    /* ---- map click ---- */
+    map.on('click', function (e) { placeMarker(currentMode, e.latlng); });
+
+    /* ---- mode buttons ---- */
+    ORDER.forEach(function (mode) {
+      var btn = document.getElementById('mapMode-' + mode);
+      if (btn) btn.addEventListener('click', function () { setMode(mode); });
+    });
+
+    /* ---- location search (Nominatim OSM geocoder) ---- */
+    var searchInp = document.getElementById('mapSearchInput');
+    var searchBtn = document.getElementById('mapSearchBtn');
+    var searchRes = document.getElementById('mapSearchResults');
+
+    function doSearch() {
+      var q = (searchInp && searchInp.value) ? searchInp.value.trim() : '';
+      if (!q) return;
+      searchBtn.textContent = 'Searching\u2026';
+      searchBtn.disabled = true;
+      if (searchRes) { searchRes.style.display = 'none'; searchRes.innerHTML = ''; }
+
+      fetch(
+        'https://nominatim.openstreetmap.org/search?format=json&limit=6&countrycodes=au&q=' +
+        encodeURIComponent(q),
+        { headers: { 'Accept-Language': 'en', 'User-Agent': 'NoiseCalcTool/1.0' } }
+      )
+      .then(function (r) { return r.json(); })
+      .then(function (results) {
+        searchBtn.textContent = '\uD83D\uDD0D Search';
+        searchBtn.disabled = false;
+        if (!searchRes) return;
+        if (!results || !results.length) {
+          searchRes.innerHTML = '<div style="padding:10px 12px;color:var(--muted);">No results found — try a different address.</div>';
+          searchRes.style.display = 'block';
+          return;
+        }
+        results.forEach(function (item) {
+          var row = document.createElement('div');
+          row.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);line-height:1.4;';
+          row.textContent = item.display_name;
+          row.addEventListener('mouseenter', function () { row.style.background = '#f9f9f9'; });
+          row.addEventListener('mouseleave', function () { row.style.background = ''; });
+          row.addEventListener('click', function () {
+            var lat = parseFloat(item.lat);
+            var lng = parseFloat(item.lon);
+            map.setView([lat, lng], 16);
+            placeMarker('source', L.latLng(lat, lng));
+            searchInp.value = item.display_name;
+            searchRes.style.display = 'none';
+          });
+          searchRes.appendChild(row);
+        });
+        searchRes.style.display = 'block';
+      })
+      .catch(function () {
+        searchBtn.textContent = '\uD83D\uDD0D Search';
+        searchBtn.disabled = false;
+        if (searchRes) {
+          searchRes.innerHTML = '<div style="padding:10px 12px;color:#dc2626;">Search failed — check your internet connection.</div>';
+          searchRes.style.display = 'block';
+        }
+      });
+    }
+
+    if (searchBtn) searchBtn.addEventListener('click', doSearch);
+    if (searchInp) {
+      searchInp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+      });
+    }
+    /* close dropdown when clicking outside */
+    document.addEventListener('click', function (e) {
+      if (!searchRes) return;
+      if (e.target !== searchInp && e.target !== searchBtn && !searchRes.contains(e.target)) {
+        searchRes.style.display = 'none';
+      }
+    });
+
+    /* ---- clear all ---- */
+    var clearBtn = document.getElementById('mapClearBtn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        /* remove all markers + lines */
+        Object.keys(markers).forEach(function (k) {
+          if (markers[k]) map.removeLayer(markers[k]);
+        });
+        Object.keys(lines).forEach(function (k) {
+          if (lines[k]) map.removeLayer(lines[k]);
+        });
+        markers = {}; latlngs = {}; lines = {};
+
+        /* reset distance inputs */
+        ['r1','r2','r3','r4'].forEach(function (id) {
+          var inp = CFG[id].distId ? document.getElementById(CFG[id].distId) : null;
+          if (inp) {
+            inp.value = '';
+            inp.dispatchEvent(new Event('input',  { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          var st = document.getElementById('map-status-' + id);
+          if (st) st.textContent = '\u25CF ' + CFG[id].label + ': not placed';
+        });
+        var srcSt = document.getElementById('map-status-source');
+        if (srcSt) srcSt.textContent = '\uD83D\uDCCD Source: not placed';
+
+        setMode('source');
+      });
+    }
+  } /* end initMap */
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMap);
+  } else {
+    initMap();
+  }
+})();
+</script>
+
+
+</body>
+</html>
