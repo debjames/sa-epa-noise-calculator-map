@@ -1747,10 +1747,10 @@ initCollapse();
     var _zoneLabelTimer = null;
     function refreshZoneLabels() {
       if (!isZoneOn) return;
-      if (map.getZoom() < 13) { zoneLabelGroup.clearLayers(); return; }
+      if (map.getZoom() < 16) { zoneLabelGroup.clearLayers(); return; }
       var b = map.getBounds();
       var env = b.getWest() + ',' + b.getSouth() + ',' + b.getEast() + ',' + b.getNorth();
-      var showSubzones = map.getZoom() >= 14;
+      var showSubzones = map.getZoom() >= 17;
 
       /* Query zones (layer 114) */
       var zoneUrl = SAPPA_BASE + '/114/query?geometry=' + encodeURIComponent(env) +
