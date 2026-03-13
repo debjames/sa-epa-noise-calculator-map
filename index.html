@@ -186,19 +186,19 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .recv-name-input:focus { border-color: rgba(242,203,0,1); background: #fff; outline: none; }
 /* Zone label divIcons on map */
 .zone-label-tip {
-  background: rgba(255,255,255,0.85) !important;
-  border: none !important;
+  background: rgba(255,255,255,0.85);
+  border: none;
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-  padding: 2px 6px !important;
+  padding: 2px 6px;
   font-size: 10px;
   font-weight: 600;
   color: #1f2937;
   white-space: nowrap;
   pointer-events: none;
-  width: auto !important;
-  height: auto !important;
+  overflow: visible !important;
   border-radius: 3px;
-  transform: translate(-50%, -50%);
+  text-align: center;
+  line-height: 1.3;
 }
 .subzone-label-tip {
   font-size: 9px;
@@ -1765,9 +1765,10 @@ initCollapse();
             var icon = L.divIcon({
               className: 'zone-label-tip',
               html: '<b>' + f.attributes.name + '</b>',
-              iconSize: null
+              iconSize: [0, 0],
+              iconAnchor: [0, 0]
             });
-            L.marker(c, { icon: icon, interactive: false }).addTo(zoneLabelGroup);
+            L.marker(c, { icon: icon, interactive: false, zIndexOffset: 1000 }).addTo(zoneLabelGroup);
           });
         }
 
@@ -1779,9 +1780,10 @@ initCollapse();
             var icon = L.divIcon({
               className: 'zone-label-tip subzone-label-tip',
               html: '<i>' + f.attributes.name + '</i>',
-              iconSize: null
+              iconSize: [0, 0],
+              iconAnchor: [0, 0]
             });
-            L.marker(c, { icon: icon, interactive: false }).addTo(zoneLabelGroup);
+            L.marker(c, { icon: icon, interactive: false, zIndexOffset: 900 }).addTo(zoneLabelGroup);
           });
         }
       }).catch(function(err) { console.warn('Zone label fetch failed:', err); });
