@@ -1550,7 +1550,11 @@ initCollapse();
         pdf.addPage();
         pdf.addImage(img2, "JPEG", margin, margin, imgW, img2H);
 
-        pdf.save("EPA-noise-calculator.pdf");
+        var pdfName = 'Resonate environmental criteria and noise screening tool';
+        if (typeof lastSelectedAddress === 'string' && lastSelectedAddress) {
+          pdfName += ' - ' + lastSelectedAddress;
+        }
+        pdf.save(pdfName + '.pdf');
       } catch (e) {
         console.error(e);
         alert("PDF export failed — check console for details.");
@@ -2022,6 +2026,7 @@ initCollapse();
     var searchInp = document.getElementById('mapSearchInput');
     var searchBtn = document.getElementById('mapSearchBtn');
     var searchRes = document.getElementById('mapSearchResults');
+    var lastSelectedAddress = '';
 
     function doSearch() {
       var q = (searchInp && searchInp.value) ? searchInp.value.trim() : '';
@@ -2057,6 +2062,13 @@ initCollapse();
             map.setView([lat, lng], 16);
             placeMarker('source', L.latLng(lat, lng));
             searchInp.value = item.display_name;
+            /* Store address up to city name for PDF filename */
+            var parts = item.display_name.split(',').map(function(s){return s.trim();});
+            /* Nominatim typically: street, suburb, city, state, postcode, country
+               Keep parts up to and including the city (drop state, postcode, country).
+               We drop the last 3 parts (state, postcode, country) if enough parts exist. */
+            var cityParts = parts.length > 3 ? parts.slice(0, parts.length - 3) : parts.slice(0, 1);
+            lastSelectedAddress = cityParts.join(', ');
             searchRes.style.display = 'none';
           });
           searchRes.appendChild(row);
