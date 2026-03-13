@@ -192,7 +192,7 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   padding: 2px 6px;
   font-size: 10px;
   font-weight: 600;
-  color: #1f2937;
+  color: #6b7280;
   white-space: nowrap;
   pointer-events: none;
   overflow: visible !important;
@@ -1748,6 +1748,14 @@ initCollapse();
       Promise.all(fetches).then(function(results) {
         if (!isZoneOn) return;
         zoneLabelGroup.clearLayers();
+        var bounds = map.getBounds();
+        var pad = 0.15; /* inset ratio so labels don't sit right at the edge */
+        var latSpan = bounds.getNorth() - bounds.getSouth();
+        var lngSpan = bounds.getEast() - bounds.getWest();
+        var clampBounds = L.latLngBounds(
+          [bounds.getSouth() + latSpan * pad, bounds.getWest() + lngSpan * pad],
+          [bounds.getNorth() - latSpan * pad, bounds.getEast() - lngSpan * pad]
+        );
 
         /* helper: get centroid of an esri polygon ring */
         function centroid(rings) {
@@ -1757,11 +1765,18 @@ initCollapse();
           return [sumY / n, sumX / n]; /* [lat, lng] */
         }
 
+        /* helper: clamp a [lat,lng] to visible bounds so label always shows */
+        function clampToView(c) {
+          var lat = Math.max(clampBounds.getSouth(), Math.min(clampBounds.getNorth(), c[0]));
+          var lng = Math.max(clampBounds.getWest(), Math.min(clampBounds.getEast(), c[1]));
+          return [lat, lng];
+        }
+
         /* Zone labels */
         if (results[0] && results[0].features) {
           results[0].features.forEach(function(f) {
             if (!f.attributes || !f.attributes.name || !f.geometry) return;
-            var c = centroid(f.geometry.rings);
+            var c = clampToView(centroid(f.geometry.rings));
             var icon = L.divIcon({
               className: 'zone-label-tip',
               html: '<b>' + f.attributes.name + '</b>',
@@ -1776,7 +1791,7 @@ initCollapse();
         if (showSubzones && results[1] && results[1].features) {
           results[1].features.forEach(function(f) {
             if (!f.attributes || !f.attributes.name || !f.geometry) return;
-            var c = centroid(f.geometry.rings);
+            var c = clampToView(centroid(f.geometry.rings));
             var icon = L.divIcon({
               className: 'zone-label-tip subzone-label-tip',
               html: '<i>' + f.attributes.name + '</i>',
