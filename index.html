@@ -1710,15 +1710,35 @@ initCollapse();
 
     /* --- Visual zoning overlay (esri-leaflet) --- */
     var zoningOverlay = null;
+    var subzoneFeatureLayer = null;
     var zoneLabelGroup = L.layerGroup();
     var isZoneOn = false;
     try {
       if (typeof L.esri !== 'undefined' && L.esri.dynamicMapLayer) {
+        /* Zones only as raster (layer 114) */
         zoningOverlay = L.esri.dynamicMapLayer({
           url: SAPPA_BASE,
-          layers: [113, 114],
+          layers: [114],
           opacity: 0.35,
           useCors: true
+        });
+      }
+      /* Subzones as vector feature layer with distinct styling */
+      if (typeof L.esri !== 'undefined' && L.esri.featureLayer) {
+        subzoneFeatureLayer = L.esri.featureLayer({
+          url: SAPPA_BASE + '/113',
+          style: function() {
+            return {
+              color: '#7c3aed',
+              weight: 1.5,
+              opacity: 0.7,
+              dashArray: '6, 4',
+              fillColor: '#7c3aed',
+              fillOpacity: 0.08
+            };
+          },
+          useCors: true,
+          minZoom: 14
         });
       }
     } catch(e) { console.warn('Zoning overlay init failed:', e); }
@@ -1855,6 +1875,7 @@ initCollapse();
         }
         if (isZoneOn) {
           map.removeLayer(zoningOverlay);
+          if (subzoneFeatureLayer) map.removeLayer(subzoneFeatureLayer);
           map.removeLayer(zoneLabelGroup);
           zoneLabelGroup.clearLayers();
           isZoneOn = false;
@@ -1862,6 +1883,7 @@ initCollapse();
           zoneToggle.innerHTML = '&#128506; Show Zones';
         } else {
           zoningOverlay.addTo(map);
+          if (subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
           zoneLabelGroup.addTo(map);
           isZoneOn = true;
           zoneToggle.classList.add('active');
