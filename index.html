@@ -1844,10 +1844,26 @@ initCollapse();
           return inside;
         }
 
-        /* Zone labels */
         var zoneFeatures = (results[0] && results[0].features) || [];
+        var subFeatures = (results[1] && results[1].features) || [];
+
+        /* Build a set of zone names that have subzones visible — skip their standalone label */
+        var zonesWithSubzones = {};
+        subFeatures.forEach(function(f) {
+          if (!f.attributes || !f.attributes.name || !f.geometry) return;
+          var rawC = centroid(f.geometry.rings);
+          for (var i = 0; i < zoneFeatures.length; i++) {
+            var zf = zoneFeatures[i];
+            if (zf.geometry && zf.geometry.rings && pointInRing(rawC[1], rawC[0], zf.geometry.rings[0])) {
+              zonesWithSubzones[zf.attributes.name] = true; break;
+            }
+          }
+        });
+
+        /* Zone labels — only show if no subzone label will include this zone name */
         zoneFeatures.forEach(function(f) {
           if (!f.attributes || !f.attributes.name || !f.geometry) return;
+          if (zonesWithSubzones[f.attributes.name]) return;
           var c = clampToView(centroid(f.geometry.rings));
           L.marker(c, {
             icon: L.divIcon({ className: 'zone-label-tip', html: '<b>' + f.attributes.name + '</b>', iconSize: [0,0], iconAnchor: [0,0] }),
@@ -1856,7 +1872,6 @@ initCollapse();
         });
 
         /* Subzone labels with parent zone name */
-        var subFeatures = (results[1] && results[1].features) || [];
         subFeatures.forEach(function(f) {
           if (!f.attributes || !f.attributes.name || !f.geometry) return;
           var rawC = centroid(f.geometry.rings);
