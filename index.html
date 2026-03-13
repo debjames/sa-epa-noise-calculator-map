@@ -1742,17 +1742,17 @@ initCollapse();
       }
     } catch(e) { console.warn('Zoning overlay init failed:', e); }
 
-    /* --- Hover tooltip: query zone/subzone at mouse position --- */
+    /* --- Hover tooltip: query zone/subzone at mouse position (low zoom only) --- */
+    var LABEL_ZOOM = 16;
     var _hoverTimer = null;
     var hoverTooltip = L.tooltip({ permanent: false, direction: 'top', className: 'zone-label-tip', offset: [0, -10] });
     var lastHoverQuery = '';
 
     function queryZoneAtMouse(e) {
-      if (!isZoneOn) return;
+      if (!isZoneOn || map.getZoom() >= LABEL_ZOOM) return;
       var geom = e.latlng.lng + ',' + e.latlng.lat;
-      var key = geom;
-      if (key === lastHoverQuery) return;
-      lastHoverQuery = key;
+      if (geom === lastHoverQuery) return;
+      lastHoverQuery = geom;
 
       var zoneUrl = SAPPA_BASE + '/114/query?geometry=' + geom +
         '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
@@ -1765,7 +1765,7 @@ initCollapse();
         fetch(zoneUrl).then(function(r) { return r.json(); }),
         fetch(subzoneUrl).then(function(r) { return r.json(); })
       ]).then(function(results) {
-        if (!isZoneOn) { map.closeTooltip(hoverTooltip); return; }
+        if (!isZoneOn || map.getZoom() >= LABEL_ZOOM) { map.closeTooltip(hoverTooltip); return; }
         var zoneName = '';
         var subzoneName = '';
         if (results[0] && results[0].features && results[0].features.length) {
@@ -1783,13 +1783,104 @@ initCollapse();
     }
 
     map.on('mousemove', function(e) {
-      if (!isZoneOn) return;
+      if (!isZoneOn || map.getZoom() >= LABEL_ZOOM) return;
       clearTimeout(_hoverTimer);
       _hoverTimer = setTimeout(function() { queryZoneAtMouse(e); }, 300);
     });
     map.on('mouseout', function() {
       map.closeTooltip(hoverTooltip);
       lastHoverQuery = '';
+    });
+
+    /* --- Permanent labels at high zoom --- */
+    var zoneLabelGroup = L.layerGroup();
+    var _zoneLabelTimer = null;
+
+    function refreshZoneLabels() {
+      if (!isZoneOn || map.getZoom() < LABEL_ZOOM) { zoneLabelGroup.clearLayers(); return; }
+      map.closeTooltip(hoverTooltip);
+      var b = map.getBounds();
+      var env = b.getWest() + ',' + b.getSouth() + ',' + b.getEast() + ',' + b.getNorth();
+
+      var zoneUrl = SAPPA_BASE + '/114/query?geometry=' + encodeURIComponent(env) +
+        '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326' +
+        '&spatialRel=esriSpatialRelIntersects&outFields=name&returnGeometry=true&f=json';
+      var subUrl = SAPPA_BASE + '/113/query?geometry=' + encodeURIComponent(env) +
+        '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326' +
+        '&spatialRel=esriSpatialRelIntersects&outFields=name&returnGeometry=true&f=json';
+
+      Promise.all([
+        fetch(zoneUrl).then(function(r) { return r.json(); }),
+        fetch(subUrl).then(function(r) { return r.json(); })
+      ]).then(function(results) {
+        if (!isZoneOn || map.getZoom() < LABEL_ZOOM) return;
+        zoneLabelGroup.clearLayers();
+        var bounds = map.getBounds();
+        var pad = 0.15;
+        var latSpan = bounds.getNorth() - bounds.getSouth();
+        var lngSpan = bounds.getEast() - bounds.getWest();
+        var clampBounds = L.latLngBounds(
+          [bounds.getSouth() + latSpan * pad, bounds.getWest() + lngSpan * pad],
+          [bounds.getNorth() - latSpan * pad, bounds.getEast() - lngSpan * pad]
+        );
+
+        function centroid(rings) {
+          var ring = rings[0], sumX = 0, sumY = 0, n = ring.length;
+          for (var i = 0; i < n; i++) { sumX += ring[i][0]; sumY += ring[i][1]; }
+          return [sumY / n, sumX / n];
+        }
+        function clampToView(c) {
+          return [
+            Math.max(clampBounds.getSouth(), Math.min(clampBounds.getNorth(), c[0])),
+            Math.max(clampBounds.getWest(), Math.min(clampBounds.getEast(), c[1]))
+          ];
+        }
+        function pointInRing(px, py, ring) {
+          var inside = false;
+          for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+            if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
+          }
+          return inside;
+        }
+
+        /* Zone labels */
+        var zoneFeatures = (results[0] && results[0].features) || [];
+        zoneFeatures.forEach(function(f) {
+          if (!f.attributes || !f.attributes.name || !f.geometry) return;
+          var c = clampToView(centroid(f.geometry.rings));
+          L.marker(c, {
+            icon: L.divIcon({ className: 'zone-label-tip', html: '<b>' + f.attributes.name + '</b>', iconSize: [0,0], iconAnchor: [0,0] }),
+            interactive: false, zIndexOffset: 1000
+          }).addTo(zoneLabelGroup);
+        });
+
+        /* Subzone labels with parent zone name */
+        var subFeatures = (results[1] && results[1].features) || [];
+        subFeatures.forEach(function(f) {
+          if (!f.attributes || !f.attributes.name || !f.geometry) return;
+          var rawC = centroid(f.geometry.rings);
+          var c = clampToView(rawC);
+          var parent = '';
+          for (var i = 0; i < zoneFeatures.length; i++) {
+            var zf = zoneFeatures[i];
+            if (zf.geometry && zf.geometry.rings && pointInRing(rawC[1], rawC[0], zf.geometry.rings[0])) {
+              parent = zf.attributes.name || ''; break;
+            }
+          }
+          var html = (parent ? '<b>' + parent + '</b><br>' : '') + '<i>' + f.attributes.name + '</i>';
+          L.marker(c, {
+            icon: L.divIcon({ className: 'zone-label-tip subzone-label-tip', html: html, iconSize: [0,0], iconAnchor: [0,0] }),
+            interactive: false, zIndexOffset: 900
+          }).addTo(zoneLabelGroup);
+        });
+      }).catch(function(err) { console.warn('Zone label fetch failed:', err); });
+    }
+
+    map.on('moveend zoomend', function() {
+      if (!isZoneOn) return;
+      clearTimeout(_zoneLabelTimer);
+      _zoneLabelTimer = setTimeout(refreshZoneLabels, 400);
     });
 
     var zoneToggle = document.getElementById('zoneToggleBtn');
@@ -1802,6 +1893,8 @@ initCollapse();
         if (isZoneOn) {
           map.removeLayer(zoningOverlay);
           if (subzoneFeatureLayer) map.removeLayer(subzoneFeatureLayer);
+          map.removeLayer(zoneLabelGroup);
+          zoneLabelGroup.clearLayers();
           map.closeTooltip(hoverTooltip);
           isZoneOn = false;
           zoneToggle.classList.remove('active');
@@ -1809,9 +1902,11 @@ initCollapse();
         } else {
           zoningOverlay.addTo(map);
           if (subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
+          zoneLabelGroup.addTo(map);
           isZoneOn = true;
           zoneToggle.classList.add('active');
           zoneToggle.innerHTML = '&#128506; Hide Zones';
+          refreshZoneLabels();
         }
       });
     }
