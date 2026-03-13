@@ -1554,8 +1554,8 @@ initCollapse();
         var searchVal = document.getElementById('mapSearchInput');
         if (searchVal && searchVal.value.trim()) {
           var parts = searchVal.value.trim().split(',').map(function(s){return s.trim();});
-          /* Nominatim: street, suburb, city, state, postcode, country — keep up to city */
-          var cityParts = parts.length > 3 ? parts.slice(0, parts.length - 3) : parts.slice(0, 1);
+          /* Nominatim: street, suburb, city, council, state, postcode, country — keep up to city, drop council onwards */
+          var cityParts = parts.length > 4 ? parts.slice(0, parts.length - 4) : parts.slice(0, 1);
           pdfName += ' - ' + cityParts.join(', ');
         }
         pdf.save(pdfName + '.pdf');
