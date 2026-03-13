@@ -184,6 +184,24 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 }
 .recv-name-input:hover { border-color: var(--border); background: #fafafa; }
 .recv-name-input:focus { border-color: rgba(242,203,0,1); background: #fff; outline: none; }
+/* Zone label tooltips on map */
+.zone-label-tip {
+  background: rgba(255,255,255,0.85);
+  border: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.zone-label-tip::before { display: none; }
+.subzone-label-tip {
+  font-size: 9px;
+  font-weight: 400;
+  color: #4b5563;
+}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 </head>
@@ -1688,6 +1706,8 @@ initCollapse();
 
     /* --- Visual zoning overlay (esri-leaflet) --- */
     var zoningOverlay = null;
+    var zoneLabelLayer = null;
+    var subzoneLabelLayer = null;
     try {
       if (typeof L.esri !== 'undefined' && L.esri.dynamicMapLayer) {
         zoningOverlay = L.esri.dynamicMapLayer({
@@ -1696,6 +1716,33 @@ initCollapse();
           opacity: 0.35,
           useCors: true
         });
+      }
+      /* Zone labels via featureLayer */
+      if (typeof L.esri !== 'undefined' && L.esri.featureLayer) {
+        var zoneLabelStyle = function() {
+          return { fillOpacity: 0, weight: 0, opacity: 0 };
+        };
+        zoneLabelLayer = L.esri.featureLayer({
+          url: SAPPA_BASE + '/114',
+          style: zoneLabelStyle,
+          useCors: true,
+          minZoom: 13
+        });
+        zoneLabelLayer.bindTooltip(function(layer) {
+          var name = layer.feature.properties.name || '';
+          return '<b>' + name + '</b>';
+        }, { permanent: true, direction: 'center', className: 'zone-label-tip', offset: [0, 0] });
+
+        subzoneLabelLayer = L.esri.featureLayer({
+          url: SAPPA_BASE + '/113',
+          style: zoneLabelStyle,
+          useCors: true,
+          minZoom: 14
+        });
+        subzoneLabelLayer.bindTooltip(function(layer) {
+          var name = layer.feature.properties.name || '';
+          return '<i>' + name + '</i>';
+        }, { permanent: true, direction: 'center', className: 'zone-label-tip subzone-label-tip', offset: [0, 12] });
       }
     } catch(e) { console.warn('Zoning overlay init failed:', e); }
 
@@ -1708,10 +1755,14 @@ initCollapse();
         }
         if (map.hasLayer(zoningOverlay)) {
           map.removeLayer(zoningOverlay);
+          if (zoneLabelLayer) map.removeLayer(zoneLabelLayer);
+          if (subzoneLabelLayer) map.removeLayer(subzoneLabelLayer);
           zoneToggle.classList.remove('active');
           zoneToggle.innerHTML = '&#128506; Show Zones';
         } else {
           zoningOverlay.addTo(map);
+          if (zoneLabelLayer) zoneLabelLayer.addTo(map);
+          if (subzoneLabelLayer) subzoneLabelLayer.addTo(map);
           zoneToggle.classList.add('active');
           zoneToggle.innerHTML = '&#128506; Hide Zones';
         }
