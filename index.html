@@ -284,11 +284,11 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div class="p">Click the map to place the <strong>noise source</strong> and up to <strong>4 receiver</strong> locations. Straight-line distances are calculated automatically and entered in the table below. Markers can be dragged to fine-tune positions.</div>
 
         <!-- Location search -->
-        <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;">
-          <input type="text" id="mapSearchInput" placeholder="Search for an address or place…" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:13px;background:white;">
+        <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;position:relative;">
+          <input type="text" id="mapSearchInput" placeholder="Search for an address…" autocomplete="off" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:13px;background:white;">
           <button class="tool-btn map-mode-btn" id="mapSearchBtn" style="white-space:nowrap;">&#128269; Search</button>
         </div>
-        <div id="mapSearchResults" style="display:none;border:1px solid var(--border);border-radius:10px;background:#fff;margin-bottom:8px;max-height:180px;overflow-y:auto;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
+        <div id="mapSearchResults" style="display:none;border:1px solid var(--border);border-radius:10px;background:#fff;margin-bottom:8px;max-height:220px;overflow-y:auto;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
 
         <!-- Mode buttons -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;align-items:center;">
@@ -998,6 +998,57 @@ function detectVicAreaType(zoneCode) {
   return 'urban';
 }
 
+/* Major Urban Area polygon dataset (EPA Vic) — cached after first fetch */
+const VIC_MUA_GEOJSON_URL = 'https://drapubcdnprd.azureedge.net/noisedata/MAJOR_URBAN_AREA.geojson';
+let _vicMuaPolygons = null;
+let _vicMuaFetchPromise = null;
+
+function fetchVicMuaPolygons() {
+  if (_vicMuaPolygons) return Promise.resolve(_vicMuaPolygons);
+  if (_vicMuaFetchPromise) return _vicMuaFetchPromise;
+  _vicMuaFetchPromise = fetch(VIC_MUA_GEOJSON_URL)
+    .then(function(r) {
+      if (!r.ok) throw new Error('MUA fetch HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(geojson) {
+      var rings = [];
+      if (geojson && geojson.features) {
+        for (var i = 0; i < geojson.features.length; i++) {
+          var feat = geojson.features[i];
+          if (feat.geometry && feat.geometry.type === 'Polygon' && feat.geometry.coordinates) {
+            rings.push(feat.geometry.coordinates[0]);
+          } else if (feat.geometry && feat.geometry.type === 'MultiPolygon' && feat.geometry.coordinates) {
+            for (var p = 0; p < feat.geometry.coordinates.length; p++) {
+              rings.push(feat.geometry.coordinates[p][0]);
+            }
+          }
+        }
+      }
+      _vicMuaPolygons = rings;
+      _vicMuaFetchPromise = null;
+      console.log('VIC MUA polygons loaded: ' + rings.length + ' rings');
+      return rings;
+    })
+    .catch(function(err) {
+      console.warn('VIC MUA GeoJSON fetch failed:', err);
+      _vicMuaFetchPromise = null;
+      return [];
+    });
+  return _vicMuaFetchPromise;
+}
+
+function checkVicMuaAreaType(lat, lng) {
+  return fetchVicMuaPolygons().then(function(rings) {
+    if (!rings || rings.length === 0) return null;
+    var pt = [lng, lat];
+    for (var i = 0; i < rings.length; i++) {
+      if (pointInPolygon(pt, rings[i])) return 'urban';
+    }
+    return 'rural';
+  });
+}
+
 function getVicZoneType(zoneCode) {
   if (!zoneCode) return null;
   var code = zoneCode.replace(/[^A-Z0-9]/g, '').toUpperCase();
@@ -1331,6 +1382,7 @@ function switchToState(state) {
     badge.textContent = 'VIC';
     badge.className = 'state-badge state-badge-vic';
     badge.style.display = '';
+    fetchVicMuaPolygons(); // pre-fetch Major Urban Area polygons
   } else if (state === 'SA') {
     body.classList.add('state-sa');
     badge.textContent = 'SA';
@@ -2808,10 +2860,11 @@ initCollapse();
           pdfName += ' (' + currentState + ')';
         }
         var searchVal = document.getElementById('mapSearchInput');
-        if (searchVal && searchVal.value.trim()) {
+        if (lastSelectedAddress) {
+          pdfName += ' - ' + lastSelectedAddress;
+        } else if (searchVal && searchVal.value.trim()) {
           var parts = searchVal.value.trim().split(',').map(function(s){return s.trim();});
-          /* Nominatim: street, suburb, city, council, state, postcode, country — keep up to city, drop council onwards */
-          var cityParts = parts.length > 4 ? parts.slice(0, parts.length - 4) : parts.slice(0, 1);
+          var cityParts = parts.length > 2 ? parts.slice(0, parts.length - 2) : parts.slice(0, 1);
           pdfName += ' - ' + cityParts.join(', ');
         }
         pdf.save(pdfName + '.pdf');
@@ -3465,19 +3518,35 @@ initCollapse();
           var label = zoneCode;
           if (result.zoneDesc) label += ' \u2014 ' + result.zoneDesc;
 
-          // Auto-detect urban/rural from source zone
+          // Auto-detect urban/rural from source zone (immediate zone-code pass)
           if (mode === 'source' && zoneCode) {
-            var detectedArea = detectVicAreaType(zoneCode);
-            if (detectedArea && detectedArea !== vicAreaType) {
-              setVicAreaType(detectedArea);
-              // Update toggle button UI
-              var urbanBtn = document.getElementById('vicAreaUrban');
-              var ruralBtn = document.getElementById('vicAreaRural');
-              if (urbanBtn && ruralBtn) {
-                urbanBtn.classList.toggle('active', detectedArea === 'urban');
-                ruralBtn.classList.toggle('active', detectedArea === 'rural');
+            var zoneBasedArea = detectVicAreaType(zoneCode);
+            if (zoneBasedArea && zoneBasedArea !== vicAreaType) {
+              setVicAreaType(zoneBasedArea);
+              var urbanBtn0 = document.getElementById('vicAreaUrban');
+              var ruralBtn0 = document.getElementById('vicAreaRural');
+              if (urbanBtn0 && ruralBtn0) {
+                urbanBtn0.classList.toggle('active', zoneBasedArea === 'urban');
+                ruralBtn0.classList.toggle('active', zoneBasedArea === 'rural');
               }
             }
+            // Override with MUA polygon check (authoritative, async)
+            checkVicMuaAreaType(queryLat, queryLng).then(function(muaArea) {
+              var currentLl2 = latlngs[mode];
+              if (!currentLl2 ||
+                  Math.abs(currentLl2.lat - queryLat) > 0.0001 ||
+                  Math.abs(currentLl2.lng - queryLng) > 0.0001) return;
+              if (muaArea === null) return;
+              if (muaArea !== vicAreaType) {
+                setVicAreaType(muaArea);
+                var urbanBtn = document.getElementById('vicAreaUrban');
+                var ruralBtn = document.getElementById('vicAreaRural');
+                if (urbanBtn && ruralBtn) {
+                  urbanBtn.classList.toggle('active', muaArea === 'urban');
+                  ruralBtn.classList.toggle('active', muaArea === 'rural');
+                }
+              }
+            });
           }
 
           // For VIC urban mode, set the Type 1/2/3 dropdown
@@ -3898,12 +3967,148 @@ initCollapse();
       });
     }
 
-    /* ---- location search (Nominatim OSM geocoder) ---- */
+    /* ---- location search (Geoscape Predictive API with Nominatim fallback) ---- */
     var searchInp = document.getElementById('mapSearchInput');
     var searchBtn = document.getElementById('mapSearchBtn');
     var searchRes = document.getElementById('mapSearchResults');
     var lastSelectedAddress = '';
+    var GEOSCAPE_KEY = 'c69NnbZYyD1x0YcjirtnkUsbZQok4nTH';
+    var GEOSCAPE_BASE = 'https://api.psma.com.au/predictive/address';
+    var _geoscapeDebounce = null;
 
+    /* Detect Australian state from an address string */
+    function detectStateFromAddress(addr) {
+      if (!addr) return;
+      var u = addr.toUpperCase();
+      if (/\bVIC\b/.test(u) || /\bVICTORIA\b/.test(u)) { switchToState('VIC'); return; }
+      if (/\bSA\b/.test(u) || /\bSOUTH AUSTRALIA\b/.test(u)) { switchToState('SA'); return; }
+      var m = u.match(/\b(NSW|QLD|WA|TAS|NT|ACT)\b/);
+      if (m) { detectedStateName = m[1]; switchToState('OTHER'); return; }
+      if (/\bNEW SOUTH WALES\b/.test(u)) { detectedStateName = 'NSW'; switchToState('OTHER'); return; }
+      if (/\bQUEENSLAND\b/.test(u)) { detectedStateName = 'QLD'; switchToState('OTHER'); return; }
+      if (/\bWESTERN AUSTRALIA\b/.test(u)) { detectedStateName = 'WA'; switchToState('OTHER'); return; }
+      if (/\bTASMANIA\b/.test(u)) { detectedStateName = 'TAS'; switchToState('OTHER'); return; }
+      if (/\bNORTHERN TERRITORY\b/.test(u)) { detectedStateName = 'NT'; switchToState('OTHER'); return; }
+    }
+
+    /* Store short address for PDF filename */
+    function setLastSelectedAddress(addr) {
+      var parts = addr.split(',').map(function(s){return s.trim();});
+      /* Keep street + suburb, drop state/postcode/country */
+      var keep = parts.length > 2 ? parts.slice(0, parts.length - 2) : parts.slice(0, 1);
+      lastSelectedAddress = keep.join(', ');
+    }
+
+    /* Show a result row in the dropdown */
+    function addSearchRow(text, onClick) {
+      var row = document.createElement('div');
+      row.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);line-height:1.4;';
+      row.textContent = text;
+      row.addEventListener('mouseenter', function () { row.style.background = '#f9f9f9'; });
+      row.addEventListener('mouseleave', function () { row.style.background = ''; });
+      row.addEventListener('click', onClick);
+      searchRes.appendChild(row);
+    }
+
+    /* Select a Geoscape suggestion — fetch full address with coordinates */
+    function selectGeoscapeSuggestion(suggestion) {
+      searchRes.style.display = 'none';
+      searchInp.value = suggestion.address;
+      setLastSelectedAddress(suggestion.address);
+      detectStateFromAddress(suggestion.address);
+
+      fetch(GEOSCAPE_BASE + '/' + encodeURIComponent(suggestion.id), {
+        headers: { 'Authorization': GEOSCAPE_KEY }
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var lat, lng;
+        /* Response may nest coordinates in different ways */
+        if (data.geocoding && data.geocoding.geocode) {
+          lat = data.geocoding.geocode.latitude;
+          lng = data.geocoding.geocode.longitude;
+        } else if (data.geo && data.geo.geometry && data.geo.geometry.coordinates) {
+          lng = data.geo.geometry.coordinates[0];
+          lat = data.geo.geometry.coordinates[1];
+        } else if (data.addressDetail && data.addressDetail.latitude) {
+          lat = data.addressDetail.latitude;
+          lng = data.addressDetail.longitude;
+        }
+        if (lat && lng) {
+          map.setView([lat, lng], 17);
+          placeMarker('source', L.latLng(lat, lng));
+        }
+      })
+      .catch(function(err) { console.warn('Geoscape get-address failed:', err); });
+    }
+
+    /* Geoscape suggest call */
+    function geoscapeSuggest(q) {
+      return fetch(GEOSCAPE_BASE + '?query=' + encodeURIComponent(q) + '&maxNumberOfResults=6', {
+        headers: { 'Authorization': GEOSCAPE_KEY }
+      })
+      .then(function(r) {
+        if (!r.ok) throw new Error('Geoscape HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        if (data && data.suggest && data.suggest.length) return data.suggest;
+        return null;
+      });
+    }
+
+    /* Nominatim fallback */
+    function nominatimSearch(q) {
+      return fetch(
+        'https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&countrycodes=au&q=' +
+        encodeURIComponent(q),
+        { headers: { 'Accept-Language': 'en', 'User-Agent': 'NoiseCalcTool/1.0' } }
+      )
+      .then(function(r) { return r.json(); });
+    }
+
+    /* Show Geoscape suggestions in dropdown */
+    function showGeoscapeResults(suggestions) {
+      if (!searchRes) return;
+      searchRes.innerHTML = '';
+      suggestions.forEach(function(s) {
+        addSearchRow(s.address, function() { selectGeoscapeSuggestion(s); });
+      });
+      searchRes.style.display = 'block';
+    }
+
+    /* Show Nominatim results in dropdown */
+    function showNominatimResults(results) {
+      if (!searchRes) return;
+      searchRes.innerHTML = '';
+      if (!results || !results.length) {
+        searchRes.innerHTML = '<div style="padding:10px 12px;color:var(--muted);">No results found.</div>';
+        searchRes.style.display = 'block';
+        return;
+      }
+      results.forEach(function(item) {
+        addSearchRow(item.display_name, function() {
+          var lat = parseFloat(item.lat);
+          var lng = parseFloat(item.lon);
+          map.setView([lat, lng], 16);
+          placeMarker('source', L.latLng(lat, lng));
+          searchInp.value = item.display_name;
+          setLastSelectedAddress(item.display_name);
+          var addrState = (item.address && item.address.state) ? item.address.state : '';
+          if (/victoria/i.test(addrState)) { switchToState('VIC'); }
+          else if (/south australia/i.test(addrState)) { switchToState('SA'); }
+          else {
+            var abbrevs = {'new south wales':'NSW','queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
+            detectedStateName = addrState ? (abbrevs[addrState.toLowerCase()] || addrState) : ((item.address && item.address.country) || 'Other');
+            switchToState('OTHER');
+          }
+          searchRes.style.display = 'none';
+        });
+      });
+      searchRes.style.display = 'block';
+    }
+
+    /* Main search: try Geoscape first, fall back to Nominatim */
     function doSearch() {
       var q = (searchInp && searchInp.value) ? searchInp.value.trim() : '';
       if (!q) return;
@@ -3911,75 +4116,51 @@ initCollapse();
       searchBtn.disabled = true;
       if (searchRes) { searchRes.style.display = 'none'; searchRes.innerHTML = ''; }
 
-      fetch(
-        'https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&q=' +
-        encodeURIComponent(q),
-        { headers: { 'Accept-Language': 'en', 'User-Agent': 'NoiseCalcTool/1.0' } }
-      )
-      .then(function (r) { return r.json(); })
-      .then(function (results) {
-        searchBtn.textContent = '\uD83D\uDD0D Search';
-        searchBtn.disabled = false;
-        if (!searchRes) return;
-        if (!results || !results.length) {
-          searchRes.innerHTML = '<div style="padding:10px 12px;color:var(--muted);">No results found — try a different address.</div>';
-          searchRes.style.display = 'block';
-          return;
-        }
-        results.forEach(function (item) {
-          var row = document.createElement('div');
-          row.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);line-height:1.4;';
-          row.textContent = item.display_name;
-          row.addEventListener('mouseenter', function () { row.style.background = '#f9f9f9'; });
-          row.addEventListener('mouseleave', function () { row.style.background = ''; });
-          row.addEventListener('click', function () {
-            var lat = parseFloat(item.lat);
-            var lng = parseFloat(item.lon);
-            map.setView([lat, lng], 16);
-            placeMarker('source', L.latLng(lat, lng));
-            searchInp.value = item.display_name;
-            /* Store address up to city name for PDF filename */
-            var parts = item.display_name.split(',').map(function(s){return s.trim();});
-            /* Nominatim typically: street, suburb, city, state, postcode, country
-               Keep parts up to and including the city (drop state, postcode, country).
-               We drop the last 3 parts (state, postcode, country) if enough parts exist. */
-            var cityParts = parts.length > 3 ? parts.slice(0, parts.length - 3) : parts.slice(0, 1);
-            lastSelectedAddress = cityParts.join(', ');
-            // Detect state from Nominatim address details
-            var addrState = (item.address && item.address.state) ? item.address.state : '';
-            if (/victoria/i.test(addrState)) {
-              switchToState('VIC');
-            } else if (/south australia/i.test(addrState)) {
-              switchToState('SA');
-            } else {
-              var stateAbbrevs = {
-                'new south wales':'NSW', 'queensland':'QLD', 'western australia':'WA',
-                'tasmania':'TAS', 'northern territory':'NT',
-                'australian capital territory':'ACT'
-              };
-              detectedStateName = addrState ? (stateAbbrevs[addrState.toLowerCase()] || addrState) : ((item.address && item.address.country) || 'Other');
-              switchToState('OTHER');
-            }
-            searchRes.style.display = 'none';
+      geoscapeSuggest(q)
+        .then(function(suggestions) {
+          searchBtn.textContent = '\uD83D\uDD0D Search';
+          searchBtn.disabled = false;
+          if (suggestions) { showGeoscapeResults(suggestions); return; }
+          /* No Geoscape results — try Nominatim */
+          return nominatimSearch(q).then(showNominatimResults);
+        })
+        .catch(function() {
+          /* Geoscape failed — fall back to Nominatim */
+          return nominatimSearch(q).then(function(results) {
+            searchBtn.textContent = '\uD83D\uDD0D Search';
+            searchBtn.disabled = false;
+            showNominatimResults(results);
           });
-          searchRes.appendChild(row);
+        })
+        .catch(function() {
+          searchBtn.textContent = '\uD83D\uDD0D Search';
+          searchBtn.disabled = false;
+          if (searchRes) {
+            searchRes.innerHTML = '<div style="padding:10px 12px;color:#dc2626;">Search failed — check your internet connection.</div>';
+            searchRes.style.display = 'block';
+          }
         });
-        searchRes.style.display = 'block';
-      })
-      .catch(function () {
-        searchBtn.textContent = '\uD83D\uDD0D Search';
-        searchBtn.disabled = false;
-        if (searchRes) {
-          searchRes.innerHTML = '<div style="padding:10px 12px;color:#dc2626;">Search failed — check your internet connection.</div>';
-          searchRes.style.display = 'block';
-        }
-      });
+    }
+
+    /* Live autocomplete as you type (debounced, min 4 chars) */
+    function onSearchInput() {
+      clearTimeout(_geoscapeDebounce);
+      var q = (searchInp && searchInp.value) ? searchInp.value.trim() : '';
+      if (q.length < 4) { if (searchRes) searchRes.style.display = 'none'; return; }
+      _geoscapeDebounce = setTimeout(function() {
+        geoscapeSuggest(q)
+          .then(function(suggestions) {
+            if (suggestions) showGeoscapeResults(suggestions);
+          })
+          .catch(function() { /* silent — user can still press Search for Nominatim fallback */ });
+      }, 250);
     }
 
     if (searchBtn) searchBtn.addEventListener('click', doSearch);
     if (searchInp) {
+      searchInp.addEventListener('input', onSearchInput);
       searchInp.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+        if (e.key === 'Enter') { e.preventDefault(); clearTimeout(_geoscapeDebounce); doSearch(); }
       });
     }
     /* close dropdown when clicking outside */
