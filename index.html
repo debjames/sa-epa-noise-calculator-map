@@ -7,6 +7,13 @@
 <link rel="icon" type="image/png" href="R.png">
 <link rel="apple-touch-icon" href="R.png">
 <style>
+@font-face {
+  font-family: 'Street Corner Thin';
+  src: url('StreetCornerThin.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 :root{
   --text:#111827;
   --muted:#6b7280;
@@ -20,12 +27,13 @@
 }
 body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--text);}
 .container{max-width:1180px;margin:22px auto;padding:0 14px 34px;}
-.h1{font-size:25px;font-weight:700;margin:0 0 6px;}
+.h1{font-family:'Street Corner Thin',system-ui,sans-serif;font-size:25px;font-weight:700;margin:0 0 32px;padding-left:10px;}
 .h2{font-size:12px;font-weight:700;margin:0 0 6px;}
 .p1{font-size:10px;color:var(--muted);margin:0 0 14px;line-height:1.45;}
 .p{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.45;}
 .i{font-style: italic; font-weight: bold; font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.45;}
-  .sheet1{background:var(--sheet);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.03);padding:14px;margin-bottom: 14px;}
+.i a{color:var(--muted);}
+  .sheet1{background:#f0f5fa;border:1px solid #c9d6e3;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:14px;margin-bottom: 14px;}
 .sheet{background:var(--sheet);border:1px solid var(--border);border-radius:14px;overflow:visible;box-shadow:0 1px 0 rgba(0,0,0,.03);}
 table{width:100%;border-collapse:collapse;}
 td,th{border:1px solid var(--border);padding:8px 10px;font-size:13px;vertical-align: middle; text-align: left;}
@@ -104,8 +112,8 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   font-weight: 700;
 }
 
-/* ===== Distance map ===== */
-.map-mode-btn {
+/* ===== Shared button base ===== */
+.tool-btn {
   padding: 6px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -115,12 +123,10 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.map-mode-btn:hover { background: #f9f9f9; }
-.map-mode-btn.active {
-  background: rgba(242,203,0,1);
-  border-color: rgba(180,148,0,1);
-  font-weight: 700;
-}
+.tool-btn:hover { background: #f9f9f9; }
+
+/* ===== Distance map ===== */
+.map-mode-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
 #noise-map { position: relative; z-index: 1; }
 .map-status-row { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:8px; font-size:12px; font-weight:600; }
 
@@ -137,25 +143,20 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .contrib-sub-h { font-size:12px; font-weight:700; margin:0 0 6px; }
 .contrib-section + .contrib-section { margin-top:16px; }
 
-/* ===== Zone overlay & auto-detect ===== */
-.zone-toggle-btn, .aerial-toggle-btn, .cadastre-toggle-btn {
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.zone-toggle-btn { border: 1px solid #059669; color: #059669; }
+/* ===== Zone / map toggle buttons ===== */
+.zone-toggle-btn { border-color: #059669; color: #059669; }
 .zone-toggle-btn:hover { background: #f0fdf4; }
-.zone-toggle-btn.active { background: #059669; color: #fff; font-weight: 700; }
-.aerial-toggle-btn { border: 1px solid #2563eb; color: #2563eb; }
+.zone-toggle-btn.active { background: #a7f3d0; border-color: #34d399; color: #064e3b; font-weight: 700; }
+.aerial-toggle-btn { border-color: #2563eb; color: #2563eb; }
 .aerial-toggle-btn:hover { background: #eff6ff; }
-.aerial-toggle-btn.active { background: #2563eb; color: #fff; font-weight: 700; }
-.cadastre-toggle-btn { border: 1px solid #b45309; color: #b45309; }
-.cadastre-toggle-btn:hover { background: #fffbeb; }
-.cadastre-toggle-btn.active { background: #b45309; color: #fff; font-weight: 700; }
+.aerial-toggle-btn.active { background: #dbeafe; border-color: #93c5fd; color: #1e40af; font-weight: 700; }
+.cadastre-toggle-btn { border-color: #6b7280; color: #6b7280; }
+.cadastre-toggle-btn:hover { background: #f3f4f6; }
+.cadastre-toggle-btn.active { background: #e5e7eb; border-color: #9ca3af; color: #374151; font-weight: 700; }
+.pins-toggle-btn:hover { background: #f0f5fa; }
+.pins-toggle-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
+.parcel-toggle-btn:hover { background: #f0f5fa; }
+.parcel-toggle-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
 .zone-detect-flash {
   animation: zoneFlash 1.5s ease-out;
 }
@@ -206,6 +207,52 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   color: #6b7280;
   white-space: nowrap;
 }
+
+/* ===== State-conditional visibility (SA vs VIC) ===== */
+.vic-only { display: none !important; }
+body.state-vic .vic-only { display: revert !important; }
+body.state-vic td.vic-only, body.state-vic th.vic-only { display: table-cell !important; }
+body.state-vic div.vic-only { display: block !important; }
+body.state-vic span.vic-only { display: inline-block !important; }
+body.state-vic .sa-only { display: none !important; }
+body.state-vic .landuse-col { display: none !important; }
+.vic-rural-only { display: none !important; }
+.vic-urban-only { display: none !important; }
+body.state-vic.area-rural .vic-rural-only { display: block !important; }
+body.state-vic.area-urban .vic-urban-only { display: block !important; }
+
+/* OTHER state — manual criteria mode */
+body.state-other .sa-only { display: none !important; }
+body.state-other .vic-only { display: revert !important; }
+body.state-other td.vic-only, body.state-other th.vic-only { display: table-cell !important; }
+body.state-other div.vic-only { display: block !important; }
+body.state-other span.vic-only { display: inline-block !important; }
+body.state-other .zone-col { display: none !important; }
+body.state-other .landuse-col { display: none !important; }
+body.state-other .vic-rural-only { display: none !important; }
+body.state-other .vic-urban-only { display: none !important; }
+body.state-other .vic-only.vic-settings-only { display: none !important; }
+.other-only { display: none !important; }
+body.state-other .other-only { display: block !important; }
+.manual-crit-input { width:60px; text-align:center; font-size:12px; border:1px solid var(--border); border-radius:4px; padding:2px 4px; }
+/* Other-mode criteria column toggles */
+body.state-other.hide-day-col .crit-day-col { display: none !important; }
+body.state-other.hide-eve-col .crit-eve-col { display: none !important; }
+body.state-other.hide-night-col .crit-night-col { display: none !important; }
+body.state-other.hide-lmax-col .crit-lmax-col { display: none !important; }
+body.state-other.hide-day-col .crit-day-section { display: none !important; }
+body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
+
+/* VIC penalty checkboxes */
+.vic-penalty-section label { display:block; font-size:12px; margin:3px 0; cursor:pointer; }
+.vic-penalty-section input[type="checkbox"] { margin-right:5px; }
+.vic-penalty-total { font-size:12px; font-weight:700; margin-top:4px; }
+
+/* State indicator badge */
+.state-badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; margin-left:8px; }
+.state-badge-sa { background:#dbeafe; color:#1e40af; }
+.state-badge-vic { background:#fce7f3; color:#9d174d; }
+.state-badge-other { background:#fef3c7; color:#92400e; }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 </head>
@@ -214,22 +261,20 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 <div id="pdfArea">
 
 <div class="container">
-  <img src="resonate-logo.png" alt="Resonate" class="logo">
-  <button class="collapse-all-btn" id="collapseAllBtn">Collapse All</button>
-  <div class="h1">Environmental noise criteria & noise screening tool</div>
+  <a href="https://resonate-consultants.com/" target="_blank" rel="noopener"><img src="resonate-logo.png" alt="Resonate" class="logo"></a>
+  <div class="h1">Environmental noise screening tool <span class="state-badge" id="stateBadge" style="display:none;"></span></div>
   <div class="sheet1">
-  <div class="p">
-    Enter the prompted information to understand the environmental noise criteria in accordance with 
-    Part 5 of the <i>Environment Protection (Commercial & Industrial) Noise Policy 2023</i> and to understand the order
-    noise levels from various noise sources.
+  <div class="p" id="policyRefText">
+    A screening tool to predict noise levels at nearby receivers. Select source and receiver locations on the map, enter noise source data, and the tool will indicate potential compliance. Depending on location, the criteria will be automatically calculated or can be entered manually.
   </div>
   <div class="i">
     Disclaimer: This tool is not designed to provide definitive predictions or confirm compliance.
-    It serves only as a preliminary screening tool to indicate the potential for compliance. 
+    It serves only as a preliminary screening tool to indicate the potential for compliance.
     For a reliable assessment and formal advice, please contact <a href="https://resonate-consultants.com/acoustic-consulting-australia/" target="_blank" rel="noopener">Resonate Consultants</a>.
   </div>
   </div>
-  
+  <button class="collapse-all-btn" id="collapseAllBtn" style="display:none;">Collapse All</button>
+
   <div class="sheet">
     <div class="grid2">
 
@@ -239,28 +284,33 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
         <div class="p">Click the map to place the <strong>noise source</strong> and up to <strong>4 receiver</strong> locations. Straight-line distances are calculated automatically and entered in the table below. Markers can be dragged to fine-tune positions.</div>
 
         <!-- Location search -->
-        <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+        <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;">
           <input type="text" id="mapSearchInput" placeholder="Search for an address or place…" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:13px;background:white;">
-          <button class="map-mode-btn" id="mapSearchBtn" style="white-space:nowrap;">&#128269; Search</button>
+          <button class="tool-btn map-mode-btn" id="mapSearchBtn" style="white-space:nowrap;">&#128269; Search</button>
         </div>
         <div id="mapSearchResults" style="display:none;border:1px solid var(--border);border-radius:10px;background:#fff;margin-bottom:8px;max-height:180px;overflow-y:auto;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
 
         <!-- Mode buttons -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;align-items:center;">
+          <button class="tool-btn map-mode-btn active" id="mapMode-source" title="Click map to place noise source" style="border-left:3px solid #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise Source</button>
+          <button class="tool-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1</button>
+          <button class="tool-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
+          <button class="tool-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
+          <button class="tool-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4</button>
+          <button class="tool-btn zone-toggle-btn" id="zoneToggleBtn" title="Toggle zoning overlay on map" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Show Zones</button>
+          <button class="tool-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial</button>
+          <button class="tool-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastre</button>
+          <button class="tool-btn map-mode-btn" id="mapClearBtn" title="Remove all markers and clear distances" style="margin-left:auto;color:#dc2626;border-color:#dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg> Clear All</button>
+        </div>
+        <!-- Map display options -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
-          <button class="map-mode-btn active" id="mapMode-source" title="Click map to place noise source">&#128205; Noise Source</button>
-          <button class="map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1" style="border-left:3px solid #2563eb;">&#9679; Receiver 1</button>
-          <button class="map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;">&#9679; Receiver 2</button>
-          <button class="map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;">&#9679; Receiver 3</button>
-          <button class="map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4" style="border-left:3px solid #7c3aed;">&#9679; Receiver 4</button>
-          <button class="zone-toggle-btn" id="zoneToggleBtn" title="Toggle SAPPA zoning overlay on map">&#128506; Show Zones</button>
-          <button class="aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery">&#127758; Aerial</button>
-          <button class="cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines">&#127968; Cadastre</button>
-          <button class="map-mode-btn" id="mapClearBtn" title="Remove all markers and clear distances" style="margin-left:auto;color:#dc2626;border-color:#dc2626;">&#128465; Clear All</button>
+          <button class="tool-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide location pins on map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Pins</button>
+          <button class="tool-btn parcel-toggle-btn sa-only active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Boundary</button>
         </div>
 
         <!-- Status row -->
         <div class="map-status-row">
-          <span id="map-status-source" style="color:#dc2626;">&#128205; Source: not placed</span>
+          <span id="map-status-source" style="color:#dc2626;">&#9679; Source: not placed</span>
           <span id="map-status-r1"     style="color:#2563eb;">&#9679; R1: not placed</span>
           <span id="map-status-r2"     style="color:#16a34a;">&#9679; R2: not placed</span>
           <span id="map-status-r3"     style="color:#d97706;">&#9679; R3: not placed</span>
@@ -275,74 +325,111 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
       <!-- ===== SELECTIONS CARD ===== -->
       <div class="card span2">
         <h2>Receivers & criteria</h2>
-        <div class="p">
+        <div class="p" id="policyNoteText" style="display:none;font-style:italic;margin-bottom:4px;"></div>
+        <div class="p" id="zoneDescText">
           Zones and subzones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA</a>). You can also select manually from the dropdowns.
+        </div>
+
+        <div class="other-only" style="margin-bottom:12px;">
+          <div class="h2" style="margin-bottom:6px;">Assessment criteria selection</div>
+          <div class="p" style="margin-bottom:8px;">Select which criteria apply to this assessment.</div>
+          <div style="display:flex;gap:20px;flex-wrap:wrap;">
+            <label style="font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;">
+              <input type="checkbox" id="otherCritDay" checked onchange="updateOtherCritSelection()"> <span>Day L<sub>eq</sub></span>
+            </label>
+            <label style="font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;">
+              <input type="checkbox" id="otherCritEve" checked onchange="updateOtherCritSelection()"> <span>Evening L<sub>eq</sub></span>
+            </label>
+            <label style="font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;">
+              <input type="checkbox" id="otherCritNight" checked onchange="updateOtherCritSelection()"> <span>Night L<sub>eq</sub></span>
+            </label>
+            <label style="font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;">
+              <input type="checkbox" id="otherCritLmax" checked onchange="updateOtherCritSelection()"> <span>Night L<sub>max</sub></span>
+            </label>
+          </div>
         </div>
 
         <div class="table-scroll">
         <table>
           <tr>
-            <th style="width:18%;">Location</th><th style="width:27%;">Zone / Subzone</th><th style="width:15%;">Land use</th><th style="width:10%;" class="center">Distance to receiver, m</th><th style="width:10%;" class="num">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num">Night L<sub>max</sub><br>criterion</th>
+            <th style="width:18%;">Location</th><th style="width:27%;" class="zone-col">Zone / Subzone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:10%;" class="center">Distance to receiver, m</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
           </tr>
 
           <tr>
             <td><b>Subject site</b></td>
-            <td><select id="src"></select></td>
-            <td id="src_land" class="left"></td>
+            <td class="zone-col"><select id="src"></select></td>
+            <td id="src_land" class="left landuse-col"></td>
             <td class="left"></td>
-            <td class="num"></td>
-            <td class="num"></td>
-            <td class="num"></td>
+            <td class="num crit-day-col"></td>
+            <td class="num vic-only crit-eve-col"></td>
+            <td class="num crit-night-col"></td>
+            <td class="num crit-lmax-col"></td>
           </tr>
 
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"></td>
-            <td><select id="r1"></select></td>
-            <td id="r1_land" class="left"></td>
+            <td class="zone-col"><select id="r1"></select></td>
+            <td id="r1_land" class="left landuse-col"></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r1" placeholder=""></td>
-          <td id="r1_daycrit" class="num"></td>
-          <td id="r1_nightcrit" class="num"></td>
-          <td id="r1_lmaxcrit" class="num"></td>
+          <td id="r1_daycrit" class="num crit-day-col"></td>
+          <td id="r1_evecrit" class="num vic-only crit-eve-col"></td>
+          <td id="r1_nightcrit" class="num crit-night-col"></td>
+          <td id="r1_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"></td>
-            <td><select id="r2"></select></td>
-            <td id="r2_land" class="left"></td>
+            <td class="zone-col"><select id="r2"></select></td>
+            <td id="r2_land" class="left landuse-col"></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r2" placeholder=""></td>
-          <td id="r2_daycrit" class="num"></td>
-          <td id="r2_nightcrit" class="num"></td>
-          <td id="r2_lmaxcrit" class="num"></td>
+          <td id="r2_daycrit" class="num crit-day-col"></td>
+          <td id="r2_evecrit" class="num vic-only crit-eve-col"></td>
+          <td id="r2_nightcrit" class="num crit-night-col"></td>
+          <td id="r2_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"></td>
-            <td><select id="r3"></select></td>
-            <td id="r3_land" class="left"></td>
+            <td class="zone-col"><select id="r3"></select></td>
+            <td id="r3_land" class="left landuse-col"></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r3" placeholder=""></td>
-          <td id="r3_daycrit" class="num"></td>
-          <td id="r3_nightcrit" class="num"></td>
-          <td id="r3_lmaxcrit" class="num"></td>
+          <td id="r3_daycrit" class="num crit-day-col"></td>
+          <td id="r3_evecrit" class="num vic-only crit-eve-col"></td>
+          <td id="r3_nightcrit" class="num crit-night-col"></td>
+          <td id="r3_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"></td>
-            <td><select id="r4"></select></td>
-            <td id="r4_land" class="left"></td>
+            <td class="zone-col"><select id="r4"></select></td>
+            <td id="r4_land" class="left landuse-col"></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r4" placeholder=""></td>
-          <td id="r4_daycrit" class="num"></td>
-          <td id="r4_nightcrit" class="num"></td>
-          <td id="r4_lmaxcrit" class="num"></td>
+          <td id="r4_daycrit" class="num crit-day-col"></td>
+          <td id="r4_evecrit" class="num vic-only crit-eve-col"></td>
+          <td id="r4_nightcrit" class="num crit-night-col"></td>
+          <td id="r4_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
         </table>
 
         <div style="margin-top:10px;">
-          <span class="badge">Day = 7 am–10 pm</span>
-          <span class="badge">Night = 10 pm–7 am</span>
+          <span class="badge sa-only">Day = 7 am–10 pm</span>
+          <span class="badge sa-only">Night = 10 pm–7 am</span>
+          <span class="badge vic-only vic-settings-only">Day = 7 am–6 pm (Mon–Sat)</span>
+          <span class="badge vic-only vic-settings-only">Evening = 6 pm–10 pm</span>
+          <span class="badge vic-only vic-settings-only">Night = 10 pm–7 am (& all day Sun)</span>
 
-<span class="badge tooltip">
+<span class="badge tooltip sa-only">
   Criteria = INL − 5
   <span class="tooltiptext">
     INL = Indicative Noise Level as defined in the Environment Protection
     (Commercial & Industrial) Noise Policy 2023 Clause 5. It is the averaged value
       of the Indicative Noise Factors for the applicable land use categories used to determine environmental noise criteria.
+  </span>
+</span>
+
+<span class="badge tooltip vic-only vic-settings-only">
+  Criteria = EPA Pub 1826.5
+  <span class="tooltiptext">
+    Zone levels from Table 1 (urban) or Annex B (rural) of EPA Publication 1826.5,
+    adjusted for distance to zone boundary and background noise classification.
+    Minimum limits: 45/40/35 dB(A) D/E/N (urban), 45/37/32 dB(A) (rural). Night cap: 55 dB(A).
   </span>
 </span>
 
@@ -352,8 +439,73 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 
     </div>
 
+    <!-- VIC-only: Area type, Background classification, Distance to zone boundary -->
+    <div class="grid2 vic-only vic-settings-only" style="padding-top:0;">
+      <div class="card">
+        <h2>VIC assessment parameters</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <label class="h2" style="font-size:12px;">Area type</label>
+            <div style="display:flex;gap:8px;margin-top:4px;">
+              <button type="button" class="penalty-btn active" id="vicAreaUrban" onclick="setVicAreaType('urban');document.getElementById('vicAreaUrban').classList.add('active');document.getElementById('vicAreaRural').classList.remove('active');">Major urban (&gt;7,000)</button>
+              <button type="button" class="penalty-btn" id="vicAreaRural" onclick="setVicAreaType('rural');document.getElementById('vicAreaRural').classList.add('active');document.getElementById('vicAreaUrban').classList.remove('active');">Rural</button>
+            </div>
+          </div>
+          <div>
+            <label class="h2" style="font-size:12px;" for="vicDistToZoneBoundary">Distance: receiver to zone boundary (m)</label>
+            <input type="number" id="vicDistToZoneBoundary" min="0" max="10000" step="1" placeholder="0" style="width:120px;margin-top:4px;" oninput="render()" onchange="render()">
+            <div class="small" style="margin-top:4px;">Applies −1 dB per 100 m (rounded down, max 9 dB) when source zone ≠ receiver zone.</div>
+          </div>
+          <div class="vic-urban-only">
+            <label class="h2" style="font-size:12px;" for="vicIF">Influencing Factor (IF)</label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+              <input type="number" id="vicIF" min="0" max="1" step="0.01" placeholder="auto" style="width:120px;" oninput="handleIFInput()" onchange="handleIFInput()">
+              <a href="#" id="vicIFReset" style="font-size:10px;display:none;color:#2563eb;" onclick="event.preventDefault();document.getElementById('vicIF').value='';handleIFInput();">Reset to auto</a>
+            </div>
+            <div class="small" style="margin-top:4px;">0 = fully Type 1 (residential), 1 = fully Type 3 (industrial). Per Figure 1 of Pub 1826.5. Leave blank to auto-derive from zone analysis within 140 m / 400 m circles.</div>
+            <div id="vicDetectedZones" style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;display:none;"></div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label class="h2" style="font-size:12px;">Background noise classification</label>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:4px;">
+            <select id="vicBgClass" onchange="document.getElementById('vicBgLevels').style.display=this.value==='neutral'?'none':'';render();" style="width:160px;">
+              <option value="neutral" selected>Neutral</option>
+              <option value="low">Low</option>
+              <option value="high">High</option>
+            </select>
+            <span class="small">Neutral = limit equals zone level. Low/High = adjusted per Clause 6.</span>
+          </div>
+          <div id="vicBgLevels" style="display:none;margin-top:8px;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:400px;">
+              <div>
+                <label style="font-size:11px;font-weight:600;">Day L<sub>A90</sub></label>
+                <input type="number" id="vicBg_day" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Evening L<sub>A90</sub></label>
+                <input type="number" id="vicBg_evening" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Night L<sub>A90</sub></label>
+                <input type="number" id="vicBg_night" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:12px;" class="vic-rural-only">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+            <input type="checkbox" id="vicIsUtility" onchange="if(this.checked){document.getElementById('vicIsEarthResources').checked=false;}render()"> Source is a utility (FZ/RAZ/GWZ → fixed 45/39/34)
+          </label>
+          <br>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:6px;">
+            <input type="checkbox" id="vicIsEarthResources" onchange="if(this.checked){document.getElementById('vicIsUtility').checked=false;}render()"> Source is earth resources (Clauses 33–36)
+          </label>
+        </div>
+      </div>
+    </div>
 
-    <div class="grid2 grid-full" style="padding-top:0;">
+    <div class="grid2 grid-full crit-day-section" style="padding-top:0;">
       <div class="card">
         <h2>Day situation</h2>
         <h3 style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources – L<sub>eq</sub></h3>
@@ -361,7 +513,7 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
           <tr>
             <th style="width:52%;">Source</th>
             <th style="width:12%;" class="center">Quantity</th>
-            <th style="width:12%;" class="center">Operational min in 15 min</th>
+            <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
             <th style="width:12%;" class="center">Include barrier</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
@@ -376,14 +528,39 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
         </div>
       </div>
 
-      <div class="card">
-        <h2>Night situation</h2>
+      <div class="card vic-only crit-eve-section">
+        <h2>Evening situation</h2>
         <h3 style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources – L<sub>eq</sub></h3>
-        <table id="nightSrcTable">
+        <table id="eveSrcTable">
           <tr>
             <th style="width:52%;">Source</th>
             <th style="width:12%;" class="center">Quantity</th>
-            <th style="width:12%;" class="center">Operational min in 15 min</th>
+            <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
+            <th style="width:12%;" class="center">Include barrier</th>
+            <th style="width:12%;" class="num">Total Lw</th>
+          </tr>
+          <tbody id="eveSrcRows"></tbody>
+          <tr>
+            <th colspan="4" class="num">TOTAL</th>
+            <th class="num" id="eveSrcTotal">0</th>
+          </tr>
+        </table>
+        <div class="small" style="margin-top:8px;">
+          Barrier toggle applies a simple −5 dB adjustment to the item's Total Lw when set to Yes.
+        </div>
+        <div style="margin-top:8px;">
+          <button type="button" class="pdf-btn" style="font-size:11px;padding:4px 10px;" onclick="copySourcesFromDay('eve')">Copy from Day</button>
+        </div>
+      </div>
+
+      <div class="card crit-night-section">
+        <h2>Night situation</h2>
+        <h3 class="crit-night-col" style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources – L<sub>eq</sub></h3>
+        <table id="nightSrcTable" class="crit-night-col">
+          <tr>
+            <th style="width:52%;">Source</th>
+            <th style="width:12%;" class="center">Quantity</th>
+            <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
             <th style="width:12%;" class="center">Include barrier</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
@@ -396,9 +573,9 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
         <div class="small" style="margin-top:8px;">
           Barrier toggle applies a simple −5 dB adjustment to the item’s Total Lw when set to Yes.
           </div>
-        <div style="margin-top:20px;"></div>
-        <h3 style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources – L<sub>max</sub></h3>
-        <table id="nightLmaxTable">
+        <div class="crit-lmax-col" style="margin-top:20px;"></div>
+        <h3 class="crit-lmax-col" style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources – L<sub>max</sub></h3>
+        <table id="nightLmaxTable" class="crit-lmax-col">
           <tr>
             <th style="width:54%;">Source</th>
             <th style="width:16%;" class="center">Quantity</th>
@@ -427,6 +604,10 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
           <div class="contrib-sub-h">Day L<sub>eq</sub> contributions at receivers (dB(A))</div>
           <div class="table-scroll"><table id="contribDayTable"></table></div>
         </div>
+        <div class="contrib-section vic-only">
+          <div class="contrib-sub-h">Evening L<sub>eq</sub> contributions at receivers (dB(A))</div>
+          <div class="table-scroll"><table id="contribEveTable"></table></div>
+        </div>
         <div class="contrib-section">
           <div class="contrib-sub-h">Night L<sub>eq</sub> contributions at receivers (dB(A))</div>
           <div class="table-scroll"><table id="contribNightTable"></table></div>
@@ -434,17 +615,17 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
       </div>
     </div>
 
-    <div class="grid2" style="padding-top:0;">
+    <div class="grid2 sa-only" style="padding-top:0;">
       <div class="card span2">
         <h2>Characteristic penalties</h2>
         <div class="p">Apply a <span class="tooltip">characteristic penalty
     <span class="tooltiptext">
-      The presence of an annoying characteristic attracts a decibel penalty under clause 13(3) of the Noise Policy. A penalty is applied because 
-noise with such dominant characteristics are more noticeable and annoying when compared to a constant, broadband or steady noise.  For a penalty to be applied, the Noise Policy requires the characteristic to be fundamental to the nature and impact of the 
+      The presence of an annoying characteristic attracts a decibel penalty under clause 13(3) of the Noise Policy. A penalty is applied because
+noise with such dominant characteristics are more noticeable and annoying when compared to a constant, broadband or steady noise.  For a penalty to be applied, the Noise Policy requires the characteristic to be fundamental to the nature and impact of the
 noise. The characteristic should dominate the overall noise impact, rather than simply be part of it. Noise characteristics include tonal, impulsive, low frequency, intermittent and modulating. Refer to <a href="https://www.epa.sa.gov.au/files/15663_guide_noise_policy_2023.pdf" target="_blank">
   SA EPA Noise Policy Guideline (2023)</a> for details on noise characters.
     </span>
-     </span>     
+     </span>
       to the predicted L<sub>eq</sub> levels before comparison with criteria. Select separately for day and night as required. The penalised level is shown in the results table.</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;">
           <div>
@@ -469,6 +650,69 @@ noise. The characteristic should dominate the overall noise impact, rather than 
       </div>
     </div>
 
+    <div class="grid2 vic-only vic-settings-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Characteristic adjustments</h2>
+        <div class="p">Characteristic adjustments are added to the predicted noise level per EPA Publication 1826.5. Select applicable characteristics for each period. Maximum total adjustment: 10 dB.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:4px;">
+          <div class="vic-penalty-section">
+            <div class="h2">Day</div>
+            <label><input type="checkbox" class="vic-char" data-period="day" data-type="tonal" data-val="2"> Tonal — clearly audible (+2 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="day" data-type="tonal" data-val="5"> Tonal — prominently audible (+5 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="day" data-type="impulse" data-val="2"> Impulse — noticeable (+2 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="day" data-type="impulse" data-val="5"> Impulse — prominent (+5 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="day" data-type="intermittent" data-val="3"> Intermittent — noticeable (+3 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="day" data-type="intermittent" data-val="5"> Intermittent — prominent (+5 dB)</label>
+            <div class="vic-penalty-total" id="vicPenaltyDay">Total: 0 dB</div>
+          </div>
+          <div class="vic-penalty-section">
+            <div class="h2">Evening</div>
+            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="tonal" data-val="2"> Tonal — clearly audible (+2 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="tonal" data-val="5"> Tonal — prominently audible (+5 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="impulse" data-val="2"> Impulse — noticeable (+2 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="impulse" data-val="5"> Impulse — prominent (+5 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="intermittent" data-val="3"> Intermittent — noticeable (+3 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="intermittent" data-val="5"> Intermittent — prominent (+5 dB)</label>
+            <div class="vic-penalty-total" id="vicPenaltyEve">Total: 0 dB</div>
+          </div>
+          <div class="vic-penalty-section">
+            <div class="h2">Night</div>
+            <label><input type="checkbox" class="vic-char" data-period="night" data-type="tonal" data-val="2"> Tonal — clearly audible (+2 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="night" data-type="tonal" data-val="5"> Tonal — prominently audible (+5 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="night" data-type="impulse" data-val="2"> Impulse — noticeable (+2 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="night" data-type="impulse" data-val="5"> Impulse — prominent (+5 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="night" data-type="intermittent" data-val="3"> Intermittent — noticeable (+3 dB)</label>
+            <label><input type="checkbox" class="vic-char" data-period="night" data-type="intermittent" data-val="5"> Intermittent — prominent (+5 dB)</label>
+            <div class="vic-penalty-total" id="vicPenaltyNight">Total: 0 dB</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2 other-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Characteristic penalties</h2>
+        <div class="p">Enter the applicable characteristic penalty (dB) to add to the predicted level for each period.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:4px;max-width:500px;">
+          <div class="crit-day-col">
+            <label class="h2" style="font-size:12px;" for="otherPenaltyDay">Day L<sub>eq</sub></label>
+            <input type="number" id="otherPenaltyDay" min="0" max="20" step="1" value="0" style="width:80px;margin-top:4px;" oninput="updateOtherPenalties()" onchange="updateOtherPenalties()">
+            <div class="small">dB</div>
+          </div>
+          <div class="crit-eve-col">
+            <label class="h2" style="font-size:12px;" for="otherPenaltyEve">Evening L<sub>eq</sub></label>
+            <input type="number" id="otherPenaltyEve" min="0" max="20" step="1" value="0" style="width:80px;margin-top:4px;" oninput="updateOtherPenalties()" onchange="updateOtherPenalties()">
+            <div class="small">dB</div>
+          </div>
+          <div class="crit-night-col">
+            <label class="h2" style="font-size:12px;" for="otherPenaltyNight">Night L<sub>eq</sub></label>
+            <input type="number" id="otherPenaltyNight" min="0" max="20" step="1" value="0" style="width:80px;margin-top:4px;" oninput="updateOtherPenalties()" onchange="updateOtherPenalties()">
+            <div class="small">dB</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="grid2">
       <div class="card span2">
         <h2>Predicted noise levels</h2>
@@ -476,29 +720,34 @@ noise. The characteristic should dominate the overall noise impact, rather than 
     <table>
       <tr>
         <th style="width:16%;">Receiver (Zone / Subzone)</th>
-        <!--<th style="width:14%;" class="center">Receiver land use</th>-->
 
-        <th style="width:7%;" class="num">Day <br>L<sub>eq</sub> predicted</th>
-        <th style="width:7%;" class="num">Day <br>L<sub>eq</sub> criterion</th>
-        <th style="width:7%;" class="num">Day <br>L<sub>eq</sub> Δ</th>
-        <th style="width:7%;" class="center">Day <br>L<sub>eq</sub> OK?</th>
+        <th style="width:7%;" class="num crit-day-col">Day <br>L<sub>eq</sub> predicted</th>
+        <th style="width:7%;" class="num crit-day-col">Day <br>L<sub>eq</sub> criterion</th>
+        <th style="width:7%;" class="num crit-day-col">Day <br>L<sub>eq</sub> Δ</th>
+        <th style="width:7%;" class="center crit-day-col">Day <br>L<sub>eq</sub> OK?</th>
 
-        <th style="width:7%;" class="num">Night <br>L<sub>eq</sub> predicted</th>
-        <th style="width:7%;" class="num">Night <br>L<sub>eq</sub> criterion</th>
-        <th style="width:7%;" class="num">Night <br>L<sub>eq</sub> Δ</th>
-        <th style="width:7%;" class="center">Night <br>L<sub>eq</sub> OK?</th>
+        <th style="width:7%;" class="num vic-only crit-eve-col">Eve <br>L<sub>eq</sub> predicted</th>
+        <th style="width:7%;" class="num vic-only crit-eve-col">Eve <br>L<sub>eq</sub> criterion</th>
+        <th style="width:7%;" class="num vic-only crit-eve-col">Eve <br>L<sub>eq</sub> Δ</th>
+        <th style="width:7%;" class="center vic-only crit-eve-col">Eve <br>L<sub>eq</sub> OK?</th>
 
-        <th style="width:7%;" class="num">Night <br>L<sub>max</sub> predicted</th>
-        <th style="width:7%;" class="num">Night <br>L<sub>max</sub> criterion</th>
-        <th style="width:7%;" class="num">Night <br>L<sub>max</sub> Δ</th>
-        <th style="width:7%;" class="center">Night <br>L<sub>max</sub> OK?</th>
+        <th style="width:7%;" class="num crit-night-col">Night <br>L<sub>eq</sub> predicted</th>
+        <th style="width:7%;" class="num crit-night-col">Night <br>L<sub>eq</sub> criterion</th>
+        <th style="width:7%;" class="num crit-night-col">Night <br>L<sub>eq</sub> Δ</th>
+        <th style="width:7%;" class="center crit-night-col">Night <br>L<sub>eq</sub> OK?</th>
+
+        <th style="width:7%;" class="num crit-lmax-col">Night <br>L<sub>max</sub> predicted</th>
+        <th style="width:7%;" class="num crit-lmax-col">Night <br>L<sub>max</sub> criterion</th>
+        <th style="width:7%;" class="num crit-lmax-col">Night <br>L<sub>max</sub> Δ</th>
+        <th style="width:7%;" class="center crit-lmax-col">Night <br>L<sub>max</sub> OK?</th>
       </tr>
       <tbody id="rows"></tbody>
     </table>
 
     <div style="padding:12px 14px;">
       <span class="badge">Δ = Predicted − Criterion (≤ 0 is compliant)</span>
-      <span class="badge">Residential/Rural Living caps: L<sub>eq</sub>52 day, L<sub>eq</sub>45 night, L<sub>max</sub> 60 night</span>
+      <span class="badge sa-only">Residential/Rural Living caps: L<sub>eq</sub>52 day, L<sub>eq</sub>45 night, L<sub>max</sub> 60 night</span>
+      <span class="badge vic-only vic-settings-only">Night cap: 55 dB(A). Min limits: 45/40/35 (urban) or 45/37/32 (rural). L<sub>max</sub> 65 night.</span>
     </div>
   </div>
   </div>
@@ -515,7 +764,7 @@ noise. The characteristic should dominate the overall noise impact, rather than 
     Actual acoustic barrier attenuation may vary in complex terrain or environments with hard reflective surfaces in proximity to the source and/or receiver.
     </div>
     <div class="h2">Operational time</div>
-    <div class="p" style="margin-bottom:0;">The calculation provides an option to input the expected operational time during a 15 minute assessment period.
+    <div class="p" style="margin-bottom:0;" id="opTimeNote">The calculation provides an option to input the expected operational time during a 15 minute assessment period.
     This will provide a 10·log time weighting to the source level to account for the contribution during the assessment period.
     </div>
   </div>
@@ -527,6 +776,244 @@ noise. The characteristic should dominate the overall noise impact, rather than 
 
 <script>
 const DATA = [{"key": "Adelaide Park Lands Zone | (no subzone)", "zone": "Adelaide Park Lands Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Adelaide Park Lands Zone | Adelaide Aquatic Centre Subzone", "zone": "Adelaide Park Lands Zone", "subzone": "Adelaide Aquatic Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Business Neighbourhood Zone | (no subzone)", "zone": "Business Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Business Neighbourhood Zone | Melbourne Street West Subzone", "zone": "Business Neighbourhood Zone", "subzone": "Melbourne Street West Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Capital City Zone | (no subzone)", "zone": "Capital City Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Capital City Zone | City Frame Subzone", "zone": "Capital City Zone", "subzone": "City Frame Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Caravan and Tourist Park Zone | (no subzone)", "zone": "Caravan and Tourist Park Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | (no subzone)", "zone": "City Living Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | Medium-High Intensity Subzone", "zone": "City Living Zone", "subzone": "Medium-High Intensity Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | North Adelaide Low Intensity Subzone", "zone": "City Living Zone", "subzone": "North Adelaide Low Intensity Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | East Terrace Subzone", "zone": "City Living Zone", "subzone": "East Terrace Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Main Street Zone | (no subzone)", "zone": "City Main Street Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Main Street Zone | Gouger and Grote Street Subzone", "zone": "City Main Street Zone", "subzone": "Gouger and Grote Street Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Main Street Zone | Hindley Street Subzone", "zone": "City Main Street Zone", "subzone": "Hindley Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Main Street Zone | Rundle Mall Subzone", "zone": "City Main Street Zone", "subzone": "Rundle Mall Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Main Street Zone | Rundle Street Subzone", "zone": "City Main Street Zone", "subzone": "Rundle Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Main Street Zone | City High Street Subzone", "zone": "City Main Street Zone", "subzone": "City High Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Riverbank Zone | (no subzone)", "zone": "City Riverbank Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Cultural Institutions Subzone", "zone": "City Riverbank Zone", "subzone": "Cultural Institutions Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Entertainment Subzone", "zone": "City Riverbank Zone", "subzone": "Entertainment Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Health Subzone", "zone": "City Riverbank Zone", "subzone": "Health Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Innovation Subzone", "zone": "City Riverbank Zone", "subzone": "Innovation Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Coastal Waters and Offshore Islands Zone | (no subzone)", "zone": "Coastal Waters and Offshore Islands Zone", "subzone": "", "land_use_raw": "Rural Living, Rural Industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Commonwealth Facilities Zone | (no subzone)", "zone": "Commonwealth Facilities Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Community Facilities Zone | (no subzone)", "zone": "Community Facilities Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Community Facilities Zone | St Andrews Hospital Precinct Subzone", "zone": "Community Facilities Zone", "subzone": "St Andrews Hospital Precinct Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Community Facilities Zone | Women’s and Children’s Hospital and Memorial Hospital Precinct Subzone", "zone": "Community Facilities Zone", "subzone": "Women’s and Children’s Hospital and Memorial Hospital Precinct Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Community Facilities Zone | Neighbourhood Subzone", "zone": "Community Facilities Zone", "subzone": "Neighbourhood Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Conservation Zone | (no subzone)", "zone": "Conservation Zone", "subzone": "", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Aquaculture and Recreation Subzone", "zone": "Conservation Zone", "subzone": "Aquaculture and Recreation Subzone", "land_use_raw": "Rural Living, Rural industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Conservation Zone | Dwelling Subzone", "zone": "Conservation Zone", "subzone": "Dwelling Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Shack Relocation Subzone", "zone": "Conservation Zone", "subzone": "Shack Relocation Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Small Scale Settlement Subzone", "zone": "Conservation Zone", "subzone": "Small Scale Settlement Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Visitor Experience Subzone", "zone": "Conservation Zone", "subzone": "Visitor Experience Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Deferred Urban Zone | (no subzone)", "zone": "Deferred Urban Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Employment Zone | (no subzone)", "zone": "Employment Zone", "subzone": "", "land_use_raw": "Light Industry, Commercial", "inf_day": 60, "inf_night": 53, "is_single": 0, "single_cat": ""}, {"key": "Employment Zone | Roadside Service Centre Subzone", "zone": "Employment Zone", "subzone": "Roadside Service Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Employment Zone | Retail Activity Centre Subzone", "zone": "Employment Zone", "subzone": "Retail Activity Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Employment (Bulk Handling) Zone | (no subzone)", "zone": "Employment (Bulk Handling) Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Employment (Enterprise) Zone | (no subzone)", "zone": "Employment (Enterprise) Zone", "subzone": "", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Employment (Enterprise) Zone | Light Industry Subzone", "zone": "Employment (Enterprise) Zone", "subzone": "Light Industry Subzone", "land_use_raw": "Light industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Light Industry"}, {"key": "Established Neighbourhood Zone | (no subzone)", "zone": "Established Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "General Neighbourhood Zone | (no subzone)", "zone": "General Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Golf Course Estate Zone | (no subzone)", "zone": "Golf Course Estate Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Hills Face Zone | (no subzone)", "zone": "Hills Face Zone", "subzone": "", "land_use_raw": "Rural Living, Rural Industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Hills Neighbourhood Zone | (no subzone)", "zone": "Hills Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Home Industry Zone | (no subzone)", "zone": "Home Industry Zone", "subzone": "", "land_use_raw": "Residential, Light Industry", "inf_day": 55, "inf_night": 48, "is_single": 0, "single_cat": ""}, {"key": "Housing Diversity Neighbourhood Zone | (no subzone)", "zone": "Housing Diversity Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Infrastructure Zone | (no subzone)", "zone": "Infrastructure Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Infrastructure (Airfield) Zone | (no subzone)", "zone": "Infrastructure (Airfield) Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Infrastructure (Airfield) Zone | Residential Aviation Estate Subzone", "zone": "Infrastructure (Airfield) Zone", "subzone": "Residential Aviation Estate Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Infrastructure (Ferry and Marina Facilities) Zone | (no subzone)", "zone": "Infrastructure (Ferry and Marina Facilities) Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Infrastructure (Ferry and Marina Facilities) Zone | Wallaroo Marina Subzone", "zone": "Infrastructure (Ferry and Marina Facilities) Zone", "subzone": "Wallaroo Marina Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Local Activity Centre Zone | (no subzone)", "zone": "Local Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Master Planned Neighbourhood Zone | (no subzone)", "zone": "Master Planned Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Neighbourhood Zone | Emerging Activity Centre Subzone", "zone": "Master Planned Neighbourhood Zone", "subzone": "Emerging Activity Centre Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Neighbourhood Zone | Hills Subzone", "zone": "Master Planned Neighbourhood Zone", "subzone": "Hills Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Renewal Zone | (no subzone)", "zone": "Master Planned Renewal Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Township Zone | (no subzone)", "zone": "Master Planned Township Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Township Zone | Emerging Township Activity Centre Subzone", "zone": "Master Planned Township Zone", "subzone": "Emerging Township Activity Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Motorsport Park Zone | (no subzone)", "zone": "Motorsport Park Zone", "subzone": "", "land_use_raw": "Special industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Neighbourhood Zone | (no subzone)", "zone": "Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | American River Subzone", "zone": "Neighbourhood Zone", "subzone": "American River Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Roxby Downs Subzone", "zone": "Neighbourhood Zone", "subzone": "Roxby Downs Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Underground Subzone", "zone": "Neighbourhood Zone", "subzone": "Underground Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Wallaroo Landmark Subzone", "zone": "Neighbourhood Zone", "subzone": "Wallaroo Landmark Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Waterfront Subzone", "zone": "Neighbourhood Zone", "subzone": "Waterfront Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Productive Rural Landscape Zone | (no subzone)", "zone": "Productive Rural Landscape Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Productive Rural Landscape Zone | The Cedars Subzone", "zone": "Productive Rural Landscape Zone", "subzone": "The Cedars Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Recreation Zone | (no subzone)", "zone": "Recreation Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Recreation Zone | Adelaide Showgrounds Subzone", "zone": "Recreation Zone", "subzone": "Adelaide Showgrounds Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Remote Areas Zone | (no subzone)", "zone": "Remote Areas Zone", "subzone": "", "land_use_raw": "Rural Living, Residential, Rural Industry, Commercial, General Industry", "inf_day": 57, "inf_night": 49, "is_single": 0, "single_cat": ""}, {"key": "Residential Park Zone | (no subzone)", "zone": "Residential Park Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Resource Extraction Zone | (no subzone)", "zone": "Resource Extraction Zone", "subzone": "", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Rural Zone | (no subzone)", "zone": "Rural Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Zone | Kangaroo Island Subzone", "zone": "Rural Zone", "subzone": "Kangaroo Island Subzone", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Aquaculture Zone | (no subzone)", "zone": "Rural Aquaculture Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Horticulture Zone | (no subzone)", "zone": "Rural Horticulture Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Horticulture Zone | Windamere Park Subzone", "zone": "Rural Horticulture Zone", "subzone": "Windamere Park Subzone", "land_use_raw": "Residential, Rural Industry", "inf_day": 55, "inf_night": 48, "is_single": 0, "single_cat": ""}, {"key": "Rural Intensive Enterprise Zone | (no subzone)", "zone": "Rural Intensive Enterprise Zone", "subzone": "", "land_use_raw": "Rural Industry, General Industry", "inf_day": 61, "inf_night": 53, "is_single": 0, "single_cat": ""}, {"key": "Rural Living Zone | (no subzone)", "zone": "Rural Living Zone", "subzone": "", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Rural Living Zone | Animal Husbandry Subzone", "zone": "Rural Living Zone", "subzone": "Animal Husbandry Subzone", "land_use_raw": "Rural Living, Rural Industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Rural Living Zone | Intensive Horse Establishments Subzone", "zone": "Rural Living Zone", "subzone": "Intensive Horse Establishments Subzone", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Neighbourhood Zone | (no subzone)", "zone": "Rural Neighbourhood Zone", "subzone": "", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Rural Neighbourhood Zone | Bookmark Creek Subzone", "zone": "Rural Neighbourhood Zone", "subzone": "Bookmark Creek Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Rural Neighbourhood Zone | Adelaide Hills Subzone", "zone": "Rural Neighbourhood Zone", "subzone": "Adelaide Hills Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Rural Settlement Zone | (no subzone)", "zone": "Rural Settlement Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Rural Settlement Zone | Fisherman Bay Subzone", "zone": "Rural Settlement Zone", "subzone": "Fisherman Bay Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Rural Shack Settlement Zone | (no subzone)", "zone": "Rural Shack Settlement Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Strategic Employment Zone | (no subzone)", "zone": "Strategic Employment Zone", "subzone": "", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Strategic Employment Zone | Gillman Subzone", "zone": "Strategic Employment Zone", "subzone": "Gillman Subzone", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Strategic Employment Zone | National Naval Shipbuilding Subzone", "zone": "Strategic Employment Zone", "subzone": "National Naval Shipbuilding Subzone", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Strategic Employment Zone | Ports Subzone", "zone": "Strategic Employment Zone", "subzone": "Ports Subzone", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Strategic Employment Zone | Significant Industry Subzone", "zone": "Strategic Employment Zone", "subzone": "Significant Industry Subzone", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Strategic Innovation Zone | (no subzone)", "zone": "Strategic Innovation Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Strategic Innovation Zone | Rehabilitation Subzone", "zone": "Strategic Innovation Zone", "subzone": "Rehabilitation Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Strategic Innovation Zone | Flinders Subzone", "zone": "Strategic Innovation Zone", "subzone": "Flinders Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Strategic Innovation Zone | Repatriation Subzone", "zone": "Strategic Innovation Zone", "subzone": "Repatriation Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Strategic Innovation Zone | Activity Node Subzone", "zone": "Strategic Innovation Zone", "subzone": "Activity Node Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Suburban Activity Centre Zone | (no subzone)", "zone": "Suburban Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Suburban Business Zone | (no subzone)", "zone": "Suburban Business Zone", "subzone": "", "land_use_raw": "Residential, Light Industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Suburban Main Street Zone | (no subzone)", "zone": "Suburban Main Street Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Suburban Neighbourhood Zone | (no subzone)", "zone": "Suburban Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Tourism Development Zone | (no subzone)", "zone": "Tourism Development Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Tourism Development Zone | Monarto Safari Park Subzone", "zone": "Tourism Development Zone", "subzone": "Monarto Safari Park Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Tourism Development Zone | River Murray Experience Subzone", "zone": "Tourism Development Zone", "subzone": "River Murray Experience Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Tourism Development Zone | Winery Experience Subzone", "zone": "Tourism Development Zone", "subzone": "Winery Experience Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Township Neighbourhood Zone | (no subzone)", "zone": "Township Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Township Zone | (no subzone)", "zone": "Township Zone", "subzone": "", "land_use_raw": "Residential, Light Industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Township Zone | Nairne Redevelopment Subzone", "zone": "Township Zone", "subzone": "Nairne Redevelopment Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Township Activity Centre Zone | (no subzone)", "zone": "Township Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Township Main Street Zone | (no subzone)", "zone": "Township Main Street Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Activity Centre Zone | (no subzone)", "zone": "Urban Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Activity Centre Zone | Port Adelaide Centre Subzone", "zone": "Urban Activity Centre Zone", "subzone": "Port Adelaide Centre Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Corridor (Boulevard) Zone | (no subzone)", "zone": "Urban Corridor (Boulevard) Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Corridor (Business) Zone | (no subzone)", "zone": "Urban Corridor (Business) Zone", "subzone": "", "land_use_raw": "Light industry, Commercial", "inf_day": 60, "inf_night": 53, "is_single": 0, "single_cat": ""}, {"key": "Urban Corridor (Business) Zone | Urban Corridor Business Retail Subzone", "zone": "Urban Corridor (Business) Zone", "subzone": "Urban Corridor Business Retail Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Corridor (Living) Zone | (no subzone)", "zone": "Urban Corridor (Living) Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Urban Corridor (Living) Zone | Urban Corridor Living Retail Subzone", "zone": "Urban Corridor (Living) Zone", "subzone": "Urban Corridor Living Retail Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Corridor (Main Street) Zone | (no subzone)", "zone": "Urban Corridor (Main Street) Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Neighbourhood Zone | (no subzone)", "zone": "Urban Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential, Light industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Neighbourhood Zone | Main Street Subzone", "zone": "Urban Neighbourhood Zone", "subzone": "Main Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Neighbourhood Zone | Urban Neighbourhood Retail Subzone", "zone": "Urban Neighbourhood Zone", "subzone": "Urban Neighbourhood Retail Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Renewal Neighbourhood Zone | (no subzone)", "zone": "Urban Renewal Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Urban Renewal Neighbourhood Zone | Mixed Use Transition Subzone", "zone": "Urban Renewal Neighbourhood Zone", "subzone": "Mixed Use Transition Subzone", "land_use_raw": "Residential, Light Industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Renewal Neighbourhood Zone | Landscape Transition Subzone", "zone": "Urban Renewal Neighbourhood Zone", "subzone": "Landscape Transition Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Waterfront Neighbourhood Zone | (no subzone)", "zone": "Waterfront Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Workers’ Settlement Zone | (no subzone)", "zone": "Workers’ Settlement Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Open Space Zone | Rural Living in non-urban areas", "zone": "Open Space Zone", "subzone": "", "land_use_raw": "Rural Living in non-urban areas", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Open Space Zone | Residential in urban areas", "zone": "Open Space Zone", "subzone": "", "land_use_raw": "Residential in urban areas", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}];
+/* ===== VIC Zone Type Mapping (Annex A, Table A.1 of Pub 1826.5) ===== */
+const VIC_ZONE_TYPE_MAP = {
+  // Type 1 — Residential, rural and open spaces (Table A.1)
+  'LDRZ':1, 'TZ':1, 'RGZ':1, 'GRZ':1, 'NRZ':1,
+  'RLZ':1, 'GWZ':1, 'GWAZ':1, 'RCZ':1,
+  'PPRZ':1, 'PCRZ':1, 'PUZ2':1, 'PUZ5':1,
+  'UFZ':1, 'UGZ':1,
+  // Type 2 — Commercial, business and light industry (Table A.1)
+  'MUZ':2, 'IN3Z':2, 'C1Z':2, 'B1Z':2, 'B2Z':2, 'B5Z':2,
+  'FZ':2, 'RAZ':2,
+  'PUZ1':2, 'PUZ3':2, 'PUZ6':2, 'PUZ7':2,
+  'TRZ1':2, 'TRZ3':2, 'TRZ4':2,
+  'CDZ':2, 'CCZ':2, 'DZ':2, 'PDZ':2, 'ACZ':2,
+  // Type 3 — General industry and major roads (Table A.1)
+  'IN1Z':3, 'IN2Z':3, 'C2Z':3, 'B3Z':3, 'B4Z':3, 'C3Z':3,
+  'TRZ2':3, 'PZ':3
+};
+
+/* VIC Urban Zoning Levels — Figure 1 of Pub 1826.5
+   The urban method uses an Influencing Factor (IF) from 0 to 1.
+   IF = 0.25 × (sum of Type 2 fractions for 140m+400m circles) + 0.5 × (sum of Type 3 fractions)
+   Zoning level is read from Figure 1: linear relationship from IF=0 to IF=1.
+   Day: 46 → 56 dB(A), Evening: 40 → 50 dB(A), Night: 36 → 46 dB(A) */
+function getVicUrbanZoningLevel(influencingFactor) {
+  var IF = Math.max(0, Math.min(1, influencingFactor || 0));
+  return {
+    day:    Math.round(46 + 10 * IF),
+    evening:Math.round(40 + 10 * IF),
+    night:  Math.round(36 + 10 * IF)
+  };
+}
+/* Default IF values for Type designation (for simple screening) */
+const VIC_TYPE_TO_IF = { 1: 0, 2: 0.5, 3: 1.0 };
+
+/* ── Geometry helpers for IF auto-derivation ── */
+
+/** Build a polygon (array of [lng,lat] pairs) approximating a circle.
+ *  Uses geodesic offsets so the shape is correct at any latitude. */
+function makeCirclePolygon(lat, lng, radiusM, n) {
+  n = n || 32;
+  const DEG_LAT = 111320;                         // metres per degree latitude
+  const DEG_LNG = 111320 * Math.cos(lat * Math.PI / 180); // metres per degree longitude
+  const dLat = radiusM / DEG_LAT;
+  const dLng = radiusM / DEG_LNG;
+  const coords = [];
+  for (let i = 0; i < n; i++) {
+    const angle = (2 * Math.PI * i) / n;
+    coords.push([lng + dLng * Math.cos(angle), lat + dLat * Math.sin(angle)]);
+  }
+  coords.push(coords[0]); // close ring
+  return coords;
+}
+
+/** Ray-casting point-in-polygon test.
+ *  point = [lng, lat], ring = array of [lng, lat]. */
+function pointInPolygon(point, ring) {
+  let inside = false;
+  const x = point[0], y = point[1];
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Estimate area fractions by zone type within a circle.
+ *  Generates a grid of sample points and checks which zone polygon each falls in.
+ *  zoneFeatures = [{zoneCode, type, rings}, …]
+ *  Returns {1: frac, 2: frac, 3: frac}. */
+function estimateAreaFractions(centerLat, centerLng, radiusM, zoneFeatures) {
+  const DEG_LAT = 111320;
+  const DEG_LNG = 111320 * Math.cos(centerLat * Math.PI / 180);
+  const dLat = radiusM / DEG_LAT;
+  const dLng = radiusM / DEG_LNG;
+
+  // Generate grid of sample points (roughly 15×15 = 225 points)
+  const gridN = 15;
+  const step = 2 / gridN; // grid from -1 to +1
+  let total = 0;
+  const counts = {1: 0, 2: 0, 3: 0};
+
+  for (let iy = 0; iy < gridN; iy++) {
+    for (let ix = 0; ix < gridN; ix++) {
+      const fx = -1 + step * (ix + 0.5);
+      const fy = -1 + step * (iy + 0.5);
+      // Skip points outside the unit circle
+      if (fx * fx + fy * fy > 1) continue;
+      const ptLng = centerLng + fx * dLng;
+      const ptLat = centerLat + fy * dLat;
+      const pt = [ptLng, ptLat];
+      total++;
+
+      // Test against each zone polygon
+      for (let z = 0; z < zoneFeatures.length; z++) {
+        const feat = zoneFeatures[z];
+        const rings = feat.rings;
+        // ArcGIS returns rings array — first ring is outer boundary
+        let found = false;
+        for (let r = 0; r < rings.length; r++) {
+          if (pointInPolygon(pt, rings[r])) {
+            // Outer ring (r=0) → inside, inner rings (holes) → outside
+            found = (r === 0) ? true : false;
+          }
+        }
+        if (found && feat.type) {
+          counts[feat.type] = (counts[feat.type] || 0) + 1;
+          break; // first match wins
+        }
+      }
+    }
+  }
+
+  if (total === 0) return {1: 1, 2: 0, 3: 0}; // default to Type 1
+  return {
+    1: counts[1] / total,
+    2: counts[2] / total,
+    3: counts[3] / total
+  };
+}
+
+/* ── Auto-IF state ── */
+let autoIF = null;
+let autoIFData = null; // stores {zones140, zones400, fracs140, fracs400, IF}
+
+/* VIC Rural Zone Levels — Table B.1 of Pub 1826.5
+   Generating zones grouped into rows, receiving zones grouped into columns.
+   Key: 'genGroup_recGroup' → { day, evening, night } in dB(A) */
+const VIC_RURAL_GEN_GROUPS = {
+  // Group E: Residential receiving zones
+  'LDRZ':'E','PCRZ':'E','PPRZ':'E','GRZ':'E','NRZ':'E','RGZ':'E','UFZ':'E',
+  // Group B: Rural/farming zones
+  'FZ':'B','GWZ':'B','GWAZ':'B','PUZ2':'B','PUZ5':'B','RAZ':'B','RCZ':'B','RLZ':'B',
+  // Group A: Commercial/mixed zones
+  'C1Z':'A','MUZ':'A','ACZ':'A','PUZ1':'A','PUZ3':'A','PUZ6':'A','PUZ7':'A','TZ':'A',
+  'TRZ1':'A','TRZ2':'A','TRZ3':'A','TRZ4':'A',
+  // Group C: Light industrial
+  'IN3Z':'C',
+  // Group F: Commercial/office 2-3
+  'C2Z':'F','C3Z':'F',
+  // Group D: Heavy industrial
+  'IN1Z':'D','IN2Z':'D','PZ':'D'
+};
+/* Same groups apply to receiving zones */
+const VIC_RURAL_REC_GROUPS = {
+  'GWAZ':'E','RCZ':'E','RLZ':'E',
+  'LDRZ':'E2','PCRZ':'E2','PPRZ':'E2','PUZ2':'E2','PUZ5':'E2','UFZ':'E2',
+  'FZ':'B','GWZ':'B','GRZ':'B','NRZ':'B','RGZ':'B','RAZ':'B','TZ':'B',
+  'C1Z':'A','MUZ':'A','ACZ':'A','PUZ1':'A','PUZ3':'A','PUZ6':'A','PUZ7':'A',
+  'TRZ1':'A','TRZ2':'A','TRZ3':'A','TRZ4':'A',
+  'IN3Z':'C',
+  'C2Z':'F','C3Z':'F',
+  'IN1Z':'D','IN2Z':'D','PZ':'D'
+};
+/* Table B.1 zone levels: genGroup → recGroup → {day,evening,night}
+   Receiver columns: E (GWAZ/RCZ/RLZ), E2 (LDRZ/PCRZ/PPRZ/PUZ2/5/UFZ),
+   B (FZ/GWZ/GRZ/NRZ/RGZ/RAZ/TZ), A (C1Z/MUZ/ACZ/PUZ1/3/6/7/TRZ/TZ),
+   C (IN3Z), F (C2Z/C3Z), D (IN1Z/IN2Z/PZ) */
+const VIC_RURAL_ZONE_LEVELS = {
+  'E_E':  {day:45,evening:37,night:32}, 'E_E2': {day:45,evening:39,night:34},
+  'E_B':  {day:45,evening:40,night:35}, 'E_A':  {day:47,evening:42,night:37},
+  'E_C':  {day:48,evening:43,night:38}, 'E_F':  {day:50,evening:45,night:40},
+  'E_D':  {day:53,evening:48,night:43},
+
+  'B_E':  {day:45,evening:38,night:33}, 'B_E2': {day:45,evening:40,night:35},
+  'B_B':  {day:46,evening:41,night:36}, 'B_A':  {day:48,evening:43,night:38},
+  'B_C':  {day:50,evening:45,night:40}, 'B_F':  {day:52,evening:47,night:42},
+  'B_D':  {day:54,evening:49,night:44},
+
+  'A_E':  {day:45,evening:40,night:35}, 'A_E2': {day:47,evening:42,night:37},
+  'A_B':  {day:48,evening:43,night:38}, 'A_A':  {day:50,evening:45,night:40},
+  'A_C':  {day:52,evening:47,night:42}, 'A_F':  {day:53,evening:48,night:43},
+  'A_D':  {day:55,evening:50,night:45},
+
+  'C_E':  {day:46,evening:41,night:36}, 'C_E2': {day:49,evening:44,night:39},
+  'C_B':  {day:50,evening:45,night:40}, 'C_A':  {day:52,evening:47,night:42},
+  'C_C':  {day:53,evening:48,night:43}, 'C_F':  {day:55,evening:50,night:45},
+  'C_D':  {day:56,evening:51,night:46},
+
+  'F_E':  {day:48,evening:43,night:38}, 'F_E2': {day:50,evening:45,night:40},
+  'F_B':  {day:52,evening:47,night:42}, 'F_A':  {day:54,evening:49,night:44},
+  'F_C':  {day:55,evening:50,night:45}, 'F_F':  {day:56,evening:51,night:46},
+  'F_D':  {day:57,evening:52,night:47},
+
+  'D_E':  {day:50,evening:45,night:40}, 'D_E2': {day:52,evening:47,night:42},
+  'D_B':  {day:53,evening:48,night:43}, 'D_A':  {day:55,evening:50,night:45},
+  'D_C':  {day:56,evening:51,night:46}, 'D_F':  {day:57,evening:52,night:47},
+  'D_D':  {day:58,evening:53,night:48}
+};
+/* Earth resources levels — Clause 35 */
+const VIC_EARTH_RESOURCES = {
+  'GWAZ': {day:45,evening:38,night:33}, 'RCZ': {day:45,evening:38,night:33}, 'RLZ': {day:45,evening:38,night:33},
+  'IN3Z': {day:51,evening:46,night:41}, 'SUZ_prohibited': {day:51,evening:46,night:41},
+  'IN1Z': {day:56,evening:51,night:46}, 'IN2Z': {day:56,evening:51,night:46}, 'C2Z': {day:56,evening:51,night:46},
+  '_default': {day:46,evening:41,night:36}
+};
+
+const VIC_NIGHT_CAP = 55;
+const VIC_LMAX_NIGHT = 65;
+const VIC_MIN_LIMITS_URBAN = { day:45, evening:40, night:35 };
+const VIC_MIN_LIMITS_RURAL = { day:45, evening:37, night:32 };
+const VIC_UTILITY_LIMITS = { day:45, evening:39, night:34 };
+const VIC_UTILITY_ZONES = ['FZ','RAZ','GWZ'];
+
+/* Zone codes that indicate a rural area (EPA Pub 1826.5 — locality pop ≤ 7,000).
+   If the source zone is one of these, auto-switch to rural assessment. */
+const VIC_RURAL_ZONE_CODES = new Set([
+  'FZ','RAZ','GWZ','GWAZ','RCZ','RLZ','PCRZ','PUZ5'
+]);
+
+/** Determine area type from source zone code — rural zones → 'rural', else 'urban' */
+function detectVicAreaType(zoneCode) {
+  if (!zoneCode) return null;
+  var code = zoneCode.replace(/[^A-Z0-9]/g, '').toUpperCase();
+  if (VIC_RURAL_ZONE_CODES.has(code)) return 'rural';
+  var prefix = code.replace(/[0-9]+$/, '');
+  if (VIC_RURAL_ZONE_CODES.has(prefix)) return 'rural';
+  return 'urban';
+}
+
+function getVicZoneType(zoneCode) {
+  if (!zoneCode) return null;
+  var code = zoneCode.replace(/[^A-Z0-9]/g, '').toUpperCase();
+  if (VIC_ZONE_TYPE_MAP[code]) return VIC_ZONE_TYPE_MAP[code];
+  // Try prefix matching for numbered zones (e.g. "GRZ1" -> "GRZ")
+  var prefix = code.replace(/[0-9]+$/, '');
+  if (VIC_ZONE_TYPE_MAP[prefix]) return VIC_ZONE_TYPE_MAP[prefix];
+  return 1; // Default to most conservative
+}
+
+function getVicZoneLabel(zoneCode) {
+  var t = getVicZoneType(zoneCode);
+  var labels = {1:'Type 1 — Residential', 2:'Type 2 — Commercial', 3:'Type 3 — Industrial'};
+  return labels[t] || ('Type ' + t);
+}
+
 const SOURCE_LIBRARY_GROUPED = {
   "Mechanical units": [
     {"name":"Small exhaust fan (toilet, garbage room)—Lw 60 dB(A)","lw":60.4},
@@ -720,6 +1207,12 @@ const SOURCE_LIBRARY_GROUPED_LMAX = filterGrouped(SOURCE_LIBRARY_GROUPED, s => /
 // Characteristic penalty state (dB added to predicted Leq before comparison)
 let dayPenalty = 0;
 let nightPenalty = 0;
+let eveningPenalty = 0;  // VIC only
+
+// State detection: 'SA' | 'VIC' | 'OTHER' | null
+let currentState = null;
+let vicAreaType = 'urban'; // 'urban' | 'rural' (VIC only)
+let detectedStateName = ''; // e.g. 'NSW', 'QLD' — for badge display in OTHER mode
 
 const byKey = new Map(DATA.map(r => [r.key, r]));
 const keys = DATA.map(r => r.key).sort((a,b)=>a.localeCompare(b));
@@ -739,6 +1232,69 @@ function fillSelect(id) {
   }
 }
 
+// VIC zone dropdown population (Type 1/2/3 for urban, zone codes for rural)
+function fillSelectVIC(id) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = "";
+  const blank = document.createElement('option');
+  blank.value = ""; blank.textContent = "— Select —";
+  sel.appendChild(blank);
+  if (vicAreaType === 'rural') {
+    const ruralZones = [
+      {key:'VIC_LDRZ', label:'Low Density Residential Zone (LDRZ)'},
+      {key:'VIC_GRZ', label:'General Residential Zone (GRZ)'},
+      {key:'VIC_NRZ', label:'Neighbourhood Residential Zone (NRZ)'},
+      {key:'VIC_RGZ', label:'Residential Growth Zone (RGZ)'},
+      {key:'VIC_TZ', label:'Township Zone (TZ)'},
+      {key:'VIC_FZ', label:'Farming Zone (FZ)'},
+      {key:'VIC_RAZ', label:'Rural Activity Zone (RAZ)'},
+      {key:'VIC_RLZ', label:'Rural Living Zone (RLZ)'},
+      {key:'VIC_GWZ', label:'Green Wedge Zone (GWZ)'},
+      {key:'VIC_GWAZ', label:'Green Wedge A Zone (GWAZ)'},
+      {key:'VIC_RCZ', label:'Rural Conservation Zone (RCZ)'},
+      {key:'VIC_PCRZ', label:'Public Conservation & Resource Zone (PCRZ)'},
+      {key:'VIC_PPRZ', label:'Public Park & Recreation Zone (PPRZ)'},
+      {key:'VIC_PUZ2', label:'Public Use Zone 2 — Education (PUZ2)'},
+      {key:'VIC_PUZ5', label:'Public Use Zone 5 — Cemetery (PUZ5)'},
+      {key:'VIC_UFZ', label:'Urban Floodway Zone (UFZ)'},
+      {key:'VIC_C1Z', label:'Commercial 1 Zone (C1Z)'},
+      {key:'VIC_C2Z', label:'Commercial 2 Zone (C2Z)'},
+      {key:'VIC_C3Z', label:'Commercial 3 Zone (C3Z)'},
+      {key:'VIC_MUZ', label:'Mixed Use Zone (MUZ)'},
+      {key:'VIC_ACZ', label:'Activity Centre Zone (ACZ)'},
+      {key:'VIC_IN1Z', label:'Industrial 1 Zone (IN1Z)'},
+      {key:'VIC_IN2Z', label:'Industrial 2 Zone (IN2Z)'},
+      {key:'VIC_IN3Z', label:'Industrial 3 Zone (IN3Z)'},
+      {key:'VIC_PZ', label:'Port Zone (PZ)'},
+      {key:'VIC_PUZ1', label:'Public Use Zone 1 — Service & Utility (PUZ1)'},
+      {key:'VIC_PUZ3', label:'Public Use Zone 3 — Health (PUZ3)'},
+      {key:'VIC_PUZ6', label:'Public Use Zone 6 — Local Govt (PUZ6)'},
+      {key:'VIC_PUZ7', label:'Public Use Zone 7 — Other (PUZ7)'},
+      {key:'VIC_TRZ1', label:'Transport Zone 1 (TRZ1)'},
+      {key:'VIC_TRZ2', label:'Transport Zone 2 (TRZ2)'},
+      {key:'VIC_TRZ3', label:'Transport Zone 3 (TRZ3)'},
+      {key:'VIC_TRZ4', label:'Transport Zone 4 (TRZ4)'},
+      {key:'VIC_SUZ', label:'Special Use Zone (SUZ)'},
+    ];
+    ruralZones.forEach(z => {
+      const o = document.createElement('option');
+      o.value = z.key; o.textContent = z.label;
+      sel.appendChild(o);
+    });
+  } else {
+    const urbanTypes = [
+      {key:'VIC_TYPE1', label:'Type 1 — Residential'},
+      {key:'VIC_TYPE2', label:'Type 2 — Commercial / Mixed'},
+      {key:'VIC_TYPE3', label:'Type 3 — Industrial'},
+    ];
+    urbanTypes.forEach(z => {
+      const o = document.createElement('option');
+      o.value = z.key; o.textContent = z.label;
+      sel.appendChild(o);
+    });
+  }
+}
+
 function fmt(x) {
   if (x === null || x === undefined || x === "") return "";
   const n = Number(x);
@@ -750,35 +1306,236 @@ function landDisplay(rec) {
   return rec.is_single == 1 ? rec.single_cat : rec.land_use_raw;
 }
 
-function receiverSingleLand(rec) {
-  // Match the land-use text shown in the top table exactly:
-  // single-category => single_cat, otherwise => land_use_raw (comma-separated list)
-  if (!rec) return "";
-  return rec.is_single == 1 ? rec.single_cat : rec.land_use_raw;
-}
-
 function isResOrRuralLivingSingle(rec) {
   return rec && rec.is_single == 1 && (rec.single_cat === "Residential" || rec.single_cat === "Rural Living");
+}
+
+/* ===== State switching (SA / VIC / OTHER) ===== */
+function switchToState(state) {
+  if (currentState === state) return;
+  currentState = state;
+  const body = document.body;
+
+  // Clear auto-IF when switching states
+  clearAutoIF();
+
+  // Remove old state classes and criteria column toggles
+  body.classList.remove('state-sa', 'state-vic', 'state-other', 'area-urban', 'area-rural', 'hide-day-col', 'hide-eve-col', 'hide-night-col', 'hide-lmax-col');
+  // Restore night situation card visibility
+  const nightCard = document.querySelector('.crit-night-section');
+  if (nightCard) nightCard.style.display = '';
+
+  const badge = document.getElementById('stateBadge');
+  if (state === 'VIC') {
+    body.classList.add('state-vic', vicAreaType === 'rural' ? 'area-rural' : 'area-urban');
+    badge.textContent = 'VIC';
+    badge.className = 'state-badge state-badge-vic';
+    badge.style.display = '';
+  } else if (state === 'SA') {
+    body.classList.add('state-sa');
+    badge.textContent = 'SA';
+    badge.className = 'state-badge state-badge-sa';
+    badge.style.display = '';
+  } else if (state === 'OTHER') {
+    body.classList.add('state-other');
+    badge.textContent = detectedStateName || 'Other';
+    badge.className = 'state-badge state-badge-other';
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  // Update policy reference text
+  updatePolicyRef();
+
+  // Update policy note under Receivers & criteria heading
+  updatePolicyNote();
+
+  // Update zone description text
+  updateZoneDescText();
+
+  // Rebuild zone dropdowns for the active state
+  rebuildZoneSelects();
+
+  // Update zone overlay button label & visibility (SA only)
+  updateZoneToggleLabel();
+  const zoneBtn = document.getElementById('zoneToggleBtn');
+  if (zoneBtn) zoneBtn.style.display = (state === 'SA' || state === 'VIC') ? '' : 'none';
+  const parcelBtn = document.getElementById('parcelToggleBtn');
+  if (parcelBtn) parcelBtn.style.display = (state === 'SA') ? '' : 'none';
+
+  // Update operational time column headers and re-render source tables
+  updateOpTimeHeaders();
+  renderSourceTable('day','daySrcRows','daySrcTotal',5);
+  renderSourceTable('eve','eveSrcRows','eveSrcTotal',5);
+  renderSourceTable('night','nightSrcRows','nightSrcTotal',5);
+  renderSourceTable('lmax','nightLmaxRows','nightLmaxTotal',1);
+
+  // Clear/update concentric circles and auto-IF on state change
+  if (typeof updateConcentricCircles === 'function') {
+    const srcMarkerLatlng = window.getSourceLatLng ? window.getSourceLatLng() : null;
+    updateConcentricCircles(srcMarkerLatlng);
+    if (state === 'VIC' && vicAreaType === 'urban' && srcMarkerLatlng) {
+      triggerAutoIF(srcMarkerLatlng);
+    }
+  }
+
+  // If zone overlay is active, switch to the correct overlay
+  if (typeof isZoneOn !== 'undefined' && isZoneOn) {
+    // Remove both overlays, re-add the correct one
+    if (typeof zoningOverlay !== 'undefined' && zoningOverlay && typeof map !== 'undefined') {
+      try { map.removeLayer(zoningOverlay); } catch(e){}
+    }
+    if (typeof vicZoningOverlay !== 'undefined' && vicZoningOverlay && typeof map !== 'undefined') {
+      try { map.removeLayer(vicZoningOverlay); } catch(e){}
+    }
+    const activeOverlay = state === 'VIC' ? (typeof vicZoningOverlay !== 'undefined' ? vicZoningOverlay : null) : (typeof zoningOverlay !== 'undefined' ? zoningOverlay : null);
+    if (activeOverlay && typeof map !== 'undefined') {
+      try { activeOverlay.addTo(map); } catch(e){}
+    }
+  }
+
+  // Expand 'Receivers & criteria' and 'Predicted noise levels' cards when a location is selected
+  document.querySelectorAll('.card').forEach(function(card) {
+    var h2 = card.querySelector('h2');
+    if (h2 && (h2.textContent.trim().indexOf('Receivers') === 0 || h2.textContent.trim().indexOf('Predicted') === 0)) {
+      var body = card.querySelector('.card-body');
+      var btn = card.querySelector('.collapse-btn');
+      if (body) body.classList.remove('collapsed');
+      if (btn) btn.innerHTML = '&#x25B2;';
+    }
+  });
+
+  // Query SA source parcel boundary when state is confirmed as SA
+  if (state === 'SA' && typeof querySourceParcel === 'function' && typeof latlngs !== 'undefined' && latlngs.source) {
+    querySourceParcel(latlngs.source);
+  }
+  // Clear parcel outline when leaving SA
+  if (state !== 'SA' && typeof sourceParcelOutline !== 'undefined' && sourceParcelOutline && typeof map !== 'undefined') {
+    map.removeLayer(sourceParcelOutline); sourceParcelOutline = null;
+  }
+
+  // Re-render
+  render();
+}
+
+function updatePolicyRef() {
+  const el = document.getElementById('policyRefText');
+  if (!el) return;
+  el.innerHTML = 'A screening tool to predict noise levels at nearby receivers. Select source and receiver locations on the map, enter noise source data, and the tool will indicate potential compliance. Depending on location, the criteria will be automatically calculated or can be entered manually.';
+}
+
+function updatePolicyNote() {
+  const el = document.getElementById('policyNoteText');
+  if (!el) return;
+  if (currentState === 'SA') {
+    el.innerHTML = 'Environmental noise criteria calculated in accordance with Part 5 of the <i>Environment Protection (Commercial & Industrial) Noise Policy 2023</i>.';
+    el.style.display = '';
+  } else if (currentState === 'VIC') {
+    el.innerHTML = 'Environmental noise criteria calculated in accordance with <i>EPA Victoria Publication 1826.5 — Noise limit and assessment protocol for the control of noise from commercial, industrial and trade premises and entertainment venues</i>.';
+    el.style.display = '';
+  } else if (currentState === 'OTHER') {
+    el.innerHTML = 'Manual criteria entry — enter Day, Evening, Night and L<sub>max</sub> criteria values directly in the table below.';
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function updateZoneDescText() {
+  const el = document.getElementById('zoneDescText');
+  if (!el) return;
+  if (currentState === 'VIC') {
+    el.innerHTML = 'Zones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://mapshare.vic.gov.au/vicplan/" target="_blank" rel="noopener">VicPlan</a>). You can also select manually from the dropdowns.';
+  } else if (currentState === 'OTHER') {
+    el.innerHTML = '';
+  } else {
+    el.innerHTML = 'Zones and subzones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA</a>). You can also select manually from the dropdowns.';
+  }
+}
+
+function updateZoneToggleLabel() {
+  const btn = document.getElementById('zoneToggleBtn');
+  if (!btn) return;
+  btn.title = currentState === 'VIC' ? 'Toggle VicPlan zoning overlay on map' : 'Toggle SAPPA zoning overlay on map';
+}
+
+function updateOpTimeHeaders() {
+  const isSA = (currentState === 'SA' || currentState === null);
+  const label = isSA ? 'Operational min in 15 min' : 'Operational time %';
+  document.querySelectorAll('.op-time-header').forEach(function(th) {
+    th.textContent = label;
+  });
+  const note = document.getElementById('opTimeNote');
+  if (note) {
+    note.textContent = isSA
+      ? 'The calculation provides an option to input the expected operational time during a 15 minute assessment period. This will provide a 10\u00B7log time weighting to the source level to account for the contribution during the assessment period.'
+      : 'Enter operational time as a percentage (1\u2013100%). The calculation applies a 10\u00B7log(\u200A%/100\u200A) time weighting to the source level.';
+  }
+}
+
+function rebuildZoneSelects() {
+  if (currentState === 'OTHER') {
+    // In OTHER mode, zone columns are hidden — clear dropdowns
+    ['src','r1','r2','r3','r4'].forEach(function(id) {
+      var sel = document.getElementById(id);
+      if (sel) { sel.innerHTML = ''; sel.value = ''; }
+    });
+    return;
+  }
+  if (currentState === 'VIC') {
+    fillSelectVIC('src');
+    fillSelectVIC('r1');
+    fillSelectVIC('r2');
+    fillSelectVIC('r3');
+    fillSelectVIC('r4');
+  } else {
+    fillSelect('src');
+    fillSelect('r1');
+    fillSelect('r2');
+    fillSelect('r3');
+    fillSelect('r4');
+  }
+}
+
+function setVicAreaType(type) {
+  vicAreaType = type;
+  document.body.classList.remove('area-urban', 'area-rural');
+  document.body.classList.add(type === 'rural' ? 'area-rural' : 'area-urban');
+  if (type === 'rural') {
+    clearAutoIF();
+  }
+  if (currentState === 'VIC') {
+    rebuildZoneSelects();
+    render();
+    // Trigger auto-IF when switching to urban with source already placed
+    if (type === 'urban') {
+      var srcLL = window.getSourceLatLng ? window.getSourceLatLng() : null;
+      if (srcLL) triggerAutoIF(srcLL);
+    }
+  }
 }
 
 
 // --- Noise source calculators (Day / Night) ---
 function log10(x){ return Math.log(x) / Math.LN10; }
 
-function rowTotalLw(baseLw, n, minutes){
+function rowTotalLw(baseLw, n, opValue){
   if (!Number.isFinite(baseLw)) return 0;
   if (!Number.isFinite(n) || n <= 0) return 0;
 
-  // Minutes is "operational minutes within a 15 minute period".
-  // If blank/missing, assume 15 minutes (i.e., no adjustment).
-  let m;
-  if (minutes === "" || minutes === null || minutes === undefined) m = 15;
-  else m = Number(minutes);
+  // SA: opValue = operational minutes in a 15-min period (default 15, divisor 15)
+  // VIC/OTHER: opValue = operational time % (default 100, divisor 100)
+  const isSA = (currentState === 'SA' || currentState === null);
+  const defaultVal = isSA ? 15 : 100;
+  const divisor = isSA ? 15 : 100;
 
-  if (!Number.isFinite(m)) m = 15;
+  let m = (opValue === "" || opValue === null || opValue === undefined) ? defaultVal : Number(opValue);
+
+  if (!Number.isFinite(m)) m = defaultVal;
   if (m <= 0) return 0;
 
-  return baseLw + 10 * log10(n) + 10 * log10(m / 15);
+  return baseLw + 10 * log10(n) + 10 * log10(m / divisor);
 }
 
 function energeticSum(dBArray){
@@ -796,22 +1553,9 @@ function round1(x){
   return String(Math.round(n * 10) / 10);
 }
 
-function getDayTotal(){
-  const el = document.getElementById('daySrcTotal');
-  if (!el) return NaN;
-  const n = Number(el.textContent);
-  return Number.isFinite(n) ? n : NaN;
-}
-
-function getNightTotal(){
-  const el = document.getElementById('nightSrcTotal');
-  if (!el) return NaN;
-  const n = Number(el.textContent);
-  return Number.isFinite(n) ? n : NaN;
-}
-
-function getNightLmaxTotal(){
-  const el = document.getElementById('nightLmaxTotal');
+/* Read a source total from the DOM by element ID */
+function getSrcTotal(elementId) {
+  const el = document.getElementById(elementId);
   if (!el) return NaN;
   const n = Number(el.textContent);
   return Number.isFinite(n) ? n : NaN;
@@ -825,25 +1569,10 @@ function getReceiverDistance(idx1to4){
   return Number.isFinite(n) ? n : NaN;
 }
 
-function calcDayPredAtReceiver(totalDaySingleValue, distanceM){
-  // Day Pred = Total day single value - 20*log10(distance) - 8
-  if (!Number.isFinite(totalDaySingleValue) || !Number.isFinite(distanceM) || distanceM <= 0) return "";
-  const pred = totalDaySingleValue - 20 * log10(distanceM) - 8;
-  return Math.round(pred);
-}
-
-function calcNightPredAtReceiver(totalNightSingleValue, distanceM){
-  // Night Pred = Total night single value - 20*log10(distance) - 8
-  if (!Number.isFinite(totalNightSingleValue) || !Number.isFinite(distanceM) || distanceM <= 0) return "";
-  const pred = totalNightSingleValue - 20 * log10(distanceM) - 8;
-  return Math.round(pred);
-}
-
-function calcLmaxPredAtReceiver(totalLmaxSingleValue, distanceM){
-  // Lmax Pred = Total Lmax single value - 20*log10(distance) - 8
-  if (!Number.isFinite(totalLmaxSingleValue) || !Number.isFinite(distanceM) || distanceM <= 0) return "";
-  const pred = totalLmaxSingleValue - 20 * log10(distanceM) - 8;
-  return Math.round(pred);
+/* Predicted level at receiver = Total Lw − 20·log₁₀(distance) − 8 dB */
+function calcPredAtReceiver(totalLw, distanceM) {
+  if (!Number.isFinite(totalLw) || !Number.isFinite(distanceM) || distanceM <= 0) return "";
+  return Math.round(totalLw - 20 * log10(distanceM) - 8);
 }
 
 
@@ -904,7 +1633,7 @@ function saveLS(key, val){ localStorage.setItem(key, String(val)); }
   for (var j = 0; j < localStorage.length; j++) {
     var k = localStorage.key(j);
     if (k && (
-      k.match(/^(day|night|lmax)_(src|n|min|bar)_/) ||  /* source table rows */
+      k.match(/^(day|eve|night|lmax)_(src|n|min|bar)_/) ||  /* source table rows */
       k.match(/^dist_r_/) ||                             /* receiver distances */
       k.match(/^recvName_/) ||                           /* receiver names */
       k.match(/^penalty_/) ||                            /* characteristic penalties */
@@ -935,7 +1664,7 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5){
     if (totalCell) totalCell.textContent = String(Math.round(total));
 
     // Keep receiver table updated when totals change
-    if (prefix === 'day' || prefix === 'night' || prefix === 'lmax') render();
+    if (prefix === 'day' || prefix === 'eve' || prefix === 'night' || prefix === 'lmax') render();
   }
 
   for (let i=1; i<=rows; i++){
@@ -953,7 +1682,7 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5){
 
     const tdSrc = document.createElement("td");
     const tdN = document.createElement("td"); tdN.className="center";
-    const includeMinutes = (prefix === 'day' || prefix === 'night');
+    const includeMinutes = (prefix === 'day' || prefix === 'eve' || prefix === 'night');
     const tdMin = document.createElement("td"); tdMin.className="center";
     const tdBar = document.createElement("td"); tdBar.className="center";
     const tdLw = document.createElement("td"); tdLw.className="num"; tdLw.id = `${prefix}_lw_${i}`;
@@ -967,10 +1696,18 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5){
 
     inp.id = `${prefix}_n_inp_${i}`;
 
+    const isSAMode = (currentState === 'SA' || currentState === null);
+    const opMax = isSAMode ? 15 : 100;
+    const opDefault = isSAMode ? "15" : "100";
+
     const inpMin = document.createElement("input");
-    inpMin.type="number"; inpMin.min="0"; inpMin.max="15"; inpMin.step="1"; inpMin.inputMode="numeric";
-    // If nothing stored yet, default to 15 minutes so results match previous behaviour.
-    inpMin.value = (minVal === "" || minVal === null || minVal === undefined) ? "15" : minVal;
+    inpMin.type="number"; inpMin.min="0"; inpMin.max=String(opMax); inpMin.step="1"; inpMin.inputMode="numeric";
+    inpMin.style.width = isSAMode ? '' : '60px';
+    // Default to full operation (15 min for SA, 100% for others).
+    // Reset to default when switching modes (SA value of 15 shouldn't carry into % mode).
+    var storedMin = (minVal === "" || minVal === null || minVal === undefined) ? opDefault : minVal;
+    if (!isSAMode && Number(storedMin) <= 15) storedMin = opDefault;
+    inpMin.value = storedMin;
     inpMin.id = `${prefix}_min_inp_${i}`;
 
     const bar = makeYesNoSelect(barVal);
@@ -981,7 +1718,7 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5){
     nWarning.textContent = 'Max 99';
     const minWarning = document.createElement('div');
     minWarning.style.cssText = 'color:#dc2626;font-size:10px;margin-top:2px;display:none;';
-    minWarning.textContent = 'Max 15 min';
+    minWarning.textContent = isSAMode ? 'Max 15 min' : 'Max 100%';
 
     function recalcRow(){
       const picked = libFlat.find(s => s.name === sel.value);
@@ -990,9 +1727,9 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5){
       if (n > 99) { n = 99; inp.value = 99; nWarning.style.display = ''; }
       else if (n < 0) { n = 0; inp.value = 0; nWarning.style.display = ''; }
       else { nWarning.style.display = 'none'; }
-      let minsVal = includeMinutes ? Number(inpMin.value) : 15;
+      let minsVal = includeMinutes ? Number(inpMin.value) : (isSAMode ? 15 : 100);
       if (includeMinutes) {
-        if (minsVal > 15) { minsVal = 15; inpMin.value = 15; minWarning.style.display = ''; }
+        if (minsVal > opMax) { minsVal = opMax; inpMin.value = opMax; minWarning.style.display = ''; }
         else if (minsVal < 0) { minsVal = 0; inpMin.value = 0; minWarning.style.display = ''; }
         else { minWarning.style.display = 'none'; }
       }
@@ -1036,8 +1773,12 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5){
 }
 
 function calcCriteria(source, rec) {
-  if (!source || !rec) return {day:"", night:"", lmax:""};
+  if (!source || !rec) return {day:"", evening:"", night:"", lmax:""};
 
+  // VIC/OTHER mode: criteria handled separately via calcCriteriaVICForReceiver / manual inputs
+  if (currentState === 'VIC' || currentState === 'OTHER') {
+    return {day:"", evening:"", night:"", lmax:""};
+  }
   const sameCatGI_SI =
     source.is_single == 1 &&
     rec.is_single == 1 &&
@@ -1065,6 +1806,351 @@ function calcCriteria(source, rec) {
   return {day: dayCrit, night: nightCrit, lmax};
 }
 
+function getVicDropdownType(selValue) {
+  // Convert dropdown value to zone type number (1/2/3)
+  if (!selValue) return null;
+  if (selValue === 'VIC_TYPE1') return 1;
+  if (selValue === 'VIC_TYPE2') return 2;
+  if (selValue === 'VIC_TYPE3') return 3;
+  // For rural zone codes, extract and look up
+  var code = selValue.replace(/^VIC_/, '');
+  return getVicZoneType(code) || null;
+}
+
+function getVicDropdownZoneCode(selValue) {
+  // Extract bare zone code from dropdown value
+  if (!selValue) return '';
+  return selValue.replace(/^VIC_/, '');
+}
+
+/* VIC criteria — takes receiver dropdown ID directly */
+function calcCriteriaVICForReceiver(recSelectId) {
+  var srcVal = document.getElementById('src') ? document.getElementById('src').value : '';
+  var recVal = document.getElementById(recSelectId) ? document.getElementById(recSelectId).value : '';
+
+  if (vicAreaType === 'urban') {
+    // In urban mode with auto-IF, dropdowns are optional — criteria can be derived from IF alone
+    if (!srcVal && !recVal && autoIF === null) return {day:"", evening:"", night:"", lmax:""};
+    return calcCriteriaVIC_Urban(srcVal, recVal);
+  } else {
+    // Rural mode requires both source and receiver zone selections
+    if (!srcVal || !recVal) return {day:"", evening:"", night:"", lmax:""};
+    return calcCriteriaVIC_Rural(srcVal, recVal);
+  }
+}
+
+function calcCriteriaVIC_Urban(srcVal, recVal) {
+  /* Urban method uses Influencing Factor (IF) from Figure 1 of Pub 1826.5.
+     Priority: 1) manual entry, 2) auto-derived from zone analysis, 3) receiver zone type.
+     Zoning level = base + 10 × IF, where base is Day 46, Eve 40, Night 36. */
+  var ifInput = document.getElementById('vicIF');
+  var IF;
+  if (ifInput && ifInput.value !== '') {
+    IF = Number(ifInput.value);
+  } else if (autoIF !== null) {
+    IF = autoIF;
+  } else {
+    // Derive from receiver zone type as screening approximation
+    var recType = getVicDropdownType(recVal);
+    IF = VIC_TYPE_TO_IF[recType] || 0;
+  }
+  var levels = getVicUrbanZoningLevel(IF);
+  var dayLevel = levels.day;
+  var eveLevel = levels.evening;
+  var nightLevel = levels.night;
+
+  // Distance adjustment: -1 dB per 100m (Clause 20). Max 9 dB.
+  // Only when source zone differs from receiver zone.
+  var srcType = getVicDropdownType(srcVal);
+  var recType2 = getVicDropdownType(recVal);
+  var distAdj = 0;
+  if (srcType !== recType2) {
+    var distInput = document.getElementById('vicDistToZoneBoundary');
+    if (distInput && distInput.value) {
+      var distM = Number(distInput.value);
+      if (Number.isFinite(distM) && distM > 0) {
+        distAdj = Math.min(Math.floor(distM / 100), 9);
+      }
+    }
+  }
+  dayLevel -= distAdj;
+  eveLevel -= distAdj;
+  nightLevel -= distAdj;
+
+  // Background classification — Clause 4 of Pub 1826.5
+  var bgClass = getVicBackgroundClass();
+  if (bgClass === 'high') {
+    // Clause 6: high background → limit = BG + 6 dB (day) or BG + 3 dB (eve/night)
+    var bgDay = getVicBgLevel('day');
+    var bgEve = getVicBgLevel('evening');
+    var bgNight = getVicBgLevel('night');
+    if (Number.isFinite(bgDay)) dayLevel = Math.max(dayLevel, bgDay + 6);
+    if (Number.isFinite(bgEve)) eveLevel = Math.max(eveLevel, bgEve + 3);
+    if (Number.isFinite(bgNight)) nightLevel = Math.max(nightLevel, bgNight + 3);
+  } else if (bgClass === 'low') {
+    // Clause 6: low background → limit = ½(zoning level + BG) + offset
+    // Day offset: +4.5 dB, Evening offset: +3 dB, Night offset: +3 dB
+    var bgDay2 = getVicBgLevel('day');
+    var bgEve2 = getVicBgLevel('evening');
+    var bgNight2 = getVicBgLevel('night');
+    if (Number.isFinite(bgDay2)) dayLevel = Math.round((dayLevel + bgDay2) / 2 + 4.5);
+    if (Number.isFinite(bgEve2)) eveLevel = Math.round((eveLevel + bgEve2) / 2 + 3);
+    if (Number.isFinite(bgNight2)) nightLevel = Math.round((nightLevel + bgNight2) / 2 + 3);
+  }
+  // Neutral (Clause 5): no adjustment — limit = zoning level
+
+  // Apply minimum limits (reg 118(2)(a))
+  dayLevel = Math.max(dayLevel, VIC_MIN_LIMITS_URBAN.day);
+  eveLevel = Math.max(eveLevel, VIC_MIN_LIMITS_URBAN.evening);
+  nightLevel = Math.max(nightLevel, VIC_MIN_LIMITS_URBAN.night);
+
+  // Apply night cap (reg 118(3))
+  nightLevel = Math.min(nightLevel, VIC_NIGHT_CAP);
+
+  return {day: dayLevel, evening: eveLevel, night: nightLevel, lmax: VIC_LMAX_NIGHT};
+}
+
+/** Auto-derive IF from zone analysis within 140m and 400m circles.
+ *  Queries VicPlan for all zones in each circle, estimates area fractions,
+ *  and computes IF = 0.25×(T2_140+T2_400) + 0.5×(T3_140+T3_400).
+ *  Updates the IF input placeholder and detected-zones display. */
+function calcAutoInfluencingFactor(srcLat, srcLng) {
+  var zonesEl = document.getElementById('vicDetectedZones');
+  if (zonesEl) {
+    zonesEl.style.display = 'block';
+    zonesEl.innerHTML = '<div style="color:var(--muted);font-size:11px;">Analysing zones\u2026</div>';
+  }
+
+  // Track request to detect stale results
+  var requestLat = srcLat, requestLng = srcLng;
+
+  return Promise.all([
+    queryVicZonesInCircle(srcLat, srcLng, 140),
+    queryVicZonesInCircle(srcLat, srcLng, 400)
+  ]).then(function(results) {
+    // Discard if state changed while query was in-flight
+    if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
+
+    var zones140 = results[0];
+    var zones400 = results[1];
+
+    var fracs140 = estimateAreaFractions(srcLat, srcLng, 140, zones140);
+    var fracs400 = estimateAreaFractions(srcLat, srcLng, 400, zones400);
+
+    var IF = 0.25 * ((fracs140[2] || 0) + (fracs400[2] || 0))
+           + 0.5  * ((fracs140[3] || 0) + (fracs400[3] || 0));
+    IF = Math.round(IF * 100) / 100; // round to 2 decimals
+
+    autoIF = IF;
+    autoIFData = {
+      zones140: zones140,
+      zones400: zones400,
+      fracs140: fracs140,
+      fracs400: fracs400,
+      IF: IF
+    };
+
+    // Update IF input placeholder
+    var ifInput = document.getElementById('vicIF');
+    if (ifInput && ifInput.value === '') {
+      ifInput.placeholder = IF.toFixed(2) + ' (auto)';
+    }
+
+    // Update detected zones display
+    renderDetectedZones();
+
+    // Re-render criteria
+    render();
+    return autoIFData;
+  }).catch(function(err) {
+    console.warn('Auto-IF calculation failed:', err);
+    if (currentState === 'VIC' && vicAreaType === 'urban' && zonesEl) {
+      zonesEl.innerHTML = '<div style="color:#dc2626;font-size:11px;">Zone analysis failed</div>';
+    }
+  });
+}
+
+/** Render the detected zones into the UI panel */
+function renderDetectedZones() {
+  var el = document.getElementById('vicDetectedZones');
+  if (!el || !autoIFData) { if (el) el.style.display = 'none'; return; }
+  el.style.display = 'block';
+
+  var TYPE_COLORS = {1: '#059669', 2: '#d97706', 3: '#dc2626'};
+  var TYPE_LABELS = {1: 'Type 1', 2: 'Type 2', 3: 'Type 3'};
+
+  function zoneList(zones, fracs, label) {
+    // Deduplicate zone codes
+    var seen = {};
+    var unique = [];
+    zones.forEach(function(z) {
+      if (!seen[z.zoneCode]) { seen[z.zoneCode] = true; unique.push(z); }
+    });
+
+    var html = '<div style="margin-bottom:6px;"><span style="font-weight:600;font-size:11px;">' + label + '</span>';
+    if (unique.length === 0) {
+      html += ' <span style="color:var(--muted);font-size:11px;">No zones detected</span>';
+    } else {
+      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">';
+      unique.forEach(function(z) {
+        var col = TYPE_COLORS[z.type] || '#6b7280';
+        html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;font-weight:500;">' +
+                z.zoneCode + ' = ' + (TYPE_LABELS[z.type] || '?') + '</span>';
+      });
+      html += '</div>';
+    }
+    // Area percentages
+    html += '<div style="font-size:10px;color:var(--muted);margin-top:2px;">';
+    html += 'T1: ' + Math.round(fracs[1] * 100) + '% · T2: ' + Math.round(fracs[2] * 100) + '% · T3: ' + Math.round(fracs[3] * 100) + '%';
+    html += '</div></div>';
+    return html;
+  }
+
+  var h = '';
+  h += zoneList(autoIFData.zones140, autoIFData.fracs140, '140 m circle');
+  h += zoneList(autoIFData.zones400, autoIFData.fracs400, '400 m circle');
+  h += '<div style="font-size:11px;font-weight:600;margin-top:4px;color:var(--heading);">Computed IF = ' + autoIFData.IF.toFixed(2) + '</div>';
+
+  el.innerHTML = h;
+}
+
+/** Trigger auto-IF only when in VIC urban mode with source marker placed */
+function triggerAutoIF(latlng) {
+  if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
+  if (!latlng) return;
+  calcAutoInfluencingFactor(latlng.lat, latlng.lng);
+}
+
+/** Reset auto-IF state and clear detected zones display */
+function clearAutoIF() {
+  autoIF = null;
+  autoIFData = null;
+  var el = document.getElementById('vicDetectedZones');
+  if (el) { el.innerHTML = ''; el.style.display = 'none'; }
+  var ifInput = document.getElementById('vicIF');
+  if (ifInput) ifInput.placeholder = 'auto';
+}
+
+/** Handle manual IF input — show/hide reset link, re-render */
+function handleIFInput() {
+  var ifInput = document.getElementById('vicIF');
+  var resetLink = document.getElementById('vicIFReset');
+  if (ifInput && resetLink) {
+    if (ifInput.value !== '') {
+      resetLink.style.display = 'inline';
+    } else {
+      resetLink.style.display = 'none';
+      // Restore auto placeholder if available
+      if (autoIF !== null) {
+        ifInput.placeholder = autoIF.toFixed(2) + ' (auto)';
+      }
+    }
+  }
+  render();
+}
+
+function calcCriteriaVIC_Rural(srcVal, recVal) {
+  var srcCode = getVicDropdownZoneCode(srcVal);
+  var recCode = getVicDropdownZoneCode(recVal);
+
+  if (!srcCode || !recCode) return {day:"", evening:"", night:"", lmax:""};
+
+  // Check utility sources first (Clauses 29-32)
+  var isUtility = document.getElementById('vicIsUtility');
+  if (isUtility && isUtility.checked && VIC_UTILITY_ZONES.indexOf(srcCode) !== -1) {
+    return {
+      day: VIC_UTILITY_LIMITS.day,
+      evening: VIC_UTILITY_LIMITS.evening,
+      night: VIC_UTILITY_LIMITS.night,
+      lmax: VIC_LMAX_NIGHT
+    };
+  }
+
+  // Check earth resources sources (Clauses 33-36)
+  var isEarthRes = document.getElementById('vicIsEarthResources');
+  if (isEarthRes && isEarthRes.checked) {
+    var erLevels = VIC_EARTH_RESOURCES[recCode] || VIC_EARTH_RESOURCES['_default'];
+    // Earth resources: no distance adjustment (Clause 36)
+    return {
+      day: Math.max(erLevels.day, VIC_MIN_LIMITS_RURAL.day),
+      evening: Math.max(erLevels.evening, VIC_MIN_LIMITS_RURAL.evening),
+      night: Math.min(Math.max(erLevels.night, VIC_MIN_LIMITS_RURAL.night), VIC_NIGHT_CAP),
+      lmax: VIC_LMAX_NIGHT
+    };
+  }
+
+  // Rural zone lookup via group mapping (Table B.1, Annex B)
+  var genGroup = VIC_RURAL_GEN_GROUPS[srcCode];
+  var recGroup = VIC_RURAL_REC_GROUPS[recCode];
+  if (!genGroup || !recGroup) return {day:"", evening:"", night:"", lmax:""};
+
+  var key = genGroup + '_' + recGroup;
+  var levels = VIC_RURAL_ZONE_LEVELS[key];
+  if (!levels) return {day:"", evening:"", night:"", lmax:""};
+
+  var dayLevel = levels.day;
+  var eveLevel = levels.evening;
+  var nightLevel = levels.night;
+
+  // Distance adjustment: −1 dB per 100 m (Clause 20). Max 9 dB.
+  var distAdj = 0;
+  var distInput = document.getElementById('vicDistToZoneBoundary');
+  if (distInput && distInput.value) {
+    var distM = Number(distInput.value);
+    if (Number.isFinite(distM) && distM > 0) {
+      distAdj = Math.min(Math.floor(distM / 100), 9);
+    }
+  }
+  dayLevel -= distAdj;
+  eveLevel -= distAdj;
+  nightLevel -= distAdj;
+
+  // Background classification — Clause 4 of Pub 1826.5
+  var bgClass = getVicBackgroundClass();
+  if (bgClass === 'high') {
+    // Clause 6: high background → limit = BG + 6 dB (day) or BG + 3 dB (eve/night)
+    var bgDay = getVicBgLevel('day');
+    var bgEve = getVicBgLevel('evening');
+    var bgNight = getVicBgLevel('night');
+    if (Number.isFinite(bgDay)) dayLevel = Math.max(dayLevel, bgDay + 6);
+    if (Number.isFinite(bgEve)) eveLevel = Math.max(eveLevel, bgEve + 3);
+    if (Number.isFinite(bgNight)) nightLevel = Math.max(nightLevel, bgNight + 3);
+  } else if (bgClass === 'low') {
+    // Clause 6: low background → limit = ½(zoning level + BG) + offset
+    // Day offset: +4.5 dB, Evening offset: +3 dB, Night offset: +3 dB
+    var bgDay2 = getVicBgLevel('day');
+    var bgEve2 = getVicBgLevel('evening');
+    var bgNight2 = getVicBgLevel('night');
+    if (Number.isFinite(bgDay2)) dayLevel = Math.round((dayLevel + bgDay2) / 2 + 4.5);
+    if (Number.isFinite(bgEve2)) eveLevel = Math.round((eveLevel + bgEve2) / 2 + 3);
+    if (Number.isFinite(bgNight2)) nightLevel = Math.round((nightLevel + bgNight2) / 2 + 3);
+  }
+  // Neutral (Clause 5): no adjustment — limit = zoning level
+
+  // Apply rural minimum limits (Clause 17)
+  dayLevel = Math.max(dayLevel, VIC_MIN_LIMITS_RURAL.day);
+  eveLevel = Math.max(eveLevel, VIC_MIN_LIMITS_RURAL.evening);
+  nightLevel = Math.max(nightLevel, VIC_MIN_LIMITS_RURAL.night);
+
+  // Apply night cap (reg 118(3))
+  nightLevel = Math.min(nightLevel, VIC_NIGHT_CAP);
+
+  return {day: dayLevel, evening: eveLevel, night: nightLevel, lmax: VIC_LMAX_NIGHT};
+}
+
+/* Helper functions for VIC background inputs */
+function getVicBackgroundClass() {
+  var sel = document.getElementById('vicBgClass');
+  return sel ? sel.value : 'neutral';
+}
+
+function getVicBgLevel(period) {
+  var id = 'vicBg_' + period;
+  var el = document.getElementById(id);
+  if (!el || !el.value) return NaN;
+  return Number(el.value);
+}
+
 function loadPred(id) {
   const v = localStorage.getItem("pred_"+id);
   return v === null ? "" : v;
@@ -1075,9 +2161,24 @@ function savePred(id, val) {
 
 function clearPredRow(rowNum) {
   // rowNum is 1..4
-  ["day","night","lmax"].forEach(suffix => {
+  ["day","eve","night","lmax"].forEach(suffix => {
     localStorage.removeItem("pred_r"+rowNum+"_"+suffix);
   });
+}
+
+function copySourcesFromDay(targetPrefix) {
+  // Copy day source selections to the target prefix (eve or night)
+  for (let i = 1; i <= 5; i++) {
+    const srcVal = loadLS(`day_src_${i}`);
+    const nVal = loadLS(`day_n_${i}`);
+    const minVal = loadLS(`day_min_${i}`);
+    const barVal = loadLS(`day_bar_${i}`);
+    if (srcVal) saveLS(`${targetPrefix}_src_${i}`, srcVal);
+    if (nVal) saveLS(`${targetPrefix}_n_${i}`, nVal);
+    if (minVal) saveLS(`${targetPrefix}_min_${i}`, minVal);
+    if (barVal) saveLS(`${targetPrefix}_bar_${i}`, barVal);
+  }
+  renderSourceTable(targetPrefix, `${targetPrefix}SrcRows`, `${targetPrefix}SrcTotal`, 5);
 }
 
 function compCell(pred, crit) {
@@ -1096,15 +2197,27 @@ function td(text, cls="") {
   return `<td class="${cls}">${text ?? ""}</td>`;
 }
 
+/* Read manually entered criteria value from an OTHER-mode input */
+function getManualCrit(cellId) {
+  var cell = document.getElementById(cellId);
+  if (!cell) return "";
+  var inp = cell.querySelector('input.manual-crit-input');
+  if (!inp || !inp.value) return "";
+  var v = Number(inp.value);
+  return Number.isFinite(v) ? v : "";
+}
+
 function render() {
   const srcKey = document.getElementById('src').value;
   const src = byKey.get(srcKey);
+  const isVIC = currentState === 'VIC';
+  const isOTHER = currentState === 'OTHER';
 
-  document.getElementById('src_land').textContent = landDisplay(src);
+  document.getElementById('src_land').textContent = (isVIC || isOTHER) ? '' : landDisplay(src);
   const srcDayEl = document.getElementById('src_day');
   const srcNightEl = document.getElementById('src_night');
-  if (srcDayEl) srcDayEl.textContent = fmt(src && src.inf_day);
-  if (srcNightEl) srcNightEl.textContent = fmt(src && src.inf_night);
+  if (srcDayEl) srcDayEl.textContent = (isVIC || isOTHER) ? '' : fmt(src && src.inf_day);
+  if (srcNightEl) srcNightEl.textContent = (isVIC || isOTHER) ? '' : fmt(src && src.inf_night);
 
   const ids = ["r1","r2","r3","r4"];
   const rKeys = ids.map(id => document.getElementById(id).value);
@@ -1112,78 +2225,121 @@ function render() {
 
   ids.forEach((id, idx) => {
     const rec = recs[idx];
-    document.getElementById(id+"_land").textContent = landDisplay(rec);
+    document.getElementById(id+"_land").textContent = (isVIC || isOTHER) ? '' : landDisplay(rec);
 
-    // Criteria in the Selections table (same calculation as summary table)
-    const crit = calcCriteria(src, rec);
     const dayEl = document.getElementById(`${id}_daycrit`);
+    const eveEl = document.getElementById(`${id}_evecrit`);
     const nightEl = document.getElementById(`${id}_nightcrit`);
     const lmaxEl = document.getElementById(`${id}_lmaxcrit`);
-    if (dayEl) dayEl.textContent = fmt(crit.day);
-    if (nightEl) nightEl.textContent = fmt(crit.night);
-    if (lmaxEl) lmaxEl.textContent = crit.lmax === "" ? "" : fmt(crit.lmax);
+
+    if (isOTHER) {
+      // Manual criteria inputs — inject <input> if not already present
+      [dayEl, eveEl, nightEl, lmaxEl].forEach(function(cell) {
+        if (cell && !cell.querySelector('input.manual-crit-input')) {
+          var inputId = 'manual_' + cell.id;
+          var oldVal = cell.dataset.manualVal || '';
+          cell.innerHTML = '<input type="number" class="manual-crit-input" id="' + inputId +
+            '" min="0" max="120" step="1" placeholder="dB" value="' + oldVal +
+            '" oninput="this.parentElement.dataset.manualVal=this.value;render();" onchange="this.parentElement.dataset.manualVal=this.value;render();">';
+        }
+      });
+    } else {
+      // Auto-calculated criteria
+      const crit = isVIC ? calcCriteriaVICForReceiver(id) : calcCriteria(src, rec);
+      if (dayEl) dayEl.textContent = fmt(crit.day);
+      if (eveEl) eveEl.textContent = isVIC && crit.evening !== undefined ? fmt(crit.evening) : "";
+      if (nightEl) nightEl.textContent = fmt(crit.night);
+      if (lmaxEl) lmaxEl.textContent = crit.lmax === "" ? "" : fmt(crit.lmax);
+    }
   });
 
   const tbody = document.getElementById('rows');
   tbody.innerHTML = "";
 
-  const dayTotal = getDayTotal();
-  const nightTotal = getNightTotal();
-  const nightLmaxTotal = getNightLmaxTotal();
+  const dayTotal = getSrcTotal('daySrcTotal');
+  const eveTotal = getSrcTotal('eveSrcTotal');
+  const nightTotal = getSrcTotal('nightSrcTotal');
+  const nightLmaxTotal = getSrcTotal('nightLmaxTotal');
 
   recs.forEach((rec, i) => {
     const tr = document.createElement('tr');
     const keyText = rKeys[i] || "";
     const nameInput = document.getElementById(`recvName${i+1}`);
     const recvLabel = nameInput && nameInput.value.trim() ? nameInput.value.trim() : `Receiver ${i+1}`;
-    const crit = calcCriteria(src, rec);
-
-    const dayCrit = crit.day;
-    const nightCrit = crit.night;
-    const lmaxCrit = crit.lmax;
+    let dayCrit, eveCrit, nightCrit, lmaxCrit;
+    if (isOTHER) {
+      // Read criteria from manual input fields
+      const rid = ids[i];
+      dayCrit = getManualCrit(rid + '_daycrit');
+      eveCrit = getManualCrit(rid + '_evecrit');
+      nightCrit = getManualCrit(rid + '_nightcrit');
+      lmaxCrit = getManualCrit(rid + '_lmaxcrit');
+    } else {
+      const crit = isVIC ? calcCriteriaVICForReceiver(ids[i]) : calcCriteria(src, rec);
+      dayCrit = crit.day;
+      eveCrit = (isVIC && crit.evening !== undefined) ? crit.evening : "";
+      nightCrit = crit.night;
+      lmaxCrit = crit.lmax;
+    }
 
     const rowId = `r${i+1}`;
     const predDayId = `${rowId}_day`;
+    const predEveId = `${rowId}_eve`;
     const predNightId = `${rowId}_night`;
     // Predictions are automatically calculated from totals and receiver distance
     const dist = getReceiverDistance(i+1);
-    let predDay = calcDayPredAtReceiver(dayTotal, dist);
-    let predNight = calcNightPredAtReceiver(nightTotal, dist);
-    let predLmax = calcLmaxPredAtReceiver(nightLmaxTotal, dist);
+    let predDay = calcPredAtReceiver(dayTotal, dist);
+    let predEve = calcPredAtReceiver(eveTotal, dist);
+    let predNight = calcPredAtReceiver(nightTotal, dist);
+    let predLmax = calcPredAtReceiver(nightLmaxTotal, dist);
 
     // If no source is selected (total = 0) and predicted result is < 0, show blank
     if (dayTotal === 0 && predDay !== "" && predDay < 0) predDay = "";
+    if (eveTotal === 0 && predEve !== "" && predEve < 0) predEve = "";
     if (nightTotal === 0 && predNight !== "" && predNight < 0) predNight = "";
     if (nightLmaxTotal === 0 && predLmax !== "" && predLmax < 0) predLmax = "";
 
     // Apply characteristic penalties to predicted Leq levels
     const predDayPenalised = (predDay !== "" && predDay !== null && predDay !== undefined) ? predDay + dayPenalty : predDay;
+    const predEvePenalised = (predEve !== "" && predEve !== null && predEve !== undefined) ? predEve + eveningPenalty : predEve;
     const predNightPenalised = (predNight !== "" && predNight !== null && predNight !== undefined) ? predNight + nightPenalty : predNight;
 
     const day = compCell(predDayPenalised, dayCrit);
+    const eve = compCell(predEvePenalised, eveCrit);
     const night = compCell(predNightPenalised, nightCrit);
     const lmax = compCell(predLmax, lmaxCrit);
 
     function okText(v) { return v === "" ? "" : (v ? "<span class='ok'>Yes</span>" : "<span class='bad'>No</span>"); }
     function cellClass(v) { return v === "" ? "" : (v ? "cell-ok" : "cell-bad"); }
 
+    // Build evening cells (hidden via CSS when not VIC/OTHER)
+    const eveCells = (isVIC || isOTHER) ?
+      `<td class="num vic-only crit-eve-col"><span id="${predEveId}" style="display:inline-block;min-width:48px;">${predEvePenalised}</span></td>` +
+      td(fmt(eveCrit), "num vic-only crit-eve-col") +
+      td(eve.delta === "" ? "" : String(eve.delta), "num vic-only crit-eve-col") +
+      td(okText(eve.ok), "center vic-only crit-eve-col "+cellClass(eve.ok))
+      :
+      `<td class="num vic-only crit-eve-col"></td><td class="num vic-only crit-eve-col"></td><td class="num vic-only crit-eve-col"></td><td class="center vic-only crit-eve-col"></td>`;
+
     tr.innerHTML =
       `<td><b>${recvLabel}</b>${keyText ? '<br><span class="small">'+keyText+'</span>' : ''}</td>` +
 
-      `<td class="num"><span id="${predDayId}" style="display:inline-block;min-width:48px;">${predDayPenalised}</span></td>` +
-      td(fmt(dayCrit), "num") +
-      td(day.delta === "" ? "" : String(day.delta), "num") +
-      td(okText(day.ok), "center "+cellClass(day.ok)) +
+      `<td class="num crit-day-col"><span id="${predDayId}" style="display:inline-block;min-width:48px;">${predDayPenalised}</span></td>` +
+      td(fmt(dayCrit), "num crit-day-col") +
+      td(day.delta === "" ? "" : String(day.delta), "num crit-day-col") +
+      td(okText(day.ok), "center crit-day-col "+cellClass(day.ok)) +
 
-      `<td class="num"><span id="${predNightId}" style="display:inline-block;min-width:48px;">${predNightPenalised}</span></td>` +
-      td(fmt(nightCrit), "num") +
-      td(night.delta === "" ? "" : String(night.delta), "num") +
-      td(okText(night.ok), "center "+cellClass(night.ok)) +
+      eveCells +
 
-      `<td class="num"><span style="display:inline-block;min-width:48px;">${predLmax}</span></td>` +
-      td(lmaxCrit === "" ? "" : fmt(lmaxCrit), "num") +
-      td(lmax.delta === "" ? "" : String(lmax.delta), "num") +
-      td(okText(lmax.ok), "center "+cellClass(lmax.ok));
+      `<td class="num crit-night-col"><span id="${predNightId}" style="display:inline-block;min-width:48px;">${predNightPenalised}</span></td>` +
+      td(fmt(nightCrit), "num crit-night-col") +
+      td(night.delta === "" ? "" : String(night.delta), "num crit-night-col") +
+      td(okText(night.ok), "center crit-night-col "+cellClass(night.ok)) +
+
+      `<td class="num crit-lmax-col"><span style="display:inline-block;min-width:48px;">${predLmax}</span></td>` +
+      td(lmaxCrit === "" ? "" : fmt(lmaxCrit), "num crit-lmax-col") +
+      td(lmax.delta === "" ? "" : String(lmax.delta), "num crit-lmax-col") +
+      td(okText(lmax.ok), "center crit-lmax-col "+cellClass(lmax.ok));
 
     tbody.appendChild(tr);
   });
@@ -1274,6 +2430,78 @@ function initPenaltyButtons() {
       });
     });
   });
+}
+
+function initVicPenaltyCheckboxes() {
+  document.querySelectorAll('.vic-char').forEach(cb => {
+    cb.addEventListener('change', function() {
+      const period = this.dataset.period;
+      const type = this.dataset.type;
+      const val = Number(this.dataset.val);
+
+      // Mutual exclusion: uncheck the other level of the same type/period
+      if (this.checked) {
+        document.querySelectorAll(`.vic-char[data-period="${period}"][data-type="${type}"]`).forEach(other => {
+          if (other !== this) other.checked = false;
+        });
+      }
+
+      // Calculate total for this period (capped at 10)
+      updateVicPenalty(period);
+      render();
+    });
+  });
+}
+
+function updateVicPenalty(period) {
+  let total = 0;
+  document.querySelectorAll(`.vic-char[data-period="${period}"]:checked`).forEach(cb => {
+    total += Number(cb.dataset.val);
+  });
+  total = Math.min(total, 10);
+
+  // Update display
+  const display = document.getElementById(`vicPenalty${period === 'day' ? 'Day' : period === 'eve' ? 'Eve' : 'Night'}`);
+  if (display) display.textContent = `Total: ${total} dB`;
+
+  // Update the global penalty variables
+  if (period === 'day') dayPenalty = total;
+  else if (period === 'eve') eveningPenalty = total;
+  else if (period === 'night') nightPenalty = total;
+}
+
+function getVicPenalty(period) {
+  let total = 0;
+  document.querySelectorAll(`.vic-char[data-period="${period}"]:checked`).forEach(cb => {
+    total += Number(cb.dataset.val);
+  });
+  return Math.min(total, 10);
+}
+
+function updateOtherPenalties() {
+  const d = Number(document.getElementById('otherPenaltyDay').value) || 0;
+  const e = Number(document.getElementById('otherPenaltyEve').value) || 0;
+  const n = Number(document.getElementById('otherPenaltyNight').value) || 0;
+  dayPenalty = Math.max(0, d);
+  eveningPenalty = Math.max(0, e);
+  nightPenalty = Math.max(0, n);
+  render();
+}
+
+function updateOtherCritSelection() {
+  const dayOn = document.getElementById('otherCritDay').checked;
+  const eveOn = document.getElementById('otherCritEve').checked;
+  const nightOn = document.getElementById('otherCritNight').checked;
+  const lmaxOn = document.getElementById('otherCritLmax').checked;
+  document.body.classList.toggle('hide-day-col', !dayOn);
+  document.body.classList.toggle('hide-eve-col', !eveOn);
+  document.body.classList.toggle('hide-night-col', !nightOn);
+  document.body.classList.toggle('hide-lmax-col', !lmaxOn);
+  const nightCard2 = document.querySelector('.crit-night-section');
+  if (nightCard2 && currentState === 'OTHER') {
+    nightCard2.style.display = (!nightOn && !lmaxOn) ? 'none' : '';
+  }
+  render();
 }
 
 ["src","r1","r2","r3","r4"].forEach(fillSelect);
@@ -1392,6 +2620,7 @@ function renderContribTable(tableId, prefix, numRows) {
 
 function renderContributions() {
   renderContribTable('contribDayTable',   'day',   5);
+  if (currentState === 'VIC' || currentState === 'OTHER') renderContribTable('contribEveTable', 'eve', 5);
   renderContribTable('contribNightTable', 'night', 5);
 }
 
@@ -1421,7 +2650,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Source contribution', 'Characteristic penalties', 'Day situation', 'Night situation'];
+    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Predicted noise', 'Source contribution', 'Characteristic penalties', 'Day situation', 'Evening situation', 'Night situation'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
@@ -1454,11 +2683,13 @@ function initCollapse() {
 
 render();
 renderSourceTable('day','daySrcRows','daySrcTotal',5);
+renderSourceTable('eve','eveSrcRows','eveSrcTotal',5);
 initReceiverDistances();
 initReceiverNames();
 renderSourceTable('night','nightSrcRows','nightSrcTotal',5);
 renderSourceTable('lmax','nightLmaxRows','nightLmaxTotal',1);
 initPenaltyButtons();
+initVicPenaltyCheckboxes();
 renderContributions();
 initCollapse();
 </script>
@@ -1573,6 +2804,9 @@ initCollapse();
         pdf.addImage(img2, "JPEG", margin, margin, imgW, img2H);
 
         var pdfName = 'Resonate environmental criteria and noise screening tool';
+        if (typeof currentState !== 'undefined' && currentState) {
+          pdfName += ' (' + currentState + ')';
+        }
         var searchVal = document.getElementById('mapSearchInput');
         if (searchVal && searchVal.value.trim()) {
           var parts = searchVal.value.trim().split(',').map(function(s){return s.trim();});
@@ -1600,6 +2834,11 @@ initCollapse();
 (function () {
   'use strict';
 
+  /* ---- shared SVG icon strings ---- */
+  var ICON_PIN   = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>';
+  var ICON_GLOBE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg>';
+  var ICON_GRID  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
+
   /* ---- colour / label config for each point type ---- */
   var CFG = {
     source: { color: '#dc2626', label: 'Noise Source', initial: 'S', distId: null      },
@@ -1615,8 +2854,8 @@ initCollapse();
     var el = document.getElementById('noise-map');
     if (!el) return;
 
-    /* Default view: Adelaide CBD */
-    var map = L.map('noise-map', { zoomControl: true }).setView([-34.9285, 138.6007], 13);
+    /* Default view: Australia */
+    var map = L.map('noise-map', { zoomControl: true }).setView([-25.5, 134.5], 5);
 
     var streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
@@ -1637,12 +2876,12 @@ initCollapse();
           map.removeLayer(aerialLayer);
           streetLayer.addTo(map);
           aerialBtn.classList.remove('active');
-          aerialBtn.innerHTML = '&#127758; Aerial';
+          aerialBtn.innerHTML = ICON_GLOBE + ' Aerial';
         } else {
           map.removeLayer(streetLayer);
           aerialLayer.addTo(map);
           aerialBtn.classList.add('active');
-          aerialBtn.innerHTML = '&#127758; Street';
+          aerialBtn.innerHTML = ICON_GLOBE + ' Street';
         }
         isAerial = !isAerial;
         bringOverlaysToFront();
@@ -1705,6 +2944,9 @@ initCollapse();
     var lines   = {};   /* key -> L.polyline */
     var currentMode = 'source';
 
+    /* Expose source position for functions outside the IIFE */
+    window.getSourceLatLng = function() { return latlngs['source'] || null; };
+
     /* ==== SAPPA Zoning Integration ==== */
     var SAPPA_BASE = 'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/CurrentPDC_wmas/MapServer';
 
@@ -1741,6 +2983,19 @@ initCollapse();
         });
       }
     } catch(e) { console.warn('Zoning overlay init failed:', e); }
+
+    /* VicPlan zone overlay */
+    var VICPLAN_BASE = 'https://plan-gis.mapshare.vic.gov.au/arcgis/rest/services/Planning/Vicplan_PlanningSchemeZones/MapServer';
+    var vicZoningOverlay = null;
+    try {
+      if (typeof L.esri !== 'undefined' && L.esri.dynamicMapLayer) {
+        vicZoningOverlay = L.esri.dynamicMapLayer({
+          url: VICPLAN_BASE,
+          opacity: 0.35,
+          useCors: true
+        });
+      }
+    } catch(e) { console.warn('VicPlan overlay init failed:', e); }
 
     /* --- Hover tooltip: query zone/subzone at mouse position (low zoom only) --- */
     var LABEL_ZOOM = 16;
@@ -1898,29 +3153,37 @@ initCollapse();
       _zoneLabelTimer = setTimeout(refreshZoneLabels, 400);
     });
 
+    function getActiveZoneOverlay() {
+      return currentState === 'VIC' ? vicZoningOverlay : zoningOverlay;
+    }
+
     var zoneToggle = document.getElementById('zoneToggleBtn');
     if (zoneToggle) {
       zoneToggle.addEventListener('click', function() {
-        if (!zoningOverlay) {
+        var overlay = getActiveZoneOverlay();
+        if (!overlay) {
           alert('Zoning overlay could not be loaded. Zone auto-detection still works when placing markers.');
           return;
         }
         if (isZoneOn) {
-          map.removeLayer(zoningOverlay);
+          // Remove both possible overlays
+          if (zoningOverlay && map.hasLayer(zoningOverlay)) map.removeLayer(zoningOverlay);
+          if (vicZoningOverlay && map.hasLayer(vicZoningOverlay)) map.removeLayer(vicZoningOverlay);
           if (subzoneFeatureLayer) map.removeLayer(subzoneFeatureLayer);
           map.removeLayer(zoneLabelGroup);
           zoneLabelGroup.clearLayers();
           map.closeTooltip(hoverTooltip);
           isZoneOn = false;
           zoneToggle.classList.remove('active');
-          zoneToggle.innerHTML = '&#128506; Show Zones';
+          zoneToggle.innerHTML = ICON_GRID + ' Show Zones';
         } else {
-          zoningOverlay.addTo(map);
-          if (subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
+          overlay.addTo(map);
+          // SA subzone feature layer only in SA mode
+          if (currentState !== 'VIC' && subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
           zoneLabelGroup.addTo(map);
           isZoneOn = true;
           zoneToggle.classList.add('active');
-          zoneToggle.innerHTML = '&#128506; Hide Zones';
+          zoneToggle.innerHTML = ICON_GRID + ' Hide Zones';
           refreshZoneLabels();
         }
       });
@@ -2002,6 +3265,13 @@ initCollapse();
 
     /* --- Auto-detect zone at point and set dropdown --- */
     function queryAndSetZone(mode, latlng) {
+      // No zone detection in OTHER mode
+      if (currentState === 'OTHER') return;
+      // Dispatch to VIC-specific zone detection when in VIC mode
+      if (currentState === 'VIC') {
+        return queryAndSetZoneVIC(mode, latlng);
+      }
+
       var selectId = (mode === 'source') ? 'src' : mode;
       var statusEl = document.getElementById('map-status-' + mode);
 
@@ -2085,20 +3355,199 @@ initCollapse();
     }
     /* ==== End SAPPA Zoning Integration ==== */
 
+    /* ==== VicPlan Zoning Integration ==== */
+
+    function queryVicZoningAtPoint(lat, lng) {
+      var params = new URLSearchParams({
+        geometry: lng + ',' + lat,
+        geometryType: 'esriGeometryPoint',
+        inSR: '4326',
+        spatialRel: 'esriSpatialRelIntersects',
+        outFields: 'ZONE_CODE,ZONE_DESCRIPTION,LGA,Shape_Area',
+        returnGeometry: 'false',
+        f: 'json'
+      });
+      return fetch(VICPLAN_BASE + '/0/query', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: params.toString()
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.features || data.features.length === 0) {
+            return { zoneCode: null, zoneDesc: null, lga: null };
+          }
+          // Pick the feature with the smallest Shape_Area (most specific zone)
+          var best = data.features[0].attributes;
+          var bestArea = best.Shape_Area || Infinity;
+          for (var i = 1; i < data.features.length; i++) {
+            var a = data.features[i].attributes;
+            var area = a.Shape_Area || Infinity;
+            if (area < bestArea) { best = a; bestArea = area; }
+          }
+          var zoneCode = best.ZONE_CODE || '';
+          var zoneDesc = best.ZONE_DESCRIPTION || '';
+          var lga = best.LGA || '';
+          return { zoneCode: zoneCode, zoneDesc: zoneDesc, lga: lga };
+        });
+    }
+
+    /** Query all zone polygons intersecting a circle around a point.
+     *  Returns array of {zoneCode, type, rings} objects. */
+    function queryVicZonesInCircle(lat, lng, radiusM) {
+      var circleCoords = makeCirclePolygon(lat, lng, radiusM);
+      var geomJson = JSON.stringify({
+        rings: [circleCoords],
+        spatialReference: {wkid: 4326}
+      });
+      var params = new URLSearchParams({
+        geometry: geomJson,
+        geometryType: 'esriGeometryPolygon',
+        spatialRel: 'esriSpatialRelIntersects',
+        outFields: 'ZONE_CODE',
+        returnGeometry: 'true',
+        outSR: '4326',
+        f: 'json'
+      });
+      return fetch(VICPLAN_BASE + '/0/query', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: params.toString()
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.features || data.features.length === 0) return [];
+        return data.features.map(function(f) {
+          var code = (f.attributes && (f.attributes.ZONE_CODE || f.attributes.Zone_Code || '')) || '';
+          return {
+            zoneCode: code,
+            type: getVicZoneType(code),
+            rings: (f.geometry && f.geometry.rings) || []
+          };
+        });
+      })
+      .catch(function(err) {
+        console.warn('VicPlan circle query failed (' + radiusM + 'm):', err);
+        return [];
+      });
+    }
+    /* Expose for calcAutoInfluencingFactor (outside IIFE) */
+    window.queryVicZonesInCircle = queryVicZonesInCircle;
+
+    function queryAndSetZoneVIC(mode, latlng) {
+      var selectId = (mode === 'source') ? 'src' : mode;
+      var statusEl = document.getElementById('map-status-' + mode);
+
+      if (statusEl) {
+        var sub = statusEl.querySelector('.zone-status-label');
+        if (!sub) {
+          sub = document.createElement('span');
+          sub.className = 'zone-status-label';
+          statusEl.appendChild(sub);
+        }
+        sub.textContent = 'Detecting zone\u2026';
+      }
+
+      var queryLat = latlng.lat;
+      var queryLng = latlng.lng;
+
+      queryVicZoningAtPoint(queryLat, queryLng)
+        .then(function(result) {
+          var currentLl = latlngs[mode];
+          if (!currentLl ||
+              Math.abs(currentLl.lat - queryLat) > 0.0001 ||
+              Math.abs(currentLl.lng - queryLng) > 0.0001) {
+            return;
+          }
+
+          var zoneCode = result.zoneCode || '';
+          var zoneType = getVicZoneType(zoneCode);
+          var label = zoneCode;
+          if (result.zoneDesc) label += ' \u2014 ' + result.zoneDesc;
+
+          // Auto-detect urban/rural from source zone
+          if (mode === 'source' && zoneCode) {
+            var detectedArea = detectVicAreaType(zoneCode);
+            if (detectedArea && detectedArea !== vicAreaType) {
+              setVicAreaType(detectedArea);
+              // Update toggle button UI
+              var urbanBtn = document.getElementById('vicAreaUrban');
+              var ruralBtn = document.getElementById('vicAreaRural');
+              if (urbanBtn && ruralBtn) {
+                urbanBtn.classList.toggle('active', detectedArea === 'urban');
+                ruralBtn.classList.toggle('active', detectedArea === 'rural');
+              }
+            }
+          }
+
+          // For VIC urban mode, set the Type 1/2/3 dropdown
+          // For VIC rural mode, set the zone code dropdown
+          var sel = document.getElementById(selectId);
+          if (sel && zoneCode) {
+            if (vicAreaType === 'urban' && zoneType) {
+              sel.value = 'VIC_TYPE' + zoneType;
+            } else {
+              // Match zone code prefix for rural dropdowns (e.g. GRZ1 → VIC_GRZ)
+              var prefix = zoneCode.replace(/[0-9]+$/, '');
+              sel.value = 'VIC_' + prefix;
+            }
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            sel.classList.add('zone-detect-flash');
+            setTimeout(function() { sel.classList.remove('zone-detect-flash'); }, 1600);
+          }
+
+          // Update marker popup
+          var m = markers[mode];
+          if (m && zoneCode) {
+            var cfg = CFG[mode];
+            m.setPopupContent(
+              '<b>' + cfg.label + '</b><br>' +
+              queryLat.toFixed(6) + ', ' + queryLng.toFixed(6) +
+              '<br><i style="color:#059669;">' + label + '</i>' +
+              (zoneType ? '<br><span style="font-size:11px;">Type ' + zoneType + '</span>' : '')
+            );
+          }
+
+          if (statusEl) {
+            var sub2 = statusEl.querySelector('.zone-status-label');
+            if (sub2) {
+              if (zoneCode) {
+                sub2.textContent = label + (zoneType ? ' (Type ' + zoneType + ')' : '');
+                sub2.style.color = '#059669';
+              } else {
+                sub2.textContent = 'No zone data';
+                sub2.style.color = 'var(--muted)';
+              }
+            }
+          }
+        })
+        .catch(function(err) {
+          console.warn('VicPlan zone query failed:', err);
+          if (statusEl) {
+            var sub3 = statusEl.querySelector('.zone-status-label');
+            if (sub3) {
+              sub3.textContent = 'Zone detection failed';
+              sub3.style.color = '#dc2626';
+            }
+          }
+        });
+    }
+    /* ==== End VicPlan Zoning Integration ==== */
+
     /* ---- custom pin icon ---- */
     function makeIcon(cfg) {
       var c = cfg.color;
       var t = cfg.initial;
       var html =
         '<div style="' +
-          'background:' + c + ';' +
-          'color:#fff;' +
-          'border:2px solid rgba(255,255,255,0.85);' +
+          'background:#fff;' +
+          'color:#374151;' +
+          'border:3px solid ' + c + ';' +
           'border-radius:50% 50% 50% 0;' +
           'width:30px;height:30px;' +
           'display:flex;align-items:center;justify-content:center;' +
           'font-size:12px;font-weight:700;' +
-          'box-shadow:0 2px 8px rgba(0,0,0,.4);' +
+          'box-shadow:0 2px 8px rgba(0,0,0,.3);' +
           'transform:rotate(-45deg);' +
         '">' +
           '<span style="transform:rotate(45deg);">' + t + '</span>' +
@@ -2141,8 +3590,9 @@ initCollapse();
           var dist = Math.round(haversine(src, rec));
 
           /* draw dashed line */
+          var lineOpacity = (typeof arePinsVisible !== 'undefined' && !arePinsVisible) ? 0 : 0.75;
           lines[id] = L.polyline([src, rec], {
-            color: cfg.color, weight: 2, dashArray: '7,5', opacity: 0.75
+            color: cfg.color, weight: 2, dashArray: '7,5', opacity: lineOpacity
           }).addTo(map);
 
           /* update distance input + fire change so existing listeners recalc */
@@ -2168,6 +3618,98 @@ initCollapse();
     }
 
     /* ---- place or move a marker ---- */
+    /* VIC urban concentric circles (140m / 400m) */
+    var concentricCircles = [];
+    function updateConcentricCircles(latlng) {
+      // Clear existing circles
+      concentricCircles.forEach(function(c) { map.removeLayer(c); });
+      concentricCircles = [];
+      // Only show in VIC urban mode
+      if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
+      if (!latlng) return;
+
+      var c140 = L.circle(latlng, {
+        radius: 140, color: '#d97706', weight: 2, dashArray: '6,4',
+        fillOpacity: 0.03, interactive: false
+      }).addTo(map);
+      c140.bindTooltip('140 m', {permanent: true, direction: 'right', className: 'circle-label'});
+
+      var c400 = L.circle(latlng, {
+        radius: 400, color: '#dc2626', weight: 2, dashArray: '6,4',
+        fillOpacity: 0.02, interactive: false
+      }).addTo(map);
+      c400.bindTooltip('400 m', {permanent: true, direction: 'right', className: 'circle-label'});
+
+      concentricCircles = [c140, c400];
+    }
+
+    /* Detect Australian state from coordinates using Nominatim reverse geocode */
+    function detectStateFromCoords(latlng) {
+      fetch(
+        'https://nominatim.openstreetmap.org/reverse?format=json&lat=' +
+        latlng.lat + '&lon=' + latlng.lng + '&zoom=5&addressdetails=1',
+        { headers: { 'Accept-Language': 'en', 'User-Agent': 'NoiseCalcTool/1.0' } }
+      )
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data || !data.address) { detectedStateName = 'Other'; switchToState('OTHER'); return; }
+        var addrState = data.address.state || '';
+        if (/victoria/i.test(addrState)) {
+          switchToState('VIC');
+        } else if (/south australia/i.test(addrState)) {
+          switchToState('SA');
+        } else {
+          var stateAbbrevs = {
+            'new south wales':'NSW', 'queensland':'QLD', 'western australia':'WA',
+            'tasmania':'TAS', 'northern territory':'NT',
+            'australian capital territory':'ACT'
+          };
+          detectedStateName = addrState ? (stateAbbrevs[addrState.toLowerCase()] || addrState) : (data.address.country || 'Other');
+          switchToState('OTHER');
+        }
+      })
+      .catch(function(err) {
+        console.warn('State detection reverse geocode failed:', err);
+      });
+    }
+
+    /* ---- SA source parcel boundary outline ---- */
+    var sourceParcelOutline = null;
+    function querySourceParcel(latlng) {
+      // Remove previous outline
+      if (sourceParcelOutline) { map.removeLayer(sourceParcelOutline); sourceParcelOutline = null; }
+      // Only for SA
+      if (currentState !== 'SA' && currentState !== null) return;
+      var url = 'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/Survey_Map/MapServer/3/query' +
+        '?geometry=' + latlng.lng + ',' + latlng.lat +
+        '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
+        '&returnGeometry=true&outSR=4326&outFields=planparcel&f=json';
+      fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data || !data.features || !data.features.length) return;
+          var rings = data.features[0].geometry.rings;
+          if (!rings || !rings.length) return;
+          var latlngs = rings.map(function(ring) {
+            return ring.map(function(pt) { return [pt[1], pt[0]]; });
+          });
+          sourceParcelOutline = L.polygon(latlngs, {
+            color: '#ffffff',
+            weight: 2.5,
+            dashArray: '8, 6',
+            fillOpacity: 0,
+            opacity: 0.9,
+            interactive: false
+          });
+          if (typeof isParcelVisible === 'undefined' || isParcelVisible) {
+            sourceParcelOutline.addTo(map);
+          }
+        })
+        .catch(function(err) {
+          console.warn('Parcel boundary query failed:', err);
+        });
+    }
+
     function placeMarker(mode, latlng) {
       var cfg = CFG[mode];
 
@@ -2186,6 +3728,11 @@ initCollapse();
       markers[mode] = m;
       latlngs[mode] = latlng;
 
+      /* Hide pin if pins are toggled off */
+      if (typeof arePinsVisible !== 'undefined' && !arePinsVisible) {
+        m.setOpacity(0);
+      }
+
       /* update on drag */
       m.on('drag', function (e) {
         latlngs[mode] = e.target.getLatLng();
@@ -2194,18 +3741,47 @@ initCollapse();
       m.on('dragend', function (e) {
         latlngs[mode] = e.target.getLatLng();
         updateAll();
+        if (mode === 'source') {
+          updateConcentricCircles(e.target.getLatLng());
+          triggerAutoIF(e.target.getLatLng());
+          detectStateFromCoords(e.target.getLatLng());
+          querySourceParcel(e.target.getLatLng());
+        }
         queryAndSetZone(mode, e.target.getLatLng());
       });
 
       /* status label */
       var statusEl = document.getElementById('map-status-' + mode);
       if (statusEl) {
-        setStatusText(statusEl, (mode === 'source' ? '\uD83D\uDCCD Source' : '\u25CF ' + cfg.label) + ': placed');
+        setStatusText(statusEl, (mode === 'source' ? '\u25CF Source' : '\u25CF ' + cfg.label) + ': placed');
       }
 
       updateAll();
 
-      /* Auto-detect zone from SAPPA */
+      /* VIC urban: concentric circles + auto-IF around source marker */
+      if (mode === 'source') {
+        updateConcentricCircles(latlng);
+        triggerAutoIF(latlng);
+      }
+
+      /* Auto-detect state from coordinates when source is placed */
+      if (mode === 'source') detectStateFromCoords(latlng);
+
+      /* Query and draw SA source parcel boundary */
+      if (mode === 'source') querySourceParcel(latlng);
+
+      /* Expand 'Receivers & criteria' and 'Predicted noise levels' cards when any marker is placed */
+      document.querySelectorAll('.card').forEach(function(c) {
+        var h2 = c.querySelector('h2');
+        if (h2 && (h2.textContent.trim().indexOf('Receivers') === 0 || h2.textContent.trim().indexOf('Predicted') === 0)) {
+          var cb = c.querySelector('.card-body');
+          var tb = c.querySelector('.collapse-btn');
+          if (cb) cb.classList.remove('collapsed');
+          if (tb) tb.innerHTML = '&#x25B2;';
+        }
+      });
+
+      /* Auto-detect zone */
       queryAndSetZone(mode, latlng);
 
       /* auto-advance to next unplaced mode */
@@ -2228,11 +3804,99 @@ initCollapse();
     /* ---- map click ---- */
     map.on('click', function (e) { placeMarker(currentMode, e.latlng); });
 
-    /* ---- mode buttons ---- */
+    /* ---- mode buttons (click to select mode, click again to remove placed marker) ---- */
+    function removeMarker(mode) {
+      if (!markers[mode]) return;
+      map.removeLayer(markers[mode]);
+      delete markers[mode];
+      delete latlngs[mode];
+      if (lines[mode]) { map.removeLayer(lines[mode]); delete lines[mode]; }
+
+      // Reset distance input
+      var cfg = CFG[mode];
+      if (cfg && cfg.distId) {
+        var inp = document.getElementById(cfg.distId);
+        if (inp) {
+          inp.value = '';
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+          inp.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+
+      // Reset status label
+      var statusEl = document.getElementById('map-status-' + mode);
+      if (statusEl) {
+        if (mode === 'source') {
+          setStatusText(statusEl, '\u25CF Source: not placed');
+          updateConcentricCircles(null);
+          if (sourceParcelOutline) { map.removeLayer(sourceParcelOutline); sourceParcelOutline = null; }
+        } else {
+          setStatusText(statusEl, '\u25CF ' + cfg.label + ': not placed');
+        }
+      }
+
+      updateAll();
+      render();
+    }
+
     ORDER.forEach(function (mode) {
       var btn = document.getElementById('mapMode-' + mode);
-      if (btn) btn.addEventListener('click', function () { setMode(mode); });
+      if (btn) btn.addEventListener('click', function () {
+        if (currentMode === mode && markers[mode]) {
+          removeMarker(mode);
+        } else {
+          setMode(mode);
+        }
+      });
     });
+
+    /* ---- Pins visibility toggle ---- */
+    var arePinsVisible = true;
+    var pinsToggleBtn = document.getElementById('pinsToggleBtn');
+    if (pinsToggleBtn) {
+      pinsToggleBtn.addEventListener('click', function() {
+        arePinsVisible = !arePinsVisible;
+        ORDER.forEach(function(mode) {
+          if (markers[mode]) {
+            markers[mode].setOpacity(arePinsVisible ? 1 : 0);
+          }
+          if (lines[mode]) {
+            lines[mode].setStyle({ opacity: arePinsVisible ? 0.75 : 0 });
+          }
+        });
+        if (arePinsVisible) {
+          pinsToggleBtn.classList.add('active');
+        } else {
+          pinsToggleBtn.classList.remove('active');
+        }
+      });
+    }
+
+    /* ---- Parcel boundary toggle ---- */
+    var isParcelVisible = true;
+    var parcelToggleBtn = document.getElementById('parcelToggleBtn');
+    if (parcelToggleBtn) {
+      parcelToggleBtn.addEventListener('click', function() {
+        isParcelVisible = !isParcelVisible;
+        if (sourceParcelOutline) {
+          if (isParcelVisible) {
+            sourceParcelOutline.addTo(map);
+            parcelToggleBtn.classList.add('active');
+          } else {
+            map.removeLayer(sourceParcelOutline);
+            parcelToggleBtn.classList.remove('active');
+          }
+        } else {
+          if (isParcelVisible) {
+            parcelToggleBtn.classList.add('active');
+            // Re-query if source is placed in SA
+            if (currentState === 'SA' && latlngs.source) querySourceParcel(latlngs.source);
+          } else {
+            parcelToggleBtn.classList.remove('active');
+          }
+        }
+      });
+    }
 
     /* ---- location search (Nominatim OSM geocoder) ---- */
     var searchInp = document.getElementById('mapSearchInput');
@@ -2248,7 +3912,7 @@ initCollapse();
       if (searchRes) { searchRes.style.display = 'none'; searchRes.innerHTML = ''; }
 
       fetch(
-        'https://nominatim.openstreetmap.org/search?format=json&limit=6&countrycodes=au&q=' +
+        'https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&q=' +
         encodeURIComponent(q),
         { headers: { 'Accept-Language': 'en', 'User-Agent': 'NoiseCalcTool/1.0' } }
       )
@@ -2281,6 +3945,21 @@ initCollapse();
                We drop the last 3 parts (state, postcode, country) if enough parts exist. */
             var cityParts = parts.length > 3 ? parts.slice(0, parts.length - 3) : parts.slice(0, 1);
             lastSelectedAddress = cityParts.join(', ');
+            // Detect state from Nominatim address details
+            var addrState = (item.address && item.address.state) ? item.address.state : '';
+            if (/victoria/i.test(addrState)) {
+              switchToState('VIC');
+            } else if (/south australia/i.test(addrState)) {
+              switchToState('SA');
+            } else {
+              var stateAbbrevs = {
+                'new south wales':'NSW', 'queensland':'QLD', 'western australia':'WA',
+                'tasmania':'TAS', 'northern territory':'NT',
+                'australian capital territory':'ACT'
+              };
+              detectedStateName = addrState ? (stateAbbrevs[addrState.toLowerCase()] || addrState) : ((item.address && item.address.country) || 'Other');
+              switchToState('OTHER');
+            }
             searchRes.style.display = 'none';
           });
           searchRes.appendChild(row);
@@ -2323,6 +4002,7 @@ initCollapse();
           if (lines[k]) map.removeLayer(lines[k]);
         });
         markers = {}; latlngs = {}; lines = {};
+        if (sourceParcelOutline) { map.removeLayer(sourceParcelOutline); sourceParcelOutline = null; }
 
         /* reset distance inputs + zone labels */
         ['r1','r2','r3','r4'].forEach(function (id) {
@@ -2341,7 +4021,7 @@ initCollapse();
         });
         var srcSt = document.getElementById('map-status-source');
         if (srcSt) {
-          srcSt.textContent = '\uD83D\uDCCD Source: not placed';
+          srcSt.textContent = '\u25CF Source: not placed';
           var srcZl = srcSt.querySelector('.zone-status-label');
           if (srcZl) srcZl.remove();
         }
