@@ -3967,35 +3967,18 @@ initCollapse();
       });
     }
 
-    /* ---- location search (Geoscape Predictive API with Nominatim fallback) ---- */
+    /* ---- location search (Nominatim with live autocomplete) ---- */
     var searchInp = document.getElementById('mapSearchInput');
     var searchBtn = document.getElementById('mapSearchBtn');
     var searchRes = document.getElementById('mapSearchResults');
     var lastSelectedAddress = '';
-    var GEOSCAPE_KEY = 'c69NnbZYyD1x0YcjirtnkUsbZQok4nTH';
-    var GEOSCAPE_BASE = 'https://api.psma.com.au/predictive/address';
-    var _geoscapeDebounce = null;
-
-    /* Detect Australian state from an address string */
-    function detectStateFromAddress(addr) {
-      if (!addr) return;
-      var u = addr.toUpperCase();
-      if (/\bVIC\b/.test(u) || /\bVICTORIA\b/.test(u)) { switchToState('VIC'); return; }
-      if (/\bSA\b/.test(u) || /\bSOUTH AUSTRALIA\b/.test(u)) { switchToState('SA'); return; }
-      var m = u.match(/\b(NSW|QLD|WA|TAS|NT|ACT)\b/);
-      if (m) { detectedStateName = m[1]; switchToState('OTHER'); return; }
-      if (/\bNEW SOUTH WALES\b/.test(u)) { detectedStateName = 'NSW'; switchToState('OTHER'); return; }
-      if (/\bQUEENSLAND\b/.test(u)) { detectedStateName = 'QLD'; switchToState('OTHER'); return; }
-      if (/\bWESTERN AUSTRALIA\b/.test(u)) { detectedStateName = 'WA'; switchToState('OTHER'); return; }
-      if (/\bTASMANIA\b/.test(u)) { detectedStateName = 'TAS'; switchToState('OTHER'); return; }
-      if (/\bNORTHERN TERRITORY\b/.test(u)) { detectedStateName = 'NT'; switchToState('OTHER'); return; }
-    }
+    var _searchDebounce = null;
+    var _searchSeq = 0; // prevents stale results from overwriting newer ones
 
     /* Store short address for PDF filename */
     function setLastSelectedAddress(addr) {
       var parts = addr.split(',').map(function(s){return s.trim();});
-      /* Keep street + suburb, drop state/postcode/country */
-      var keep = parts.length > 2 ? parts.slice(0, parts.length - 2) : parts.slice(0, 1);
+      var keep = parts.length > 3 ? parts.slice(0, parts.length - 3) : parts.slice(0, 1);
       lastSelectedAddress = keep.join(', ');
     }
 
@@ -4010,54 +3993,26 @@ initCollapse();
       searchRes.appendChild(row);
     }
 
-    /* Select a Geoscape suggestion — fetch full address with coordinates */
-    function selectGeoscapeSuggestion(suggestion) {
+    /* Handle selecting a Nominatim result */
+    function selectNominatimResult(item) {
+      var lat = parseFloat(item.lat);
+      var lng = parseFloat(item.lon);
+      map.setView([lat, lng], 16);
+      placeMarker('source', L.latLng(lat, lng));
+      searchInp.value = item.display_name;
+      setLastSelectedAddress(item.display_name);
+      var addrState = (item.address && item.address.state) ? item.address.state : '';
+      if (/victoria/i.test(addrState)) { switchToState('VIC'); }
+      else if (/south australia/i.test(addrState)) { switchToState('SA'); }
+      else {
+        var abbrevs = {'new south wales':'NSW','queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
+        detectedStateName = addrState ? (abbrevs[addrState.toLowerCase()] || addrState) : ((item.address && item.address.country) || 'Other');
+        switchToState('OTHER');
+      }
       searchRes.style.display = 'none';
-      searchInp.value = suggestion.address;
-      setLastSelectedAddress(suggestion.address);
-      detectStateFromAddress(suggestion.address);
-
-      fetch(GEOSCAPE_BASE + '/' + encodeURIComponent(suggestion.id), {
-        headers: { 'Authorization': GEOSCAPE_KEY }
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var lat, lng;
-        /* Response may nest coordinates in different ways */
-        if (data.geocoding && data.geocoding.geocode) {
-          lat = data.geocoding.geocode.latitude;
-          lng = data.geocoding.geocode.longitude;
-        } else if (data.geo && data.geo.geometry && data.geo.geometry.coordinates) {
-          lng = data.geo.geometry.coordinates[0];
-          lat = data.geo.geometry.coordinates[1];
-        } else if (data.addressDetail && data.addressDetail.latitude) {
-          lat = data.addressDetail.latitude;
-          lng = data.addressDetail.longitude;
-        }
-        if (lat && lng) {
-          map.setView([lat, lng], 17);
-          placeMarker('source', L.latLng(lat, lng));
-        }
-      })
-      .catch(function(err) { console.warn('Geoscape get-address failed:', err); });
     }
 
-    /* Geoscape suggest call */
-    function geoscapeSuggest(q) {
-      return fetch(GEOSCAPE_BASE + '?query=' + encodeURIComponent(q) + '&maxNumberOfResults=6', {
-        headers: { 'Authorization': GEOSCAPE_KEY }
-      })
-      .then(function(r) {
-        if (!r.ok) throw new Error('Geoscape HTTP ' + r.status);
-        return r.json();
-      })
-      .then(function(data) {
-        if (data && data.suggest && data.suggest.length) return data.suggest;
-        return null;
-      });
-    }
-
-    /* Nominatim fallback */
+    /* Nominatim search (returns promise) */
     function nominatimSearch(q) {
       return fetch(
         'https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&countrycodes=au&q=' +
@@ -4065,16 +4020,6 @@ initCollapse();
         { headers: { 'Accept-Language': 'en', 'User-Agent': 'NoiseCalcTool/1.0' } }
       )
       .then(function(r) { return r.json(); });
-    }
-
-    /* Show Geoscape suggestions in dropdown */
-    function showGeoscapeResults(suggestions) {
-      if (!searchRes) return;
-      searchRes.innerHTML = '';
-      suggestions.forEach(function(s) {
-        addSearchRow(s.address, function() { selectGeoscapeSuggestion(s); });
-      });
-      searchRes.style.display = 'block';
     }
 
     /* Show Nominatim results in dropdown */
@@ -4087,28 +4032,12 @@ initCollapse();
         return;
       }
       results.forEach(function(item) {
-        addSearchRow(item.display_name, function() {
-          var lat = parseFloat(item.lat);
-          var lng = parseFloat(item.lon);
-          map.setView([lat, lng], 16);
-          placeMarker('source', L.latLng(lat, lng));
-          searchInp.value = item.display_name;
-          setLastSelectedAddress(item.display_name);
-          var addrState = (item.address && item.address.state) ? item.address.state : '';
-          if (/victoria/i.test(addrState)) { switchToState('VIC'); }
-          else if (/south australia/i.test(addrState)) { switchToState('SA'); }
-          else {
-            var abbrevs = {'new south wales':'NSW','queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
-            detectedStateName = addrState ? (abbrevs[addrState.toLowerCase()] || addrState) : ((item.address && item.address.country) || 'Other');
-            switchToState('OTHER');
-          }
-          searchRes.style.display = 'none';
-        });
+        addSearchRow(item.display_name, function() { selectNominatimResult(item); });
       });
       searchRes.style.display = 'block';
     }
 
-    /* Main search: try Geoscape first, fall back to Nominatim */
+    /* Search (button click or Enter) */
     function doSearch() {
       var q = (searchInp && searchInp.value) ? searchInp.value.trim() : '';
       if (!q) return;
@@ -4116,21 +4045,11 @@ initCollapse();
       searchBtn.disabled = true;
       if (searchRes) { searchRes.style.display = 'none'; searchRes.innerHTML = ''; }
 
-      geoscapeSuggest(q)
-        .then(function(suggestions) {
+      nominatimSearch(q)
+        .then(function(results) {
           searchBtn.textContent = '\uD83D\uDD0D Search';
           searchBtn.disabled = false;
-          if (suggestions) { showGeoscapeResults(suggestions); return; }
-          /* No Geoscape results — try Nominatim */
-          return nominatimSearch(q).then(showNominatimResults);
-        })
-        .catch(function() {
-          /* Geoscape failed — fall back to Nominatim */
-          return nominatimSearch(q).then(function(results) {
-            searchBtn.textContent = '\uD83D\uDD0D Search';
-            searchBtn.disabled = false;
-            showNominatimResults(results);
-          });
+          showNominatimResults(results);
         })
         .catch(function() {
           searchBtn.textContent = '\uD83D\uDD0D Search';
@@ -4144,23 +4063,25 @@ initCollapse();
 
     /* Live autocomplete as you type (debounced, min 4 chars) */
     function onSearchInput() {
-      clearTimeout(_geoscapeDebounce);
+      clearTimeout(_searchDebounce);
       var q = (searchInp && searchInp.value) ? searchInp.value.trim() : '';
       if (q.length < 4) { if (searchRes) searchRes.style.display = 'none'; return; }
-      _geoscapeDebounce = setTimeout(function() {
-        geoscapeSuggest(q)
-          .then(function(suggestions) {
-            if (suggestions) showGeoscapeResults(suggestions);
+      var seq = ++_searchSeq;
+      _searchDebounce = setTimeout(function() {
+        nominatimSearch(q)
+          .then(function(results) {
+            if (seq !== _searchSeq) return; // input changed, discard stale results
+            showNominatimResults(results);
           })
-          .catch(function() { /* silent — user can still press Search for Nominatim fallback */ });
-      }, 250);
+          .catch(function() { /* silent for live autocomplete */ });
+      }, 350);
     }
 
     if (searchBtn) searchBtn.addEventListener('click', doSearch);
     if (searchInp) {
       searchInp.addEventListener('input', onSearchInput);
       searchInp.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); clearTimeout(_geoscapeDebounce); doSearch(); }
+        if (e.key === 'Enter') { e.preventDefault(); clearTimeout(_searchDebounce); doSearch(); }
       });
     }
     /* close dropdown when clicking outside */
