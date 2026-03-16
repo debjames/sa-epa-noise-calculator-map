@@ -1361,6 +1361,79 @@ function isResOrRuralLivingSingle(rec) {
   return rec && rec.is_single == 1 && (rec.single_cat === "Residential" || rec.single_cat === "Rural Living");
 }
 
+/* ===== Receiver / Noise Sensitive Area label swap (VIC uses "NSA") ===== */
+function updateReceiverLabels(state) {
+  var isVic = (state === 'VIC');
+  var term = isVic ? 'NSA' : 'Receiver';
+  var termLong = isVic ? 'noise sensitive area' : 'receiver';
+
+  /* Map toolbar buttons */
+  for (var i = 1; i <= 4; i++) {
+    var btn = document.getElementById('mapMode-r' + i);
+    if (btn) {
+      /* Replace button text but keep the SVG icon */
+      var svg = btn.querySelector('svg');
+      btn.textContent = ' ' + term + ' ' + i;
+      if (svg) btn.insertBefore(svg, btn.firstChild);
+      btn.title = 'Click map to place ' + term + ' ' + i;
+    }
+  }
+
+  /* Status row labels (preserve existing placed-address text) */
+  for (var j = 1; j <= 4; j++) {
+    var status = document.getElementById('map-status-r' + j);
+    if (status) {
+      var zoneSub = status.querySelector('.zone-status-label');
+      var zoneText = zoneSub ? zoneSub.textContent : '';
+      var placed = status.textContent.indexOf('not placed') === -1 && status.textContent.indexOf(': ') > -1;
+      if (!placed) {
+        status.firstChild.textContent = '\u25CF ' + term[0] + j + ': not placed';
+      } else {
+        /* Just swap the prefix letter */
+        var txt = status.firstChild.textContent;
+        status.firstChild.textContent = txt.replace(/^● [RN]\w*\d:/, '● ' + term[0] + j + ':');
+      }
+    }
+  }
+
+  /* Table receiver name inputs (only update if still at default) */
+  for (var k = 1; k <= 4; k++) {
+    var inp = document.getElementById('recvName' + k);
+    if (inp) {
+      inp.placeholder = term + ' ' + k;
+      /* Update value if it matches a default pattern */
+      if (/^(Receiver|NSA) \d$/.test(inp.value.trim())) {
+        inp.value = term + ' ' + k;
+      }
+    }
+  }
+
+  /* Section heading */
+  var cards = document.querySelectorAll('.card h2');
+  cards.forEach(function(h2) {
+    if (/^(Receivers|Noise sensitive areas) & criteria/.test(h2.textContent.trim())) {
+      h2.textContent = (isVic ? 'Noise sensitive areas' : 'Receivers') + ' & criteria';
+    }
+  });
+
+  /* Table column header */
+  var ths = document.querySelectorAll('th');
+  ths.forEach(function(th) {
+    if (/Distance to (receiver|NSA)/.test(th.textContent)) {
+      th.textContent = 'Distance to ' + termLong + ', m';
+    }
+  });
+
+  /* Map description paragraph */
+  var mapDesc = document.querySelector('.card .p');
+  if (mapDesc && /\d (receiver|noise sensitive area)/.test(mapDesc.textContent.toLowerCase())) {
+    mapDesc.innerHTML = 'Click the map to place the <strong>noise source</strong> and up to <strong>4 ' + termLong + '</strong> locations. Straight-line distances are calculated automatically and entered in the table below. Markers can be dragged to fine-tune positions.';
+  }
+
+  /* initReceiverNames blur default */
+  window._receiverTerm = term;
+}
+
 /* ===== State switching (SA / VIC / OTHER) ===== */
 function switchToState(state) {
   if (currentState === state) return;
@@ -1396,6 +1469,9 @@ function switchToState(state) {
   } else {
     badge.style.display = 'none';
   }
+
+  // Update Receiver / Noise Sensitive Area labels
+  updateReceiverLabels(state);
 
   // Update policy reference text
   updatePolicyRef();
@@ -1450,7 +1526,7 @@ function switchToState(state) {
   // Expand 'Receivers & criteria' and 'Predicted noise levels' cards when a location is selected
   document.querySelectorAll('.card').forEach(function(card) {
     var h2 = card.querySelector('h2');
-    if (h2 && (h2.textContent.trim().indexOf('Receivers') === 0 || h2.textContent.trim().indexOf('Predicted') === 0)) {
+    if (h2 && (h2.textContent.trim().indexOf('Receivers') === 0 || h2.textContent.trim().indexOf('Noise sensitive') === 0 || h2.textContent.trim().indexOf('Predicted') === 0)) {
       var body = card.querySelector('.card-body');
       var btn = card.querySelector('.collapse-btn');
       if (body) body.classList.remove('collapsed');
@@ -2449,7 +2525,8 @@ function initReceiverNames(){
     });
     inp.addEventListener('blur', function(){
       if (!inp.value.trim()) {
-        inp.value = `Receiver ${i}`;
+        var t = (window._receiverTerm || 'Receiver');
+        inp.value = t + ' ' + i;
         saveLS(`recvName_${i}`, inp.value);
       }
     });
@@ -2702,7 +2779,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Predicted noise', 'Source contribution', 'Characteristic penalties', 'Day situation', 'Evening situation', 'Night situation'];
+    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Characteristic penalties', 'Day situation', 'Evening situation', 'Night situation'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
@@ -2893,12 +2970,13 @@ initCollapse();
   var ICON_GRID  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
 
   /* ---- colour / label config for each point type ---- */
+  function recvLabel(n) { return (window._receiverTerm || 'Receiver') + ' ' + n; }
   var CFG = {
-    source: { color: '#dc2626', label: 'Noise Source', initial: 'S', distId: null      },
-    r1:     { color: '#2563eb', label: 'Receiver 1',   initial: '1', distId: 'dist_r1' },
-    r2:     { color: '#16a34a', label: 'Receiver 2',   initial: '2', distId: 'dist_r2' },
-    r3:     { color: '#d97706', label: 'Receiver 3',   initial: '3', distId: 'dist_r3' },
-    r4:     { color: '#7c3aed', label: 'Receiver 4',   initial: '4', distId: 'dist_r4' }
+    source: { color: '#dc2626', get label(){ return 'Noise Source'; }, initial: 'S', distId: null      },
+    r1:     { color: '#2563eb', get label(){ return recvLabel(1); },   initial: '1', distId: 'dist_r1' },
+    r2:     { color: '#16a34a', get label(){ return recvLabel(2); },   initial: '2', distId: 'dist_r2' },
+    r3:     { color: '#d97706', get label(){ return recvLabel(3); },   initial: '3', distId: 'dist_r3' },
+    r4:     { color: '#7c3aed', get label(){ return recvLabel(4); },   initial: '4', distId: 'dist_r4' }
   };
   var ORDER = ['source', 'r1', 'r2', 'r3', 'r4'];
 
@@ -3850,7 +3928,7 @@ initCollapse();
       /* Expand 'Receivers & criteria' and 'Predicted noise levels' cards when any marker is placed */
       document.querySelectorAll('.card').forEach(function(c) {
         var h2 = c.querySelector('h2');
-        if (h2 && (h2.textContent.trim().indexOf('Receivers') === 0 || h2.textContent.trim().indexOf('Predicted') === 0)) {
+        if (h2 && (h2.textContent.trim().indexOf('Receivers') === 0 || h2.textContent.trim().indexOf('Noise sensitive') === 0 || h2.textContent.trim().indexOf('Predicted') === 0)) {
           var cb = c.querySelector('.card-body');
           var tb = c.querySelector('.collapse-btn');
           if (cb) cb.classList.remove('collapsed');
