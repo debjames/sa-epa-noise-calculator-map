@@ -157,9 +157,9 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .pins-toggle-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
 .parcel-toggle-btn:hover { background: #f0f5fa; }
 .parcel-toggle-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
-.urban-boundary-toggle-btn { border-color: #7c3aed; color: #7c3aed; }
-.urban-boundary-toggle-btn:hover { background: #f5f3ff; }
-.urban-boundary-toggle-btn.active { background: #ede9fe; border-color: #a78bfa; color: #5b21b6; font-weight: 700; }
+.urban-boundary-toggle-btn { border-color: #6b7280; color: #6b7280; }
+.urban-boundary-toggle-btn:hover { background: #f3f4f6; }
+.urban-boundary-toggle-btn.active { background: #e5e7eb; border-color: #9ca3af; color: #374151; font-weight: 700; }
 .zone-detect-flash {
   animation: zoneFlash 1.5s ease-out;
 }
@@ -3355,11 +3355,11 @@ initCollapse();
             if (!_vicMuaGeoJson) { alert('Urban boundary data could not be loaded.'); return; }
             _vicMuaBoundaryLayer = L.geoJSON(_vicMuaGeoJson, {
               style: {
-                color: '#7c3aed',
+                color: '#4b5563',
                 weight: 2.5,
                 opacity: 0.85,
                 dashArray: '8, 4',
-                fillColor: '#7c3aed',
+                fillColor: '#6b7280',
                 fillOpacity: 0.08
               },
               onEachFeature: function(feature, layer) {
