@@ -3712,16 +3712,24 @@ initCollapse();
       concentricCircles = [c140, c400];
     }
 
-    /* Detect Australian state from coordinates using Nominatim reverse geocode */
+    /* Detect Australian state from coordinates and update address bar via Nominatim reverse geocode */
     function detectStateFromCoords(latlng) {
       fetch(
         'https://nominatim.openstreetmap.org/reverse?format=json&lat=' +
-        latlng.lat + '&lon=' + latlng.lng + '&zoom=5&addressdetails=1',
+        latlng.lat + '&lon=' + latlng.lng + '&zoom=18&addressdetails=1',
         { headers: { 'Accept-Language': 'en', 'User-Agent': 'NoiseCalcTool/1.0' } }
       )
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (!data || !data.address) { detectedStateName = 'Other'; switchToState('OTHER'); return; }
+
+        /* Update address bar and stored address for PDF */
+        if (data.display_name) {
+          var inp = document.getElementById('mapSearchInput');
+          if (inp) inp.value = data.display_name;
+          if (typeof setLastSelectedAddress === 'function') setLastSelectedAddress(data.display_name);
+        }
+
         var addrState = data.address.state || '';
         if (/victoria/i.test(addrState)) {
           switchToState('VIC');
