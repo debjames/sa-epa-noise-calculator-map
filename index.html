@@ -219,6 +219,7 @@ body.state-vic div.vic-only { display: block !important; }
 body.state-vic span.vic-only { display: inline-block !important; }
 body.state-vic .sa-only { display: none !important; }
 body.state-vic .landuse-col { display: none !important; }
+body.state-vic .zone-col { display: none !important; }
 .vic-rural-only { display: none !important; }
 .vic-urban-only { display: none !important; }
 body.state-vic.area-rural .vic-rural-only { display: block !important; }
@@ -1003,7 +1004,7 @@ function detectVicAreaType(zoneCode) {
 }
 
 /* Major Urban Area polygon dataset (EPA Vic) — cached after first fetch */
-const VIC_MUA_GEOJSON_URL = 'https://drapubcdnprd.azureedge.net/noisedata/MAJOR_URBAN_AREA.geojson';
+const VIC_MUA_GEOJSON_URL = 'MAJOR_URBAN_AREA.geojson';
 let _vicMuaPolygons = null;
 let _vicMuaGeoJson = null;   // raw GeoJSON for map display
 let _vicMuaFetchPromise = null;
