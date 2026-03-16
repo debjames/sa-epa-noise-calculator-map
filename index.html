@@ -1951,12 +1951,8 @@ function switchToState(state) {
   });
 
   // Clear and re-query source parcel boundary for the new state (if supported)
-  if (typeof sourceParcelOutline !== 'undefined' && sourceParcelOutline && typeof map !== 'undefined') {
-    try { map.removeLayer(sourceParcelOutline); } catch(e){}
-    sourceParcelOutline = null;
-  }
-  if (typeof querySourceParcel === 'function' && typeof latlngs !== 'undefined' && latlngs.source) {
-    querySourceParcel(latlngs.source);
+  if (typeof window._refreshSourceParcel === 'function') {
+    try { window._refreshSourceParcel(); } catch(e) { console.warn('Parcel refresh error:', e); }
   }
 
   // Re-render
@@ -4610,6 +4606,17 @@ initCollapse();
           console.warn('Parcel boundary query failed:', err);
         });
     }
+
+    /* Expose parcel refresh for switchToState() (outside IIFE) */
+    window._refreshSourceParcel = function() {
+      if (sourceParcelOutline) {
+        try { map.removeLayer(sourceParcelOutline); } catch(e){}
+        sourceParcelOutline = null;
+      }
+      if (latlngs['source']) {
+        querySourceParcel(latlngs['source']);
+      }
+    };
 
     function placeMarker(mode, latlng) {
       var cfg = CFG[mode];
