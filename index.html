@@ -157,6 +157,9 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .pins-toggle-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
 .parcel-toggle-btn:hover { background: #f0f5fa; }
 .parcel-toggle-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
+.urban-boundary-toggle-btn { border-color: #7c3aed; color: #7c3aed; }
+.urban-boundary-toggle-btn:hover { background: #f5f3ff; }
+.urban-boundary-toggle-btn.active { background: #ede9fe; border-color: #a78bfa; color: #5b21b6; font-weight: 700; }
 .zone-detect-flash {
   animation: zoneFlash 1.5s ease-out;
 }
@@ -300,6 +303,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn zone-toggle-btn" id="zoneToggleBtn" title="Toggle zoning overlay on map" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Show Zones</button>
           <button class="tool-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial</button>
           <button class="tool-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastre</button>
+          <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundary (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Urban Boundary</button>
           <button class="tool-btn map-mode-btn" id="mapClearBtn" title="Remove all markers and clear distances" style="margin-left:auto;color:#dc2626;border-color:#dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg> Clear All</button>
         </div>
         <!-- Map display options -->
@@ -1001,6 +1005,7 @@ function detectVicAreaType(zoneCode) {
 /* Major Urban Area polygon dataset (EPA Vic) — cached after first fetch */
 const VIC_MUA_GEOJSON_URL = 'https://drapubcdnprd.azureedge.net/noisedata/MAJOR_URBAN_AREA.geojson';
 let _vicMuaPolygons = null;
+let _vicMuaGeoJson = null;   // raw GeoJSON for map display
 let _vicMuaFetchPromise = null;
 
 function fetchVicMuaPolygons() {
@@ -1012,6 +1017,7 @@ function fetchVicMuaPolygons() {
       return r.json();
     })
     .then(function(geojson) {
+      _vicMuaGeoJson = geojson; // cache raw GeoJSON for map layer
       var rings = [];
       if (geojson && geojson.features) {
         for (var i = 0; i < geojson.features.length; i++) {
@@ -1491,6 +1497,16 @@ function switchToState(state) {
   if (zoneBtn) zoneBtn.style.display = (state === 'SA' || state === 'VIC') ? '' : 'none';
   const parcelBtn = document.getElementById('parcelToggleBtn');
   if (parcelBtn) parcelBtn.style.display = (state === 'SA') ? '' : 'none';
+  const urbanBdyBtn = document.getElementById('urbanBoundaryToggleBtn');
+  if (urbanBdyBtn) {
+    urbanBdyBtn.style.display = (state === 'VIC') ? '' : 'none';
+    /* Remove layer when leaving VIC */
+    if (state !== 'VIC' && typeof _vicMuaBoundaryLayer !== 'undefined' && _vicMuaBoundaryLayer && typeof map !== 'undefined') {
+      try { map.removeLayer(_vicMuaBoundaryLayer); } catch(e){}
+      urbanBdyBtn.classList.remove('active');
+      urbanBdyBtn.querySelector('svg').nextSibling.textContent = ' Urban Boundary';
+    }
+  }
 
   // Update operational time column headers and re-render source tables
   updateOpTimeHeaders();
@@ -3316,6 +3332,49 @@ initCollapse();
           zoneToggle.classList.add('active');
           zoneToggle.innerHTML = ICON_GRID + ' Hide Zones';
           refreshZoneLabels();
+        }
+      });
+    }
+
+    /* --- Urban Boundary toggle (VIC only — Major Urban Area polygons) --- */
+    var _vicMuaBoundaryLayer = null;
+    var urbanBdyToggle = document.getElementById('urbanBoundaryToggleBtn');
+    if (urbanBdyToggle) {
+      urbanBdyToggle.addEventListener('click', function() {
+        if (_vicMuaBoundaryLayer && map.hasLayer(_vicMuaBoundaryLayer)) {
+          map.removeLayer(_vicMuaBoundaryLayer);
+          _vicMuaBoundaryLayer = null;
+          urbanBdyToggle.classList.remove('active');
+          var svg1 = urbanBdyToggle.querySelector('svg');
+          urbanBdyToggle.textContent = ' Urban Boundary';
+          if (svg1) urbanBdyToggle.insertBefore(svg1, urbanBdyToggle.firstChild);
+        } else {
+          /* Build layer from cached GeoJSON (already fetched on VIC state entry) */
+          fetchVicMuaPolygons().then(function() {
+            if (!_vicMuaGeoJson) { alert('Urban boundary data could not be loaded.'); return; }
+            _vicMuaBoundaryLayer = L.geoJSON(_vicMuaGeoJson, {
+              style: {
+                color: '#7c3aed',
+                weight: 2.5,
+                opacity: 0.85,
+                dashArray: '8, 4',
+                fillColor: '#7c3aed',
+                fillOpacity: 0.08
+              },
+              onEachFeature: function(feature, layer) {
+                if (feature.properties && feature.properties.MUA_Name) {
+                  layer.bindTooltip(feature.properties.MUA_Name + ' Major Urban Area', {
+                    sticky: true, className: 'zone-tooltip', opacity: 0.95
+                  });
+                }
+              }
+            });
+            _vicMuaBoundaryLayer.addTo(map);
+            urbanBdyToggle.classList.add('active');
+            var svg2 = urbanBdyToggle.querySelector('svg');
+            urbanBdyToggle.textContent = ' Hide Boundary';
+            if (svg2) urbanBdyToggle.insertBefore(svg2, urbanBdyToggle.firstChild);
+          });
         }
       });
     }
