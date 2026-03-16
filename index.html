@@ -225,6 +225,36 @@ body.state-vic .zone-col { display: none !important; }
 body.state-vic.area-rural .vic-rural-only { display: block !important; }
 body.state-vic.area-urban .vic-urban-only { display: block !important; }
 
+/* NSW state */
+body.state-nsw .sa-only { display: none !important; }
+body.state-nsw .vic-only { display: revert !important; }
+body.state-nsw td.vic-only, body.state-nsw th.vic-only { display: table-cell !important; }
+body.state-nsw div.vic-only { display: block !important; }
+body.state-nsw span.vic-only { display: inline-block !important; }
+body.state-nsw .zone-col { display: none !important; }
+body.state-nsw .landuse-col { display: none !important; }
+body.state-nsw .vic-rural-only { display: none !important; }
+body.state-nsw .vic-urban-only { display: none !important; }
+body.state-nsw .vic-only.vic-settings-only { display: none !important; }
+body.state-nsw .other-only { display: none !important; }
+.nsw-only { display: none !important; }
+body.state-nsw .nsw-only { display: block !important; }
+body.state-nsw div.nsw-only { display: block !important; }
+body.state-nsw span.nsw-only { display: inline-block !important; }
+.state-badge-nsw { background: #dbeafe; color: #1e3a5f; }
+.nsw-amenity-area-sel { width: 140px; font-size: 12px; }
+.nsw-recv-type-sel { width: 100%; font-size: 11px; margin-top: 3px; }
+.nsw-rbl-input { width: 60px; text-align: center; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
+.nsw-mod-section label { display: block; font-size: 12px; margin: 3px 0; cursor: pointer; }
+.nsw-mod-section input[type="checkbox"], .nsw-mod-section input[type="radio"] { margin-right: 5px; }
+.nsw-mod-total { font-size: 12px; font-weight: 700; margin-top: 4px; }
+.nsw-intrusiveness-display { font-size: 11px; color: #6b7280; margin-top: 2px; }
+.nsw-sleep-row { background: #fefce8; }
+.nsw-sleep-row td { font-size: 12px; padding: 6px 8px; }
+.nsw-sleep-ok { color: #166534; font-weight: 600; }
+.nsw-sleep-warn { color: #b91c1c; font-weight: 600; }
+body.state-nsw .crit-lmax-col { display: none !important; }
+
 /* OTHER state — manual criteria mode */
 body.state-other .sa-only { display: none !important; }
 body.state-other .vic-only { display: revert !important; }
@@ -236,6 +266,7 @@ body.state-other .landuse-col { display: none !important; }
 body.state-other .vic-rural-only { display: none !important; }
 body.state-other .vic-urban-only { display: none !important; }
 body.state-other .vic-only.vic-settings-only { display: none !important; }
+body.state-other .nsw-only { display: none !important; }
 .other-only { display: none !important; }
 body.state-other .other-only { display: block !important; }
 .manual-crit-input { width:60px; text-align:center; font-size:12px; border:1px solid var(--border); border-radius:4px; padding:2px 4px; }
@@ -438,6 +469,18 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   </span>
 </span>
 
+          <span class="badge nsw-only">Day = 7 am–6 pm (Mon–Sat) / 8 am–6 pm (Sun)</span>
+          <span class="badge nsw-only">Evening = 6 pm–10 pm</span>
+          <span class="badge nsw-only">Night = 10 pm–7 am</span>
+<span class="badge tooltip nsw-only">
+  Trigger = min(Intrusiveness, Amenity−5)
+  <span class="tooltiptext">
+    Project noise trigger level = lower of the project intrusiveness noise level
+    (RBL + 5 dB) and the project amenity noise level (Table 2.2 recommended
+    amenity minus 5 dB for a single source). NSW Noise Policy for Industry (2017).
+  </span>
+</span>
+
         </div>
         </div>
       </div>
@@ -507,6 +550,140 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <input type="checkbox" id="vicIsEarthResources" onchange="if(this.checked){document.getElementById('vicIsUtility').checked=false;}render()"> Source is earth resources (Clauses 33–36)
           </label>
         </div>
+      </div>
+    </div>
+
+    <!-- NSW NPI 2017: Assessment parameters -->
+    <div class="grid2 nsw-only" style="padding-top:0;">
+      <div class="card">
+        <h2>NSW assessment parameters</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <label class="h2" style="font-size:12px;">Noise amenity area (Table 2.3)</label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+              <select id="nswAmenityArea" class="nsw-amenity-area-sel" onchange="render()">
+                <option value="rural">Rural</option>
+                <option value="suburban" selected>Suburban</option>
+                <option value="urban">Urban</option>
+              </select>
+            </div>
+            <div class="small" style="margin-top:4px;">Auto-detected from planning zone code. Override if needed.</div>
+            <div id="nswDetectedZone" style="display:none;margin-top:6px;font-size:11px;color:#1e3a5f;font-weight:600;"></div>
+          </div>
+          <div>
+            <label class="h2" style="font-size:12px;">Rating Background Level — RBL, dB(A)</label>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;max-width:300px;">
+              <div>
+                <label style="font-size:11px;font-weight:600;">Day</label>
+                <input type="number" id="nswRblDay" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="35" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
+                <div class="nsw-intrusiveness-display" id="nswIntDay">Intrusiveness: 40</div>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Evening</label>
+                <input type="number" id="nswRblEve" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
+                <div class="nsw-intrusiveness-display" id="nswIntEve">Intrusiveness: 35</div>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Night</label>
+                <input type="number" id="nswRblNight" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
+                <div class="nsw-intrusiveness-display" id="nswIntNight">Intrusiveness: 35</div>
+              </div>
+            </div>
+            <div class="small" style="margin-top:4px;">Minimums: Day 35, Evening 30, Night 30. Intrusiveness = RBL + 5 dB (Table 2.1).</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label class="h2" style="font-size:12px;">Receiver type</label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px;">
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 1</label>
+              <select id="nswRecType1" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 2</label>
+              <select id="nswRecType2" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 3</label>
+              <select id="nswRecType3" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 4</label>
+              <select id="nswRecType4" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NSW NPI 2017: Modifying factor corrections (Fact Sheet C) -->
+    <div class="grid2 nsw-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Modifying factor corrections</h2>
+        <div class="p">Corrections from Fact Sheet C of the <i>Noise Policy for Industry</i> are added to the predicted noise level before comparison with project noise trigger levels. Maximum combined correction: 10 dB (excluding duration).</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:4px;">
+          <div class="nsw-mod-section">
+            <div class="h2">Tonal noise</div>
+            <label><input type="checkbox" id="nswModTonal" onchange="updateNSWModFactors();render()"> Tonal (+5 dB)</label>
+            <div class="small">Third-octave band exceeds adjacent bands per ISO 1996-2 thresholds.</div>
+          </div>
+          <div class="nsw-mod-section">
+            <div class="h2">Low-frequency noise</div>
+            <label><input type="radio" name="nswLF" id="nswModLFNone" checked onchange="updateNSWModFactors();render()"> None</label>
+            <label><input type="radio" name="nswLF" id="nswModLF2" onchange="updateNSWModFactors();render()"> C−A ≥ 15 dB, Table C2 exceeded ≤ 5 dB (+2 dB)</label>
+            <label><input type="radio" name="nswLF" id="nswModLF5" onchange="updateNSWModFactors();render()"> C−A ≥ 15 dB, Table C2 exceeded &gt; 5 dB (+5 dB)</label>
+          </div>
+          <div class="nsw-mod-section">
+            <div class="h2">Intermittent noise</div>
+            <label><input type="checkbox" id="nswModIntermittent" onchange="updateNSWModFactors();render()"> Intermittent (+5 dB, night only)</label>
+            <div class="small">Source varies by &gt;5 dB(A) and intermittency is clearly audible.</div>
+          </div>
+        </div>
+        <div class="nsw-mod-total" id="nswModTotal">Total correction: Day 0 dB | Evening 0 dB | Night 0 dB</div>
       </div>
     </div>
 
@@ -1072,6 +1249,210 @@ function getVicZoneLabel(zoneCode) {
   return labels[t] || ('Type ' + t);
 }
 
+/* ===== NSW Noise Policy for Industry (2017) — constants & tables ===== */
+
+/** NSW ePlanning zone query API endpoint */
+const NSW_ZONE_API_URL = 'https://mapprod3.environment.nsw.gov.au/arcgis/rest/services/Planning/EPI_Primary_Planning_Layers/MapServer/2/query';
+
+/** Map NSW SYM_CODE to noise amenity area category (Table 2.3 of NPI 2017) */
+const NSW_ZONE_TO_AMENITY = {
+  /* Rural residential */
+  'RU1':'rural','RU2':'rural','RU4':'rural','R5':'rural','E4':'rural',
+  'RU3':'rural',
+  /* Suburban residential */
+  'RU5':'suburban','RU6':'suburban','R2':'suburban','R3':'suburban',
+  'E2':'suburban','E3':'suburban',
+  /* Urban residential */
+  'R1':'urban','R4':'urban','B1':'urban','B2':'urban','B4':'urban',
+  /* Industrial */
+  'IN1':'industrial','IN2':'industrial','IN3':'industrial','IN4':'industrial',
+  /* Commercial (not in residential Table 2.3) */
+  'B3':'commercial','B5':'commercial','B6':'commercial','B7':'commercial','B8':'commercial',
+  /* Recreation */
+  'RE1':'recreation_passive','RE2':'recreation_active',
+  /* Special / other — default to suburban for residential assessment */
+  'SP1':'suburban','SP2':'suburban','SP3':'suburban','SP5':'suburban',
+  'W1':'rural','W2':'rural','W3':'rural',
+  'E1':'rural','DM':'suburban',
+  /* New standard instrument zones (post-2021 reforms) */
+  'C1':'urban','C2':'urban','C3':'urban','C4':'urban',
+  'MU1':'urban',
+  'AG1':'rural','AG2':'rural',
+  'ENZ':'rural','ENV':'rural',
+  'WA':'rural','WU':'rural'
+};
+
+/** Recommended amenity noise levels — Table 2.2 of NPI 2017 (residential by area) */
+const NSW_AMENITY_RESIDENTIAL = {
+  rural:    { day: 50, evening: 45, night: 40 },
+  suburban: { day: 55, evening: 45, night: 40 },
+  urban:    { day: 60, evening: 50, night: 45 }
+};
+
+/** Non-residential amenity noise levels — Table 2.2 of NPI 2017 */
+const NSW_AMENITY_NON_RESIDENTIAL = {
+  hotel:              { day: null, evening: null, night: null }, // +5 dB above residential for area
+  school:             { day: 35, evening: null, night: null },   // internal, noisiest 1-hr when in use
+  hospital_internal:  { day: 35, evening: 35, night: 35 },
+  hospital_external:  { day: 50, evening: 50, night: 50 },
+  worship:            { day: 40, evening: 40, night: 40 },       // internal, when in use
+  recreation_passive: { day: 50, evening: 50, night: null },     // e.g. national park
+  recreation_active:  { day: 55, evening: 55, night: null },     // e.g. sports field
+  commercial:         { day: 65, evening: 65, night: 65 },
+  industrial:         { day: 70, evening: 70, night: 70 }
+};
+
+/** Minimum assumed RBLs and intrusiveness noise levels — Table 2.1 of NPI 2017 */
+const NSW_MIN_RBLS = { day: 35, evening: 30, night: 30 };
+const NSW_MIN_INTRUSIVENESS = { day: 40, evening: 35, night: 35 };
+
+/** NSW receiver type options for dropdown */
+const NSW_RECEIVER_TYPES = [
+  { value: 'residential',        label: 'Residential' },
+  { value: 'hotel',              label: 'Hotel / motel / holiday accommodation' },
+  { value: 'school',             label: 'School classroom (internal)' },
+  { value: 'hospital_internal',  label: 'Hospital ward (internal)' },
+  { value: 'hospital_external',  label: 'Hospital ward (external)' },
+  { value: 'worship',            label: 'Place of worship (internal)' },
+  { value: 'recreation_passive', label: 'Passive recreation area' },
+  { value: 'recreation_active',  label: 'Active recreation area' },
+  { value: 'commercial',         label: 'Commercial premises' },
+  { value: 'industrial',         label: 'Industrial premises' }
+];
+
+/** NSW amenity area options for dropdown */
+const NSW_AMENITY_AREAS = [
+  { value: 'rural',    label: 'Rural' },
+  { value: 'suburban', label: 'Suburban' },
+  { value: 'urban',    label: 'Urban' }
+];
+
+/** Sleep disturbance screening thresholds — Section 2.5 of NPI 2017 */
+const NSW_SLEEP_THRESHOLDS = {
+  laeq15min: 40,   // or RBL+5, whichever greater
+  lafmax:    52    // or RBL+15, whichever greater
+};
+
+/** NSW modifying factor corrections — Fact Sheet C, Table C1 */
+const NSW_MODIFYING_FACTORS = {
+  tonal:        5,   // +5 dB
+  low_freq_2:   2,   // +2 dB (C-A ≥ 15 dB, Table C2 exceeded ≤ 5 dB)
+  low_freq_5:   5,   // +5 dB (C-A ≥ 15 dB, Table C2 exceeded > 5 dB)
+  intermittent: 5,   // +5 dB, night-time only
+  max_combined: 10   // maximum total correction (excluding duration)
+};
+
+/**
+ * Calculate NSW project noise trigger level for a receiver.
+ * For residential: min(intrusiveness, project amenity)
+ * For non-residential: project amenity only (from Table 2.2)
+ */
+function calcCriteriaNSW(receiverIndex) {
+  var recTypeSelect = document.getElementById('nswRecType' + receiverIndex);
+  var recType = recTypeSelect ? recTypeSelect.value : 'residential';
+  var amenityAreaSelect = document.getElementById('nswAmenityArea');
+  var amenityArea = amenityAreaSelect ? amenityAreaSelect.value : 'suburban';
+
+  if (recType === 'residential') {
+    // Get RBL values (clamped to minimums)
+    var rblDayInp = document.getElementById('nswRblDay');
+    var rblEveInp = document.getElementById('nswRblEve');
+    var rblNightInp = document.getElementById('nswRblNight');
+    var rblDay = rblDayInp && rblDayInp.value !== '' ? Math.max(Number(rblDayInp.value), NSW_MIN_RBLS.day) : NSW_MIN_RBLS.day;
+    var rblEve = rblEveInp && rblEveInp.value !== '' ? Math.max(Number(rblEveInp.value), NSW_MIN_RBLS.evening) : NSW_MIN_RBLS.evening;
+    var rblNight = rblNightInp && rblNightInp.value !== '' ? Math.max(Number(rblNightInp.value), NSW_MIN_RBLS.night) : NSW_MIN_RBLS.night;
+
+    // Intrusiveness = RBL + 5, clamped to minimums
+    var intDay = Math.max(rblDay + 5, NSW_MIN_INTRUSIVENESS.day);
+    var intEve = Math.max(rblEve + 5, NSW_MIN_INTRUSIVENESS.evening);
+    var intNight = Math.max(rblNight + 5, NSW_MIN_INTRUSIVENESS.night);
+
+    // Project amenity = Table 2.2 recommended - 5 dB (single source)
+    var amenity = NSW_AMENITY_RESIDENTIAL[amenityArea];
+    if (!amenity) amenity = NSW_AMENITY_RESIDENTIAL.suburban;
+    var projAmenDay = amenity.day - 5;
+    var projAmenEve = amenity.evening - 5;
+    var projAmenNight = amenity.night - 5;
+
+    // Enforce: evening ≤ day, night ≤ evening (Section 2.3)
+    intEve = Math.min(intEve, intDay);
+    intNight = Math.min(intNight, intEve);
+
+    // Project noise trigger = min(intrusiveness, project amenity)
+    return {
+      day: Math.min(intDay, projAmenDay),
+      evening: Math.min(intEve, projAmenEve),
+      night: Math.min(intNight, projAmenNight),
+      lmax: '',
+      _intDay: intDay, _intEve: intEve, _intNight: intNight,
+      _amenDay: projAmenDay, _amenEve: projAmenEve, _amenNight: projAmenNight
+    };
+  }
+
+  if (recType === 'hotel') {
+    // Hotel recommended amenity = residential + 5 dB; project amenity = recommended - 5 = residential level
+    // Still compare against intrusiveness (RBL+5) per NPI Section 2.3
+    var hotelAmenity = NSW_AMENITY_RESIDENTIAL[amenityArea] || NSW_AMENITY_RESIDENTIAL.suburban;
+    var rblDayInp = document.getElementById('nswRblDay');
+    var rblEveInp = document.getElementById('nswRblEve');
+    var rblNightInp = document.getElementById('nswRblNight');
+    var rblDay = rblDayInp && rblDayInp.value !== '' ? Math.max(Number(rblDayInp.value), NSW_MIN_RBLS.day) : NSW_MIN_RBLS.day;
+    var rblEve = rblEveInp && rblEveInp.value !== '' ? Math.max(Number(rblEveInp.value), NSW_MIN_RBLS.evening) : NSW_MIN_RBLS.evening;
+    var rblNight = rblNightInp && rblNightInp.value !== '' ? Math.max(Number(rblNightInp.value), NSW_MIN_RBLS.night) : NSW_MIN_RBLS.night;
+    var intDay = Math.max(rblDay + 5, NSW_MIN_INTRUSIVENESS.day);
+    var intEve = Math.max(rblEve + 5, NSW_MIN_INTRUSIVENESS.evening);
+    var intNight = Math.max(rblNight + 5, NSW_MIN_INTRUSIVENESS.night);
+    intEve = Math.min(intEve, intDay);
+    intNight = Math.min(intNight, intEve);
+    return {
+      day: Math.min(intDay, hotelAmenity.day),
+      evening: Math.min(intEve, hotelAmenity.evening),
+      night: Math.min(intNight, hotelAmenity.night),
+      lmax: '',
+      _intDay: intDay, _intEve: intEve, _intNight: intNight,
+      _amenDay: hotelAmenity.day, _amenEve: hotelAmenity.evening, _amenNight: hotelAmenity.night
+    };
+  }
+
+  // Non-residential receiver types — fixed amenity levels from Table 2.2
+  var levels = NSW_AMENITY_NON_RESIDENTIAL[recType];
+  if (!levels) return { day: '', evening: '', night: '', lmax: '' };
+  return {
+    day: levels.day !== null ? levels.day : '',
+    evening: levels.evening !== null ? levels.evening : '',
+    night: levels.night !== null ? levels.night : '',
+    lmax: ''
+  };
+}
+
+/**
+ * Get total NSW modifying factor correction for a period.
+ * Returns {day, evening, night} corrections capped at 10 dB.
+ */
+function getNSWModifyingFactors() {
+  var tonal = document.getElementById('nswModTonal');
+  var lfRadio2 = document.getElementById('nswModLF2');
+  var lfRadio5 = document.getElementById('nswModLF5');
+  var intermittent = document.getElementById('nswModIntermittent');
+
+  var tonalVal = (tonal && tonal.checked) ? NSW_MODIFYING_FACTORS.tonal : 0;
+  var lfVal = 0;
+  if (lfRadio5 && lfRadio5.checked) lfVal = NSW_MODIFYING_FACTORS.low_freq_5;
+  else if (lfRadio2 && lfRadio2.checked) lfVal = NSW_MODIFYING_FACTORS.low_freq_2;
+
+  // If tonal and LF both apply and tone is ≤160 Hz, only one 5 dB correction (NPI note 2)
+  // For this screening tool, we apply both but cap at max
+  var intermittentVal = (intermittent && intermittent.checked) ? NSW_MODIFYING_FACTORS.intermittent : 0;
+
+  var dayCorrection = Math.min(tonalVal + lfVal, NSW_MODIFYING_FACTORS.max_combined);
+  var eveCorrection = Math.min(tonalVal + lfVal, NSW_MODIFYING_FACTORS.max_combined);
+  var nightCorrection = Math.min(tonalVal + lfVal + intermittentVal, NSW_MODIFYING_FACTORS.max_combined);
+
+  return { day: dayCorrection, evening: eveCorrection, night: nightCorrection };
+}
+
+/* ===== End NSW constants & tables ===== */
+
 const SOURCE_LIBRARY_GROUPED = {
   "Mechanical units": [
     {"name":"Small exhaust fan (toilet, garbage room)—Lw 60 dB(A)","lw":60.4},
@@ -1267,7 +1648,7 @@ let dayPenalty = 0;
 let nightPenalty = 0;
 let eveningPenalty = 0;  // VIC only
 
-// State detection: 'SA' | 'VIC' | 'OTHER' | null
+// State detection: 'SA' | 'VIC' | 'NSW' | 'OTHER' | null
 let currentState = null;
 let vicAreaType = 'urban'; // 'urban' | 'rural' (VIC only)
 let detectedStateName = ''; // e.g. 'NSW', 'QLD' — for badge display in OTHER mode
@@ -1450,8 +1831,13 @@ function switchToState(state) {
   // Clear auto-IF when switching states
   clearAutoIF();
 
+  // Reset penalties to 0 on state switch (each state sets its own)
+  dayPenalty = 0;
+  eveningPenalty = 0;
+  nightPenalty = 0;
+
   // Remove old state classes and criteria column toggles
-  body.classList.remove('state-sa', 'state-vic', 'state-other', 'area-urban', 'area-rural', 'hide-day-col', 'hide-eve-col', 'hide-night-col', 'hide-lmax-col');
+  body.classList.remove('state-sa', 'state-vic', 'state-nsw', 'state-other', 'area-urban', 'area-rural', 'hide-day-col', 'hide-eve-col', 'hide-night-col', 'hide-lmax-col');
   // Restore night situation card visibility
   const nightCard = document.querySelector('.crit-night-section');
   if (nightCard) nightCard.style.display = '';
@@ -1467,6 +1853,11 @@ function switchToState(state) {
     body.classList.add('state-sa');
     badge.textContent = 'SA';
     badge.className = 'state-badge state-badge-sa';
+    badge.style.display = '';
+  } else if (state === 'NSW') {
+    body.classList.add('state-nsw');
+    badge.textContent = 'NSW';
+    badge.className = 'state-badge state-badge-nsw';
     badge.style.display = '';
   } else if (state === 'OTHER') {
     body.classList.add('state-other');
@@ -1495,7 +1886,7 @@ function switchToState(state) {
   // Update zone overlay button label & visibility (SA only)
   updateZoneToggleLabel();
   const zoneBtn = document.getElementById('zoneToggleBtn');
-  if (zoneBtn) zoneBtn.style.display = (state === 'SA' || state === 'VIC') ? '' : 'none';
+  if (zoneBtn) zoneBtn.style.display = (state === 'SA' || state === 'VIC' || state === 'NSW') ? '' : 'none';
   const parcelBtn = document.getElementById('parcelToggleBtn');
   if (parcelBtn) parcelBtn.style.display = (state === 'SA') ? '' : 'none';
   const urbanBdyBtn = document.getElementById('urbanBoundaryToggleBtn');
@@ -1525,19 +1916,15 @@ function switchToState(state) {
     }
   }
 
-  // If zone overlay is active, switch to the correct overlay
-  if (typeof isZoneOn !== 'undefined' && isZoneOn) {
-    // Remove both overlays, re-add the correct one
-    if (typeof zoningOverlay !== 'undefined' && zoningOverlay && typeof map !== 'undefined') {
-      try { map.removeLayer(zoningOverlay); } catch(e){}
-    }
-    if (typeof vicZoningOverlay !== 'undefined' && vicZoningOverlay && typeof map !== 'undefined') {
-      try { map.removeLayer(vicZoningOverlay); } catch(e){}
-    }
-    const activeOverlay = state === 'VIC' ? (typeof vicZoningOverlay !== 'undefined' ? vicZoningOverlay : null) : (typeof zoningOverlay !== 'undefined' ? zoningOverlay : null);
-    if (activeOverlay && typeof map !== 'undefined') {
-      try { activeOverlay.addTo(map); } catch(e){}
-    }
+  // If zone overlay is active, switch to the correct overlay for the new state
+  if (typeof window._switchZoneOverlayForState === 'function') {
+    try { window._switchZoneOverlayForState(state); } catch(e) { console.warn('Overlay switch error:', e); }
+  }
+
+  // Reset NSW modifying factors when switching to NSW
+  if (state === 'NSW') {
+    updateNSWModFactors();
+    updateNSWIntrusiveness();
   }
 
   // Expand 'Receivers & criteria' and 'Predicted noise levels' cards when a location is selected
@@ -1579,6 +1966,9 @@ function updatePolicyNote() {
   } else if (currentState === 'VIC') {
     el.innerHTML = 'Environmental noise criteria calculated in accordance with <i>EPA Victoria Publication 1826.5 — Noise limit and assessment protocol for the control of noise from commercial, industrial and trade premises and entertainment venues</i>.';
     el.style.display = '';
+  } else if (currentState === 'NSW') {
+    el.innerHTML = 'Project noise trigger levels calculated in accordance with the <i>NSW Noise Policy for Industry (October 2017)</i>. Trigger level = lower of intrusiveness (RBL + 5 dB) and project amenity noise level.';
+    el.style.display = '';
   } else if (currentState === 'OTHER') {
     el.innerHTML = 'Manual criteria entry — enter Day, Evening, Night and L<sub>max</sub> criteria values directly in the table below.';
     el.style.display = '';
@@ -1592,6 +1982,8 @@ function updateZoneDescText() {
   if (!el) return;
   if (currentState === 'VIC') {
     el.innerHTML = 'Zones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://mapshare.vic.gov.au/vicplan/" target="_blank" rel="noopener">VicPlan</a>). You can also select manually from the dropdowns.';
+  } else if (currentState === 'NSW') {
+    el.innerHTML = 'Planning zones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://www.planningportal.nsw.gov.au/spatialviewer/" target="_blank" rel="noopener">NSW Planning Portal</a>). The noise amenity area is derived from the zone code.';
   } else if (currentState === 'OTHER') {
     el.innerHTML = '';
   } else {
@@ -1602,7 +1994,7 @@ function updateZoneDescText() {
 function updateZoneToggleLabel() {
   const btn = document.getElementById('zoneToggleBtn');
   if (!btn) return;
-  btn.title = currentState === 'VIC' ? 'Toggle VicPlan zoning overlay on map' : 'Toggle SAPPA zoning overlay on map';
+  btn.title = currentState === 'VIC' ? 'Toggle VicPlan zoning overlay on map' : currentState === 'NSW' ? 'Toggle NSW planning zones overlay on map' : 'Toggle SAPPA zoning overlay on map';
 }
 
 function updateOpTimeHeaders() {
@@ -1620,8 +2012,8 @@ function updateOpTimeHeaders() {
 }
 
 function rebuildZoneSelects() {
-  if (currentState === 'OTHER') {
-    // In OTHER mode, zone columns are hidden — clear dropdowns
+  if (currentState === 'OTHER' || currentState === 'NSW') {
+    // In OTHER/NSW mode, zone columns are hidden — clear dropdowns
     ['src','r1','r2','r3','r4'].forEach(function(id) {
       var sel = document.getElementById(id);
       if (sel) { sel.innerHTML = ''; sel.value = ''; }
@@ -1670,7 +2062,7 @@ function rowTotalLw(baseLw, n, opValue){
   if (!Number.isFinite(n) || n <= 0) return 0;
 
   // SA: opValue = operational minutes in a 15-min period (default 15, divisor 15)
-  // VIC/OTHER: opValue = operational time % (default 100, divisor 100)
+  // VIC/NSW/OTHER: opValue = operational time % (default 100, divisor 100)
   const isSA = (currentState === 'SA' || currentState === null);
   const defaultVal = isSA ? 15 : 100;
   const divisor = isSA ? 15 : 100;
@@ -1920,8 +2312,8 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5){
 function calcCriteria(source, rec) {
   if (!source || !rec) return {day:"", evening:"", night:"", lmax:""};
 
-  // VIC/OTHER mode: criteria handled separately via calcCriteriaVICForReceiver / manual inputs
-  if (currentState === 'VIC' || currentState === 'OTHER') {
+  // VIC/NSW/OTHER mode: criteria handled separately via their own functions
+  if (currentState === 'VIC' || currentState === 'NSW' || currentState === 'OTHER') {
     return {day:"", evening:"", night:"", lmax:""};
   }
   const sameCatGI_SI =
@@ -2356,13 +2748,14 @@ function render() {
   const srcKey = document.getElementById('src').value;
   const src = byKey.get(srcKey);
   const isVIC = currentState === 'VIC';
+  const isNSW = currentState === 'NSW';
   const isOTHER = currentState === 'OTHER';
 
-  document.getElementById('src_land').textContent = (isVIC || isOTHER) ? '' : landDisplay(src);
+  document.getElementById('src_land').textContent = (isVIC || isOTHER || isNSW) ? '' : landDisplay(src);
   const srcDayEl = document.getElementById('src_day');
   const srcNightEl = document.getElementById('src_night');
-  if (srcDayEl) srcDayEl.textContent = (isVIC || isOTHER) ? '' : fmt(src && src.inf_day);
-  if (srcNightEl) srcNightEl.textContent = (isVIC || isOTHER) ? '' : fmt(src && src.inf_night);
+  if (srcDayEl) srcDayEl.textContent = (isVIC || isOTHER || isNSW) ? '' : fmt(src && src.inf_day);
+  if (srcNightEl) srcNightEl.textContent = (isVIC || isOTHER || isNSW) ? '' : fmt(src && src.inf_night);
 
   const ids = ["r1","r2","r3","r4"];
   const rKeys = ids.map(id => document.getElementById(id).value);
@@ -2370,7 +2763,7 @@ function render() {
 
   ids.forEach((id, idx) => {
     const rec = recs[idx];
-    document.getElementById(id+"_land").textContent = (isVIC || isOTHER) ? '' : landDisplay(rec);
+    document.getElementById(id+"_land").textContent = (isVIC || isOTHER || isNSW) ? '' : landDisplay(rec);
 
     const dayEl = document.getElementById(`${id}_daycrit`);
     const eveEl = document.getElementById(`${id}_evecrit`);
@@ -2388,8 +2781,15 @@ function render() {
             '" oninput="this.parentElement.dataset.manualVal=this.value;render();" onchange="this.parentElement.dataset.manualVal=this.value;render();">';
         }
       });
+    } else if (isNSW) {
+      // NSW criteria — auto-calculated from NPI 2017
+      const crit = calcCriteriaNSW(idx + 1);
+      if (dayEl) dayEl.textContent = fmt(crit.day);
+      if (eveEl) eveEl.textContent = fmt(crit.evening);
+      if (nightEl) nightEl.textContent = fmt(crit.night);
+      if (lmaxEl) lmaxEl.textContent = '';
     } else {
-      // Auto-calculated criteria
+      // Auto-calculated criteria (SA / VIC)
       const crit = isVIC ? calcCriteriaVICForReceiver(id) : calcCriteria(src, rec);
       if (dayEl) dayEl.textContent = fmt(crit.day);
       if (eveEl) eveEl.textContent = isVIC && crit.evening !== undefined ? fmt(crit.evening) : "";
@@ -2419,6 +2819,12 @@ function render() {
       eveCrit = getManualCrit(rid + '_evecrit');
       nightCrit = getManualCrit(rid + '_nightcrit');
       lmaxCrit = getManualCrit(rid + '_lmaxcrit');
+    } else if (isNSW) {
+      const crit = calcCriteriaNSW(i + 1);
+      dayCrit = crit.day;
+      eveCrit = crit.evening;
+      nightCrit = crit.night;
+      lmaxCrit = '';
     } else {
       const crit = isVIC ? calcCriteriaVICForReceiver(ids[i]) : calcCriteria(src, rec);
       dayCrit = crit.day;
@@ -2457,8 +2863,8 @@ function render() {
     function okText(v) { return v === "" ? "" : (v ? "<span class='ok'>Yes</span>" : "<span class='bad'>No</span>"); }
     function cellClass(v) { return v === "" ? "" : (v ? "cell-ok" : "cell-bad"); }
 
-    // Build evening cells (hidden via CSS when not VIC/OTHER)
-    const eveCells = (isVIC || isOTHER) ?
+    // Build evening cells (hidden via CSS when not VIC/NSW/OTHER)
+    const eveCells = (isVIC || isNSW || isOTHER) ?
       `<td class="num vic-only crit-eve-col"><span id="${predEveId}" style="display:inline-block;min-width:48px;">${predEvePenalised}</span></td>` +
       td(fmt(eveCrit), "num vic-only crit-eve-col") +
       td(eve.delta === "" ? "" : String(eve.delta), "num vic-only crit-eve-col") +
@@ -2488,6 +2894,52 @@ function render() {
 
     tbody.appendChild(tr);
   });
+
+  // NSW sleep disturbance screening row
+  if (isNSW) {
+    var rblNightInp = document.getElementById('nswRblNight');
+    var rblN = rblNightInp && rblNightInp.value !== '' ? Math.max(Number(rblNightInp.value), NSW_MIN_RBLS.night) : NSW_MIN_RBLS.night;
+    var sleepLeqThreshold = Math.max(NSW_SLEEP_THRESHOLDS.laeq15min, rblN + 5);
+    var sleepLmaxThreshold = Math.max(NSW_SLEEP_THRESHOLDS.lafmax, rblN + 15);
+
+    var sleepTr = document.createElement('tr');
+    sleepTr.className = 'nsw-sleep-row';
+
+    // Check each receiver's night prediction against sleep thresholds
+    var sleepResults = [];
+    recs.forEach(function(rec, i) {
+      var dist = getReceiverDistance(i + 1);
+      var predN = calcPredAtReceiver(nightTotal, dist);
+      var predLmax = calcPredAtReceiver(nightLmaxTotal, dist);
+      if (nightTotal === 0 && predN !== "" && predN < 0) predN = "";
+      if (nightLmaxTotal === 0 && predLmax !== "" && predLmax < 0) predLmax = "";
+      var penN = (predN !== "" && predN !== null) ? predN + nightPenalty : "";
+      var leqExceeds = penN !== "" && penN > sleepLeqThreshold;
+      var lmaxExceeds = predLmax !== "" && predLmax > sleepLmaxThreshold;
+      sleepResults.push({ leqExceeds: leqExceeds, lmaxExceeds: lmaxExceeds, hasData: penN !== "" || predLmax !== "" });
+    });
+
+    var anySleepIssue = sleepResults.some(function(s) { return s.leqExceeds || s.lmaxExceeds; });
+    var anyData = sleepResults.some(function(s) { return s.hasData; });
+
+    // Add sleep disturbance screening summary row
+    var sleepHtml = '<td colspan="5" style="font-size:12px;"><b>Sleep disturbance screening (Section 2.5)</b><br>' +
+      '<span style="font-size:11px;">Thresholds: L<sub>Aeq,15min</sub> ' + Math.round(sleepLeqThreshold) + ' dB(A) | L<sub>AFmax</sub> ' + Math.round(sleepLmaxThreshold) + ' dB(A)</span></td>';
+    // Evening columns (4 cells)
+    sleepHtml += '<td class="vic-only crit-eve-col" colspan="4"></td>';
+    // Night result
+    if (!anyData) {
+      sleepHtml += '<td colspan="4" class="crit-night-col" style="font-size:12px;color:var(--muted);">Enter noise data</td>';
+    } else if (anySleepIssue) {
+      sleepHtml += '<td colspan="4" class="crit-night-col nsw-sleep-warn">Detailed sleep disturbance assessment required</td>';
+    } else {
+      sleepHtml += '<td colspan="4" class="crit-night-col nsw-sleep-ok">Below screening thresholds</td>';
+    }
+    // Lmax columns (4 cells)
+    sleepHtml += '<td class="crit-lmax-col" colspan="4"></td>';
+    sleepTr.innerHTML = sleepHtml;
+    tbody.appendChild(sleepTr);
+  }
 
   // Update source contribution tables whenever results re-render
   if (typeof renderContributions === 'function') renderContributions();
@@ -2622,6 +3074,42 @@ function getVicPenalty(period) {
     total += Number(cb.dataset.val);
   });
   return Math.min(total, 10);
+}
+
+/* === NSW helper functions === */
+function updateNSWIntrusiveness() {
+  var rblDay = document.getElementById('nswRblDay');
+  var rblEve = document.getElementById('nswRblEve');
+  var rblNight = document.getElementById('nswRblNight');
+  var d = rblDay && rblDay.value !== '' ? Math.max(Number(rblDay.value), NSW_MIN_RBLS.day) : NSW_MIN_RBLS.day;
+  var e = rblEve && rblEve.value !== '' ? Math.max(Number(rblEve.value), NSW_MIN_RBLS.evening) : NSW_MIN_RBLS.evening;
+  var n = rblNight && rblNight.value !== '' ? Math.max(Number(rblNight.value), NSW_MIN_RBLS.night) : NSW_MIN_RBLS.night;
+  var intD = Math.max(d + 5, NSW_MIN_INTRUSIVENESS.day);
+  var intE = Math.max(e + 5, NSW_MIN_INTRUSIVENESS.evening);
+  var intN = Math.max(n + 5, NSW_MIN_INTRUSIVENESS.night);
+  // Enforce: evening ≤ day, night ≤ evening
+  intE = Math.min(intE, intD);
+  intN = Math.min(intN, intE);
+  var elD = document.getElementById('nswIntDay');
+  var elE = document.getElementById('nswIntEve');
+  var elN = document.getElementById('nswIntNight');
+  if (elD) elD.textContent = 'Intrusiveness: ' + Math.round(intD);
+  if (elE) elE.textContent = 'Intrusiveness: ' + Math.round(intE);
+  if (elN) elN.textContent = 'Intrusiveness: ' + Math.round(intN);
+}
+
+function updateNSWModFactors() {
+  var mf = getNSWModifyingFactors();
+  var el = document.getElementById('nswModTotal');
+  if (el) {
+    el.textContent = 'Total correction: Day ' + mf.day + ' dB | Evening ' + mf.evening + ' dB | Night ' + mf.night + ' dB';
+  }
+  // Apply to global penalties when in NSW mode
+  if (currentState === 'NSW') {
+    dayPenalty = mf.day;
+    eveningPenalty = mf.evening;
+    nightPenalty = mf.night;
+  }
 }
 
 function updateOtherPenalties() {
@@ -2766,7 +3254,7 @@ function renderContribTable(tableId, prefix, numRows) {
 
 function renderContributions() {
   renderContribTable('contribDayTable',   'day',   5);
-  if (currentState === 'VIC' || currentState === 'OTHER') renderContribTable('contribEveTable', 'eve', 5);
+  if (currentState === 'VIC' || currentState === 'NSW' || currentState === 'OTHER') renderContribTable('contribEveTable', 'eve', 5);
   renderContribTable('contribNightTable', 'night', 5);
 }
 
@@ -2796,7 +3284,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Characteristic penalties', 'Day situation', 'Evening situation', 'Night situation'];
+    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
@@ -3085,6 +3573,9 @@ initCollapse();
     function bringOverlaysToFront() {
       if (isCadastreOn && cadastreOverlay) { cadastreOverlay.bringToFront(); }
       if (zoningOverlay && map.hasLayer(zoningOverlay)) { zoningOverlay.bringToFront(); }
+      if (vicZoningOverlay && map.hasLayer(vicZoningOverlay)) { vicZoningOverlay.bringToFront(); }
+      if (nswZoningOverlay && map.hasLayer(nswZoningOverlay)) { nswZoningOverlay.bringToFront(); }
+      if (subzoneFeatureLayer && map.hasLayer(subzoneFeatureLayer)) { subzoneFeatureLayer.bringToFront(); }
     }
 
     var markers = {};   /* key -> L.marker  */
@@ -3144,6 +3635,19 @@ initCollapse();
         });
       }
     } catch(e) { console.warn('VicPlan overlay init failed:', e); }
+
+    /* NSW ePlanning zone overlay */
+    var nswZoningOverlay = null;
+    try {
+      if (typeof L.esri !== 'undefined' && L.esri.dynamicMapLayer) {
+        nswZoningOverlay = L.esri.dynamicMapLayer({
+          url: 'https://mapprod3.environment.nsw.gov.au/arcgis/rest/services/Planning/EPI_Primary_Planning_Layers/MapServer',
+          layers: [2],
+          opacity: 0.35,
+          useCors: true
+        });
+      }
+    } catch(e) { console.warn('NSW planning overlay init failed:', e); }
 
     /* --- Hover tooltip: query zone/subzone at mouse position (low zoom only) --- */
     var LABEL_ZOOM = 16;
@@ -3302,7 +3806,9 @@ initCollapse();
     });
 
     function getActiveZoneOverlay() {
-      return currentState === 'VIC' ? vicZoningOverlay : zoningOverlay;
+      if (currentState === 'VIC') return vicZoningOverlay;
+      if (currentState === 'NSW') return nswZoningOverlay;
+      return zoningOverlay;
     }
 
     var zoneToggle = document.getElementById('zoneToggleBtn');
@@ -3314,9 +3820,10 @@ initCollapse();
           return;
         }
         if (isZoneOn) {
-          // Remove both possible overlays
+          // Remove all possible overlays
           if (zoningOverlay && map.hasLayer(zoningOverlay)) map.removeLayer(zoningOverlay);
           if (vicZoningOverlay && map.hasLayer(vicZoningOverlay)) map.removeLayer(vicZoningOverlay);
+          if (nswZoningOverlay && map.hasLayer(nswZoningOverlay)) map.removeLayer(nswZoningOverlay);
           if (subzoneFeatureLayer) map.removeLayer(subzoneFeatureLayer);
           map.removeLayer(zoneLabelGroup);
           zoneLabelGroup.clearLayers();
@@ -3327,7 +3834,7 @@ initCollapse();
         } else {
           overlay.addTo(map);
           // SA subzone feature layer only in SA mode
-          if (currentState !== 'VIC' && subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
+          if (currentState === 'SA' && subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
           zoneLabelGroup.addTo(map);
           isZoneOn = true;
           zoneToggle.classList.add('active');
@@ -3336,6 +3843,34 @@ initCollapse();
         }
       });
     }
+
+    /* --- Expose overlay switching for use by switchToState() (outside IIFE) --- */
+    window._switchZoneOverlayForState = function(newState) {
+      if (!isZoneOn) return;
+      // Remove all possible overlays
+      if (zoningOverlay && map.hasLayer(zoningOverlay)) map.removeLayer(zoningOverlay);
+      if (vicZoningOverlay && map.hasLayer(vicZoningOverlay)) map.removeLayer(vicZoningOverlay);
+      if (nswZoningOverlay && map.hasLayer(nswZoningOverlay)) map.removeLayer(nswZoningOverlay);
+      if (subzoneFeatureLayer && map.hasLayer(subzoneFeatureLayer)) map.removeLayer(subzoneFeatureLayer);
+      // Add the correct overlay for the new state
+      var activeOverlay;
+      if (newState === 'VIC') activeOverlay = vicZoningOverlay;
+      else if (newState === 'NSW') activeOverlay = nswZoningOverlay;
+      else activeOverlay = zoningOverlay;
+      if (activeOverlay) {
+        activeOverlay.addTo(map);
+        if (newState === 'SA' && subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
+      }
+    };
+
+    /* --- Expose zone re-query for use by detectStateFromCoords() (outside IIFE) --- */
+    window._requeryAllZones = function() {
+      if (latlngs['source']) queryAndSetZone('source', latlngs['source']);
+      for (var i = 1; i <= 4; i++) {
+        var key = 'R' + i;
+        if (latlngs[key]) queryAndSetZone(key, latlngs[key]);
+      }
+    };
 
     /* --- Urban Boundary toggle (VIC only — Major Urban Area polygons) --- */
     var _vicMuaBoundaryLayer = null;
@@ -3461,6 +3996,10 @@ initCollapse();
       // Dispatch to VIC-specific zone detection when in VIC mode
       if (currentState === 'VIC') {
         return queryAndSetZoneVIC(mode, latlng);
+      }
+      // Dispatch to NSW-specific zone detection when in NSW mode
+      if (currentState === 'NSW') {
+        return queryAndSetZoneNSW(mode, latlng);
       }
 
       var selectId = (mode === 'source') ? 'src' : mode;
@@ -3741,6 +4280,124 @@ initCollapse();
     }
     /* ==== End VicPlan Zoning Integration ==== */
 
+    /* ==== NSW ePlanning Zoning Integration ==== */
+    function queryNSWZoningAtPoint(lat, lng) {
+      var geom = JSON.stringify({x: lng, y: lat});
+      var url = NSW_ZONE_API_URL +
+        '?geometry=' + encodeURIComponent(geom) +
+        '&geometryType=esriGeometryPoint' +
+        '&inSR=4326' +
+        '&spatialRel=esriSpatialRelIntersects' +
+        '&outFields=SYM_CODE,LGA_NAME,LAY_CLASS,EPI_NAME' +
+        '&returnGeometry=false' +
+        '&f=json';
+      return fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.features || data.features.length === 0) return { zoneCode: '', zoneName: '', lga: '', epi: '' };
+          var attr = data.features[0].attributes;
+          return {
+            zoneCode: attr.SYM_CODE || '',
+            zoneName: attr.LAY_CLASS || '',
+            lga: attr.LGA_NAME || '',
+            epi: attr.EPI_NAME || ''
+          };
+        });
+    }
+
+    function queryAndSetZoneNSW(mode, latlng) {
+      var statusEl = document.getElementById('map-status-' + mode);
+
+      if (statusEl) {
+        var sub = statusEl.querySelector('.zone-status-label');
+        if (!sub) {
+          sub = document.createElement('span');
+          sub.className = 'zone-status-label';
+          statusEl.appendChild(sub);
+        }
+        sub.textContent = 'Detecting zone\u2026';
+      }
+
+      var queryLat = latlng.lat;
+      var queryLng = latlng.lng;
+
+      queryNSWZoningAtPoint(queryLat, queryLng)
+        .then(function(result) {
+          var currentLl = latlngs[mode];
+          if (!currentLl ||
+              Math.abs(currentLl.lat - queryLat) > 0.0001 ||
+              Math.abs(currentLl.lng - queryLng) > 0.0001) {
+            return;
+          }
+
+          var zoneCode = result.zoneCode || '';
+          var label = zoneCode;
+          if (result.zoneName) label += ' \u2014 ' + result.zoneName;
+          if (result.lga) label += ' (' + result.lga + ')';
+
+          // Auto-set amenity area from zone code
+          if (mode === 'source' && zoneCode) {
+            var amenity = NSW_ZONE_TO_AMENITY[zoneCode] || 'suburban';
+            var amenitySelect = document.getElementById('nswAmenityArea');
+            if (amenitySelect) {
+              // Map special categories to residential equivalents for the dropdown
+              if (amenity === 'rural' || amenity === 'suburban' || amenity === 'urban') {
+                amenitySelect.value = amenity;
+              } else if (amenity === 'industrial' || amenity === 'commercial') {
+                amenitySelect.value = 'urban'; // default for non-residential zones
+              } else {
+                amenitySelect.value = 'suburban';
+              }
+              amenitySelect.classList.add('zone-detect-flash');
+              setTimeout(function() { amenitySelect.classList.remove('zone-detect-flash'); }, 1600);
+            }
+            // Show detected zone info
+            var detectedEl = document.getElementById('nswDetectedZone');
+            if (detectedEl) {
+              detectedEl.textContent = zoneCode + ' \u2014 ' + (result.zoneName || 'Unknown');
+              detectedEl.style.display = '';
+            }
+          }
+
+          // Update marker popup
+          var m = markers[mode];
+          if (m) {
+            var cfg = CFG[mode];
+            m.setPopupContent(
+              '<b>' + cfg.label + '</b><br>' +
+              queryLat.toFixed(6) + ', ' + queryLng.toFixed(6) +
+              (zoneCode ? '<br><i style="color:#1e3a5f;">' + label + '</i>' : '')
+            );
+          }
+
+          if (statusEl) {
+            var sub2 = statusEl.querySelector('.zone-status-label');
+            if (sub2) {
+              if (zoneCode) {
+                sub2.textContent = label;
+                sub2.style.color = '#1e3a5f';
+              } else {
+                sub2.textContent = 'No zone data';
+                sub2.style.color = 'var(--muted)';
+              }
+            }
+          }
+
+          render();
+        })
+        .catch(function(err) {
+          console.warn('NSW zone query failed:', err);
+          if (statusEl) {
+            var sub3 = statusEl.querySelector('.zone-status-label');
+            if (sub3) {
+              sub3.textContent = 'Zone detection failed';
+              sub3.style.color = '#dc2626';
+            }
+          }
+        });
+    }
+    /* ==== End NSW ePlanning Zoning Integration ==== */
+
     /* ---- custom pin icon ---- */
     function makeIcon(cfg) {
       var c = cfg.color;
@@ -3869,18 +4526,26 @@ initCollapse();
         }
 
         var addrState = data.address.state || '';
+        var prevState = currentState;
         if (/victoria/i.test(addrState)) {
           switchToState('VIC');
         } else if (/south australia/i.test(addrState)) {
           switchToState('SA');
+        } else if (/new south wales/i.test(addrState)) {
+          switchToState('NSW');
         } else {
           var stateAbbrevs = {
-            'new south wales':'NSW', 'queensland':'QLD', 'western australia':'WA',
+            'queensland':'QLD', 'western australia':'WA',
             'tasmania':'TAS', 'northern territory':'NT',
             'australian capital territory':'ACT'
           };
           detectedStateName = addrState ? (stateAbbrevs[addrState.toLowerCase()] || addrState) : (data.address.country || 'Other');
           switchToState('OTHER');
+        }
+        // Re-query zones for all placed markers if the state changed
+        // (the initial queryAndSetZone call in placeMarker ran before this async response)
+        if (currentState !== prevState && typeof window._requeryAllZones === 'function') {
+          window._requeryAllZones();
         }
       })
       .catch(function(err) {
@@ -4148,12 +4813,18 @@ initCollapse();
       searchInp.value = item.display_name;
       setLastSelectedAddress(item.display_name);
       var addrState = (item.address && item.address.state) ? item.address.state : '';
+      var prevState = currentState;
       if (/victoria/i.test(addrState)) { switchToState('VIC'); }
       else if (/south australia/i.test(addrState)) { switchToState('SA'); }
+      else if (/new south wales/i.test(addrState)) { switchToState('NSW'); }
       else {
-        var abbrevs = {'new south wales':'NSW','queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
+        var abbrevs = {'queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
         detectedStateName = addrState ? (abbrevs[addrState.toLowerCase()] || addrState) : ((item.address && item.address.country) || 'Other');
         switchToState('OTHER');
+      }
+      // Re-query zones if state changed (placeMarker above ran zone query with old state)
+      if (currentState !== prevState && typeof window._requeryAllZones === 'function') {
+        window._requeryAllZones();
       }
       searchRes.style.display = 'none';
     }
