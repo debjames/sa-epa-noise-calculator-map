@@ -341,7 +341,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <!-- Map display options -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
           <button class="tool-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide location pins on map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Pins</button>
-          <button class="tool-btn parcel-toggle-btn sa-only active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Boundary</button>
+          <button class="tool-btn parcel-toggle-btn active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Boundary</button>
         </div>
 
         <!-- Status row -->
@@ -1652,6 +1652,15 @@ let eveningPenalty = 0;  // VIC only
 let currentState = null;
 let vicAreaType = 'urban'; // 'urban' | 'rural' (VIC only)
 let detectedStateName = ''; // e.g. 'NSW', 'QLD' — for badge display in OTHER mode
+let detectedAusState = null; // e.g. 'SA','VIC','NSW','QLD','WA','TAS','NT','ACT' — for parcel lookup
+
+/** Cadastral parcel boundary query endpoints by Australian state */
+const PARCEL_API_URLS = {
+  SA:  'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/Survey_Map/MapServer/3/query',
+  VIC: 'https://plan-gis.mapshare.vic.gov.au/arcgis/rest/services/Planning/VicPlan_PropertyAndParcel/MapServer/4/query',
+  NSW: 'https://portal.spatial.nsw.gov.au/server/rest/services/NSW_Land_Parcel_Property_Theme/FeatureServer/8/query',
+  QLD: 'https://spatial-gis.information.qld.gov.au/arcgis/rest/services/PlanningCadastre/LandParcelPropertyFramework/MapServer/4/query'
+};
 
 const byKey = new Map(DATA.map(r => [r.key, r]));
 const keys = DATA.map(r => r.key).sort((a,b)=>a.localeCompare(b));
@@ -1888,7 +1897,10 @@ function switchToState(state) {
   const zoneBtn = document.getElementById('zoneToggleBtn');
   if (zoneBtn) zoneBtn.style.display = (state === 'SA' || state === 'VIC' || state === 'NSW') ? '' : 'none';
   const parcelBtn = document.getElementById('parcelToggleBtn');
-  if (parcelBtn) parcelBtn.style.display = (state === 'SA') ? '' : 'none';
+  if (parcelBtn) {
+    var stateForParcel = detectedAusState || state;
+    parcelBtn.style.display = (PARCEL_API_URLS[stateForParcel]) ? '' : 'none';
+  }
   const urbanBdyBtn = document.getElementById('urbanBoundaryToggleBtn');
   if (urbanBdyBtn) {
     urbanBdyBtn.style.display = (state === 'VIC') ? '' : 'none';
@@ -1938,13 +1950,13 @@ function switchToState(state) {
     }
   });
 
-  // Query SA source parcel boundary when state is confirmed as SA
-  if (state === 'SA' && typeof querySourceParcel === 'function' && typeof latlngs !== 'undefined' && latlngs.source) {
-    querySourceParcel(latlngs.source);
+  // Clear and re-query source parcel boundary for the new state (if supported)
+  if (typeof sourceParcelOutline !== 'undefined' && sourceParcelOutline && typeof map !== 'undefined') {
+    try { map.removeLayer(sourceParcelOutline); } catch(e){}
+    sourceParcelOutline = null;
   }
-  // Clear parcel outline when leaving SA
-  if (state !== 'SA' && typeof sourceParcelOutline !== 'undefined' && sourceParcelOutline && typeof map !== 'undefined') {
-    map.removeLayer(sourceParcelOutline); sourceParcelOutline = null;
+  if (typeof querySourceParcel === 'function' && typeof latlngs !== 'undefined' && latlngs.source) {
+    querySourceParcel(latlngs.source);
   }
 
   // Re-render
@@ -4527,6 +4539,13 @@ initCollapse();
 
         var addrState = data.address.state || '';
         var prevState = currentState;
+        // Map Nominatim state name to Australian state abbreviation for parcel API lookup
+        var ausStateMap = {
+          'south australia':'SA', 'victoria':'VIC', 'new south wales':'NSW',
+          'queensland':'QLD', 'western australia':'WA', 'tasmania':'TAS',
+          'northern territory':'NT', 'australian capital territory':'ACT'
+        };
+        detectedAusState = addrState ? (ausStateMap[addrState.toLowerCase()] || null) : null;
         if (/victoria/i.test(addrState)) {
           switchToState('VIC');
         } else if (/south australia/i.test(addrState)) {
@@ -4553,17 +4572,19 @@ initCollapse();
       });
     }
 
-    /* ---- SA source parcel boundary outline ---- */
+    /* ---- Source parcel boundary outline (SA, VIC, NSW, QLD) ---- */
     var sourceParcelOutline = null;
     function querySourceParcel(latlng) {
       // Remove previous outline
       if (sourceParcelOutline) { map.removeLayer(sourceParcelOutline); sourceParcelOutline = null; }
-      // Only for SA
-      if (currentState !== 'SA' && currentState !== null) return;
-      var url = 'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/Survey_Map/MapServer/3/query' +
+      // Look up parcel API for the detected Australian state
+      var stateForParcel = detectedAusState || currentState;
+      var baseUrl = PARCEL_API_URLS[stateForParcel];
+      if (!baseUrl) return; // No parcel API available for this state
+      var url = baseUrl +
         '?geometry=' + latlng.lng + ',' + latlng.lat +
         '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
-        '&returnGeometry=true&outSR=4326&outFields=planparcel&f=json';
+        '&returnGeometry=true&outSR=4326&outFields=*&f=json';
       fetch(url)
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -4647,7 +4668,7 @@ initCollapse();
       /* Auto-detect state from coordinates when source is placed */
       if (mode === 'source') detectStateFromCoords(latlng);
 
-      /* Query and draw SA source parcel boundary */
+      /* Query and draw source parcel boundary (SA, VIC, NSW, QLD) */
       if (mode === 'source') querySourceParcel(latlng);
 
       /* Expand 'Receivers & criteria' and 'Predicted noise levels' cards when any marker is placed */
@@ -4769,8 +4790,8 @@ initCollapse();
         } else {
           if (isParcelVisible) {
             parcelToggleBtn.classList.add('active');
-            // Re-query if source is placed in SA
-            if (currentState === 'SA' && latlngs.source) querySourceParcel(latlngs.source);
+            // Re-query if source is placed in a supported state
+            if (latlngs.source && PARCEL_API_URLS[detectedAusState || currentState]) querySourceParcel(latlngs.source);
           } else {
             parcelToggleBtn.classList.remove('active');
           }
@@ -4814,6 +4835,9 @@ initCollapse();
       setLastSelectedAddress(item.display_name);
       var addrState = (item.address && item.address.state) ? item.address.state : '';
       var prevState = currentState;
+      // Map state name to abbreviation for parcel API lookup
+      var ausMap = {'south australia':'SA','victoria':'VIC','new south wales':'NSW','queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
+      detectedAusState = addrState ? (ausMap[addrState.toLowerCase()] || null) : null;
       if (/victoria/i.test(addrState)) { switchToState('VIC'); }
       else if (/south australia/i.test(addrState)) { switchToState('SA'); }
       else if (/new south wales/i.test(addrState)) { switchToState('NSW'); }
