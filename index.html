@@ -94,6 +94,7 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 }
 
 /* --- Characteristic penalty buttons --- */
+.iso-ht-col { display: none; }
 .penalty-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .penalty-btn {
   padding: 6px 14px;
@@ -687,6 +688,44 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       </div>
     </div>
 
+    <div class="grid2" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Propagation method</h2>
+        <div class="p" id="propMethodDesc">Select the sound propagation model. The <b>simple method</b> uses geometric spreading only (−20 log<sub>10</sub> d − 8 dB). <b>ISO 9613-2</b> adds frequency-dependent atmospheric absorption and ground attenuation per octave band.</div>
+        <div class="penalty-group" id="propMethodGroup">
+          <button class="penalty-btn active" data-val="simple">Simple (geometric spreading)</button>
+          <button class="penalty-btn" data-val="iso9613">ISO 9613-2</button>
+        </div>
+        <div id="iso9613Params" style="display:none;margin-top:14px;">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label class="small" style="font-weight:600;white-space:nowrap;">Receiver height (m)</label>
+              <input type="number" id="isoRecvHeight" value="1.5" min="0" max="50" step="0.5" style="width:80px;">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label class="small" style="font-weight:600;white-space:nowrap;">Ground type</label>
+              <select id="isoGroundType" style="width:auto;min-width:0;">
+                <option value="0">Hard (G=0)</option>
+                <option value="0.5" selected>Mixed (G=0.5)</option>
+                <option value="1">Soft (G=1)</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label class="small" style="font-weight:600;white-space:nowrap;">Temperature (°C)</label>
+              <input type="number" id="isoTemp" value="10" min="-20" max="50" step="1" style="width:80px;">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label class="small" style="font-weight:600;white-space:nowrap;">Humidity (%RH)</label>
+              <input type="number" id="isoHumidity" value="70" min="10" max="100" step="5" style="width:80px;">
+            </div>
+          </div>
+          <div class="small" style="margin-top:10px;color:var(--muted);">
+            Source heights use library defaults and can be adjusted per source row when visible. L<sub>max</sub> predictions always use the simple method.
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="grid2 grid-full crit-day-section" style="padding-top:0;">
       <div class="card">
         <h2>Day situation</h2>
@@ -697,11 +736,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <th style="width:12%;" class="center">Quantity</th>
             <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
             <th style="width:12%;" class="center">Include barrier</th>
+            <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
           <tbody id="daySrcRows"></tbody>
           <tr>
-            <th colspan="4" class="num">TOTAL</th>
+            <th colspan="4" class="num">TOTAL</th><th class="iso-ht-col"></th>
             <th class="num" id="daySrcTotal">0</th>
           </tr>
         </table>
@@ -719,11 +759,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <th style="width:12%;" class="center">Quantity</th>
             <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
             <th style="width:12%;" class="center">Include barrier</th>
+            <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
           <tbody id="eveSrcRows"></tbody>
           <tr>
-            <th colspan="4" class="num">TOTAL</th>
+            <th colspan="4" class="num">TOTAL</th><th class="iso-ht-col"></th>
             <th class="num" id="eveSrcTotal">0</th>
           </tr>
         </table>
@@ -744,11 +785,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <th style="width:12%;" class="center">Quantity</th>
             <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
             <th style="width:12%;" class="center">Include barrier</th>
+            <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
           <tbody id="nightSrcRows"></tbody>
           <tr>
-            <th colspan="4" class="num">TOTAL</th>
+            <th colspan="4" class="num">TOTAL</th><th class="iso-ht-col"></th>
             <th class="num" id="nightSrcTotal">0</th>
           </tr>
         </table>
@@ -770,11 +812,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <th class="num" id="nightLmaxTotal">0</th>
           </tr>
         </table>
-        <div class="small" style="margin-top:8px;">
-          Barrier toggle applies a simple −5 dB adjustment to the item’s Total Lw when set to Yes.
-        </div>
-        
-      
+
+
 </div>
     </div>
    
@@ -1455,146 +1494,145 @@ function getNSWModifyingFactors() {
 
 const SOURCE_LIBRARY_GROUPED = {
   "Mechanical units": [
-    {"name":"Small exhaust fan (toilet, garbage room)—Lw 60 dB(A)","lw":60.4},
-    {"name":"Small kitchen exhaust fan—Lw 70 dB(A)","lw":70.4},
-    {"name":"Carpark exhaust fan—outlet—Lw 85 dB(A)","lw":85.1},
-    {"name":"Large General exhaust fan—Lw 94 dB(A) / Lp 75 dB(A) at 3m","lw":94.0},
-    {"name":"Smoke Spill Fans—outlet—Lw 102 dB(Z) / Lw 95 dB(A) / Lp 75 dB(A) @ 3m","lw":95.5},
-    {"name":"Large Dust Extractor—Lw 97 dB(A) / 75 dB(A) @ 5m","lw":96.5},
-    {"name":"Medium Dust Extractor—Lw 91 dB(A) / 68 dB(A) @ 5m","lw":90.5},
+    {"name":"Small exhaust fan (toilet, garbage room)—Lw 60 dB(A)","lw":60.4,"spectrum":[37,43,48,53,56,54,51,43],"height":1},
+    {"name":"Small kitchen exhaust fan—Lw 70 dB(A)","lw":70.4,"spectrum":[47,53,58,63,66,64,61,53],"height":1},
+    {"name":"Carpark exhaust fan—outlet—Lw 85 dB(A)","lw":85.1,"spectrum":[64,72,77,79,79,78,74,66],"height":1},
+    {"name":"Large General exhaust fan—Lw 94 dB(A) / Lp 75 dB(A) at 3m","lw":94.0,"spectrum":[67,76,83,85,88,90,84,null],"height":1},
+    {"name":"Smoke Spill Fans—outlet—Lw 102 dB(Z) / Lw 95 dB(A) / Lp 75 dB(A) @ 3m","lw":95.5,"spectrum":[72,77,86,88,90,90,85,79],"height":1},
+    {"name":"Large Dust Extractor—Lw 97 dB(A) / 75 dB(A) @ 5m","lw":96.5,"spectrum":[65,80,87,92,92,88,80,72],"height":1},
+    {"name":"Medium Dust Extractor—Lw 91 dB(A) / 68 dB(A) @ 5m","lw":90.5,"spectrum":[59,74,81,86,86,82,74,66],"height":1},
 
-    {"name":"Condenser—small single fan outdoor unit—Lw 65 dB(A)","lw":65.7},
-    {"name":"Condenser—medium double fan outdoor unit—Lw 70 dB(A)","lw":70.7},
-    {"name":"Condenser—large double fan outdoor unit—Lw 80 dB(A)","lw":75.7},
+    {"name":"Condenser—small single fan outdoor unit—Lw 65 dB(A)","lw":65.7,"spectrum":[42,54,59,61,60,54,52,null],"height":1},
+    {"name":"Condenser—medium double fan outdoor unit—Lw 70 dB(A)","lw":70.7,"spectrum":[47,59,64,66,65,59,57,null],"height":1},
+    {"name":"Condenser—large double fan outdoor unit—Lw 80 dB(A)","lw":75.7,"spectrum":[52,64,69,71,70,64,62,null],"height":1},
 
-    {"name":"Air Conditioning Condenser (High Fan Speed)—Supermarket—Lw 85 dB(A)","lw":84.5},
-    {"name":"Refrigeration Condenser (High Fan Speed)—Supermarket—Lw 88 dB(A)","lw":87.6},
+    {"name":"Air Conditioning Condenser (High Fan Speed)—Supermarket—Lw 85 dB(A)","lw":84.5,"spectrum":[null,69,73,79,80,78,71,null],"height":1},
+    {"name":"Refrigeration Condenser (High Fan Speed)—Supermarket—Lw 88 dB(A)","lw":87.6,"spectrum":[null,70,77,80,84,81,75,null],"height":1},
 
-    {"name":"Evaporative cooler—Braemar RPB600 Radiated—Lw 80 dB(A)","lw":80.3},
-    {"name":"Evaporative cooler—Braemar RPB700 Radiated—Lw 78 dB(A)","lw":77.9},
-    {"name":"Evaporative cooler—Braemar RPB900 Radiated—Lw 84 dB(A)","lw":84.6},
-    {"name":"Evaporative cooler—Braemar RPB1000 Radiated—Lw 89 dB(A)","lw":89.9},
-    {"name":"Evaporative cooler—Braemar RPB1200 Radiated—Lw 88 dB(A)","lw":88.9},
-    {"name":"Evaporative cooler—Braemar RPB1300 Radiated—Lw 89 dB(A)","lw":89.9},
-    {"name":"Evaporative cooler—Braemar RPB1400 Radiated—Lw 93 dB(A)","lw":92.9},
-    {"name":"Evaporative cooler—Braemar RPB1500 Radiated—Lw 94 dB(A)","lw":94.3},
-    {"name":"Evaporative cooler—Braemar RPB1800 Radiated—Lw 96 dB(A)","lw":96.5},
+    {"name":"Evaporative cooler—Braemar RPB600 Radiated—Lw 80 dB(A)","lw":80.3,"spectrum":[54,64,69,71,74,76,72,60],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB700 Radiated—Lw 78 dB(A)","lw":77.9,"spectrum":[52,62,67,69,71,74,69,57],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB900 Radiated—Lw 84 dB(A)","lw":84.6,"spectrum":[56,66,70,74,78,81,77,65],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1000 Radiated—Lw 89 dB(A)","lw":89.9,"spectrum":[62,72,77,82,85,85,80,70],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1200 Radiated—Lw 88 dB(A)","lw":88.9,"spectrum":[63,73,77,82,84,83,79,71],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1300 Radiated—Lw 89 dB(A)","lw":89.9,"spectrum":[64,74,78,83,85,84,80,72],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1400 Radiated—Lw 93 dB(A)","lw":92.9,"spectrum":[67,77,81,86,88,87,83,75],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1500 Radiated—Lw 94 dB(A)","lw":94.3,"spectrum":[69,79,83,88,89,88,85,77],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1800 Radiated—Lw 96 dB(A)","lw":96.5,"spectrum":[71,81,85,90,91,90,88,81],"height":1.52},
 
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard—Lw 99 dB(A)","lw":99.0},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15—Lw 95 dB(A)","lw":95.0},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15LS—Lw 91 dB(A)","lw":91.0},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15LS+—Lw 89 dB(A)","lw":88.8},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard—Lw 99 dB(A)","lw":99.1},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard+Option15—Lw 94 dB(A)","lw":94.0},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard+Option15LS—Lw 87 dB(A)","lw":87.1},
-    {"name":"Daikin air cooled single screw chiller / heat pump—Lw 102 dB(A)","lw":102.4},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard—Lw 99 dB(A)","lw":99.0,"spectrum":[null,78,84,92,96,92,87,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15—Lw 95 dB(A)","lw":95.0,"spectrum":[null,78,83,90,91,87,81,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15LS—Lw 91 dB(A)","lw":91.0,"spectrum":[null,74,84,85,87,82,70,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15LS+—Lw 89 dB(A)","lw":88.8,"spectrum":[null,71,83,82,85,78,68,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard—Lw 99 dB(A)","lw":99.1,"spectrum":[null,79,85,89,98,87,81,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard+Option15—Lw 94 dB(A)","lw":94.0,"spectrum":[null,78,84,88,91,84,79,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard+Option15LS—Lw 87 dB(A)","lw":87.1,"spectrum":[null,69,80,80,84,77,66,null],"height":2.3},
+    {"name":"Daikin air cooled single screw chiller / heat pump—Lw 102 dB(A)","lw":102.4,"spectrum":[64,78,87,94,99,97,93,88],"height":2.3},
 
-    {"name":"Cooling Tower (single unit, 5.5kW, 2.28x2.28x3.25mm)—Lw 87 dB(A)","lw":87.4},
+    {"name":"Cooling Tower (single unit, 5.5kW, 2.28x2.28x3.25mm)—Lw 87 dB(A)","lw":87.4,"spectrum":[58,62,72,79,80,82,81,78],"height":1},
 
-    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@75% load—Lw 96 dB(A)","lw":95.8},
-    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@100% load—Lw 97 dB(A)","lw":96.6},
-    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@110% load—Lw 97 dB(A)","lw":96.8},
-    {"name":"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime—engine, no exhaust no muffler)—Lw 117 dB(A)","lw":117.1},
-    {"name":"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime—open exhaust)—Lw 126 dB(A)","lw":126.1},
+    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@75% load—Lw 96 dB(A)","lw":95.8,"spectrum":[77,83,91,88,88,88,86,78],"height":1},
+    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@100% load—Lw 97 dB(A)","lw":96.6,"spectrum":[79,85,92,89,89,89,87,78],"height":1},
+    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@110% load—Lw 97 dB(A)","lw":96.8,"spectrum":[78,85,92,89,89,89,88,81],"height":1},
+    {"name":"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime—engine, no exhaust no muffler)—Lw 117 dB(A)","lw":117.1,"spectrum":[82,98,105,107,111,112,109,108],"height":1},
+    {"name":"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime—open exhaust)—Lw 126 dB(A)","lw":126.1,"spectrum":[108,115,112,119,117,119,121,113],"height":1},
 
-    {"name":"Firepump PowerMaXX DP4400N 2400 RPM—Lw 112 dB(A)","lw":111.7}
+    {"name":"Firepump PowerMaXX DP4400N 2400 RPM—Lw 112 dB(A)","lw":111.7,"spectrum":[87,92,100,104,107,107,100,88],"height":1}
   ],
 
   "Trucks": [
-    {"name":"Small truck idling","lw":90.3},
-    {"name":"Small truck driving slowly (Lw/m)","lw":99.3},
-    {"name":"Small truck exhaust (Lw/m)","lw":91.3},
-    {"name":"Small truck accelerating - Lmax","lw":106.3},
+    {"name":"Small truck idling","lw":90.3,"spectrum":[65,74,78,83,86,85,78,66],"height":1.5},
+    {"name":"Small truck driving slowly (Lw/m)","lw":99.3,"spectrum":[74,83,87,92,95,94,87,75],"height":1.5},
+    {"name":"Small truck exhaust (Lw/m)","lw":91.3,"spectrum":[66,75,79,84,87,86,79,67],"height":3.6},
+    {"name":"Small truck accelerating - Lmax","lw":106.3,"spectrum":[81,90,94,99,102,101,94,82],"height":1.5},
 
-    {"name":"Medium truck idling","lw":93.5},
-    {"name":"Medium truck driving slowly (Lw/m)","lw":102.3},
-    {"name":"Medium truck exhaust (Lw/m)","lw":94.3},
-    {"name":"Medium truck accelerating - Lmax","lw":109.2},
+    {"name":"Medium truck idling","lw":93.5,"spectrum":[68,77,81,86,89,88,83,71],"height":1.5},
+    {"name":"Medium truck driving slowly (Lw/m)","lw":102.3,"spectrum":[77,86,90,95,98,97,90,78],"height":1.5},
+    {"name":"Medium truck exhaust (Lw/m)","lw":94.3,"spectrum":[69,78,82,87,90,89,82,70],"height":3.6},
+    {"name":"Medium truck accelerating - Lmax","lw":109.2,"spectrum":[83,93,97,102,105,104,97,85],"height":1.5},
 
-    {"name":"Large truck idling","lw":96.1},
-    {"name":"Large truck driving slowly (Lw/m)","lw":105.2},
-    {"name":"Large truck exhaust (Lw/m)","lw":97.2},
-    {"name":"Large truck accelerating - Lmax","lw":112.2},
+    {"name":"Large truck idling","lw":96.1,"spectrum":[73,80,82,91,91,90,85,72],"height":1.5},
+    {"name":"Large truck driving slowly (Lw/m)","lw":105.2,"spectrum":[79,89,93,98,101,100,93,81],"height":1.5},
+    {"name":"Large truck exhaust (Lw/m)","lw":97.2,"spectrum":[71,81,85,90,93,92,85,73],"height":3.6},
+    {"name":"Large truck accelerating - Lmax","lw":112.2,"spectrum":[86,96,100,105,108,107,100,88],"height":1.5},
 
-    {"name":"Refrigerated truck condenser (small/medium truck)","lw":92.4},
-    {"name":"Refrigerated truck condenser (large truck)","lw":98.5},
-    {"name":"Truck air brake release Lmax","lw":111.1},
-    {"name":"Truck air horn Lmax","lw":118.7},
+    {"name":"Refrigerated truck condenser (small/medium truck)","lw":92.4,"spectrum":[73,80,82,88,86,85,80,70],"height":3},
+    {"name":"Refrigerated truck condenser (large truck)","lw":98.5,"spectrum":[88,91,88,94,91,88,83,77],"height":3},
+    {"name":"Truck air brake release Lmax","lw":111.1,"spectrum":[88,99,105,103,107,102,85,71],"height":0.5},
+    {"name":"Truck air horn Lmax","lw":118.7,"spectrum":[65,73,98,116,113,111,99,88],"height":3.6},
 
-    {"name":"Car idling","lw":75.0},
-    {"name":"Car driving slowly (Lw/m)","lw":81.0},
-    {"name":"Van idling","lw":80.0},
-    {"name":"Van driving slowly","lw":86.0},
-    {"name":"Car engine start - Lmax","lw":98.3},
-    {"name":"Car door slam - Lmax","lw":98.0},
-    {"name":"Car driving slowly < 30 km/h","lw":47.0}
+    {"name":"Car idling","lw":75.0,"spectrum":[58,65,66,67,70,68,62,56],"height":0.5},
+    {"name":"Car driving slowly (Lw/m)","lw":81.0,"spectrum":[64,71,72,73,76,74,68,62],"height":0.5},
+    {"name":"Van idling","lw":80.0,"spectrum":[63,70,71,72,75,73,67,61],"height":0.5},
+    {"name":"Van driving slowly","lw":86.0,"spectrum":[69,76,77,78,81,79,73,67],"height":0.5},
+    {"name":"Car engine start - Lmax","lw":98.3,"spectrum":[69,78,77,84,93,94,92,86],"height":0.5},
+    {"name":"Car door slam - Lmax","lw":98.0,"spectrum":[61,74,84,91,94,91,88,82],"height":1}
   ],
 
   "Fast food outlets": [
-    {"name":"Speaker box","lw":83.8},
-    {"name":"Speaker box - Lmax","lw":99.7},
-    {"name":"Voice at pickup window","lw":68.2}
+    {"name":"Speaker box","lw":83.8,"spectrum":[52,61,58,76,79,80,70,64],"height":1},
+    {"name":"Speaker box - Lmax","lw":99.7,"spectrum":[62,74,73,92,95,96,86,80],"height":1},
+    {"name":"Voice at pickup window","lw":68.2,"spectrum":[null,35,51,63,65,61,46,null],"height":1}
   ],
 
   "Industrial (forklifts / warehouse)": [
-    {"name":"Electric forklift - typical activity","lw":84.1},
-    {"name":"Gas forklift - typical activity","lw":91.7},
-    {"name":"Diesel forklift - typical activity","lw":100.1},
-    {"name":"Electric forklift - driving (Lw/m)","lw":53.0},
-    {"name":"Gas forklift - driving (Lw/m)","lw":62.0},
-    {"name":"Diesel forklift - driving (Lw/m)","lw":62.2},
-    {"name":"Forklift clanging forks - Lmax","lw":110.8},
-    {"name":"Forklift horn - Lmax","lw":111.3},
-    {"name":"Warehouse - internal reverberant level","lw":80.7},
-    {"name":"Vacuum","lw":88.1}
+    {"name":"Electric forklift - typical activity","lw":84.1,"spectrum":[55,66,78,76,77,76,76,72],"height":1.5},
+    {"name":"Gas forklift - typical activity","lw":91.7,"spectrum":[68,76,84,84,87,85,83,72],"height":1.5},
+    {"name":"Diesel forklift - typical activity","lw":100.1,"spectrum":[82,86,89,93,96,93,89,null],"height":1.5},
+    {"name":"Electric forklift - driving (Lw/m)","lw":53.0,"height":1.5},
+    {"name":"Gas forklift - driving (Lw/m)","lw":62.0,"height":1.5},
+    {"name":"Diesel forklift - driving (Lw/m)","lw":62.2,"height":1.5},
+    {"name":"Forklift clanging forks - Lmax","lw":110.8,"spectrum":[82,93,105,103,104,103,103,null],"height":0.5},
+    {"name":"Forklift horn - Lmax","lw":111.3,"spectrum":[57,66,79,103,90,107,108,null],"height":0.5},
+    {"name":"Warehouse - internal reverberant level","lw":80.7,"spectrum":[50,55,56,72,75,77,72,64],"height":0},
+    {"name":"Vacuum","lw":88.1,"spectrum":[54,60,66,71,75,87,78,70],"height":1}
   ],
 
   "Car wash": [
-    {"name":"Car wash - manual","lw":96.0},
-    {"name":"Car wash - auto","lw":91.2}
+    {"name":"Car wash - manual","lw":96.0,"spectrum":[40,61,75,82,87,92,91,88],"height":0.5},
+    {"name":"Car wash - auto","lw":91.2,"spectrum":[35,56,70,77,82,87,86,83],"height":0.5}
   ],
 
   "Dog wash": [
-    {"name":"Dog wash","lw":86.0},
-    {"name":"Dog barking - SEL per bark","lw":101.0},
-    {"name":"Dog barking - Lmax","lw":95.0}
+    {"name":"Dog wash","lw":86.0,"spectrum":[49,62,66,71,77,84,80,72],"height":1},
+    {"name":"Dog barking - SEL per bark","lw":101.0,"spectrum":[65,70,80,96,97,93,82,74],"height":0.5},
+    {"name":"Dog barking - Lmax","lw":95.0,"spectrum":[59,64,74,90,91,87,76,68],"height":0.5}
   ],
 
   "Childcare": [
-    {"name":"10 children: 0 - 2 years","lw":77.6},
-    {"name":"10 children: 2 - 3 years","lw":84.6},
-    {"name":"10 children: 3 - 5 years","lw":86.6}
+    {"name":"10 children: 0 - 2 years","lw":77.6,"spectrum":[28,44,57,69,74,72,68,63],"height":1},
+    {"name":"10 children: 2 - 3 years","lw":84.6,"spectrum":[35,51,64,76,81,79,75,69],"height":1},
+    {"name":"10 children: 3 - 5 years","lw":86.6,"spectrum":[38,54,66,78,83,81,77,71],"height":1}
   ],
 
   "Patrons": [
-    {"name":"Outdoor patron","lw":74.2},
-    {"name":"Patron in bar setting (SA)","lw":74.2},
-    {"name":"Vertical consumption ('worst-case' crowd) - per person","lw":88.0},
-    {"name":"Taverns with significant food offerings - per person","lw":83.0},
-    {"name":"Restaurant dining - per person","lw":78.0},
-    {"name":"Small smoking areas (<40 patrons) - per person","lw":73.0},
-    {"name":"Male talker - normal vocal effort","lw":58.0},
-    {"name":"Male talker - raised vocal effort","lw":66.3},
-    {"name":"Male talker - loud vocal effort","lw":75.6}
+    {"name":"Outdoor patron","lw":74.2,"spectrum":[null,41,57,69,71,67,52,null],"height":1.5},
+    {"name":"Patron in bar setting (SA)","lw":74.2,"spectrum":[null,41,57,69,71,67,52,null],"height":1.5},
+    {"name":"Vertical consumption ('worst-case' crowd) - per person","lw":88.0,"spectrum":[null,55,71,83,85,81,66,null],"height":1.5},
+    {"name":"Taverns with significant food offerings - per person","lw":83.0,"spectrum":[null,50,66,78,80,76,61,null],"height":1.5},
+    {"name":"Restaurant dining - per person","lw":78.0,"spectrum":[null,45,61,73,75,71,56,null],"height":1},
+    {"name":"Small smoking areas (<40 patrons) - per person","lw":73.0,"spectrum":[null,40,56,68,70,66,51,null],"height":1.5},
+    {"name":"Male talker - normal vocal effort","lw":58.0,"spectrum":[20.8,30.9,47.4,54.8,52,49.2,45,37.9],"height":1.5},
+    {"name":"Male talker - raised vocal effort","lw":66.3,"spectrum":[29.8,39.9,54.4,61.8,62,58.2,53,44.9],"height":1.5},
+    {"name":"Male talker - loud vocal effort","lw":75.6,"spectrum":[32.8,42.9,58.4,69.8,72,68.2,63,51.9],"height":1.5}
   ],
 
   "Music": [
-    {"name":"Background music - conversation and normal effort - Leq","lw":70.0},
-    {"name":"Background music - conversation and normal effort - L10","lw":72.0},
-    {"name":"Background music - conversation and raised effort - Leq","lw":75.0},
-    {"name":"Background music - conversation and raised effort - L10","lw":77.0},
-    {"name":"Foreground music - Acoustic amplified - Leq","lw":80.0},
-    {"name":"Foreground music - Acoustic amplified - L10","lw":82.0},
-    {"name":"Foreground music - Ambient DJ - Leq","lw":85.2},
-    {"name":"Foreground music - Ambient DJ - L10","lw":87.2},
-    {"name":"Foreground music - Function room / wedding - Leq","lw":89.6},
-    {"name":"Foreground music - Function room / wedding - L10","lw":91.6},
-    {"name":"Foreground music - nightclub - Leq","lw":95.4},
-    {"name":"Foreground music - nightclub - L10","lw":97.4}
+    {"name":"Background music - conversation and normal effort - Leq","lw":70.0,"spectrum":[49,59,59,63,64,64,58,55],"height":0},
+    {"name":"Background music - conversation and normal effort - L10","lw":72.0,"spectrum":[51,61,61,65,66,66,60,57],"height":0},
+    {"name":"Background music - conversation and raised effort - Leq","lw":75.0,"spectrum":[54,64,64,68,69,69,63,60],"height":0},
+    {"name":"Background music - conversation and raised effort - L10","lw":77.0,"spectrum":[56,66,66,70,71,71,65,62],"height":0},
+    {"name":"Foreground music - Acoustic amplified - Leq","lw":80.0,"spectrum":[61,72,72,73,74,71,69,64],"height":0},
+    {"name":"Foreground music - Acoustic amplified - L10","lw":82.0,"spectrum":[63,74,74,75,76,73,71,66],"height":0},
+    {"name":"Foreground music - Ambient DJ - Leq","lw":85.2,"spectrum":[68,78,77,78,78,77,75,73],"height":0},
+    {"name":"Foreground music - Ambient DJ - L10","lw":87.2,"spectrum":[70,80,79,80,80,79,77,75],"height":0},
+    {"name":"Foreground music - Function room / wedding - Leq","lw":89.6,"spectrum":[66,80,84,83,81,82,79,73],"height":0},
+    {"name":"Foreground music - Function room / wedding - L10","lw":91.6,"spectrum":[68,82,86,85,83,84,81,75],"height":0},
+    {"name":"Foreground music - nightclub - Leq","lw":95.4,"spectrum":[74,85,88,90,86,88,87,80],"height":0},
+    {"name":"Foreground music - nightclub - L10","lw":97.4,"spectrum":[76,87,90,92,88,90,89,82],"height":0}
   ],
 
   "Gymnasium": [
-    {"name":"Gymnasium - general sporting activity, overall reverberant level","lw":75.2}
+    {"name":"Gymnasium - general sporting activity, overall reverberant level","lw":75.2,"spectrum":[50,60,57,65,69,70,70,null],"height":0}
   ]
 };
 
@@ -1647,6 +1685,176 @@ const SOURCE_LIBRARY_GROUPED_LMAX = filterGrouped(SOURCE_LIBRARY_GROUPED, s => /
 let dayPenalty = 0;
 let nightPenalty = 0;
 let eveningPenalty = 0;  // VIC only
+
+// ──── ISO 9613-2 Propagation Method ────
+let propagationMethod = 'simple'; // 'simple' | 'iso9613'
+
+// ISO 9613-2 default parameters
+let iso_receiverHeight = 1.5; // metres (standard receiver height)
+let iso_groundFactor = 0.5;   // G: 0=hard, 0.5=mixed, 1.0=soft/porous
+let iso_temperature = 10;     // °C
+let iso_humidity = 70;        // % RH
+
+// Octave band centre frequencies (Hz)
+const OCT_FREQ = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+
+// A-weighting corrections per octave band [63..8k Hz]
+const A_WEIGHT = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
+
+// Default atmospheric absorption coefficients (dB/km) at 10°C, 70% RH
+// from ISO 9613-1 Table 1
+const ALPHA_DEFAULT = [0.1, 0.4, 1.0, 1.9, 3.7, 9.7, 32.8, 117.0];
+
+/** Calculate atmospheric absorption coefficients (dB/km) per octave band
+ *  using simplified ISO 9613-1 approximation for given T (°C) and h (% RH) */
+function calcAlphaAtm(tempC, humPct) {
+  // Use default table for the standard conditions
+  if (tempC === 10 && humPct === 70) return ALPHA_DEFAULT.slice();
+  // ISO 9613-1 pure-tone atmospheric absorption calculation
+  var T = tempC + 273.15; // Kelvin
+  var T0 = 293.15;
+  var T01 = 273.16;
+  var psat = Math.pow(10, -6.8346 * Math.pow(T01 / T, 1.261) + 4.6151);
+  var h = humPct * psat; // molar concentration of water vapour
+  var alpha = [];
+  for (var i = 0; i < OCT_FREQ.length; i++) {
+    var f = OCT_FREQ[i];
+    var frO = (24 + 4.04e4 * h * (0.02 + h) / (0.391 + h));
+    var frN = Math.pow(T / T0, -0.5) * (9 + 280 * h * Math.exp(-4.17 * (Math.pow(T / T0, -1/3) - 1)));
+    var f2 = f * f;
+    var a = 8.686 * f2 * (
+      1.84e-11 * Math.pow(T / T0, 0.5) +
+      Math.pow(T / T0, -2.5) * (
+        0.01275 * Math.exp(-2239.1 / T) / (frO + f2 / frO) +
+        0.1068  * Math.exp(-3352.0 / T) / (frN + f2 / frN)
+      )
+    );
+    alpha.push(Math.round(a * 100) / 100);
+  }
+  return alpha;
+}
+
+/** ISO 9613-2 prediction for a single source at a receiver distance
+ *  @param {number[]} spectrumA - A-weighted Lw per octave band [63..8k]
+ *  @param {number} srcHeight - source height above ground (m)
+ *  @param {number} distM - distance source to receiver (m)
+ *  @param {number} adjDB - adjustment to apply to each band (quantity + opTime + barrier, in dB)
+ *  @returns {number} predicted LAeq at receiver */
+function calcISO9613single(spectrumA, srcHeight, distM, adjDB) {
+  if (!spectrumA || distM <= 0) return NaN;
+  var d = Math.max(distM, 1); // clamp minimum 1m
+  var hS = Math.max(srcHeight, 0.01); // avoid zero height
+  var hR = iso_receiverHeight;
+  var alpha = calcAlphaAtm(iso_temperature, iso_humidity);
+
+  // Geometric divergence (ISO 9613-2 Formula 8)
+  var Adiv = 20 * log10(d) + 11;
+
+  // Ground attenuation — simplified method (ISO 9613-2 Formula 14)
+  var hm = (hS + hR) / 2;
+  var Agr = 4.8 - (2 * hm / d) * (17 + 300 / d);
+  if (Agr < 0) Agr = 0;
+  // Scale by ground factor: G=0 (hard) → no ground atten, G=1 (soft) → full
+  Agr = Agr * iso_groundFactor;
+
+  // Directivity correction for ground reflection (simplified method, Formula 15)
+  var dp = d; // approximate dp ≈ d for screening tool
+  var Kgeo = (dp * dp + (hS - hR) * (hS - hR)) / (dp * dp + (hS + hR) * (hS + hR));
+  var Drefl = 10 * log10(1 + Kgeo);
+
+  // Sum across octave bands
+  var sumLin = 0;
+  var anyBand = false;
+  for (var i = 0; i < 8; i++) {
+    var Lw_f = spectrumA[i];
+    if (Lw_f === null || Lw_f === undefined || !Number.isFinite(Lw_f)) continue;
+
+    // Apply quantity/opTime/barrier adjustment
+    var Lw_adj = Lw_f + adjDB;
+
+    // Atmospheric absorption for this band
+    var Aatm_f = alpha[i] * d / 1000;
+
+    // Total attenuation for this band
+    var A_f = Adiv + Aatm_f + Agr;
+
+    // Received level (including ground reflection directivity)
+    var Lp_f = Lw_adj + Drefl - A_f;
+
+    sumLin += Math.pow(10, Lp_f / 10);
+    anyBand = true;
+  }
+  if (!anyBand) return NaN;
+  return 10 * log10(sumLin);
+}
+
+/** ISO 9613-2 prediction for total Leq from all sources in a period
+ *  @param {string} prefix - 'day', 'eve', or 'night'
+ *  @param {number} distM - distance to receiver (m)
+ *  @returns {number|string} predicted LAeq or "" if invalid */
+function calcTotalISO9613(prefix, distM) {
+  if (!Number.isFinite(distM) || distM <= 0) return "";
+  var tbodyEl = document.getElementById(prefix + 'SrcRows');
+  if (!tbodyEl) return "";
+  var trs = tbodyEl.querySelectorAll('tr');
+  var libFlat = SOURCE_LIBRARY;
+  var totalLin = 0;
+  var anySrc = false;
+
+  var isSA = (currentState === 'SA' || currentState === null);
+  var divisor = isSA ? 15 : 100;
+  var defaultOp = isSA ? 15 : 100;
+
+  trs.forEach(function(tr, idx) {
+    var i = idx + 1;
+    var sel = tr.querySelector('select');
+    var srcName = sel ? sel.value : '';
+    if (!srcName) return;
+
+    var picked = libFlat.find(function(s) { return s.name === srcName; });
+    if (!picked) return;
+
+    // Get row parameters
+    var nEl = document.getElementById(prefix + '_n_inp_' + i);
+    var minEl = document.getElementById(prefix + '_min_inp_' + i);
+    var barEl = tr.querySelectorAll('select')[1]; // barrier select is 2nd select in row
+    var n = nEl ? Number(nEl.value) : 1;
+    if (!Number.isFinite(n) || n <= 0) return;
+    var opVal = minEl ? Number(minEl.value) : defaultOp;
+    if (!Number.isFinite(opVal)) opVal = defaultOp;
+    if (opVal <= 0) return;
+    var barrier = barEl && barEl.value === 'Yes';
+
+    // Calculate adjustment in dB (quantity + opTime + barrier)
+    var adjDB = 10 * log10(n) + 10 * log10(opVal / divisor);
+    if (barrier) adjDB -= 5;
+
+    // Get source height (use override if present, else library default)
+    var htEl = document.getElementById(prefix + '_ht_inp_' + i);
+    var srcHeight = htEl ? Number(htEl.value) : (picked.height !== undefined ? picked.height : 1.5);
+    if (!Number.isFinite(srcHeight)) srcHeight = 1.5;
+
+    // Use ISO 9613-2 if spectrum available, else fall back to simple
+    if (picked.spectrum) {
+      var pred = calcISO9613single(picked.spectrum, srcHeight, distM, adjDB);
+      if (Number.isFinite(pred)) {
+        totalLin += Math.pow(10, pred / 10);
+        anySrc = true;
+      }
+    } else {
+      // Fallback: simple method
+      var lw = picked.lw + adjDB;
+      if (Number.isFinite(lw) && lw > 0) {
+        var predSimple = lw - 20 * log10(distM) - 8;
+        totalLin += Math.pow(10, predSimple / 10);
+        anySrc = true;
+      }
+    }
+  });
+
+  if (!anySrc) return "";
+  return Math.round(10 * log10(totalLin));
+}
 
 // State detection: 'SA' | 'VIC' | 'NSW' | 'OTHER' | null
 let currentState = null;
@@ -2114,9 +2322,20 @@ function getReceiverDistance(idx1to4){
   return Number.isFinite(n) ? n : NaN;
 }
 
-/* Predicted level at receiver = Total Lw − 20·log₁₀(distance) − 8 dB */
-function calcPredAtReceiver(totalLw, distanceM) {
-  if (!Number.isFinite(totalLw) || !Number.isFinite(distanceM) || distanceM <= 0) return "";
+/* Predicted level at receiver
+ * Simple method: Total Lw − 20·log₁₀(distance) − 8 dB
+ * ISO 9613-2: per-octave-band calculation (called via calcTotalISO9613)
+ * @param {number} totalLw - overall A-weighted Lw (used by simple method)
+ * @param {number} distanceM - distance in metres
+ * @param {string} [prefix] - period prefix for ISO 9613-2 ('day'/'eve'/'night')
+ */
+function calcPredAtReceiver(totalLw, distanceM, prefix) {
+  if (!Number.isFinite(distanceM) || distanceM <= 0) return "";
+  // ISO 9613-2 for Leq periods (not Lmax)
+  if (propagationMethod === 'iso9613' && prefix && prefix !== 'lmax') {
+    return calcTotalISO9613(prefix, distanceM);
+  }
+  if (!Number.isFinite(totalLw)) return "";
   return Math.round(totalLw - 20 * log10(distanceM) - 8);
 }
 
@@ -2257,6 +2476,17 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5){
 
     const bar = makeYesNoSelect(barVal);
 
+    // Source height input for ISO 9613-2 (Leq tables only, not Lmax)
+    const isLeqTable = (prefix !== 'lmax');
+    const tdHt = document.createElement("td"); tdHt.className = "center iso-ht-col";
+    tdHt.style.display = (propagationMethod === 'iso9613' && isLeqTable) ? '' : 'none';
+    const inpHt = document.createElement("input");
+    inpHt.type = "number"; inpHt.min = "0"; inpHt.max = "200"; inpHt.step = "0.5";
+    inpHt.style.width = "55px"; inpHt.inputMode = "decimal";
+    inpHt.value = "1.5"; // default; updated when source is selected
+    inpHt.id = `${prefix}_ht_inp_${i}`;
+    inpHt.addEventListener("input", function() { render(); });
+
     // Out-of-range warning elements
     const nWarning = document.createElement('div');
     nWarning.style.cssText = 'color:#dc2626;font-size:10px;margin-top:2px;display:none;';
@@ -2268,6 +2498,10 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5){
     function recalcRow(){
       const picked = libFlat.find(s => s.name === sel.value);
       const base = picked ? Number(picked.lw) : NaN;
+      // Update height input default when source is selected
+      if (picked && picked.height !== undefined && isLeqTable) {
+        inpHt.value = picked.height;
+      }
       let n = Number(inp.value);
       if (n > 99) { n = 99; inp.value = 99; nWarning.style.display = ''; }
       else if (n < 0) { n = 0; inp.value = 0; nWarning.style.display = ''; }
@@ -2303,11 +2537,13 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5){
     tdN.appendChild(nWarning);
     if (includeMinutes) { tdMin.appendChild(inpMin); tdMin.appendChild(minWarning); }
     tdBar.appendChild(bar);
+    tdHt.appendChild(inpHt);
 
     tr.appendChild(tdSrc);
     tr.appendChild(tdN);
     if (includeMinutes) tr.appendChild(tdMin);
     tr.appendChild(tdBar);
+    if (isLeqTable) tr.appendChild(tdHt);
     tr.appendChild(tdLw);
 
     tbody.appendChild(tr);
@@ -2847,10 +3083,10 @@ function render() {
     const predNightId = `${rowId}_night`;
     // Predictions are automatically calculated from totals and receiver distance
     const dist = getReceiverDistance(i+1);
-    let predDay = calcPredAtReceiver(dayTotal, dist);
-    let predEve = calcPredAtReceiver(eveTotal, dist);
-    let predNight = calcPredAtReceiver(nightTotal, dist);
-    let predLmax = calcPredAtReceiver(nightLmaxTotal, dist);
+    let predDay = calcPredAtReceiver(dayTotal, dist, 'day');
+    let predEve = calcPredAtReceiver(eveTotal, dist, 'eve');
+    let predNight = calcPredAtReceiver(nightTotal, dist, 'night');
+    let predLmax = calcPredAtReceiver(nightLmaxTotal, dist, 'lmax');
 
     // If no source is selected (total = 0) and predicted result is < 0, show blank
     if (dayTotal === 0 && predDay !== "" && predDay < 0) predDay = "";
@@ -2917,8 +3153,8 @@ function render() {
     var sleepResults = [];
     recs.forEach(function(rec, i) {
       var dist = getReceiverDistance(i + 1);
-      var predN = calcPredAtReceiver(nightTotal, dist);
-      var predLmax = calcPredAtReceiver(nightLmaxTotal, dist);
+      var predN = calcPredAtReceiver(nightTotal, dist, 'night');
+      var predLmax = calcPredAtReceiver(nightLmaxTotal, dist, 'lmax');
       if (nightTotal === 0 && predN !== "" && predN < 0) predN = "";
       if (nightLmaxTotal === 0 && predLmax !== "" && predLmax < 0) predLmax = "";
       var penN = (predN !== "" && predN !== null) ? predN + nightPenalty : "";
@@ -3008,6 +3244,82 @@ function initReceiverNames(){
       }
     });
   }
+}
+
+function initPropagationMethod() {
+  const group = document.getElementById('propMethodGroup');
+  const paramsDiv = document.getElementById('iso9613Params');
+  if (!group) return;
+
+  // Restore saved method
+  const savedMethod = localStorage.getItem('prop_method') || 'simple';
+  propagationMethod = savedMethod;
+
+  // Restore saved ISO parameters
+  const savedRecvH = localStorage.getItem('iso_recvHeight');
+  const savedGround = localStorage.getItem('iso_ground');
+  const savedTemp = localStorage.getItem('iso_temp');
+  const savedHumid = localStorage.getItem('iso_humidity');
+  if (savedRecvH !== null) iso_receiverHeight = Number(savedRecvH);
+  if (savedGround !== null) iso_groundFactor = Number(savedGround);
+  if (savedTemp !== null) iso_temperature = Number(savedTemp);
+  if (savedHumid !== null) iso_humidity = Number(savedHumid);
+
+  // Set input values from restored state
+  const recvHEl = document.getElementById('isoRecvHeight');
+  const groundEl = document.getElementById('isoGroundType');
+  const tempEl = document.getElementById('isoTemp');
+  const humidEl = document.getElementById('isoHumidity');
+  if (recvHEl) recvHEl.value = iso_receiverHeight;
+  if (groundEl) groundEl.value = String(iso_groundFactor);
+  if (tempEl) tempEl.value = iso_temperature;
+  if (humidEl) humidEl.value = iso_humidity;
+
+  // Show/hide params panel
+  if (paramsDiv) paramsDiv.style.display = propagationMethod === 'iso9613' ? '' : 'none';
+
+  // Set active button
+  group.querySelectorAll('.penalty-btn').forEach(function(btn) {
+    if (btn.dataset.val === savedMethod) btn.classList.add('active');
+    else btn.classList.remove('active');
+
+    btn.addEventListener('click', function() {
+      group.querySelectorAll('.penalty-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      propagationMethod = btn.dataset.val;
+      localStorage.setItem('prop_method', propagationMethod);
+      if (paramsDiv) paramsDiv.style.display = propagationMethod === 'iso9613' ? '' : 'none';
+      // Show/hide source height column in source tables
+      toggleSourceHeightColumns();
+      render();
+    });
+  });
+
+  // Wire up ISO parameter inputs
+  [recvHEl, groundEl, tempEl, humidEl].forEach(function(el) {
+    if (!el) return;
+    el.addEventListener('change', function() {
+      iso_receiverHeight = Number(recvHEl.value) || 1.5;
+      iso_groundFactor = Number(groundEl.value);
+      iso_temperature = Number(tempEl.value) || 10;
+      iso_humidity = Number(humidEl.value) || 70;
+      localStorage.setItem('iso_recvHeight', String(iso_receiverHeight));
+      localStorage.setItem('iso_ground', String(iso_groundFactor));
+      localStorage.setItem('iso_temp', String(iso_temperature));
+      localStorage.setItem('iso_humidity', String(iso_humidity));
+      render();
+    });
+  });
+
+  // Initial toggle of height columns
+  toggleSourceHeightColumns();
+}
+
+/** Show/hide the source height column in Leq source tables when ISO 9613-2 is active */
+function toggleSourceHeightColumns() {
+  document.querySelectorAll('.iso-ht-col').forEach(function(el) {
+    el.style.display = propagationMethod === 'iso9613' ? 'table-cell' : 'none';
+  });
 }
 
 function initPenaltyButtons() {
@@ -3160,20 +3472,20 @@ function renderContribTable(tableId, prefix, numRows) {
   const table = document.getElementById(tableId);
   if (!table) return;
 
-  // Collect active receivers (have both a zone selection and a valid distance)
+  // Collect active receivers (need a valid distance; zone selection not required for contribution calc)
   const receivers = [];
   for (let r = 1; r <= 4; r++) {
     const distEl = document.getElementById('dist_r' + r);
-    const recEl  = document.getElementById('r' + r);
     const dist   = distEl ? Number(distEl.value) : NaN;
-    const key    = recEl  ? recEl.value           : '';
-    if (key && Number.isFinite(dist) && dist > 0) {
+    if (Number.isFinite(dist) && dist > 0) {
       receivers.push({ r, dist });
     }
   }
 
   // Collect source rows with a name and a valid Lw
   const srcRows = [];
+  const isISO = (propagationMethod === 'iso9613' && prefix !== 'lmax');
+  const libFlat = (prefix === 'lmax') ? SOURCE_LIBRARY_LMAX : SOURCE_LIBRARY;
   const tbodyEl = prefix === 'lmax'
     ? document.getElementById('nightLmaxRows')
     : document.getElementById(prefix + 'SrcRows');
@@ -3187,7 +3499,16 @@ function renderContribTable(tableId, prefix, numRows) {
       const name = sel ? sel.value : '';
       const lw   = lwEl ? Number(lwEl.textContent) : NaN;
       if (name && Number.isFinite(lw) && lw > 0) {
-        srcRows.push({ name, lw });
+        const row = { name, lw };
+        if (isISO) {
+          const picked = libFlat.find(function(s) { return s.name === name; });
+          row.spectrum = picked ? picked.spectrum : null;
+          row.height = picked && picked.height !== undefined ? picked.height : 1.5;
+          // Get adjustment (lw already includes qty/opTime/barrier; base lw is picked.lw)
+          row.adjDB = picked ? (lw - picked.lw) : 0;
+          row.baseLw = picked ? picked.lw : lw;
+        }
+        srcRows.push(row);
       }
     });
   }
@@ -3218,6 +3539,9 @@ function renderContribTable(tableId, prefix, numRows) {
     return;
   }
 
+  // Per-receiver predicted levels per source (for totaling)
+  const recvTotals = receivers.map(function() { return 0; });
+
   srcRows.forEach(function(s) {
     const tr = document.createElement('tr');
     const tdName = document.createElement('td');
@@ -3227,8 +3551,15 @@ function renderContribTable(tableId, prefix, numRows) {
     tdLw.className = 'num';
     tdLw.textContent = Math.round(s.lw);
     tr.appendChild(tdLw);
-    receivers.forEach(function(rv) {
-      const pred = Math.round(s.lw - 20 * log10(rv.dist) - 8);
+    receivers.forEach(function(rv, ri) {
+      var pred;
+      if (isISO && s.spectrum) {
+        pred = calcISO9613single(s.spectrum, s.height, rv.dist, s.adjDB);
+        pred = Number.isFinite(pred) ? Math.round(pred) : Math.round(s.lw - 20 * log10(rv.dist) - 8);
+      } else {
+        pred = Math.round(s.lw - 20 * log10(rv.dist) - 8);
+      }
+      recvTotals[ri] += Math.pow(10, pred / 10);
       const tdPred = document.createElement('td');
       tdPred.className = 'num';
       tdPred.textContent = pred;
@@ -3248,8 +3579,8 @@ function renderContribTable(tableId, prefix, numRows) {
   thLw.className = 'num';
   thLw.textContent = Math.round(totalLw);
   totalRow.appendChild(thLw);
-  receivers.forEach(function(rv) {
-    const totalPred = Math.round(totalLw - 20 * log10(rv.dist) - 8);
+  receivers.forEach(function(rv, ri) {
+    const totalPred = recvTotals[ri] > 0 ? Math.round(10 * log10(recvTotals[ri])) : 0;
     const thPred = document.createElement('th');
     thPred.className = 'num';
     thPred.textContent = totalPred;
@@ -3292,7 +3623,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
+    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
@@ -3330,6 +3661,7 @@ initReceiverDistances();
 initReceiverNames();
 renderSourceTable('night','nightSrcRows','nightSrcTotal',5);
 renderSourceTable('lmax','nightLmaxRows','nightLmaxTotal',1);
+initPropagationMethod();
 initPenaltyButtons();
 initVicPenaltyCheckboxes();
 renderContributions();
