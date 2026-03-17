@@ -189,7 +189,7 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 }
 .recv-name-input:hover { border-color: var(--border); background: #fafafa; }
 .recv-name-input:focus { border-color: rgba(242,203,0,1); background: #fff; outline: none; }
-/* Zone label divIcons on map */
+/* Zone hover tooltip on map */
 .zone-label-tip {
   background: rgba(255,255,255,0.85);
   border: none;
@@ -205,11 +205,46 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   text-align: center;
   line-height: 1.3;
 }
-.subzone-label-tip {
-  font-size: 9px;
-  font-weight: 400;
-  color: #6b7280;
+/* Zone legend control */
+.zone-legend {
+  background: rgba(255,255,255,0.92);
+  border-radius: 8px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  max-height: 260px;
+  overflow-y: auto;
+  min-width: 140px;
+  max-width: 220px;
+}
+.zone-legend-title {
+  font-weight: 700;
+  font-size: 11px;
+  margin-bottom: 5px;
+  color: #333;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 4px;
+}
+.zone-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+}
+.zone-legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0,0,0,0.25);
+  flex-shrink: 0;
+}
+.zone-legend-name {
+  color: #444;
+  font-size: 11px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===== State-conditional visibility (SA vs VIC) ===== */
@@ -3915,6 +3950,7 @@ initCollapse();
       if (zoningOverlay && map.hasLayer(zoningOverlay)) { zoningOverlay.bringToFront(); }
       if (vicZoningOverlay && map.hasLayer(vicZoningOverlay)) { vicZoningOverlay.bringToFront(); }
       if (nswZoningOverlay && map.hasLayer(nswZoningOverlay)) { nswZoningOverlay.bringToFront(); }
+      if (zoneOutlineLayer && map.hasLayer(zoneOutlineLayer)) { zoneOutlineLayer.bringToFront(); }
       if (subzoneFeatureLayer && map.hasLayer(subzoneFeatureLayer)) { subzoneFeatureLayer.bringToFront(); }
     }
 
@@ -3929,9 +3965,54 @@ initCollapse();
     /* ==== SAPPA Zoning Integration ==== */
     var SAPPA_BASE = 'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/CurrentPDC_wmas/MapServer';
 
+    /* --- Zone colour lookup (approximate P&D Code colours) --- */
+    var ZONE_COLOURS = {
+      'Employment':                   '#9b59b6',
+      'Rural Living':                 '#a0785a',
+      'Rural Neighbourhood':          '#e88b8b',
+      'Conservation':                 '#27ae60',
+      'Recreation':                   '#85c1e9',
+      'Local Activity Centre':        '#2c3e80',
+      'General Neighbourhood':        '#f5b041',
+      'Suburban Neighbourhood':        '#f0c27a',
+      'Neighbourhood':                '#f5b041',
+      'Housing Diversity Neighbourhood': '#d68910',
+      'Township':                     '#8d6e63',
+      'Township Activity Centre':     '#6d4c41',
+      'Commercial':                   '#e74c3c',
+      'Community Facilities':         '#c39bd3',
+      'Open Space':                   '#58d68d',
+      'Infrastructure':               '#95a5a6',
+      'Infrastructure (Airfield)':    '#7f8c8d',
+      'Rural':                        '#c4a35a',
+      'Rural Horticulture':           '#a9b97c',
+      'Hills Face':                   '#6d9b4e',
+      'Significant Landscape Protection': '#4a8c3f',
+      'Strategic Employment':         '#8e44ad',
+      'Suburban Activity Centre':     '#d35400',
+      'Urban Activity Centre':        '#c0392b',
+      'Established Neighbourhood':    '#f7dc6f',
+      'Peri-Urban':                   '#b0a070',
+      'Remote Areas':                 '#bdc3c7',
+      'Coastal Waters':               '#3498db',
+      'Murray-Darling Basin':         '#1abc9c',
+      'River Murray Flood Plain':     '#16a085'
+    };
+    function getZoneColour(name) {
+      if (!name) return '#999';
+      if (ZONE_COLOURS[name]) return ZONE_COLOURS[name];
+      // Partial match
+      var lc = name.toLowerCase();
+      for (var k in ZONE_COLOURS) {
+        if (lc.indexOf(k.toLowerCase()) !== -1 || k.toLowerCase().indexOf(lc) !== -1) return ZONE_COLOURS[k];
+      }
+      return '#999';
+    }
+
     /* --- Visual zoning overlay (esri-leaflet) --- */
     var zoningOverlay = null;
     var subzoneFeatureLayer = null;
+    var zoneOutlineLayer = null;
     var isZoneOn = false;
     try {
       if (typeof L.esri !== 'undefined' && L.esri.dynamicMapLayer) {
@@ -3941,6 +4022,23 @@ initCollapse();
           layers: [114],
           opacity: 0.35,
           useCors: true
+        });
+      }
+      /* Zone outlines as vector feature layer (no fill, just borders) */
+      if (typeof L.esri !== 'undefined' && L.esri.featureLayer) {
+        zoneOutlineLayer = L.esri.featureLayer({
+          url: SAPPA_BASE + '/114',
+          style: function() {
+            return {
+              color: '#444',
+              weight: 2,
+              opacity: 0.8,
+              fillOpacity: 0
+            };
+          },
+          useCors: true,
+          minZoom: 13,
+          simplifyFactor: 0.5
         });
       }
       /* Subzones as vector feature layer with distinct styling */
@@ -3989,14 +4087,13 @@ initCollapse();
       }
     } catch(e) { console.warn('NSW planning overlay init failed:', e); }
 
-    /* --- Hover tooltip: query zone/subzone at mouse position (low zoom only) --- */
-    var LABEL_ZOOM = 16;
+    /* --- Hover tooltip: query zone/subzone at mouse position --- */
     var _hoverTimer = null;
     var hoverTooltip = L.tooltip({ permanent: false, direction: 'top', className: 'zone-label-tip', offset: [0, -10] });
     var lastHoverQuery = '';
 
     function queryZoneAtMouse(e) {
-      if (!isZoneOn || map.getZoom() >= LABEL_ZOOM) return;
+      if (!isZoneOn) return;
       var geom = e.latlng.lng + ',' + e.latlng.lat;
       if (geom === lastHoverQuery) return;
       lastHoverQuery = geom;
@@ -4012,7 +4109,7 @@ initCollapse();
         fetch(zoneUrl).then(function(r) { return r.json(); }),
         fetch(subzoneUrl).then(function(r) { return r.json(); })
       ]).then(function(results) {
-        if (!isZoneOn || map.getZoom() >= LABEL_ZOOM) { map.closeTooltip(hoverTooltip); return; }
+        if (!isZoneOn) { map.closeTooltip(hoverTooltip); return; }
         var zoneName = '';
         var subzoneName = '';
         if (results[0] && results[0].features && results[0].features.length) {
@@ -4030,7 +4127,7 @@ initCollapse();
     }
 
     map.on('mousemove', function(e) {
-      if (!isZoneOn || map.getZoom() >= LABEL_ZOOM) return;
+      if (!isZoneOn) return;
       clearTimeout(_hoverTimer);
       _hoverTimer = setTimeout(function() { queryZoneAtMouse(e); }, 300);
     });
@@ -4039,110 +4136,64 @@ initCollapse();
       lastHoverQuery = '';
     });
 
-    /* --- Permanent labels at high zoom --- */
-    var zoneLabelGroup = L.layerGroup();
-    var _zoneLabelTimer = null;
+    /* --- Zone legend control (replaces floating labels) --- */
+    var _zoneLegendTimer = null;
+    var zoneLegendControl = L.control({ position: 'bottomleft' });
+    zoneLegendControl.onAdd = function() {
+      var div = L.DomUtil.create('div', 'zone-legend');
+      div.innerHTML = '<div class="zone-legend-title">P&amp;D Code Zones</div><div class="zone-legend-items"><span style="color:#888;font-size:10px;">Loading...</span></div>';
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
+      return div;
+    };
 
-    function refreshZoneLabels() {
-      if (!isZoneOn || map.getZoom() < LABEL_ZOOM) { zoneLabelGroup.clearLayers(); return; }
-      map.closeTooltip(hoverTooltip);
+    function refreshZoneLegend() {
+      if (!isZoneOn || currentState !== 'SA') return;
       var b = map.getBounds();
       var env = b.getWest() + ',' + b.getSouth() + ',' + b.getEast() + ',' + b.getNorth();
 
       var zoneUrl = SAPPA_BASE + '/114/query?geometry=' + encodeURIComponent(env) +
         '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326' +
-        '&spatialRel=esriSpatialRelIntersects&outFields=name&returnGeometry=true&f=json';
-      var subUrl = SAPPA_BASE + '/113/query?geometry=' + encodeURIComponent(env) +
-        '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326' +
-        '&spatialRel=esriSpatialRelIntersects&outFields=name&returnGeometry=true&f=json';
+        '&spatialRel=esriSpatialRelIntersects&outFields=name&returnGeometry=false&f=json';
 
-      Promise.all([
-        fetch(zoneUrl).then(function(r) { return r.json(); }),
-        fetch(subUrl).then(function(r) { return r.json(); })
-      ]).then(function(results) {
-        if (!isZoneOn || map.getZoom() < LABEL_ZOOM) return;
-        zoneLabelGroup.clearLayers();
-        var bounds = map.getBounds();
-        var pad = 0.15;
-        var latSpan = bounds.getNorth() - bounds.getSouth();
-        var lngSpan = bounds.getEast() - bounds.getWest();
-        var clampBounds = L.latLngBounds(
-          [bounds.getSouth() + latSpan * pad, bounds.getWest() + lngSpan * pad],
-          [bounds.getNorth() - latSpan * pad, bounds.getEast() - lngSpan * pad]
-        );
+      fetch(zoneUrl).then(function(r) { return r.json(); }).then(function(result) {
+        if (!isZoneOn || currentState !== 'SA') return;
+        var container = zoneLegendControl.getContainer();
+        if (!container) return;
+        var itemsDiv = container.querySelector('.zone-legend-items');
+        if (!itemsDiv) return;
 
-        function centroid(rings) {
-          var ring = rings[0], sumX = 0, sumY = 0, n = ring.length;
-          for (var i = 0; i < n; i++) { sumX += ring[i][0]; sumY += ring[i][1]; }
-          return [sumY / n, sumX / n];
-        }
-        function clampToView(c) {
-          return [
-            Math.max(clampBounds.getSouth(), Math.min(clampBounds.getNorth(), c[0])),
-            Math.max(clampBounds.getWest(), Math.min(clampBounds.getEast(), c[1]))
-          ];
-        }
-        function pointInRing(px, py, ring) {
-          var inside = false;
-          for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-            var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
-            if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
-          }
-          return inside;
-        }
-
-        var zoneFeatures = (results[0] && results[0].features) || [];
-        var subFeatures = (results[1] && results[1].features) || [];
-
-        /* Build a set of zone names that have subzones visible — skip their standalone label */
-        var zonesWithSubzones = {};
-        subFeatures.forEach(function(f) {
-          if (!f.attributes || !f.attributes.name || !f.geometry) return;
-          var rawC = centroid(f.geometry.rings);
-          for (var i = 0; i < zoneFeatures.length; i++) {
-            var zf = zoneFeatures[i];
-            if (zf.geometry && zf.geometry.rings && pointInRing(rawC[1], rawC[0], zf.geometry.rings[0])) {
-              zonesWithSubzones[zf.attributes.name] = true; break;
-            }
-          }
+        var features = (result && result.features) || [];
+        var names = {};
+        features.forEach(function(f) {
+          if (f.attributes && f.attributes.name) names[f.attributes.name] = true;
         });
-
-        /* Zone labels — only show if no subzone label will include this zone name */
-        zoneFeatures.forEach(function(f) {
-          if (!f.attributes || !f.attributes.name || !f.geometry) return;
-          if (zonesWithSubzones[f.attributes.name]) return;
-          var c = clampToView(centroid(f.geometry.rings));
-          L.marker(c, {
-            icon: L.divIcon({ className: 'zone-label-tip', html: '<b>' + f.attributes.name + '</b>', iconSize: [0,0], iconAnchor: [0,0] }),
-            interactive: false, zIndexOffset: 1000
-          }).addTo(zoneLabelGroup);
+        var sorted = Object.keys(names).sort();
+        if (sorted.length === 0) {
+          itemsDiv.innerHTML = '<span style="color:#888;font-size:10px;">No zones in view</span>';
+          return;
+        }
+        var html = '';
+        sorted.forEach(function(name) {
+          var col = getZoneColour(name);
+          html += '<div class="zone-legend-item">' +
+            '<span class="zone-legend-swatch" style="background:' + col + ';"></span>' +
+            '<span class="zone-legend-name" title="' + name + '">' + name + '</span></div>';
         });
-
-        /* Subzone labels with parent zone name */
-        subFeatures.forEach(function(f) {
-          if (!f.attributes || !f.attributes.name || !f.geometry) return;
-          var rawC = centroid(f.geometry.rings);
-          var c = clampToView(rawC);
-          var parent = '';
-          for (var i = 0; i < zoneFeatures.length; i++) {
-            var zf = zoneFeatures[i];
-            if (zf.geometry && zf.geometry.rings && pointInRing(rawC[1], rawC[0], zf.geometry.rings[0])) {
-              parent = zf.attributes.name || ''; break;
-            }
-          }
-          var html = (parent ? '<b>' + parent + '</b><br>' : '') + '<i>' + f.attributes.name + '</i>';
-          L.marker(c, {
-            icon: L.divIcon({ className: 'zone-label-tip subzone-label-tip', html: html, iconSize: [0,0], iconAnchor: [0,0] }),
-            interactive: false, zIndexOffset: 900
-          }).addTo(zoneLabelGroup);
-        });
-      }).catch(function(err) { console.warn('Zone label fetch failed:', err); });
+        itemsDiv.innerHTML = html;
+      }).catch(function() {
+        var container = zoneLegendControl.getContainer();
+        if (container) {
+          var itemsDiv = container.querySelector('.zone-legend-items');
+          if (itemsDiv) itemsDiv.innerHTML = '<span style="color:#888;font-size:10px;">Could not load zones</span>';
+        }
+      });
     }
 
-    map.on('moveend zoomend', function() {
+    map.on('moveend', function() {
       if (!isZoneOn) return;
-      clearTimeout(_zoneLabelTimer);
-      _zoneLabelTimer = setTimeout(refreshZoneLabels, 400);
+      clearTimeout(_zoneLegendTimer);
+      _zoneLegendTimer = setTimeout(refreshZoneLegend, 500);
     });
 
     function getActiveZoneOverlay() {
@@ -4164,22 +4215,26 @@ initCollapse();
           if (zoningOverlay && map.hasLayer(zoningOverlay)) map.removeLayer(zoningOverlay);
           if (vicZoningOverlay && map.hasLayer(vicZoningOverlay)) map.removeLayer(vicZoningOverlay);
           if (nswZoningOverlay && map.hasLayer(nswZoningOverlay)) map.removeLayer(nswZoningOverlay);
+          if (zoneOutlineLayer && map.hasLayer(zoneOutlineLayer)) map.removeLayer(zoneOutlineLayer);
           if (subzoneFeatureLayer) map.removeLayer(subzoneFeatureLayer);
-          map.removeLayer(zoneLabelGroup);
-          zoneLabelGroup.clearLayers();
           map.closeTooltip(hoverTooltip);
+          // Remove legend
+          if (zoneLegendControl.getContainer()) { try { map.removeControl(zoneLegendControl); } catch(e) {} }
           isZoneOn = false;
           zoneToggle.classList.remove('active');
           zoneToggle.innerHTML = ICON_GRID + ' Show Zones';
         } else {
-          overlay.addTo(map);
-          // SA subzone feature layer only in SA mode
-          if (currentState === 'SA' && subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
-          zoneLabelGroup.addTo(map);
           isZoneOn = true;
+          overlay.addTo(map);
+          // SA-specific: outline layer, subzone layer, and legend
+          if (currentState === 'SA') {
+            if (zoneOutlineLayer) zoneOutlineLayer.addTo(map);
+            if (subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
+            zoneLegendControl.addTo(map);
+            refreshZoneLegend();
+          }
           zoneToggle.classList.add('active');
           zoneToggle.innerHTML = ICON_GRID + ' Hide Zones';
-          refreshZoneLabels();
         }
       });
     }
@@ -4191,7 +4246,10 @@ initCollapse();
       if (zoningOverlay && map.hasLayer(zoningOverlay)) map.removeLayer(zoningOverlay);
       if (vicZoningOverlay && map.hasLayer(vicZoningOverlay)) map.removeLayer(vicZoningOverlay);
       if (nswZoningOverlay && map.hasLayer(nswZoningOverlay)) map.removeLayer(nswZoningOverlay);
+      if (zoneOutlineLayer && map.hasLayer(zoneOutlineLayer)) map.removeLayer(zoneOutlineLayer);
       if (subzoneFeatureLayer && map.hasLayer(subzoneFeatureLayer)) map.removeLayer(subzoneFeatureLayer);
+      // Remove legend when leaving SA
+      try { map.removeControl(zoneLegendControl); } catch(e) {}
       // Add the correct overlay for the new state
       var activeOverlay;
       if (newState === 'VIC') activeOverlay = vicZoningOverlay;
@@ -4199,7 +4257,12 @@ initCollapse();
       else activeOverlay = zoningOverlay;
       if (activeOverlay) {
         activeOverlay.addTo(map);
-        if (newState === 'SA' && subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
+        if (newState === 'SA') {
+          if (zoneOutlineLayer) zoneOutlineLayer.addTo(map);
+          if (subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
+          zoneLegendControl.addTo(map);
+          refreshZoneLegend();
+        }
       }
     };
 
