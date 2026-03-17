@@ -5002,10 +5002,16 @@ initCollapse();
     }
 
     /* ---- Source parcel boundary outline (SA, VIC, NSW, QLD) ---- */
-    var sourceParcelOutline = null;
+    /* Two overlapping polygons create alternating black/white dash effect */
+    var sourceParcelOutline = null;   /* black base layer */
+    var sourceParcelOutline2 = null;  /* white offset dashes */
+    function removeParcelOutlines() {
+      if (sourceParcelOutline) { try { map.removeLayer(sourceParcelOutline); } catch(e){} sourceParcelOutline = null; }
+      if (sourceParcelOutline2) { try { map.removeLayer(sourceParcelOutline2); } catch(e){} sourceParcelOutline2 = null; }
+    }
     function querySourceParcel(latlng) {
       // Remove previous outline
-      if (sourceParcelOutline) { map.removeLayer(sourceParcelOutline); sourceParcelOutline = null; }
+      removeParcelOutlines();
       // Look up parcel API for the detected Australian state
       var stateForParcel = detectedAusState || currentState;
       var baseUrl = PARCEL_API_URLS[stateForParcel];
@@ -5020,19 +5026,31 @@ initCollapse();
           if (!data || !data.features || !data.features.length) return;
           var rings = data.features[0].geometry.rings;
           if (!rings || !rings.length) return;
-          var latlngs = rings.map(function(ring) {
+          var coords = rings.map(function(ring) {
             return ring.map(function(pt) { return [pt[1], pt[0]]; });
           });
-          sourceParcelOutline = L.polygon(latlngs, {
+          /* Black base — continuous dashes */
+          sourceParcelOutline = L.polygon(coords, {
+            color: '#000000',
+            weight: 2.5,
+            dashArray: '10, 8',
+            fillOpacity: 0,
+            opacity: 0.9,
+            interactive: false
+          });
+          /* White overlay — same dash pattern but offset so it fills the gaps */
+          sourceParcelOutline2 = L.polygon(coords, {
             color: '#ffffff',
             weight: 2.5,
-            dashArray: '8, 6',
+            dashArray: '10, 8',
+            dashOffset: '10',
             fillOpacity: 0,
             opacity: 0.9,
             interactive: false
           });
           if (typeof isParcelVisible === 'undefined' || isParcelVisible) {
             sourceParcelOutline.addTo(map);
+            sourceParcelOutline2.addTo(map);
           }
         })
         .catch(function(err) {
@@ -5042,10 +5060,7 @@ initCollapse();
 
     /* Expose parcel refresh for switchToState() (outside IIFE) */
     window._refreshSourceParcel = function() {
-      if (sourceParcelOutline) {
-        try { map.removeLayer(sourceParcelOutline); } catch(e){}
-        sourceParcelOutline = null;
-      }
+      removeParcelOutlines();
       if (latlngs['source']) {
         querySourceParcel(latlngs['source']);
       }
@@ -5170,7 +5185,7 @@ initCollapse();
         if (mode === 'source') {
           setStatusText(statusEl, '\u25CF Source: not placed');
           updateConcentricCircles(null);
-          if (sourceParcelOutline) { map.removeLayer(sourceParcelOutline); sourceParcelOutline = null; }
+          removeParcelOutlines();
         } else {
           setStatusText(statusEl, '\u25CF ' + cfg.label + ': not placed');
         }
@@ -5222,9 +5237,11 @@ initCollapse();
         if (sourceParcelOutline) {
           if (isParcelVisible) {
             sourceParcelOutline.addTo(map);
+            if (sourceParcelOutline2) sourceParcelOutline2.addTo(map);
             parcelToggleBtn.classList.add('active');
           } else {
             map.removeLayer(sourceParcelOutline);
+            if (sourceParcelOutline2) map.removeLayer(sourceParcelOutline2);
             parcelToggleBtn.classList.remove('active');
           }
         } else {
@@ -5385,7 +5402,7 @@ initCollapse();
           if (lines[k]) map.removeLayer(lines[k]);
         });
         markers = {}; latlngs = {}; lines = {};
-        if (sourceParcelOutline) { map.removeLayer(sourceParcelOutline); sourceParcelOutline = null; }
+        removeParcelOutlines();
 
         /* reset distance inputs + zone labels */
         ['r1','r2','r3','r4'].forEach(function (id) {
