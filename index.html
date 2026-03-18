@@ -2172,7 +2172,7 @@ function switchToState(state) {
   if (typeof updateConcentricCircles === 'function') {
     const srcMarkerLatlng = window.getSourceLatLng ? window.getSourceLatLng() : null;
     updateConcentricCircles(srcMarkerLatlng);
-    if (state === 'VIC' && vicAreaType === 'urban' && srcMarkerLatlng) {
+    if (currentState === 'VIC' && vicAreaType === 'urban' && srcMarkerLatlng) {
       triggerAutoIF(srcMarkerLatlng);
     }
   }
