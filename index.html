@@ -2083,6 +2083,20 @@ function updateReceiverLabels(state) {
   window._receiverTerm = term;
 }
 
+/** Expand a collapsible card by its h2 title text */
+function expandCardByTitle(title) {
+  document.querySelectorAll('.card h2').forEach(function(h2) {
+    if (h2.textContent.trim() === title) {
+      var body = h2.closest('.card');
+      if (body && body.classList.contains('collapsed')) {
+        body.classList.remove('collapsed');
+        var toggle = h2.querySelector('.collapse-toggle');
+        if (toggle) toggle.innerHTML = '&#x25B2;';
+      }
+    }
+  });
+}
+
 /* ===== State switching (SA / VIC / OTHER) ===== */
 function switchToState(state) {
   if (currentState === state) return;
@@ -2110,6 +2124,8 @@ function switchToState(state) {
     badge.className = 'state-badge state-badge-vic';
     badge.style.display = '';
     fetchVicMuaPolygons(); // pre-fetch Major Urban Area polygons
+    // Auto-expand VIC assessment parameters card
+    expandCardByTitle('VIC assessment parameters');
   } else if (state === 'SA') {
     body.classList.add('state-sa');
     badge.textContent = 'SA';
