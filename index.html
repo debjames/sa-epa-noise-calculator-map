@@ -394,6 +394,72 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div class="small" style="margin-top:6px;">Map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors. Distances are straight-line only and do not account for terrain.</div>
       </div>
 
+      <!-- VIC-only: Area type, Background classification, Distance to zone boundary -->
+    <div class="grid2 vic-only vic-settings-only" style="padding-top:0;">
+      <div class="card">
+        <h2>VIC assessment parameters</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <label class="h2" style="font-size:12px;">Area type</label>
+            <div style="display:flex;gap:8px;margin-top:4px;">
+              <button type="button" class="penalty-btn active" id="vicAreaUrban" onclick="setVicAreaType('urban');document.getElementById('vicAreaUrban').classList.add('active');document.getElementById('vicAreaRural').classList.remove('active');">Major urban (&gt;7,000)</button>
+              <button type="button" class="penalty-btn" id="vicAreaRural" onclick="setVicAreaType('rural');document.getElementById('vicAreaRural').classList.add('active');document.getElementById('vicAreaUrban').classList.remove('active');">Rural</button>
+            </div>
+          </div>
+          <div>
+            <label class="h2" style="font-size:12px;" for="vicDistToZoneBoundary">Distance: receiver to zone boundary (m)</label>
+            <input type="number" id="vicDistToZoneBoundary" min="0" max="10000" step="1" placeholder="0" style="width:120px;margin-top:4px;" oninput="render()" onchange="render()">
+            <div class="small" style="margin-top:4px;">Applies −1 dB per 100 m (rounded down, max 9 dB) when source zone ≠ receiver zone.</div>
+          </div>
+          <div class="vic-urban-only">
+            <label class="h2" style="font-size:12px;" for="vicIF">Influencing Factor (IF)</label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+              <input type="number" id="vicIF" min="0" max="1" step="0.01" placeholder="auto" style="width:120px;" oninput="handleIFInput()" onchange="handleIFInput()">
+              <a href="#" id="vicIFReset" style="font-size:10px;display:none;color:#2563eb;" onclick="event.preventDefault();document.getElementById('vicIF').value='';handleIFInput();">Reset to auto</a>
+            </div>
+            <div class="small" style="margin-top:4px;">0 = fully Type 1 (residential), 1 = fully Type 3 (industrial). Per Figure 1 of Pub 1826.5. Leave blank to auto-derive from zone analysis within 140 m / 400 m circles.</div>
+            <div id="vicDetectedZones" style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;display:none;"></div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label class="h2" style="font-size:12px;">Background noise classification</label>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:4px;">
+            <select id="vicBgClass" onchange="document.getElementById('vicBgLevels').style.display=this.value==='neutral'?'none':'';render();" style="width:160px;">
+              <option value="neutral" selected>Neutral</option>
+              <option value="low">Low</option>
+              <option value="high">High</option>
+            </select>
+            <span class="small">Neutral = limit equals zone level. Low/High = adjusted per Clause 6.</span>
+          </div>
+          <div id="vicBgLevels" style="display:none;margin-top:8px;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:400px;">
+              <div>
+                <label style="font-size:11px;font-weight:600;">Day L<sub>A90</sub></label>
+                <input type="number" id="vicBg_day" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Evening L<sub>A90</sub></label>
+                <input type="number" id="vicBg_evening" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Night L<sub>A90</sub></label>
+                <input type="number" id="vicBg_night" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:12px;" class="vic-rural-only">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+            <input type="checkbox" id="vicIsUtility" onchange="if(this.checked){document.getElementById('vicIsEarthResources').checked=false;}render()"> Source is a utility (FZ/RAZ/GWZ → fixed 45/39/34)
+          </label>
+          <br>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:6px;">
+            <input type="checkbox" id="vicIsEarthResources" onchange="if(this.checked){document.getElementById('vicIsUtility').checked=false;}render()"> Source is earth resources (Clauses 33–36)
+          </label>
+        </div>
+      </div>
+    </div>
+
       <!-- ===== SELECTIONS CARD ===== -->
       <div class="card span2">
         <h2>Receivers & criteria</h2>
@@ -527,72 +593,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         </div>
       </div>
 
-    </div>
-
-    <!-- VIC-only: Area type, Background classification, Distance to zone boundary -->
-    <div class="grid2 vic-only vic-settings-only" style="padding-top:0;">
-      <div class="card">
-        <h2>VIC assessment parameters</h2>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <div>
-            <label class="h2" style="font-size:12px;">Area type</label>
-            <div style="display:flex;gap:8px;margin-top:4px;">
-              <button type="button" class="penalty-btn active" id="vicAreaUrban" onclick="setVicAreaType('urban');document.getElementById('vicAreaUrban').classList.add('active');document.getElementById('vicAreaRural').classList.remove('active');">Major urban (&gt;7,000)</button>
-              <button type="button" class="penalty-btn" id="vicAreaRural" onclick="setVicAreaType('rural');document.getElementById('vicAreaRural').classList.add('active');document.getElementById('vicAreaUrban').classList.remove('active');">Rural</button>
-            </div>
-          </div>
-          <div>
-            <label class="h2" style="font-size:12px;" for="vicDistToZoneBoundary">Distance: receiver to zone boundary (m)</label>
-            <input type="number" id="vicDistToZoneBoundary" min="0" max="10000" step="1" placeholder="0" style="width:120px;margin-top:4px;" oninput="render()" onchange="render()">
-            <div class="small" style="margin-top:4px;">Applies −1 dB per 100 m (rounded down, max 9 dB) when source zone ≠ receiver zone.</div>
-          </div>
-          <div class="vic-urban-only">
-            <label class="h2" style="font-size:12px;" for="vicIF">Influencing Factor (IF)</label>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-              <input type="number" id="vicIF" min="0" max="1" step="0.01" placeholder="auto" style="width:120px;" oninput="handleIFInput()" onchange="handleIFInput()">
-              <a href="#" id="vicIFReset" style="font-size:10px;display:none;color:#2563eb;" onclick="event.preventDefault();document.getElementById('vicIF').value='';handleIFInput();">Reset to auto</a>
-            </div>
-            <div class="small" style="margin-top:4px;">0 = fully Type 1 (residential), 1 = fully Type 3 (industrial). Per Figure 1 of Pub 1826.5. Leave blank to auto-derive from zone analysis within 140 m / 400 m circles.</div>
-            <div id="vicDetectedZones" style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;display:none;"></div>
-          </div>
-        </div>
-        <div style="margin-top:12px;">
-          <label class="h2" style="font-size:12px;">Background noise classification</label>
-          <div style="display:flex;gap:12px;align-items:center;margin-top:4px;">
-            <select id="vicBgClass" onchange="document.getElementById('vicBgLevels').style.display=this.value==='neutral'?'none':'';render();" style="width:160px;">
-              <option value="neutral" selected>Neutral</option>
-              <option value="low">Low</option>
-              <option value="high">High</option>
-            </select>
-            <span class="small">Neutral = limit equals zone level. Low/High = adjusted per Clause 6.</span>
-          </div>
-          <div id="vicBgLevels" style="display:none;margin-top:8px;">
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:400px;">
-              <div>
-                <label style="font-size:11px;font-weight:600;">Day L<sub>A90</sub></label>
-                <input type="number" id="vicBg_day" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
-              </div>
-              <div>
-                <label style="font-size:11px;font-weight:600;">Evening L<sub>A90</sub></label>
-                <input type="number" id="vicBg_evening" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
-              </div>
-              <div>
-                <label style="font-size:11px;font-weight:600;">Night L<sub>A90</sub></label>
-                <input type="number" id="vicBg_night" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style="margin-top:12px;" class="vic-rural-only">
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
-            <input type="checkbox" id="vicIsUtility" onchange="if(this.checked){document.getElementById('vicIsEarthResources').checked=false;}render()"> Source is a utility (FZ/RAZ/GWZ → fixed 45/39/34)
-          </label>
-          <br>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:6px;">
-            <input type="checkbox" id="vicIsEarthResources" onchange="if(this.checked){document.getElementById('vicIsUtility').checked=false;}render()"> Source is earth resources (Clauses 33–36)
-          </label>
-        </div>
-      </div>
     </div>
 
     <!-- NSW NPI 2017: Assessment parameters -->
