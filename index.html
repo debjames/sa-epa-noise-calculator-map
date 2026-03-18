@@ -1163,7 +1163,7 @@ function estimateAreaFractions(centerLat, centerLng, radiusM, zoneFeatures) {
 
 /* ── Auto-IF state ── */
 let autoIF = null;
-let autoIFData = null; // stores {zones140, zones400, fracs140, fracs400, IF}
+var autoIFData = null; // stores {zones140, zones400, fracs140, fracs400, IF}
 
 /* VIC Rural Zone Levels — Table B.1 of Pub 1826.5
    Generating zones grouped into rows, receiving zones grouped into columns.
@@ -2790,6 +2790,9 @@ function calcAutoInfluencingFactor(srcLat, srcLng) {
     // Update detected zones display
     renderDetectedZones();
 
+    // Render zone polygons on map
+    if (typeof renderVicZonePolygonsOnMap === 'function') renderVicZonePolygonsOnMap();
+
     // Re-render criteria
     render();
     return autoIFData;
@@ -2837,7 +2840,11 @@ function renderDetectedZones() {
     return html;
   }
 
-  var h = '';
+  var h = '<div style="display:flex;gap:12px;margin-bottom:6px;font-size:10px;font-weight:600;">';
+  h += '<span style="color:#059669;">\u25A0 Type 1 — Residential</span>';
+  h += '<span style="color:#d97706;">\u25A0 Type 2 — Commercial</span>';
+  h += '<span style="color:#dc2626;">\u25A0 Type 3 — Industrial</span>';
+  h += '</div>';
   h += zoneList(autoIFData.zones140, autoIFData.fracs140, '140 m circle');
   h += zoneList(autoIFData.zones400, autoIFData.fracs400, '400 m circle');
   h += '<div style="font-size:11px;font-weight:600;margin-top:4px;color:var(--heading);">Computed IF = ' + autoIFData.IF.toFixed(2) + '</div>';
@@ -2856,6 +2863,7 @@ function triggerAutoIF(latlng) {
 function clearAutoIF() {
   autoIF = null;
   autoIFData = null;
+  if (typeof clearVicZonePolygons === 'function') clearVicZonePolygons();
   var el = document.getElementById('vicDetectedZones');
   if (el) { el.innerHTML = ''; el.style.display = 'none'; }
   var ifInput = document.getElementById('vicIF');
@@ -4962,6 +4970,44 @@ initCollapse();
 
       concentricCircles = [c140, c400];
     }
+
+    /* VIC zone polygons rendered on map (Type 1/2/3 colours) */
+    var vicZonePolygonLayers = [];
+    function clearVicZonePolygons() {
+      vicZonePolygonLayers.forEach(function(l) { map.removeLayer(l); });
+      vicZonePolygonLayers = [];
+    }
+    window.clearVicZonePolygons = clearVicZonePolygons;
+
+    window.renderVicZonePolygonsOnMap = function() {
+      clearVicZonePolygons();
+      if (!window.autoIFData) return;
+      var TYPE_COLORS = {1: '#059669', 2: '#d97706', 3: '#dc2626'};
+      var TYPE_LABELS = {1: 'Type 1 (Residential)', 2: 'Type 2 (Commercial)', 3: 'Type 3 (Industrial)'};
+      // Combine zones from both circles, deduplicate by zoneCode + first ring coord
+      var allZones = (window.autoIFData.zones140 || []).concat(window.autoIFData.zones400 || []);
+      var seen = {};
+      allZones.forEach(function(z) {
+        if (!z.rings || z.rings.length === 0) return;
+        var key = z.zoneCode + '_' + z.rings[0][0][0] + '_' + z.rings[0][0][1];
+        if (seen[key]) return;
+        seen[key] = true;
+        var col = TYPE_COLORS[z.type] || '#6b7280';
+        // Convert rings from [lng,lat] (ArcGIS) to [lat,lng] (Leaflet)
+        var latlngs = z.rings.map(function(ring) {
+          return ring.map(function(coord) { return [coord[1], coord[0]]; });
+        });
+        var poly = L.polygon(latlngs, {
+          color: col, weight: 1.5, opacity: 0.8,
+          fillColor: col, fillOpacity: 0.2,
+          interactive: true
+        }).addTo(map);
+        poly.bindTooltip(z.zoneCode + ' — ' + (TYPE_LABELS[z.type] || 'Unknown'), {sticky: true, className: 'circle-label'});
+        vicZonePolygonLayers.push(poly);
+      });
+      // Bring circles to front so they render on top of polygons
+      concentricCircles.forEach(function(c) { c.bringToFront(); });
+    };
 
     /* Detect Australian state from coordinates and update address bar via Nominatim reverse geocode */
     function detectStateFromCoords(latlng) {
