@@ -4625,8 +4625,9 @@ initCollapse();
         return [];
       });
     }
-    /* Expose for calcAutoInfluencingFactor (outside IIFE) */
+    /* Expose for calcAutoInfluencingFactor and switchToState (outside IIFE) */
     window.queryVicZonesInCircle = queryVicZonesInCircle;
+    window.updateConcentricCircles = updateConcentricCircles;
 
     function queryAndSetZoneVIC(mode, latlng) {
       var selectId = (mode === 'source') ? 'src' : mode;
