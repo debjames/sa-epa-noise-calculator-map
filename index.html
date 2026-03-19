@@ -4104,8 +4104,8 @@ initCollapse();
           }
           pdf.save(pdfName + '.pdf');
         } catch (e) {
-          console.error(e);
-          alert('PDF criteria export failed — check console.');
+          console.error('PDF criteria error:', e, e.stack);
+          alert('PDF criteria export failed: ' + e.message);
         } finally {
           critBtn.disabled = false;
           critBtn.textContent = 'PDF Criteria';
