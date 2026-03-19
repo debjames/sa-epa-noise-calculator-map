@@ -462,6 +462,113 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       </div>
     </div>
 
+    <!-- NSW NPI 2017: Assessment parameters -->
+    <div class="grid2 nsw-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>NSW assessment parameters</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <label class="h2" style="font-size:12px;">Noise amenity area (Table 2.3)</label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+              <select id="nswAmenityArea" class="nsw-amenity-area-sel" onchange="render()">
+                <option value="rural">Rural</option>
+                <option value="suburban" selected>Suburban</option>
+                <option value="urban">Urban</option>
+              </select>
+            </div>
+            <div class="small" style="margin-top:4px;">Auto-detected from planning zone code. Override if needed.</div>
+            <div id="nswDetectedZone" style="display:none;margin-top:6px;font-size:11px;color:#1e3a5f;font-weight:600;"></div>
+          </div>
+          <div>
+            <label class="h2" style="font-size:12px;">Rating Background Level — RBL, dB(A)</label>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;max-width:300px;">
+              <div>
+                <label style="font-size:11px;font-weight:600;">Day</label>
+                <input type="number" id="nswRblDay" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="35" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
+                <div class="nsw-intrusiveness-display" id="nswIntDay">Intrusiveness: 40</div>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Evening</label>
+                <input type="number" id="nswRblEve" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
+                <div class="nsw-intrusiveness-display" id="nswIntEve">Intrusiveness: 35</div>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Night</label>
+                <input type="number" id="nswRblNight" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
+                <div class="nsw-intrusiveness-display" id="nswIntNight">Intrusiveness: 35</div>
+              </div>
+            </div>
+            <div class="small" style="margin-top:4px;">Minimums: Day 35, Evening 30, Night 30. Intrusiveness = RBL + 5 dB (Table 2.1).</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label class="h2" style="font-size:12px;">Receiver type</label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px;">
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 1</label>
+              <select id="nswRecType1" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 2</label>
+              <select id="nswRecType2" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 3</label>
+              <select id="nswRecType3" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 4</label>
+              <select id="nswRecType4" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="grid2" style="padding-top:0;">
       <!-- ===== SELECTIONS CARD ===== -->
       <div class="card span2">
@@ -596,113 +703,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         </div>
       </div>
 
-    </div>
-
-    <!-- NSW NPI 2017: Assessment parameters -->
-    <div class="grid2 nsw-only" style="padding-top:0;">
-      <div class="card">
-        <h2>NSW assessment parameters</h2>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <div>
-            <label class="h2" style="font-size:12px;">Noise amenity area (Table 2.3)</label>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-              <select id="nswAmenityArea" class="nsw-amenity-area-sel" onchange="render()">
-                <option value="rural">Rural</option>
-                <option value="suburban" selected>Suburban</option>
-                <option value="urban">Urban</option>
-              </select>
-            </div>
-            <div class="small" style="margin-top:4px;">Auto-detected from planning zone code. Override if needed.</div>
-            <div id="nswDetectedZone" style="display:none;margin-top:6px;font-size:11px;color:#1e3a5f;font-weight:600;"></div>
-          </div>
-          <div>
-            <label class="h2" style="font-size:12px;">Rating Background Level — RBL, dB(A)</label>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;max-width:300px;">
-              <div>
-                <label style="font-size:11px;font-weight:600;">Day</label>
-                <input type="number" id="nswRblDay" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="35" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
-                <div class="nsw-intrusiveness-display" id="nswIntDay">Intrusiveness: 40</div>
-              </div>
-              <div>
-                <label style="font-size:11px;font-weight:600;">Evening</label>
-                <input type="number" id="nswRblEve" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
-                <div class="nsw-intrusiveness-display" id="nswIntEve">Intrusiveness: 35</div>
-              </div>
-              <div>
-                <label style="font-size:11px;font-weight:600;">Night</label>
-                <input type="number" id="nswRblNight" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
-                <div class="nsw-intrusiveness-display" id="nswIntNight">Intrusiveness: 35</div>
-              </div>
-            </div>
-            <div class="small" style="margin-top:4px;">Minimums: Day 35, Evening 30, Night 30. Intrusiveness = RBL + 5 dB (Table 2.1).</div>
-          </div>
-        </div>
-        <div style="margin-top:12px;">
-          <label class="h2" style="font-size:12px;">Receiver type</label>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px;">
-            <div>
-              <label style="font-size:11px;font-weight:600;">Receiver 1</label>
-              <select id="nswRecType1" class="nsw-recv-type-sel" onchange="render()">
-                <option value="residential">Residential</option>
-                <option value="hotel">Hotel / motel</option>
-                <option value="school">School (internal)</option>
-                <option value="hospital_internal">Hospital (internal)</option>
-                <option value="hospital_external">Hospital (external)</option>
-                <option value="worship">Place of worship</option>
-                <option value="recreation_passive">Passive recreation</option>
-                <option value="recreation_active">Active recreation</option>
-                <option value="commercial">Commercial</option>
-                <option value="industrial">Industrial</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:600;">Receiver 2</label>
-              <select id="nswRecType2" class="nsw-recv-type-sel" onchange="render()">
-                <option value="residential">Residential</option>
-                <option value="hotel">Hotel / motel</option>
-                <option value="school">School (internal)</option>
-                <option value="hospital_internal">Hospital (internal)</option>
-                <option value="hospital_external">Hospital (external)</option>
-                <option value="worship">Place of worship</option>
-                <option value="recreation_passive">Passive recreation</option>
-                <option value="recreation_active">Active recreation</option>
-                <option value="commercial">Commercial</option>
-                <option value="industrial">Industrial</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:600;">Receiver 3</label>
-              <select id="nswRecType3" class="nsw-recv-type-sel" onchange="render()">
-                <option value="residential">Residential</option>
-                <option value="hotel">Hotel / motel</option>
-                <option value="school">School (internal)</option>
-                <option value="hospital_internal">Hospital (internal)</option>
-                <option value="hospital_external">Hospital (external)</option>
-                <option value="worship">Place of worship</option>
-                <option value="recreation_passive">Passive recreation</option>
-                <option value="recreation_active">Active recreation</option>
-                <option value="commercial">Commercial</option>
-                <option value="industrial">Industrial</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:600;">Receiver 4</label>
-              <select id="nswRecType4" class="nsw-recv-type-sel" onchange="render()">
-                <option value="residential">Residential</option>
-                <option value="hotel">Hotel / motel</option>
-                <option value="school">School (internal)</option>
-                <option value="hospital_internal">Hospital (internal)</option>
-                <option value="hospital_external">Hospital (external)</option>
-                <option value="worship">Place of worship</option>
-                <option value="recreation_passive">Passive recreation</option>
-                <option value="recreation_active">Active recreation</option>
-                <option value="commercial">Commercial</option>
-                <option value="industrial">Industrial</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- NSW NPI 2017: Modifying factor corrections (Fact Sheet C) -->
@@ -2138,6 +2138,7 @@ function switchToState(state) {
     badge.textContent = 'NSW';
     badge.className = 'state-badge state-badge-nsw';
     badge.style.display = '';
+    expandCardByTitle('NSW assessment parameters');
   } else if (state === 'OTHER') {
     body.classList.add('state-other');
     badge.textContent = detectedStateName || 'Other';
