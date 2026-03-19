@@ -725,33 +725,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       </div>
     </div>
 
-    <!-- NSW NPI 2017: Modifying factor corrections (Fact Sheet C) -->
-    <div class="grid2 nsw-only" style="padding-top:0;">
-      <div class="card span2">
-        <h2>Modifying factor corrections</h2>
-        <div class="p">Corrections from Fact Sheet C of the <i>Noise Policy for Industry</i> are added to the predicted noise level before comparison with project noise trigger levels. Maximum combined correction: 10 dB (excluding duration).</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:4px;">
-          <div class="nsw-mod-section">
-            <div class="h2">Tonal noise</div>
-            <label><input type="checkbox" id="nswModTonal" onchange="updateNSWModFactors();render()"> Tonal (+5 dB)</label>
-            <div class="small">Third-octave band exceeds adjacent bands per ISO 1996-2 thresholds.</div>
-          </div>
-          <div class="nsw-mod-section">
-            <div class="h2">Low-frequency noise</div>
-            <label><input type="radio" name="nswLF" id="nswModLFNone" checked onchange="updateNSWModFactors();render()"> None</label>
-            <label><input type="radio" name="nswLF" id="nswModLF2" onchange="updateNSWModFactors();render()"> C−A ≥ 15 dB, Table C2 exceeded ≤ 5 dB (+2 dB)</label>
-            <label><input type="radio" name="nswLF" id="nswModLF5" onchange="updateNSWModFactors();render()"> C−A ≥ 15 dB, Table C2 exceeded &gt; 5 dB (+5 dB)</label>
-          </div>
-          <div class="nsw-mod-section">
-            <div class="h2">Intermittent noise</div>
-            <label><input type="checkbox" id="nswModIntermittent" onchange="updateNSWModFactors();render()"> Intermittent (+5 dB, night only)</label>
-            <div class="small">Source varies by &gt;5 dB(A) and intermittency is clearly audible.</div>
-          </div>
-        </div>
-        <div class="nsw-mod-total" id="nswModTotal">Total correction: Day 0 dB | Evening 0 dB | Night 0 dB</div>
-      </div>
-    </div>
-
     <div class="grid2" style="padding-top:0;">
       <div class="card span2">
         <h2>Propagation method</h2>
@@ -897,6 +870,33 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <div class="contrib-sub-h">Night L<sub>eq</sub> contributions at receivers (dB(A))</div>
           <div class="table-scroll"><table id="contribNightTable"></table></div>
         </div>
+      </div>
+    </div>
+
+    <!-- NSW NPI 2017: Modifying factor corrections (Fact Sheet C) -->
+    <div class="grid2 nsw-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Modifying factor corrections</h2>
+        <div class="p">Corrections from Fact Sheet C of the <i>Noise Policy for Industry</i> are added to the predicted noise level before comparison with project noise trigger levels. Maximum combined correction: 10 dB (excluding duration).</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:4px;">
+          <div class="nsw-mod-section">
+            <div class="h2">Tonal noise</div>
+            <label><input type="checkbox" id="nswModTonal" onchange="updateNSWModFactors();render()"> Tonal (+5 dB)</label>
+            <div class="small">Third-octave band exceeds adjacent bands per ISO 1996-2 thresholds.</div>
+          </div>
+          <div class="nsw-mod-section">
+            <div class="h2">Low-frequency noise</div>
+            <label><input type="radio" name="nswLF" id="nswModLFNone" checked onchange="updateNSWModFactors();render()"> None</label>
+            <label><input type="radio" name="nswLF" id="nswModLF2" onchange="updateNSWModFactors();render()"> C−A ≥ 15 dB, Table C2 exceeded ≤ 5 dB (+2 dB)</label>
+            <label><input type="radio" name="nswLF" id="nswModLF5" onchange="updateNSWModFactors();render()"> C−A ≥ 15 dB, Table C2 exceeded &gt; 5 dB (+5 dB)</label>
+          </div>
+          <div class="nsw-mod-section">
+            <div class="h2">Intermittent noise</div>
+            <label><input type="checkbox" id="nswModIntermittent" onchange="updateNSWModFactors();render()"> Intermittent (+5 dB, night only)</label>
+            <div class="small">Source varies by &gt;5 dB(A) and intermittency is clearly audible.</div>
+          </div>
+        </div>
+        <div class="nsw-mod-total" id="nswModTotal">Total correction: Day 0 dB | Evening 0 dB | Night 0 dB</div>
       </div>
     </div>
 
