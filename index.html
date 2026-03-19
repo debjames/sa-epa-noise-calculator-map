@@ -5126,23 +5126,26 @@ initCollapse();
           }
         }).catch(function() { setMBS('mbs_rail', '—', false); });
 
-      // 5. Mixed land use areas — purely residential zones are NOT mixed; everything else is
-      var zoneUrl = SAPPA_BASE + '/114/query?geometry=' + geom + ptParams + '&outFields=name';
-      fetch(zoneUrl).then(function(r) { return r.json(); }).then(function(data) {
-        if (data.features && data.features.length) {
-          var zone = data.features[0].attributes.name || '';
-          // Zones that are purely residential (no commercial/industrial land uses)
-          var purelyResidential = ['General Neighbourhood', 'Suburban Neighbourhood', 'Established Neighbourhood', 'Hills Neighbourhood', 'Rural Living', 'Rural Neighbourhood', 'Rural Settlement', 'Rural Shack Settlement', 'Residential Park', 'Housing Diversity Neighbourhood', 'Master Planned Neighbourhood', 'Neighbourhood', 'Deferred Urban'];
-          var isPureRes = purelyResidential.some(function(rz) { return zone === rz; });
-          if (!isPureRes) {
-            setMBS('mbs_mixed', zone + ' Zone \u2014 Commercial & residential land uses', true);
+      // 5. Mixed land use areas — use DATA array to check actual land use categories
+      // A zone is "mixed" if its land_use_raw contains more than one category (comma-separated)
+      var srcZoneEl = document.getElementById('src');
+      var srcSubzoneKey = srcZoneEl ? srcZoneEl.value : '';
+      if (srcSubzoneKey) {
+        var rec = DATA.find(function(d) { return d.key === srcSubzoneKey; });
+        if (rec) {
+          var landUses = rec.land_use_raw || '';
+          var isMixed = landUses.indexOf(',') >= 0;
+          if (isMixed) {
+            setMBS('mbs_mixed', rec.zone + ' \u2014 ' + landUses, true);
           } else {
-            setMBS('mbs_mixed', zone + ' Zone \u2014 Residential only (not mixed use)', false);
+            setMBS('mbs_mixed', rec.zone + ' \u2014 ' + landUses + ' only (not mixed use)', false);
           }
         } else {
-          setMBS('mbs_mixed', '—', false);
+          setMBS('mbs_mixed', 'N/A', false);
         }
-      }).catch(function() { setMBS('mbs_mixed', '—', false); });
+      } else {
+        setMBS('mbs_mixed', 'N/A', false);
+      }
     }
     /* ==== End SAPPA Overlay Queries ==== */
 
