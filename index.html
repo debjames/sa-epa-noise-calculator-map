@@ -358,6 +358,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;position:relative;">
           <input type="text" id="mapSearchInput" placeholder="Search for an address…" autocomplete="off" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:13px;background:white;">
           <button class="tool-btn map-mode-btn" id="mapSearchBtn" style="white-space:nowrap;">&#128269; Search</button>
+          <a id="sappaLink" href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener" class="tool-btn map-mode-btn sa-only" style="text-decoration:none;text-align:center;white-space:nowrap;display:none;font-size:12px;" title="Open this address in SAPPA">SAPPA &#8599;</a>
         </div>
         <div id="mapSearchResults" style="display:none;border:1px solid var(--border);border-radius:10px;background:#fff;margin-bottom:8px;max-height:220px;overflow-y:auto;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
 
@@ -5963,8 +5964,14 @@ initCollapse();
       // Map state name to abbreviation for parcel API lookup
       var ausMap = {'south australia':'SA','victoria':'VIC','new south wales':'NSW','queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
       detectedAusState = addrState ? (ausMap[addrState.toLowerCase()] || null) : null;
+      var sappaLnk = document.getElementById('sappaLink');
+      if (sappaLnk) sappaLnk.style.display = 'none';
       if (/victoria/i.test(addrState)) { switchToState('VIC'); }
-      else if (/south australia/i.test(addrState)) { switchToState('SA'); }
+      else if (/south australia/i.test(addrState)) {
+        switchToState('SA');
+        var sappaLink = document.getElementById('sappaLink');
+        if (sappaLink) { sappaLink.style.display = ''; }
+      }
       else if (/new south wales/i.test(addrState)) { switchToState('NSW'); }
       else {
         var abbrevs = {'queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
