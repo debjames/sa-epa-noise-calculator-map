@@ -4717,8 +4717,8 @@ initCollapse();
     var mbs010Toggle = document.getElementById('mbs010ToggleBtn');
 
     var MBS010_OVERLAY_CFG = [
-      { id: 39, name: 'Noise and Air Emissions', color: '#cd6a44', fill: 'rgba(205,170,102,0.25)', weight: 1 },
-      { id: 27, name: 'Aircraft Noise Exposure', color: '#005ce6', fill: 'rgba(0,92,230,0.15)', weight: 1 },
+      { id: 39, name: 'Noise and Air Emissions', color: '#b04030', fill: 'rgba(200,120,100,0.25)', weight: 1.5 },
+      { id: 27, name: 'Aircraft Noise Exposure (ANEF)', color: '#005ce6', fill: 'rgba(0,92,230,0.15)', weight: 1.5 },
       { id: 38, name: 'Designated Road — Type A', color: '#c47a7a', fill: 'rgba(220,160,160,0.35)', weight: 1 },
       { id: 42, name: 'Designated Road — Type B', color: '#b5a050', fill: 'rgba(210,200,140,0.35)', weight: 1 },
       { id: 37, name: 'Designated Road — Type R', color: '#7a9ec4', fill: 'rgba(170,200,230,0.35)', weight: 1 }
@@ -4734,7 +4734,7 @@ initCollapse();
           '&geometryType=esriGeometryEnvelope&inSR=4326' +
           '&spatialRel=esriSpatialRelIntersects' +
           '&outFields=name,value,description' +
-          '&returnGeometry=true&outSR=4326&f=geojson';
+          '&returnGeometry=true&outSR=4326&maxAllowableOffset=0.0001&f=geojson';
 
         fetch(url).then(function(r) { return r.json(); }).then(function(data) {
           if (!_mbs010On) return;
