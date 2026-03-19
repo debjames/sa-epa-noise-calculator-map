@@ -2128,6 +2128,7 @@ function switchToState(state) {
     badge.textContent = 'SA';
     badge.className = 'state-badge state-badge-sa';
     badge.style.display = '';
+    expandCardByTitle('MBS 010');
   } else if (state === 'NSW') {
     body.classList.add('state-nsw');
     badge.textContent = 'NSW';
@@ -3856,7 +3857,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'MBS 010', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
+    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
@@ -4718,10 +4719,7 @@ initCollapse();
 
     var MBS010_OVERLAY_CFG = [
       { id: 39, name: 'Noise and Air Emissions', color: '#b04030', fill: 'rgba(200,120,100,0.25)', weight: 1.5 },
-      { id: 27, name: 'Aircraft Noise Exposure (ANEF)', color: '#005ce6', fill: 'rgba(0,92,230,0.15)', weight: 1.5 },
-      { id: 38, name: 'Designated Road — Type A', color: '#c47a7a', fill: 'rgba(220,160,160,0.35)', weight: 1 },
-      { id: 42, name: 'Designated Road — Type B', color: '#b5a050', fill: 'rgba(210,200,140,0.35)', weight: 1 },
-      { id: 37, name: 'Designated Road — Type R', color: '#7a9ec4', fill: 'rgba(170,200,230,0.35)', weight: 1 }
+      { id: 27, name: 'Aircraft Noise Exposure (ANEF)', color: '#005ce6', fill: 'rgba(0,92,230,0.15)', weight: 1.5 }
     ];
 
     function loadMBS010Layers() {
