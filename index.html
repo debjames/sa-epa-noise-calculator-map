@@ -1487,6 +1487,7 @@ function calcCriteriaNSW(receiverIndex) {
       evening: Math.min(intEve, projAmenEve),
       night: Math.min(intNight, projAmenNight),
       lmax: '',
+      _recType: 'residential',
       _rblDay: rblDay, _rblEve: rblEve, _rblNight: rblNight,
       _intDay: intDay, _intEve: intEve, _intNight: intNight,
       _anlDay: amenity.day, _anlEve: amenity.evening, _anlNight: amenity.night,
@@ -1521,12 +1522,14 @@ function calcCriteriaNSW(receiverIndex) {
 
   // Non-residential receiver types — fixed amenity levels from Table 2.2
   var levels = NSW_AMENITY_NON_RESIDENTIAL[recType];
-  if (!levels) return { day: '', evening: '', night: '', lmax: '' };
+  if (!levels) return { day: '', evening: '', night: '', lmax: '', _recType: recType };
   return {
     day: levels.day !== null ? levels.day : '',
     evening: levels.evening !== null ? levels.evening : '',
     night: levels.night !== null ? levels.night : '',
-    lmax: ''
+    lmax: '',
+    _recType: recType,
+    _anlDay: levels.day, _anlEve: levels.evening, _anlNight: levels.night
   };
 }
 
@@ -3525,6 +3528,13 @@ function renderNSWDerivTable() {
   var tbody = document.getElementById('nswDerivBody');
   if (!tbody || currentState !== 'NSW') return;
 
+  var REC_TYPE_LABELS = {
+    residential: 'Residential', hotel: 'Hotel / motel', school: 'School (internal)',
+    hospital_internal: 'Hospital (internal)', hospital_external: 'Hospital (external)',
+    worship: 'Place of worship', recreation_passive: 'Passive recreation',
+    recreation_active: 'Active recreation', commercial: 'Commercial', industrial: 'Industrial'
+  };
+
   // Collect derivation data per receiver
   var recvNames = [];
   var derivRows = [];
@@ -3536,8 +3546,6 @@ function renderNSWDerivTable() {
     if (!Number.isFinite(dist) || dist <= 0) continue;
 
     var crit = calcCriteriaNSW(i);
-    if (crit._rblDay === undefined) continue; // non-residential, skip detailed derivation
-
     recvNames.push(name);
     derivRows.push(crit);
   }
@@ -3549,17 +3557,30 @@ function renderNSWDerivTable() {
 
   var amenityArea = (document.getElementById('nswAmenityArea') || {}).value || 'suburban';
   var areaLabel = amenityArea.charAt(0).toUpperCase() + amenityArea.slice(1);
+  function val(v) { return v !== null && v !== '' && v !== undefined ? Math.round(v) : '—'; }
 
   var html = '';
   derivRows.forEach(function(c, idx) {
     var name = recvNames[idx];
+    var recType = c._recType || 'residential';
+    var typeLabel = REC_TYPE_LABELS[recType] || recType;
+    var isResidential = (recType === 'residential');
+
     if (idx > 0) html += '<tr><td colspan="4" style="border-top:2px solid var(--border);"></td></tr>';
-    html += '<tr style="font-weight:600;background:#f9fafb;"><td colspan="4">' + name + '</td></tr>';
-    html += '<tr><td>Rating background level (RBL)</td><td class="num">' + Math.round(c._rblDay) + '</td><td class="num">' + Math.round(c._rblEve) + '</td><td class="num">' + Math.round(c._rblNight) + '</td></tr>';
-    html += '<tr><td>Intrusiveness criterion (RBL + 5 dB)</td><td class="num">' + Math.round(c._intDay) + '</td><td class="num">' + Math.round(c._intEve) + '</td><td class="num">' + Math.round(c._intNight) + '</td></tr>';
-    html += '<tr><td>Amenity noise level (ANL) — ' + areaLabel + '</td><td class="num">' + c._anlDay + '</td><td class="num">' + c._anlEve + '</td><td class="num">' + c._anlNight + '</td></tr>';
-    html += '<tr><td>Amenity criterion (ANL − 5 dB + 3 dB)</td><td class="num">' + Math.round(c._amenDay) + '</td><td class="num">' + Math.round(c._amenEve) + '</td><td class="num">' + Math.round(c._amenNight) + '</td></tr>';
-    html += '<tr style="font-weight:700;background:#fef9c3;"><td>Project noise trigger level</td><td class="num">' + Math.round(c.day) + '</td><td class="num">' + Math.round(c.evening) + '</td><td class="num">' + Math.round(c.night) + '</td></tr>';
+    html += '<tr style="font-weight:600;background:#f9fafb;"><td colspan="4">' + name + ' — ' + typeLabel + '</td></tr>';
+
+    if (isResidential) {
+      html += '<tr><td>Rating background level (RBL)</td><td class="num">' + val(c._rblDay) + '</td><td class="num">' + val(c._rblEve) + '</td><td class="num">' + val(c._rblNight) + '</td></tr>';
+      html += '<tr><td>Intrusiveness criterion (RBL + 5 dB)</td><td class="num">' + val(c._intDay) + '</td><td class="num">' + val(c._intEve) + '</td><td class="num">' + val(c._intNight) + '</td></tr>';
+      html += '<tr><td>Amenity noise level (ANL) — ' + areaLabel + '</td><td class="num">' + val(c._anlDay) + '</td><td class="num">' + val(c._anlEve) + '</td><td class="num">' + val(c._anlNight) + '</td></tr>';
+      html += '<tr><td>Amenity criterion (ANL − 5 dB + 3 dB)</td><td class="num">' + val(c._amenDay) + '</td><td class="num">' + val(c._amenEve) + '</td><td class="num">' + val(c._amenNight) + '</td></tr>';
+      html += '<tr style="font-weight:700;background:#fef9c3;"><td>Project noise trigger level</td><td class="num">' + val(c.day) + '</td><td class="num">' + val(c.evening) + '</td><td class="num">' + val(c.night) + '</td></tr>';
+    } else {
+      // Non-residential: only ANL and amenity criterion rows
+      html += '<tr><td>Amenity noise level (ANL) — ' + typeLabel + '</td><td class="num">' + val(c._anlDay) + '</td><td class="num">' + val(c._anlEve) + '</td><td class="num">' + val(c._anlNight) + '</td></tr>';
+      html += '<tr><td>Amenity criterion (ANL − 5 dB + 3 dB)</td><td class="num">' + val(c._anlDay != null ? c._anlDay - 5 + 3 : null) + '</td><td class="num">' + val(c._anlEve != null ? c._anlEve - 5 + 3 : null) + '</td><td class="num">' + val(c._anlNight != null ? c._anlNight - 5 + 3 : null) + '</td></tr>';
+      html += '<tr style="font-weight:700;background:#fef9c3;"><td>Project noise trigger level</td><td class="num">' + val(c.day) + '</td><td class="num">' + val(c.evening) + '</td><td class="num">' + val(c.night) + '</td></tr>';
+    }
   });
 
   tbody.innerHTML = html;
