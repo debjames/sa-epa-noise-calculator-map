@@ -723,26 +723,26 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       </div>
     </div>
 
-    <!-- SA: Planning overlays -->
+    <!-- SA: MBS 010 -->
     <div class="grid2 sa-only" style="padding-top:0;">
       <div class="card span2">
-        <h2>Applicable overlays</h2>
-        <div class="p" id="saOverlayDesc">Planning overlays detected from <a href="https://sappa.plan.sa.gov.au" target="_blank">SAPPA</a> at each marker location.</div>
+        <h2>MBS 010</h2>
+        <div class="p">The application of MBS 010 will be triggered if the subject site is located in an ANEF contour or is within a Noise Attenuation Area (Noise and Air Emissions Overlay). Data from <a href="https://sappa.plan.sa.gov.au" target="_blank">SAPPA</a>.</div>
         <div class="table-scroll">
-          <table class="crit-table" style="margin-top:8px;" id="saOverlayTable">
+          <table class="crit-table" style="margin-top:8px;" id="mbs010Table">
             <thead>
               <tr>
-                <th style="width:30%;">Location</th>
-                <th style="width:35%;">Noise and Air Emissions</th>
-                <th style="width:35%;">Aircraft Noise Exposure</th>
+                <th style="width:40%;">Relevant Layers</th>
+                <th style="width:60%;">Relevant information</th>
               </tr>
             </thead>
-            <tbody id="saOverlayBody">
-              <tr><td>Subject site</td><td id="ov_src_noise">—</td><td id="ov_src_aircraft">—</td></tr>
-              <tr><td>Receiver 1</td><td id="ov_r1_noise">—</td><td id="ov_r1_aircraft">—</td></tr>
-              <tr><td>Receiver 2</td><td id="ov_r2_noise">—</td><td id="ov_r2_aircraft">—</td></tr>
-              <tr><td>Receiver 3</td><td id="ov_r3_noise">—</td><td id="ov_r3_aircraft">—</td></tr>
-              <tr><td>Receiver 4</td><td id="ov_r4_noise">—</td><td id="ov_r4_aircraft">—</td></tr>
+            <tbody id="mbs010Body">
+              <tr><td>ANEF</td><td id="mbs_anef">—</td></tr>
+              <tr><td>ANR</td><td id="mbs_anr">—</td></tr>
+              <tr><td>Noise Attenuation Area</td><td id="mbs_noise">—</td></tr>
+              <tr><td>Designated Road</td><td id="mbs_road">—</td></tr>
+              <tr><td>Rail corridor</td><td id="mbs_rail">—</td></tr>
+              <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td></tr>
             </tbody>
           </table>
         </div>
@@ -3856,7 +3856,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'Applicable overlays', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
+    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'MBS 010', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
@@ -4994,56 +4994,100 @@ initCollapse();
           }
         });
     }
-    /* ==== SAPPA Overlay Queries (Noise & Air, Aircraft) ==== */
-    var SA_OVERLAY_LAYERS = {
-      noise: 39,     // Noise and Air Emissions
-      aircraft: 27   // Aircraft Noise Exposure
-    };
+    /* ==== MBS 010 Overlay Queries (source site only) ==== */
+    function setMBS(id, text, highlight) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text;
+      if (highlight) { el.style.color = '#b91c1c'; el.style.fontWeight = '600'; el.style.background = '#fef9c3'; }
+      else { el.style.color = ''; el.style.fontWeight = ''; el.style.background = ''; }
+    }
 
     function querySAPPAOverlays(mode, latlng) {
       if (currentState !== 'SA') return;
-      var prefix = (mode === 'source') ? 'src' : mode;
+      if (mode !== 'source') return; // MBS 010 only queries at the subject site
       var geom = latlng.lng + ',' + latlng.lat;
-      var baseParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
+      var ptParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
 
-      // Query Noise and Air Emissions (layer 39)
-      var noiseEl = document.getElementById('ov_' + prefix + '_noise');
-      if (noiseEl) noiseEl.textContent = '\u2026';
-      fetch(SAPPA_BASE + '/39/query?geometry=' + geom + baseParams + '&outFields=name,description')
+      // Reset all rows
+      ['mbs_anef','mbs_anr','mbs_noise','mbs_road','mbs_rail','mbs_mixed'].forEach(function(id) { setMBS(id, '\u2026', false); });
+
+      // 1. Aircraft Noise Exposure (layer 27) → splits into ANEF + ANR
+      fetch(SAPPA_BASE + '/27/query?geometry=' + geom + ptParams + '&outFields=name,value')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!noiseEl) return;
-          if (data.features && data.features.length) {
-            var names = data.features.map(function(f) { return f.attributes.name || f.attributes.description || 'Yes'; });
-            noiseEl.textContent = names.join(', ');
-            noiseEl.style.color = '#b91c1c';
-            noiseEl.style.fontWeight = '600';
-          } else {
-            noiseEl.textContent = 'No';
-            noiseEl.style.color = '';
-            noiseEl.style.fontWeight = '';
+          var anefVals = [], anrVals = [];
+          if (data.features) {
+            data.features.forEach(function(f) {
+              var v = f.attributes.value || f.attributes.name || '';
+              if (v.indexOf('ANEF') >= 0) anefVals.push(v + ' contour');
+              else if (v) anrVals.push(v);
+            });
           }
-        }).catch(function() { if (noiseEl) noiseEl.textContent = '—'; });
+          setMBS('mbs_anef', anefVals.length ? anefVals.join(', ') : 'Not within ANEF contour', anefVals.length > 0);
+          setMBS('mbs_anr', anrVals.length ? anrVals.join(', ') : 'Not within ANR area', anrVals.length > 0);
+        }).catch(function() { setMBS('mbs_anef', '—', false); setMBS('mbs_anr', '—', false); });
 
-      // Query Aircraft Noise Exposure (layer 27)
-      var aircraftEl = document.getElementById('ov_' + prefix + '_aircraft');
-      if (aircraftEl) aircraftEl.textContent = '\u2026';
-      fetch(SAPPA_BASE + '/27/query?geometry=' + geom + baseParams + '&outFields=name,value')
+      // 2. Noise and Air Emissions (layer 39) → Noise Attenuation Area
+      fetch(SAPPA_BASE + '/39/query?geometry=' + geom + ptParams + '&outFields=name,description')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!aircraftEl) return;
           if (data.features && data.features.length) {
-            var vals = data.features.map(function(f) { return f.attributes.value || f.attributes.name || 'Yes'; });
-            aircraftEl.textContent = vals.join(', ');
-            aircraftEl.style.color = '#b91c1c';
-            aircraftEl.style.fontWeight = '600';
+            var names = data.features.map(function(f) { return f.attributes.name || f.attributes.description || 'Noise and Air Emissions Overlay'; });
+            setMBS('mbs_noise', names.join(', '), true);
           } else {
-            aircraftEl.textContent = 'No';
-            aircraftEl.style.color = '';
-            aircraftEl.style.fontWeight = '';
+            setMBS('mbs_noise', 'Not within overlay', false);
           }
-        }).catch(function() { if (aircraftEl) aircraftEl.textContent = '—'; });
+        }).catch(function() { setMBS('mbs_noise', '—', false); });
 
+      // 3. Designated Road (layers 38 Major Urban + 42 Urban Transport Routes) — 50m buffer
+      var buf = 0.0005;
+      var env = (latlng.lng - buf) + ',' + (latlng.lat - buf) + ',' + (latlng.lng + buf) + ',' + (latlng.lat + buf);
+      var envParams = '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json&outFields=name,description,value';
+      Promise.all([
+        fetch(SAPPA_BASE + '/38/query?geometry=' + env + envParams).then(function(r) { return r.json(); }),
+        fetch(SAPPA_BASE + '/42/query?geometry=' + env + envParams).then(function(r) { return r.json(); })
+      ]).then(function(results) {
+        var roads = [];
+        results.forEach(function(data) {
+          if (data.features) data.features.forEach(function(f) {
+            var n = f.attributes.name || f.attributes.description || '';
+            if (n && roads.indexOf(n) === -1) roads.push(n);
+          });
+        });
+        setMBS('mbs_road', roads.length ? roads.join(', ') : 'Not adjacent to designated road', roads.length > 0);
+      }).catch(function() { setMBS('mbs_road', '—', false); });
+
+      // 4. Rail corridor (layer 36 Key Railway Crossings) — 100m buffer
+      var rbuf = 0.001;
+      var renv = (latlng.lng - rbuf) + ',' + (latlng.lat - rbuf) + ',' + (latlng.lng + rbuf) + ',' + (latlng.lat + rbuf);
+      fetch(SAPPA_BASE + '/36/query?geometry=' + renv + '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json&outFields=name,description')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.features && data.features.length) {
+            var names = data.features.map(function(f) { return f.attributes.name || f.attributes.description || 'Rail corridor'; });
+            setMBS('mbs_rail', names.join(', '), true);
+          } else {
+            setMBS('mbs_rail', 'Not adjacent to rail corridor', false);
+          }
+        }).catch(function() { setMBS('mbs_rail', '—', false); });
+
+      // 5. Mixed land use areas — check if source zone is Urban Corridor type
+      var zoneUrl = SAPPA_BASE + '/114/query?geometry=' + geom + ptParams + '&outFields=name';
+      fetch(zoneUrl).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.features && data.features.length) {
+          var zone = data.features[0].attributes.name || '';
+          var mixedZones = ['Urban Corridor', 'City Main Street', 'Suburban Main Street', 'Township Main Street', 'Local Activity Centre', 'Suburban Activity Centre', 'Urban Activity Centre', 'Township Activity Centre', 'Business Neighbourhood'];
+          var isMixed = mixedZones.some(function(mz) { return zone.indexOf(mz) >= 0; });
+          if (isMixed) {
+            setMBS('mbs_mixed', zone + ' Zone\u2014Commercial & residential land uses', true);
+          } else {
+            setMBS('mbs_mixed', 'Not within mixed land use zone', false);
+          }
+        } else {
+          setMBS('mbs_mixed', '—', false);
+        }
+      }).catch(function() { setMBS('mbs_mixed', '—', false); });
     }
     /* ==== End SAPPA Overlay Queries ==== */
 
