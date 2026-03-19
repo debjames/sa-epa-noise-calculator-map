@@ -5026,9 +5026,9 @@ initCollapse();
       return p.distanceTo(L.latLng(projLat, projLng));
     }
 
-    /* Classify road type: layer 38 = Type A, layer 42 = Type B */
+    /* Classify road type: layer 38 = Type A, layer 42 = Type B, layer 37 = Type R */
     function classifyRoadType(layerId) {
-      return layerId === 38 ? 'A' : 'B';
+      return layerId === 38 ? 'A' : layerId === 37 ? 'R' : 'B';
     }
 
     function querySAPPAOverlays(mode, latlng) {
@@ -5068,13 +5068,14 @@ initCollapse();
           }
         }).catch(function() { setMBS('mbs_noise', '—', false); });
 
-      // 3. Designated Road (layers 38 Type A, 42 Type B) — 250m buffer, with geometry for distance
+      // 3. Designated Road (layers 38 Type A, 42 Type B, 37 Type R) — 250m buffer, with geometry for distance
       var buf = 0.0025; // ~250m
       var env = (latlng.lng - buf) + ',' + (latlng.lat - buf) + ',' + (latlng.lng + buf) + ',' + (latlng.lat + buf);
       var roadParams = '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&f=json&outFields=name,description,value';
       Promise.all([
         fetch(SAPPA_BASE + '/38/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }).then(function(d) { d._layerId = 38; return d; }),
-        fetch(SAPPA_BASE + '/42/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }).then(function(d) { d._layerId = 42; return d; })
+        fetch(SAPPA_BASE + '/42/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }).then(function(d) { d._layerId = 42; return d; }),
+        fetch(SAPPA_BASE + '/37/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }).then(function(d) { d._layerId = 37; return d; })
       ]).then(function(results) {
         var nearest = null;
         results.forEach(function(data) {
