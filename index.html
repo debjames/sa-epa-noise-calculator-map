@@ -4038,32 +4038,36 @@ initCollapse();
             });
           });
 
-          // Inject temporary PDF print styles for crisp table borders
+          // Inject temporary PDF print styles for thin black table borders
           const pdfStyle = document.createElement('style');
           pdfStyle.id = 'pdf-criteria-temp-style';
           pdfStyle.textContent = `
             .card table th, .card table td {
-              border: 1px solid #000 !important;
-              font-size: 12px !important;
-              padding: 4px 6px !important;
+              border: 0.5px solid #000 !important;
+              font-size: 13px !important;
+              padding: 5px 8px !important;
+              white-space: nowrap !important;
             }
-            .card table { border-collapse: collapse !important; }
+            .card table { border-collapse: collapse !important; width: 100% !important; }
+            .card select { -webkit-appearance: none; appearance: none; border: none !important; background: transparent !important; font-size: 13px !important; }
+            .card input[type="number"], .card input[type="text"] { border: none !important; background: transparent !important; font-size: 13px !important; }
           `;
           document.head.appendChild(pdfStyle);
 
           await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
           // Capture each section as a separate canvas
-          const images = []; // {dataUrl, wPx, hPx}
+          const images = []; // {data, w, h}
 
+          // Map: use higher scale for clarity, capture with CORS for tiles
           if (mapEl) {
-            const mc = await html2canvas(mapEl, { scale: 2, useCORS: true, windowWidth: 1400 });
-            images.push({ data: mc.toDataURL('image/jpeg', 0.9), w: mc.width, h: mc.height });
+            const mc = await html2canvas(mapEl, { scale: 3, useCORS: true, allowTaint: true, windowWidth: 1400 });
+            images.push({ data: mc.toDataURL('image/png'), w: mc.width, h: mc.height });
           }
 
           for (const card of cardsToCapture) {
-            const cc = await html2canvas(card, { scale: 2, backgroundColor: '#fff', windowWidth: 1400 });
-            images.push({ data: cc.toDataURL('image/jpeg', 0.95), w: cc.width, h: cc.height });
+            const cc = await html2canvas(card, { scale: 3, backgroundColor: '#fff', windowWidth: 1400 });
+            images.push({ data: cc.toDataURL('image/png'), w: cc.width, h: cc.height });
           }
 
           // Remove temporary styles and restore width
@@ -4081,19 +4085,19 @@ initCollapse();
             if (btn && body && body.classList.contains('collapsed')) btn.innerHTML = '&#x25BC;';
           });
 
-          // Build PDF
+          // Build PDF — landscape A4 for wider tables
           const { jsPDF } = window.jspdf;
-          const pageW = 210, pageH = 297;
-          const margin = 15;
+          const pageW = 297, pageH = 210;  // landscape
+          const margin = 12;
           const contentW = pageW - 2 * margin;
 
-          const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+          const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
           let yMM = margin;
 
           // Add title
-          pdf.setFontSize(16);
-          pdf.text('Noise Criteria Derivation', margin, yMM + 5);
-          yMM += 8;
+          pdf.setFontSize(14);
+          pdf.text('Noise Criteria Derivation', margin, yMM + 4);
+          yMM += 7;
           const addr = document.getElementById('mapSearchInput');
           if (addr && addr.value.trim()) {
             pdf.setFontSize(10);
@@ -4111,7 +4115,7 @@ initCollapse();
               yMM = margin;
             }
 
-            pdf.addImage(img.data, 'JPEG', margin, yMM, contentW, imgHmm);
+            pdf.addImage(img.data, 'PNG', margin, yMM, contentW, imgHmm);
             yMM += imgHmm + 4;
           }
 
