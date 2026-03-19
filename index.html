@@ -691,11 +691,11 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <span class="badge nsw-only">Evening = 6 pm–10 pm</span>
           <span class="badge nsw-only">Night = 10 pm–7 am</span>
 <span class="badge tooltip nsw-only">
-  Trigger = min(Intrusiveness, Amenity−5)
+  Trigger = min(Intrusiveness, Amenity criterion)
   <span class="tooltiptext">
     Project noise trigger level = lower of the project intrusiveness noise level
-    (RBL + 5 dB) and the project amenity noise level (Table 2.2 recommended
-    amenity minus 5 dB for a single source). NSW Noise Policy for Industry (2017).
+    (RBL + 5 dB) and the amenity criterion (Table 2.2 ANL − 5 dB + 3 dB facade correction).
+    NSW Noise Policy for Industry (2017).
   </span>
 </span>
 
@@ -703,6 +703,26 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         </div>
       </div>
 
+    </div>
+
+    <!-- NSW: Derivation of noise emission criteria -->
+    <div class="grid2 nsw-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Derivation of noise emission criteria</h2>
+        <div class="table-scroll" id="nswDerivTableWrap">
+          <table id="nswDerivTable">
+            <thead>
+              <tr>
+                <th style="width:30%;">Description</th>
+                <th class="num" style="width:11.6%;">Day</th>
+                <th class="num" style="width:11.6%;">Evening</th>
+                <th class="num" style="width:11.6%;">Night</th>
+              </tr>
+            </thead>
+            <tbody id="nswDerivBody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- NSW NPI 2017: Modifying factor corrections (Fact Sheet C) -->
@@ -1450,12 +1470,12 @@ function calcCriteriaNSW(receiverIndex) {
     var intEve = Math.max(rblEve + 5, NSW_MIN_INTRUSIVENESS.evening);
     var intNight = Math.max(rblNight + 5, NSW_MIN_INTRUSIVENESS.night);
 
-    // Project amenity = Table 2.2 recommended - 5 dB (single source)
+    // Project amenity = Table 2.2 recommended ANL - 5 dB (single source) + 3 dB (facade correction)
     var amenity = NSW_AMENITY_RESIDENTIAL[amenityArea];
     if (!amenity) amenity = NSW_AMENITY_RESIDENTIAL.suburban;
-    var projAmenDay = amenity.day - 5;
-    var projAmenEve = amenity.evening - 5;
-    var projAmenNight = amenity.night - 5;
+    var projAmenDay = amenity.day - 5 + 3;
+    var projAmenEve = amenity.evening - 5 + 3;
+    var projAmenNight = amenity.night - 5 + 3;
 
     // Enforce: evening ≤ day, night ≤ evening (Section 2.3)
     intEve = Math.min(intEve, intDay);
@@ -1467,7 +1487,9 @@ function calcCriteriaNSW(receiverIndex) {
       evening: Math.min(intEve, projAmenEve),
       night: Math.min(intNight, projAmenNight),
       lmax: '',
+      _rblDay: rblDay, _rblEve: rblEve, _rblNight: rblNight,
       _intDay: intDay, _intEve: intEve, _intNight: intNight,
+      _anlDay: amenity.day, _anlEve: amenity.evening, _anlNight: amenity.night,
       _amenDay: projAmenDay, _amenEve: projAmenEve, _amenNight: projAmenNight
     };
   }
@@ -3498,6 +3520,51 @@ function updateNSWIntrusiveness() {
   if (elN) elN.textContent = 'Intrusiveness: ' + Math.round(intN);
 }
 
+/** Populate the NSW derivation of noise emission criteria table */
+function renderNSWDerivTable() {
+  var tbody = document.getElementById('nswDerivBody');
+  if (!tbody || currentState !== 'NSW') return;
+
+  // Collect derivation data per receiver
+  var recvNames = [];
+  var derivRows = [];
+  for (var i = 1; i <= 4; i++) {
+    var nameEl = document.getElementById('recvName' + i);
+    var name = nameEl ? nameEl.value.trim() : ('Receiver ' + i);
+    var distEl = document.getElementById('dist_r' + i);
+    var dist = distEl ? parseFloat(distEl.value) : NaN;
+    if (!Number.isFinite(dist) || dist <= 0) continue;
+
+    var crit = calcCriteriaNSW(i);
+    if (crit._rblDay === undefined) continue; // non-residential, skip detailed derivation
+
+    recvNames.push(name);
+    derivRows.push(crit);
+  }
+
+  if (derivRows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);font-style:italic;">Place receivers with distances to see derivation</td></tr>';
+    return;
+  }
+
+  var amenityArea = (document.getElementById('nswAmenityArea') || {}).value || 'suburban';
+  var areaLabel = amenityArea.charAt(0).toUpperCase() + amenityArea.slice(1);
+
+  var html = '';
+  derivRows.forEach(function(c, idx) {
+    var name = recvNames[idx];
+    if (idx > 0) html += '<tr><td colspan="4" style="border-top:2px solid var(--border);"></td></tr>';
+    html += '<tr style="font-weight:600;background:#f9fafb;"><td colspan="4">' + name + '</td></tr>';
+    html += '<tr><td>Rating background level (RBL)</td><td class="num">' + Math.round(c._rblDay) + '</td><td class="num">' + Math.round(c._rblEve) + '</td><td class="num">' + Math.round(c._rblNight) + '</td></tr>';
+    html += '<tr><td>Intrusiveness criterion (RBL + 5 dB)</td><td class="num">' + Math.round(c._intDay) + '</td><td class="num">' + Math.round(c._intEve) + '</td><td class="num">' + Math.round(c._intNight) + '</td></tr>';
+    html += '<tr><td>Amenity noise level (ANL) — ' + areaLabel + '</td><td class="num">' + c._anlDay + '</td><td class="num">' + c._anlEve + '</td><td class="num">' + c._anlNight + '</td></tr>';
+    html += '<tr><td>Amenity criterion (ANL − 5 dB + 3 dB)</td><td class="num">' + Math.round(c._amenDay) + '</td><td class="num">' + Math.round(c._amenEve) + '</td><td class="num">' + Math.round(c._amenNight) + '</td></tr>';
+    html += '<tr style="font-weight:700;background:#fef9c3;"><td>Project noise trigger level</td><td class="num">' + Math.round(c.day) + '</td><td class="num">' + Math.round(c.evening) + '</td><td class="num">' + Math.round(c.night) + '</td></tr>';
+  });
+
+  tbody.innerHTML = html;
+}
+
 function updateNSWModFactors() {
   var mf = getNSWModifyingFactors();
   var el = document.getElementById('nswModTotal');
@@ -3675,6 +3742,9 @@ function renderContributions() {
   renderContribTable('contribDayTable',   'day',   5);
   if (currentState === 'VIC' || currentState === 'NSW' || currentState === 'OTHER') renderContribTable('contribEveTable', 'eve', 5);
   renderContribTable('contribNightTable', 'night', 5);
+
+  // NSW derivation table
+  if (currentState === 'NSW') renderNSWDerivTable();
 }
 
 function initCollapse() {
