@@ -722,6 +722,33 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       </div>
     </div>
 
+    <!-- SA: Planning overlays -->
+    <div class="grid2 sa-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Applicable overlays</h2>
+        <div class="p" id="saOverlayDesc">Planning overlays detected from <a href="https://sappa.plan.sa.gov.au" target="_blank">SAPPA</a> at each marker location.</div>
+        <div class="table-scroll">
+          <table class="crit-table" style="margin-top:8px;" id="saOverlayTable">
+            <thead>
+              <tr>
+                <th style="width:22%;">Location</th>
+                <th style="width:26%;">Noise and Air Emissions</th>
+                <th style="width:26%;">Aircraft Noise Exposure</th>
+                <th style="width:26%;">Designated Road</th>
+              </tr>
+            </thead>
+            <tbody id="saOverlayBody">
+              <tr><td>Subject site</td><td id="ov_src_noise">—</td><td id="ov_src_aircraft">—</td><td id="ov_src_road">—</td></tr>
+              <tr><td>Receiver 1</td><td id="ov_r1_noise">—</td><td id="ov_r1_aircraft">—</td><td id="ov_r1_road">—</td></tr>
+              <tr><td>Receiver 2</td><td id="ov_r2_noise">—</td><td id="ov_r2_aircraft">—</td><td id="ov_r2_road">—</td></tr>
+              <tr><td>Receiver 3</td><td id="ov_r3_noise">—</td><td id="ov_r3_aircraft">—</td><td id="ov_r3_road">—</td></tr>
+              <tr><td>Receiver 4</td><td id="ov_r4_noise">—</td><td id="ov_r4_aircraft">—</td><td id="ov_r4_road">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- NSW: Derivation of noise emission criteria -->
     <div class="grid2 nsw-only" style="padding-top:0;">
       <div class="card span2">
@@ -3826,7 +3853,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
+    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'Applicable overlays', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
@@ -4784,6 +4811,9 @@ initCollapse();
       var queryLat = latlng.lat;
       var queryLng = latlng.lng;
 
+      /* Query SA planning overlays in parallel */
+      querySAPPAOverlays(mode, latlng);
+
       queryZoningAtPoint(queryLat, queryLng)
         .then(function(result) {
           /* Check marker is still at queried position (user may have moved it) */
@@ -4848,6 +4878,92 @@ initCollapse();
           }
         });
     }
+    /* ==== SAPPA Overlay Queries (Noise & Air, Aircraft, Designated Road) ==== */
+    var SA_OVERLAY_LAYERS = {
+      noise: 39,     // Noise and Air Emissions
+      aircraft: 27,  // Aircraft Noise Exposure
+      road_major: 38,// Major Urban Transport Routes
+      road_urban: 42 // Urban Transport Routes
+    };
+
+    function querySAPPAOverlays(mode, latlng) {
+      if (currentState !== 'SA') return;
+      var prefix = (mode === 'source') ? 'src' : mode;
+      var geom = latlng.lng + ',' + latlng.lat;
+      var baseParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
+
+      // Query Noise and Air Emissions (layer 39)
+      var noiseEl = document.getElementById('ov_' + prefix + '_noise');
+      if (noiseEl) noiseEl.textContent = '\u2026';
+      fetch(SAPPA_BASE + '/39/query?geometry=' + geom + baseParams + '&outFields=name,description')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!noiseEl) return;
+          if (data.features && data.features.length) {
+            var names = data.features.map(function(f) { return f.attributes.name || f.attributes.description || 'Yes'; });
+            noiseEl.textContent = names.join(', ');
+            noiseEl.style.color = '#b91c1c';
+            noiseEl.style.fontWeight = '600';
+          } else {
+            noiseEl.textContent = 'No';
+            noiseEl.style.color = '';
+            noiseEl.style.fontWeight = '';
+          }
+        }).catch(function() { if (noiseEl) noiseEl.textContent = '—'; });
+
+      // Query Aircraft Noise Exposure (layer 27)
+      var aircraftEl = document.getElementById('ov_' + prefix + '_aircraft');
+      if (aircraftEl) aircraftEl.textContent = '\u2026';
+      fetch(SAPPA_BASE + '/27/query?geometry=' + geom + baseParams + '&outFields=name,value')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!aircraftEl) return;
+          if (data.features && data.features.length) {
+            var vals = data.features.map(function(f) { return f.attributes.value || f.attributes.name || 'Yes'; });
+            aircraftEl.textContent = vals.join(', ');
+            aircraftEl.style.color = '#b91c1c';
+            aircraftEl.style.fontWeight = '600';
+          } else {
+            aircraftEl.textContent = 'No';
+            aircraftEl.style.color = '';
+            aircraftEl.style.fontWeight = '';
+          }
+        }).catch(function() { if (aircraftEl) aircraftEl.textContent = '—'; });
+
+      // Query Designated Roads (Major Urban Transport Routes layer 38 + Urban Transport Routes layer 42)
+      var roadEl = document.getElementById('ov_' + prefix + '_road');
+      if (roadEl) roadEl.textContent = '\u2026';
+      // Use a small buffer (50m) around point for road proximity
+      var buf = 0.0005; // ~50m in degrees
+      var env = (latlng.lng - buf) + ',' + (latlng.lat - buf) + ',' + (latlng.lng + buf) + ',' + (latlng.lat + buf);
+      var roadParams = '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json&outFields=name,description';
+      Promise.all([
+        fetch(SAPPA_BASE + '/38/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }),
+        fetch(SAPPA_BASE + '/42/query?geometry=' + env + roadParams).then(function(r) { return r.json(); })
+      ]).then(function(results) {
+        if (!roadEl) return;
+        var roads = [];
+        results.forEach(function(data) {
+          if (data.features) {
+            data.features.forEach(function(f) {
+              var n = f.attributes.name || f.attributes.description || '';
+              if (n && roads.indexOf(n) === -1) roads.push(n);
+            });
+          }
+        });
+        if (roads.length) {
+          roadEl.textContent = roads.join(', ');
+          roadEl.style.color = '#b91c1c';
+          roadEl.style.fontWeight = '600';
+        } else {
+          roadEl.textContent = 'No';
+          roadEl.style.color = '';
+          roadEl.style.fontWeight = '';
+        }
+      }).catch(function() { if (roadEl) roadEl.textContent = '—'; });
+    }
+    /* ==== End SAPPA Overlay Queries ==== */
+
     /* ==== End SAPPA Zoning Integration ==== */
 
     /* ==== VicPlan Zoning Integration ==== */
