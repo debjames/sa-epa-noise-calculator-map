@@ -724,7 +724,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     </div>
 
     <!-- SA: MBS 010 -->
-    <div class="grid2 sa-only" style="padding-top:0;">
+    <div class="grid2 sa-only" id="mbs010Section" style="padding-top:0;display:none;">
       <div class="card span2">
         <h2>MBS 010</h2>
         <div class="p">The application of MBS 010 will be triggered if the subject site is located in an ANEF contour or is within a Noise Attenuation Area (Noise and Air Emissions Overlay). Data from <a href="https://sappa.plan.sa.gov.au" target="_blank">SAPPA</a>.</div>
@@ -2128,6 +2128,8 @@ function switchToState(state) {
     badge.textContent = 'SA';
     badge.className = 'state-badge state-badge-sa';
     badge.style.display = '';
+    var mbs010Sec = document.getElementById('mbs010Section');
+    if (mbs010Sec) mbs010Sec.style.display = '';
     expandCardByTitle('MBS 010');
   } else if (state === 'NSW') {
     body.classList.add('state-nsw');
