@@ -600,7 +600,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div class="table-scroll">
         <table>
           <tr>
-            <th style="width:18%;">Location</th><th style="width:27%;" class="zone-col">Zone / Subzone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Receiver</th><th style="width:10%;" class="center">Distance to receiver, m</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
+            <th style="width:18%;">Location</th><th style="width:27%;" class="zone-col">Zone / Subzone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="center">Distance to receiver, m</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
           </tr>
 
           <tr>
@@ -619,7 +619,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"></td>
             <td class="zone-col"><select id="r1"></select></td>
             <td id="r1_land" class="left landuse-col"></td>
-            <td class="sa-only recv-type-col"><select id="r1_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>Existing</option><option value="vacant">Vacant</option></select></td>
+            <td class="sa-only recv-type-col"><select id="r1_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r1" placeholder=""></td>
           <td id="r1_daycrit" class="num crit-day-col"></td>
           <td id="r1_evecrit" class="num vic-only crit-eve-col"></td>
@@ -630,7 +630,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"></td>
             <td class="zone-col"><select id="r2"></select></td>
             <td id="r2_land" class="left landuse-col"></td>
-            <td class="sa-only recv-type-col"><select id="r2_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>Existing</option><option value="vacant">Vacant</option></select></td>
+            <td class="sa-only recv-type-col"><select id="r2_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r2" placeholder=""></td>
           <td id="r2_daycrit" class="num crit-day-col"></td>
           <td id="r2_evecrit" class="num vic-only crit-eve-col"></td>
@@ -641,7 +641,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"></td>
             <td class="zone-col"><select id="r3"></select></td>
             <td id="r3_land" class="left landuse-col"></td>
-            <td class="sa-only recv-type-col"><select id="r3_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>Existing</option><option value="vacant">Vacant</option></select></td>
+            <td class="sa-only recv-type-col"><select id="r3_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r3" placeholder=""></td>
           <td id="r3_daycrit" class="num crit-day-col"></td>
           <td id="r3_evecrit" class="num vic-only crit-eve-col"></td>
@@ -652,7 +652,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"></td>
             <td class="zone-col"><select id="r4"></select></td>
             <td id="r4_land" class="left landuse-col"></td>
-            <td class="sa-only recv-type-col"><select id="r4_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>Existing</option><option value="vacant">Vacant</option></select></td>
+            <td class="sa-only recv-type-col"><select id="r4_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r4" placeholder=""></td>
           <td id="r4_daycrit" class="num crit-day-col"></td>
           <td id="r4_evecrit" class="num vic-only crit-eve-col"></td>
@@ -676,7 +676,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       of the Indicative Noise Factors for the applicable land use categories used to determine environmental noise criteria.
   </span>
 </span>
-<span class="badge sa-only">Existing = existing or future approved development. Vacant = +5 dB to L<sub>eq</sub> day &amp; night criteria (EPA Noise Policy 2023)</span>
+<span class="badge sa-only">INL-5 = indicative noise level minus 5 dB (existing or future approved development). INL = indicative noise level (+5 dB to L<sub>eq</sub> day &amp; night criteria, vacant land) (EPA Noise Policy 2023)</span>
 
 <span class="badge tooltip vic-only vic-settings-only">
   Criteria = EPA Pub 1826.5
