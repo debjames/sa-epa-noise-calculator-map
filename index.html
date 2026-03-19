@@ -3752,11 +3752,12 @@ function renderEmergencyEquipCriteria() {
 
   // Build header
   var colCount = 1 + (fireOn ? 1 : 0) + (genOn ? 1 : 0);
+  var eqWidth = colCount === 3 ? '35%' : '70%';
   var hdr = '<tr><th style="width:30%;">Receiver</th>';
   hdr += '<th class="num" colspan="' + (colCount - 1) + '">Criteria, L<sub>eq</sub> dB(A)</th></tr>';
-  hdr += '<tr style="background:#D9D9D9;"><th></th>';
-  if (fireOn) hdr += '<th class="num">Fire pump</th>';
-  if (genOn) hdr += '<th class="num">Standby generator</th>';
+  hdr += '<tr><th style="background:#D9D9D9;"></th>';
+  if (fireOn) hdr += '<th class="num" style="background:#D9D9D9;width:' + eqWidth + ';">Fire pump</th>';
+  if (genOn) hdr += '<th class="num" style="background:#D9D9D9;width:' + eqWidth + ';">Standby generator</th>';
   hdr += '</tr>';
   thead.innerHTML = hdr;
 
