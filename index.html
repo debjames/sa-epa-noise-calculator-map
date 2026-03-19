@@ -358,7 +358,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;position:relative;">
           <input type="text" id="mapSearchInput" placeholder="Search for an address…" autocomplete="off" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-size:13px;background:white;">
           <button class="tool-btn map-mode-btn" id="mapSearchBtn" style="white-space:nowrap;">&#128269; Search</button>
-          <a id="sappaLink" href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener" class="tool-btn map-mode-btn sa-only" style="text-decoration:none;text-align:center;white-space:nowrap;display:none;font-size:12px;" title="Open this address in SAPPA">SAPPA &#8599;</a>
         </div>
         <div id="mapSearchResults" style="display:none;border:1px solid var(--border);border-radius:10px;background:#fff;margin-bottom:8px;max-height:220px;overflow-y:auto;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.08);"></div>
 
@@ -372,7 +371,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn zone-toggle-btn" id="zoneToggleBtn" title="Toggle zoning overlay on map" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Show Zones</button>
           <button class="tool-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial</button>
           <button class="tool-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastre</button>
-          <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Layers</button>
+          <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
           <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundary (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Urban Boundary</button>
           <button class="tool-btn map-mode-btn" id="mapClearBtn" title="Remove all markers and clear distances" style="margin-left:auto;color:#dc2626;border-color:#dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg> Clear All</button>
         </div>
@@ -728,7 +727,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="grid2 sa-only" id="mbs010Section" style="padding-top:0;display:none;">
       <div class="card span2">
         <h2>MBS 010</h2>
-        <div class="p">The application of MBS 010 will be triggered if the subject site is located in an ANEF contour or is within a Noise Attenuation Area (Noise and Air Emissions Overlay). Data from <a href="https://sappa.plan.sa.gov.au" target="_blank">SAPPA</a>.</div>
+        <div class="p">The application of MBS 010 will be triggered if the subject site is located in an ANEF contour or is within a Noise Attenuation Area (Noise and Air Emissions Overlay). <a id="sappaLink" href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener" class="tool-btn map-mode-btn" style="text-decoration:none;display:inline-block;font-size:12px;padding:3px 10px;vertical-align:middle;" title="Open SAPPA to view layers">SAPPA &#8599;</a></div>
         <div class="table-scroll">
           <table class="crit-table" style="margin-top:8px;" id="mbs010Table">
             <thead>
@@ -4795,7 +4794,7 @@ initCollapse();
           clearMBS010Layers();
           _mbs010On = false;
           mbs010Toggle.classList.remove('active');
-          mbs010Toggle.textContent = ' MBS 010 Layers';
+          mbs010Toggle.textContent = ' MBS 010 Screening';
           if (MBS_ICON) mbs010Toggle.insertBefore(MBS_ICON, mbs010Toggle.firstChild);
         } else {
           _mbs010On = true;
@@ -4823,7 +4822,7 @@ initCollapse();
       if (state !== 'SA' && _mbs010On) {
         clearMBS010Layers();
         _mbs010On = false;
-        if (btn) { btn.classList.remove('active'); btn.textContent = ' MBS 010 Layers'; if (MBS_ICON) btn.insertBefore(MBS_ICON, btn.firstChild); }
+        if (btn) { btn.classList.remove('active'); btn.textContent = ' MBS 010 Screening'; if (MBS_ICON) btn.insertBefore(MBS_ICON, btn.firstChild); }
       }
     };
 
@@ -5964,13 +5963,9 @@ initCollapse();
       // Map state name to abbreviation for parcel API lookup
       var ausMap = {'south australia':'SA','victoria':'VIC','new south wales':'NSW','queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
       detectedAusState = addrState ? (ausMap[addrState.toLowerCase()] || null) : null;
-      var sappaLnk = document.getElementById('sappaLink');
-      if (sappaLnk) sappaLnk.style.display = 'none';
       if (/victoria/i.test(addrState)) { switchToState('VIC'); }
       else if (/south australia/i.test(addrState)) {
         switchToState('SA');
-        var sappaLink = document.getElementById('sappaLink');
-        if (sappaLink) { sappaLink.style.display = ''; }
       }
       else if (/new south wales/i.test(addrState)) { switchToState('NSW'); }
       else {
