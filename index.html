@@ -889,25 +889,25 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <th class="num crit-night-col" style="width:25%;">Night L<sub>eq</sub> penalty</th>
           </tr>
           <tr>
-            <td>Receiver 1</td>
+            <td id="penR1Label">Receiver 1</td>
             <td class="center crit-day-col"><span id="penR1Day_wrap"></span></td>
             <td class="center vic-only crit-eve-col"><span id="penR1Eve_wrap"></span></td>
             <td class="center crit-night-col"><span id="penR1Night_wrap"></span></td>
           </tr>
           <tr>
-            <td>Receiver 2</td>
+            <td id="penR2Label">Receiver 2</td>
             <td class="center crit-day-col"><span id="penR2Day_wrap"></span></td>
             <td class="center vic-only crit-eve-col"><span id="penR2Eve_wrap"></span></td>
             <td class="center crit-night-col"><span id="penR2Night_wrap"></span></td>
           </tr>
           <tr>
-            <td>Receiver 3</td>
+            <td id="penR3Label">Receiver 3</td>
             <td class="center crit-day-col"><span id="penR3Day_wrap"></span></td>
             <td class="center vic-only crit-eve-col"><span id="penR3Eve_wrap"></span></td>
             <td class="center crit-night-col"><span id="penR3Night_wrap"></span></td>
           </tr>
           <tr>
-            <td>Receiver 4</td>
+            <td id="penR4Label">Receiver 4</td>
             <td class="center crit-day-col"><span id="penR4Day_wrap"></span></td>
             <td class="center vic-only crit-eve-col"><span id="penR4Eve_wrap"></span></td>
             <td class="center crit-night-col"><span id="penR4Night_wrap"></span></td>
@@ -3419,6 +3419,13 @@ function initPenaltyTable() {
       }
     });
   });
+
+  // Update receiver labels (VIC uses NSA, others use Receiver)
+  var prefix = isVIC ? 'NSA' : 'Receiver';
+  for (var li = 1; li <= 4; li++) {
+    var lbl = document.getElementById('penR' + li + 'Label');
+    if (lbl) lbl.textContent = prefix + ' ' + li;
+  }
 
   // Reset all per-receiver penalties to 0
   recvPenalties = {r1:{day:0,eve:0,night:0},r2:{day:0,eve:0,night:0},r3:{day:0,eve:0,night:0},r4:{day:0,eve:0,night:0}};
