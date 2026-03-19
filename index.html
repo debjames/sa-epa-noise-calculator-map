@@ -378,6 +378,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
           <button class="tool-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide location pins on map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Pins</button>
           <button class="tool-btn parcel-toggle-btn active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Boundary</button>
+          <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Layers</button>
         </div>
 
         <!-- Status row -->
@@ -2177,6 +2178,9 @@ function switchToState(state) {
       urbanBdyBtn.querySelector('svg').nextSibling.textContent = ' Urban Boundary';
     }
   }
+
+  // Show/hide MBS 010 button (SA only)
+  if (typeof window._updateMBS010Btn === 'function') window._updateMBS010Btn(state);
 
   // Update operational time column headers and re-render source tables
   updateOpTimeHeaders();
@@ -4706,6 +4710,121 @@ initCollapse();
         }
       });
     }
+
+    /* --- MBS 010 Overlay Layers toggle (SA only) --- */
+    var _mbs010Layers = [];  // Leaflet layers for MBS 010 overlays
+    var _mbs010On = false;
+    var _mbs010LegendCtrl = null;
+    var mbs010Toggle = document.getElementById('mbs010ToggleBtn');
+
+    var MBS010_OVERLAY_CFG = [
+      { id: 39, name: 'Noise and Air Emissions', color: '#cd6a44', fill: 'rgba(205,170,102,0.25)' },
+      { id: 27, name: 'Aircraft Noise Exposure', color: '#005ce6', fill: 'rgba(0,92,230,0.15)' },
+      { id: 38, name: 'Major Urban Transport Routes', color: '#e6194b', fill: 'rgba(230,25,75,0.12)', weight: 3 },
+      { id: 42, name: 'Urban Transport Routes', color: '#f58231', fill: 'rgba(245,130,49,0.12)', weight: 3 }
+    ];
+
+    function loadMBS010Layers() {
+      var bounds = map.getBounds();
+      var env = bounds.getWest() + ',' + bounds.getSouth() + ',' + bounds.getEast() + ',' + bounds.getNorth();
+
+      MBS010_OVERLAY_CFG.forEach(function(cfg) {
+        var url = SAPPA_BASE + '/' + cfg.id + '/query' +
+          '?geometry=' + encodeURIComponent(env) +
+          '&geometryType=esriGeometryEnvelope&inSR=4326' +
+          '&spatialRel=esriSpatialRelIntersects' +
+          '&outFields=name,value,description' +
+          '&returnGeometry=true&outSR=4326&f=geojson';
+
+        fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+          if (!_mbs010On) return;
+          if (!data.features || !data.features.length) return;
+          var layer = L.geoJSON(data, {
+            style: {
+              color: cfg.color,
+              weight: cfg.weight || 2,
+              opacity: 0.85,
+              fillColor: cfg.fill || cfg.color,
+              fillOpacity: 0.2,
+              dashArray: cfg.weight ? null : '5 3'
+            },
+            onEachFeature: function(feature, lyr) {
+              var props = feature.properties || {};
+              var tip = '<b>' + cfg.name + '</b>';
+              if (props.name) tip += '<br>' + props.name;
+              if (props.value) tip += '<br>' + props.value;
+              lyr.bindTooltip(tip, { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
+            }
+          });
+          layer.addTo(map);
+          layer._mbs010id = cfg.id;
+          _mbs010Layers.push(layer);
+        }).catch(function(err) { console.warn('MBS010 layer ' + cfg.id + ' failed:', err); });
+      });
+    }
+
+    function clearMBS010Layers() {
+      _mbs010Layers.forEach(function(l) { if (map.hasLayer(l)) map.removeLayer(l); });
+      _mbs010Layers = [];
+      if (_mbs010LegendCtrl) { try { map.removeControl(_mbs010LegendCtrl); } catch(e) {} _mbs010LegendCtrl = null; }
+    }
+
+    function addMBS010Legend() {
+      if (_mbs010LegendCtrl) return;
+      _mbs010LegendCtrl = L.control({ position: 'bottomleft' });
+      _mbs010LegendCtrl.onAdd = function() {
+        var div = L.DomUtil.create('div', 'zone-legend');
+        div.style.cssText = 'background:#fff;padding:8px 12px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:12px;line-height:1.6;';
+        var html = '<div style="font-weight:700;margin-bottom:4px;">MBS 010 Overlays</div>';
+        MBS010_OVERLAY_CFG.forEach(function(cfg) {
+          html += '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<span style="display:inline-block;width:14px;height:14px;background:' + cfg.color + ';opacity:0.7;border:1px solid ' + cfg.color + ';border-radius:2px;"></span> ' +
+            cfg.name + '</div>';
+        });
+        div.innerHTML = html;
+        return div;
+      };
+      _mbs010LegendCtrl.addTo(map);
+    }
+
+    if (mbs010Toggle) {
+      var MBS_ICON = mbs010Toggle.querySelector('svg');
+      mbs010Toggle.addEventListener('click', function() {
+        if (_mbs010On) {
+          clearMBS010Layers();
+          _mbs010On = false;
+          mbs010Toggle.classList.remove('active');
+          mbs010Toggle.textContent = ' MBS 010 Layers';
+          if (MBS_ICON) mbs010Toggle.insertBefore(MBS_ICON, mbs010Toggle.firstChild);
+        } else {
+          _mbs010On = true;
+          loadMBS010Layers();
+          addMBS010Legend();
+          mbs010Toggle.classList.add('active');
+          mbs010Toggle.textContent = ' Hide MBS 010';
+          if (MBS_ICON) mbs010Toggle.insertBefore(MBS_ICON, mbs010Toggle.firstChild);
+        }
+      });
+
+      /* Refresh MBS 010 layers on map move if active */
+      map.on('moveend', function() {
+        if (!_mbs010On) return;
+        clearMBS010Layers();
+        loadMBS010Layers();
+        addMBS010Legend();
+      });
+    }
+
+    /* Show/hide MBS 010 button based on state */
+    window._updateMBS010Btn = function(state) {
+      var btn = document.getElementById('mbs010ToggleBtn');
+      if (btn) btn.style.display = (state === 'SA') ? '' : 'none';
+      if (state !== 'SA' && _mbs010On) {
+        clearMBS010Layers();
+        _mbs010On = false;
+        if (btn) { btn.classList.remove('active'); btn.textContent = ' MBS 010 Layers'; if (MBS_ICON) btn.insertBefore(MBS_ICON, btn.firstChild); }
+      }
+    };
 
     /* --- Query SAPPA for zone/subzone at a lat/lng point --- */
     function queryZoningAtPoint(lat, lng) {
