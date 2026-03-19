@@ -4065,20 +4065,17 @@ initCollapse();
           const pageW = 210, pageH = 297;
           const margin = 15;
           const contentW = pageW - 2 * margin;
-          const contentH = pageH - 2 * margin;
 
           const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-          let yMM = margin; // current y position on page in mm
+          let yMM = margin;
 
           // Add title
           pdf.setFontSize(16);
-          pdf.setFont(undefined, 'bold');
           pdf.text('Noise Criteria Derivation', margin, yMM + 5);
           yMM += 8;
           const addr = document.getElementById('mapSearchInput');
           if (addr && addr.value.trim()) {
             pdf.setFontSize(10);
-            pdf.setFont(undefined, 'normal');
             pdf.text(addr.value.trim(), margin, yMM + 4);
             yMM += 6;
           }
@@ -4087,35 +4084,14 @@ initCollapse();
           for (const img of images) {
             const imgHmm = img.h * contentW / img.w;
 
-            // If this image won't fit on current page, start a new one
+            // If this image won't fit, start a new page
             if (yMM + imgHmm > pageH - margin && yMM > margin + 20) {
               pdf.addPage();
               yMM = margin;
             }
 
-            // If image is taller than one page, slice it
-            if (imgHmm > contentH) {
-              const pxPerMM = img.w / contentW;
-              let srcY = 0;
-              while (srcY < img.h) {
-                if (srcY > 0) { pdf.addPage(); yMM = margin; }
-                const availH = contentH - (yMM - margin);
-                const slicePx = Math.min(Math.round(availH * pxPerMM), img.h - srcY);
-                const sliceC = document.createElement('canvas');
-                sliceC.width = img.w; sliceC.height = slicePx;
-                const tmpImg = new Image();
-                tmpImg.src = img.data;
-                await new Promise(r => { tmpImg.onload = r; });
-                sliceC.getContext('2d').drawImage(tmpImg, 0, srcY, img.w, slicePx, 0, 0, img.w, slicePx);
-                const sliceHmm = slicePx / pxPerMM;
-                pdf.addImage(sliceC.toDataURL('image/jpeg', 0.95), 'JPEG', margin, yMM, contentW, sliceHmm);
-                yMM += sliceHmm + 4;
-                srcY += slicePx;
-              }
-            } else {
-              pdf.addImage(img.data, 'JPEG', margin, yMM, contentW, imgHmm);
-              yMM += imgHmm + 4;
-            }
+            pdf.addImage(img.data, 'JPEG', margin, yMM, contentW, imgHmm);
+            yMM += imgHmm + 4;
           }
 
           var pdfName = 'Noise criteria derivation';
