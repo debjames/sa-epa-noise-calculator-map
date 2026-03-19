@@ -3575,6 +3575,12 @@ function renderNSWDerivTable() {
       html += '<tr><td>Amenity noise level (ANL) — ' + areaLabel + '</td><td class="num">' + val(c._anlDay) + '</td><td class="num">' + val(c._anlEve) + '</td><td class="num">' + val(c._anlNight) + '</td></tr>';
       html += '<tr><td>Amenity criterion (ANL − 5 dB + 3 dB)</td><td class="num">' + val(c._amenDay) + '</td><td class="num">' + val(c._amenEve) + '</td><td class="num">' + val(c._amenNight) + '</td></tr>';
       html += '<tr style="font-weight:700;background:#fef9c3;"><td>Project noise trigger level</td><td class="num">' + val(c.day) + '</td><td class="num">' + val(c.evening) + '</td><td class="num">' + val(c.night) + '</td></tr>';
+      // Sleep disturbance screening criteria
+      var sleepLeq = Math.max(40, c._rblNight + 5);
+      var sleepLmax = Math.max(52, c._rblNight + 15);
+      html += '<tr><td colspan="4" style="border-top:2px solid var(--border);font-weight:600;font-size:11px;padding-top:6px;">Sleep disturbance screening</td></tr>';
+      html += '<tr><td>Night L<sub>eq,15min</sub> screening level — max(40, RBL + 5)</td><td class="num"></td><td class="num"></td><td class="num">' + val(sleepLeq) + '</td></tr>';
+      html += '<tr><td>Night L<sub>max</sub> screening level — max(52, RBL + 15)</td><td class="num"></td><td class="num"></td><td class="num">' + val(sleepLmax) + '</td></tr>';
     } else {
       // Non-residential: only ANL and amenity criterion rows
       html += '<tr><td>Amenity noise level (ANL) — ' + typeLabel + '</td><td class="num">' + val(c._anlDay) + '</td><td class="num">' + val(c._anlEve) + '</td><td class="num">' + val(c._anlNight) + '</td></tr>';
