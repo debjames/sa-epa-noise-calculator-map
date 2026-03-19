@@ -873,128 +873,46 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       </div>
     </div>
 
-    <!-- NSW NPI 2017: Modifying factor corrections (Fact Sheet C) -->
-    <div class="grid2 nsw-only" style="padding-top:0;">
+    <!-- Characteristic penalties / adjustments — unified per-receiver table -->
+    <div class="grid2" style="padding-top:0;">
       <div class="card span2">
-        <h2>Modifying factor corrections</h2>
-        <div class="p">Corrections from Fact Sheet C of the <i>Noise Policy for Industry</i> are added to the predicted noise level before comparison with project noise trigger levels. Maximum combined correction: 10 dB (excluding duration).</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:4px;">
-          <div class="nsw-mod-section">
-            <div class="h2">Tonal noise</div>
-            <label><input type="checkbox" id="nswModTonal" onchange="updateNSWModFactors();render()"> Tonal (+5 dB)</label>
-            <div class="small">Third-octave band exceeds adjacent bands per ISO 1996-2 thresholds.</div>
-          </div>
-          <div class="nsw-mod-section">
-            <div class="h2">Low-frequency noise</div>
-            <label><input type="radio" name="nswLF" id="nswModLFNone" checked onchange="updateNSWModFactors();render()"> None</label>
-            <label><input type="radio" name="nswLF" id="nswModLF2" onchange="updateNSWModFactors();render()"> C−A ≥ 15 dB, Table C2 exceeded ≤ 5 dB (+2 dB)</label>
-            <label><input type="radio" name="nswLF" id="nswModLF5" onchange="updateNSWModFactors();render()"> C−A ≥ 15 dB, Table C2 exceeded &gt; 5 dB (+5 dB)</label>
-          </div>
-          <div class="nsw-mod-section">
-            <div class="h2">Intermittent noise</div>
-            <label><input type="checkbox" id="nswModIntermittent" onchange="updateNSWModFactors();render()"> Intermittent (+5 dB, night only)</label>
-            <div class="small">Source varies by &gt;5 dB(A) and intermittency is clearly audible.</div>
-          </div>
-        </div>
-        <div class="nsw-mod-total" id="nswModTotal">Total correction: Day 0 dB | Evening 0 dB | Night 0 dB</div>
-      </div>
-    </div>
-
-    <div class="grid2 sa-only" style="padding-top:0;">
-      <div class="card span2">
-        <h2>Characteristic penalties</h2>
-        <div class="p">Apply a <span class="tooltip">characteristic penalty
-    <span class="tooltiptext">
-      The presence of an annoying characteristic attracts a decibel penalty under clause 13(3) of the Noise Policy. A penalty is applied because
-noise with such dominant characteristics are more noticeable and annoying when compared to a constant, broadband or steady noise.  For a penalty to be applied, the Noise Policy requires the characteristic to be fundamental to the nature and impact of the
-noise. The characteristic should dominate the overall noise impact, rather than simply be part of it. Noise characteristics include tonal, impulsive, low frequency, intermittent and modulating. Refer to <a href="https://www.epa.sa.gov.au/files/15663_guide_noise_policy_2023.pdf" target="_blank">
-  SA EPA Noise Policy Guideline (2023)</a> for details on noise characters.
-    </span>
-     </span>
-      to the predicted L<sub>eq</sub> levels before comparison with criteria. Select separately for day and night as required. The penalised level is shown in the results table.</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;">
-          <div>
-            <div class="h2">Day L<sub>eq</sub> penalty</div>
-            <div class="penalty-group" id="dayPenaltyGroup">
-              <button class="penalty-btn active" data-val="0">No penalty (0 dB)</button>
-              <button class="penalty-btn" data-val="5">1 character (+5 dB)</button>
-              <button class="penalty-btn" data-val="8">2 characters (+8 dB)</button>
-              <button class="penalty-btn" data-val="10">3+ characters (+10 dB)</button>
-            </div>
-          </div>
-          <div>
-            <div class="h2">Night L<sub>eq</sub> penalty</div>
-            <div class="penalty-group" id="nightPenaltyGroup">
-              <button class="penalty-btn active" data-val="0">No penalty (0 dB)</button>
-              <button class="penalty-btn" data-val="5">1 character (+5 dB)</button>
-              <button class="penalty-btn" data-val="8">2 characters (+8 dB)</button>
-              <button class="penalty-btn" data-val="10">3+ characters (+10 dB)</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid2 vic-only vic-settings-only" style="padding-top:0;">
-      <div class="card span2">
-        <h2>Characteristic adjustments</h2>
-        <div class="p">Characteristic adjustments are added to the predicted noise level per EPA Publication 1826.5. Select applicable characteristics for each period. Maximum total adjustment: 10 dB.</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:4px;">
-          <div class="vic-penalty-section">
-            <div class="h2">Day</div>
-            <label><input type="checkbox" class="vic-char" data-period="day" data-type="tonal" data-val="2"> Tonal — clearly audible (+2 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="day" data-type="tonal" data-val="5"> Tonal — prominently audible (+5 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="day" data-type="impulse" data-val="2"> Impulse — noticeable (+2 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="day" data-type="impulse" data-val="5"> Impulse — prominent (+5 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="day" data-type="intermittent" data-val="3"> Intermittent — noticeable (+3 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="day" data-type="intermittent" data-val="5"> Intermittent — prominent (+5 dB)</label>
-            <div class="vic-penalty-total" id="vicPenaltyDay">Total: 0 dB</div>
-          </div>
-          <div class="vic-penalty-section">
-            <div class="h2">Evening</div>
-            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="tonal" data-val="2"> Tonal — clearly audible (+2 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="tonal" data-val="5"> Tonal — prominently audible (+5 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="impulse" data-val="2"> Impulse — noticeable (+2 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="impulse" data-val="5"> Impulse — prominent (+5 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="intermittent" data-val="3"> Intermittent — noticeable (+3 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="eve" data-type="intermittent" data-val="5"> Intermittent — prominent (+5 dB)</label>
-            <div class="vic-penalty-total" id="vicPenaltyEve">Total: 0 dB</div>
-          </div>
-          <div class="vic-penalty-section">
-            <div class="h2">Night</div>
-            <label><input type="checkbox" class="vic-char" data-period="night" data-type="tonal" data-val="2"> Tonal — clearly audible (+2 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="night" data-type="tonal" data-val="5"> Tonal — prominently audible (+5 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="night" data-type="impulse" data-val="2"> Impulse — noticeable (+2 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="night" data-type="impulse" data-val="5"> Impulse — prominent (+5 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="night" data-type="intermittent" data-val="3"> Intermittent — noticeable (+3 dB)</label>
-            <label><input type="checkbox" class="vic-char" data-period="night" data-type="intermittent" data-val="5"> Intermittent — prominent (+5 dB)</label>
-            <div class="vic-penalty-total" id="vicPenaltyNight">Total: 0 dB</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid2 other-only" style="padding-top:0;">
-      <div class="card span2">
-        <h2>Characteristic penalties</h2>
-        <div class="p">Enter the applicable characteristic penalty (dB) to add to the predicted level for each period.</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:4px;max-width:500px;">
-          <div class="crit-day-col">
-            <label class="h2" style="font-size:12px;" for="otherPenaltyDay">Day L<sub>eq</sub></label>
-            <input type="number" id="otherPenaltyDay" min="0" max="20" step="1" value="0" style="width:80px;margin-top:4px;" oninput="updateOtherPenalties()" onchange="updateOtherPenalties()">
-            <div class="small">dB</div>
-          </div>
-          <div class="crit-eve-col">
-            <label class="h2" style="font-size:12px;" for="otherPenaltyEve">Evening L<sub>eq</sub></label>
-            <input type="number" id="otherPenaltyEve" min="0" max="20" step="1" value="0" style="width:80px;margin-top:4px;" oninput="updateOtherPenalties()" onchange="updateOtherPenalties()">
-            <div class="small">dB</div>
-          </div>
-          <div class="crit-night-col">
-            <label class="h2" style="font-size:12px;" for="otherPenaltyNight">Night L<sub>eq</sub></label>
-            <input type="number" id="otherPenaltyNight" min="0" max="20" step="1" value="0" style="width:80px;margin-top:4px;" oninput="updateOtherPenalties()" onchange="updateOtherPenalties()">
-            <div class="small">dB</div>
-          </div>
-        </div>
+        <h2 id="charPenaltyHeading">Characteristic penalties</h2>
+        <div class="p sa-only">Apply a <span class="tooltip">characteristic penalty<span class="tooltiptext">The presence of an annoying characteristic attracts a decibel penalty under clause 13(3) of the Noise Policy. A penalty is applied because noise with such dominant characteristics are more noticeable and annoying when compared to a constant, broadband or steady noise. For a penalty to be applied, the Noise Policy requires the characteristic to be fundamental to the nature and impact of the noise. The characteristic should dominate the overall noise impact, rather than simply be part of it. Noise characteristics include tonal, impulsive, low frequency, intermittent and modulating. Refer to <a href="https://www.epa.sa.gov.au/files/15663_guide_noise_policy_2023.pdf" target="_blank">SA EPA Noise Policy Guideline (2023)</a> for details on noise characters.</span></span> to the predicted L<sub>eq</sub> levels before comparison with criteria. The penalised level is shown in the results table.</div>
+        <div class="p nsw-only">Modifying factor corrections from Fact Sheet C of the <i>Noise Policy for Industry</i> are added to the predicted noise level before comparison with project noise trigger levels. Applicable corrections include tonal (+2 or +5 dB), low-frequency (+2 or +5 dB), and intermittent (+5 dB, night only). Maximum combined correction: 10 dB.</div>
+        <div class="p vic-only vic-settings-only">Characteristic adjustments are added to the predicted noise level per EPA Publication 1826.5. Applicable characteristics include tonal (2–5 dB), impulsive (2–5 dB), and intermittent (3–5 dB). Maximum total adjustment: 10 dB.</div>
+        <div class="p other-only">Enter the applicable characteristic penalty (dB) to add to the predicted level for each period.</div>
+        <table class="crit-table" style="margin-top:8px;">
+          <tr>
+            <th style="width:25%;">Receiver</th>
+            <th class="num crit-day-col" style="width:25%;">Day L<sub>eq</sub> penalty</th>
+            <th class="num vic-only crit-eve-col" style="width:25%;">Evening L<sub>eq</sub> penalty</th>
+            <th class="num crit-night-col" style="width:25%;">Night L<sub>eq</sub> penalty</th>
+          </tr>
+          <tr>
+            <td>Receiver 1</td>
+            <td class="center crit-day-col"><span id="penR1Day_wrap"></span></td>
+            <td class="center vic-only crit-eve-col"><span id="penR1Eve_wrap"></span></td>
+            <td class="center crit-night-col"><span id="penR1Night_wrap"></span></td>
+          </tr>
+          <tr>
+            <td>Receiver 2</td>
+            <td class="center crit-day-col"><span id="penR2Day_wrap"></span></td>
+            <td class="center vic-only crit-eve-col"><span id="penR2Eve_wrap"></span></td>
+            <td class="center crit-night-col"><span id="penR2Night_wrap"></span></td>
+          </tr>
+          <tr>
+            <td>Receiver 3</td>
+            <td class="center crit-day-col"><span id="penR3Day_wrap"></span></td>
+            <td class="center vic-only crit-eve-col"><span id="penR3Eve_wrap"></span></td>
+            <td class="center crit-night-col"><span id="penR3Night_wrap"></span></td>
+          </tr>
+          <tr>
+            <td>Receiver 4</td>
+            <td class="center crit-day-col"><span id="penR4Day_wrap"></span></td>
+            <td class="center vic-only crit-eve-col"><span id="penR4Eve_wrap"></span></td>
+            <td class="center crit-night-col"><span id="penR4Night_wrap"></span></td>
+          </tr>
+        </table>
       </div>
     </div>
 
@@ -1756,9 +1674,12 @@ const SOURCE_LIBRARY_GROUPED_NON_LMAX = filterGrouped(SOURCE_LIBRARY_GROUPED, s 
 const SOURCE_LIBRARY_GROUPED_LMAX = filterGrouped(SOURCE_LIBRARY_GROUPED, s => /lmax/i.test(String(s.name)));
 
 // Characteristic penalty state (dB added to predicted Leq before comparison)
+// Per-receiver characteristic penalties {r1:{day:0,eve:0,night:0}, r2:..., r3:..., r4:...}
+let recvPenalties = {r1:{day:0,eve:0,night:0},r2:{day:0,eve:0,night:0},r3:{day:0,eve:0,night:0},r4:{day:0,eve:0,night:0}};
+// Legacy aliases for backward compat (used in some older code paths)
 let dayPenalty = 0;
 let nightPenalty = 0;
-let eveningPenalty = 0;  // VIC only
+let eveningPenalty = 0;
 
 // ──── ISO 9613-2 Propagation Method ────
 let propagationMethod = 'simple'; // 'simple' | 'iso9613'
@@ -2234,9 +2155,11 @@ function switchToState(state) {
     try { window._switchZoneOverlayForState(state); } catch(e) { console.warn('Overlay switch error:', e); }
   }
 
+  // Populate the per-receiver penalty table with correct controls for this state
+  initPenaltyTable();
+
   // Reset NSW modifying factors when switching to NSW
   if (state === 'NSW') {
-    updateNSWModFactors();
     updateNSWIntrusiveness();
   }
 
@@ -3204,10 +3127,11 @@ function render() {
     if (nightTotal === 0 && predNight !== "" && predNight < 0) predNight = "";
     if (nightLmaxTotal === 0 && predLmax !== "" && predLmax < 0) predLmax = "";
 
-    // Apply characteristic penalties to predicted Leq levels
-    const predDayPenalised = (predDay !== "" && predDay !== null && predDay !== undefined) ? predDay + dayPenalty : predDay;
-    const predEvePenalised = (predEve !== "" && predEve !== null && predEve !== undefined) ? predEve + eveningPenalty : predEve;
-    const predNightPenalised = (predNight !== "" && predNight !== null && predNight !== undefined) ? predNight + nightPenalty : predNight;
+    // Apply per-receiver characteristic penalties to predicted Leq levels
+    const rp = recvPenalties[`r${i+1}`] || {day:0,eve:0,night:0};
+    const predDayPenalised = (predDay !== "" && predDay !== null && predDay !== undefined) ? predDay + rp.day : predDay;
+    const predEvePenalised = (predEve !== "" && predEve !== null && predEve !== undefined) ? predEve + rp.eve : predEve;
+    const predNightPenalised = (predNight !== "" && predNight !== null && predNight !== undefined) ? predNight + rp.night : predNight;
 
     const day = compCell(predDayPenalised, dayCrit);
     const eve = compCell(predEvePenalised, eveCrit);
@@ -3267,7 +3191,8 @@ function render() {
       var predLmax = calcPredAtReceiver(nightLmaxTotal, dist, 'lmax');
       if (nightTotal === 0 && predN !== "" && predN < 0) predN = "";
       if (nightLmaxTotal === 0 && predLmax !== "" && predLmax < 0) predLmax = "";
-      var penN = (predN !== "" && predN !== null) ? predN + nightPenalty : "";
+      var rpSleep = recvPenalties['r'+(i+1)] || {night:0};
+      var penN = (predN !== "" && predN !== null) ? predN + rpSleep.night : "";
       var leqExceeds = penN !== "" && penN > sleepLeqThreshold;
       var lmaxExceeds = predLmax !== "" && predLmax > sleepLmaxThreshold;
       sleepResults.push({ leqExceeds: leqExceeds, lmaxExceeds: lmaxExceeds, hasData: penN !== "" || predLmax !== "" });
@@ -3433,77 +3358,79 @@ function toggleSourceHeightColumns() {
 }
 
 function initPenaltyButtons() {
-  ['day', 'night'].forEach(period => {
-    const group = document.getElementById(`${period}PenaltyGroup`);
-    if (!group) return;
-
-    // Restore saved penalty value
-    const saved = localStorage.getItem(`penalty_${period}`);
-    const savedVal = saved !== null ? Number(saved) : 0;
-    if (period === 'day') dayPenalty = savedVal;
-    else nightPenalty = savedVal;
-
-    group.querySelectorAll('.penalty-btn').forEach(btn => {
-      const val = Number(btn.dataset.val);
-      if (val === savedVal) btn.classList.add('active');
-      else btn.classList.remove('active');
-
-      btn.addEventListener('click', () => {
-        group.querySelectorAll('.penalty-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        if (period === 'day') dayPenalty = val;
-        else nightPenalty = val;
-        localStorage.setItem(`penalty_${period}`, String(val));
-        render();
-      });
-    });
-  });
+  // Now handled by initPenaltyTable()
 }
 
 function initVicPenaltyCheckboxes() {
-  document.querySelectorAll('.vic-char').forEach(cb => {
-    cb.addEventListener('change', function() {
-      const period = this.dataset.period;
-      const type = this.dataset.type;
-      const val = Number(this.dataset.val);
-
-      // Mutual exclusion: uncheck the other level of the same type/period
-      if (this.checked) {
-        document.querySelectorAll(`.vic-char[data-period="${period}"][data-type="${type}"]`).forEach(other => {
-          if (other !== this) other.checked = false;
-        });
-      }
-
-      // Calculate total for this period (capped at 10)
-      updateVicPenalty(period);
-      render();
-    });
-  });
+  // Now handled by initPenaltyTable()
 }
 
 function updateVicPenalty(period) {
-  let total = 0;
-  document.querySelectorAll(`.vic-char[data-period="${period}"]:checked`).forEach(cb => {
-    total += Number(cb.dataset.val);
-  });
-  total = Math.min(total, 10);
-
-  // Update display
-  const display = document.getElementById(`vicPenalty${period === 'day' ? 'Day' : period === 'eve' ? 'Eve' : 'Night'}`);
-  if (display) display.textContent = `Total: ${total} dB`;
-
-  // Update the global penalty variables
-  if (period === 'day') dayPenalty = total;
-  else if (period === 'eve') eveningPenalty = total;
-  else if (period === 'night') nightPenalty = total;
+  // Legacy stub — no-op
 }
 
 function getVicPenalty(period) {
-  let total = 0;
-  document.querySelectorAll(`.vic-char[data-period="${period}"]:checked`).forEach(cb => {
-    total += Number(cb.dataset.val);
+  return 0;
+}
+
+/** Populate the per-receiver penalty table with appropriate controls for the current state */
+function initPenaltyTable() {
+  var isSA = currentState === 'SA';
+  var isNSW = currentState === 'NSW';
+  var isVIC = currentState === 'VIC';
+  var isOTHER = currentState === 'OTHER';
+
+  // Update heading text
+  var heading = document.getElementById('charPenaltyHeading');
+  if (heading) {
+    if (isNSW) heading.textContent = 'Modifying factor corrections';
+    else if (isVIC) heading.textContent = 'Characteristic adjustments';
+    else heading.textContent = 'Characteristic penalties';
+  }
+
+  var periods = ['Day', 'Eve', 'Night'];
+  var recvIds = ['R1', 'R2', 'R3', 'R4'];
+
+  recvIds.forEach(function(rid) {
+    periods.forEach(function(per) {
+      var wrap = document.getElementById('pen' + rid + per + '_wrap');
+      if (!wrap) return;
+
+      if (isSA) {
+        // SA: dropdown 0, 5, 8, 10 (day and night only; eve not used but populate anyway)
+        wrap.innerHTML = '<select class="pen-select" data-recv="' + rid.toLowerCase() + '" data-period="' + per.toLowerCase() + '" onchange="updatePenaltyFromTable(this)" style="width:auto;min-width:70px;">' +
+          '<option value="0" selected>0</option>' +
+          '<option value="5">5</option>' +
+          '<option value="8">8</option>' +
+          '<option value="10">10</option>' +
+          '</select>';
+      } else if (isNSW) {
+        // NSW: dropdown 0, 2, 5, 7, 10
+        wrap.innerHTML = '<select class="pen-select" data-recv="' + rid.toLowerCase() + '" data-period="' + per.toLowerCase() + '" onchange="updatePenaltyFromTable(this)" style="width:auto;min-width:70px;">' +
+          '<option value="0" selected>0</option>' +
+          '<option value="2">2</option>' +
+          '<option value="5">5</option>' +
+          '<option value="7">7</option>' +
+          '<option value="10">10</option>' +
+          '</select>';
+      } else {
+        // VIC / Other: manual number input
+        wrap.innerHTML = '<input type="number" class="pen-input" data-recv="' + rid.toLowerCase() + '" data-period="' + per.toLowerCase() + '" min="0" max="20" step="1" value="0" style="width:70px;text-align:center;" oninput="updatePenaltyFromTable(this)" onchange="updatePenaltyFromTable(this)">';
+      }
+    });
   });
-  return Math.min(total, 10);
+
+  // Reset all per-receiver penalties to 0
+  recvPenalties = {r1:{day:0,eve:0,night:0},r2:{day:0,eve:0,night:0},r3:{day:0,eve:0,night:0},r4:{day:0,eve:0,night:0}};
+}
+
+function updatePenaltyFromTable(el) {
+  var recv = el.dataset.recv; // r1, r2, r3, r4
+  var period = el.dataset.period; // day, eve, night
+  var val = Math.max(0, Number(el.value) || 0);
+  if (!recvPenalties[recv]) recvPenalties[recv] = {day:0,eve:0,night:0};
+  recvPenalties[recv][period] = val;
+  render();
 }
 
 /* === NSW helper functions === */
@@ -3598,27 +3525,11 @@ function renderNSWDerivTable() {
 }
 
 function updateNSWModFactors() {
-  var mf = getNSWModifyingFactors();
-  var el = document.getElementById('nswModTotal');
-  if (el) {
-    el.textContent = 'Total correction: Day ' + mf.day + ' dB | Evening ' + mf.evening + ' dB | Night ' + mf.night + ' dB';
-  }
-  // Apply to global penalties when in NSW mode
-  if (currentState === 'NSW') {
-    dayPenalty = mf.day;
-    eveningPenalty = mf.evening;
-    nightPenalty = mf.night;
-  }
+  // Legacy stub — penalties now handled per-receiver via initPenaltyTable
 }
 
 function updateOtherPenalties() {
-  const d = Number(document.getElementById('otherPenaltyDay').value) || 0;
-  const e = Number(document.getElementById('otherPenaltyEve').value) || 0;
-  const n = Number(document.getElementById('otherPenaltyNight').value) || 0;
-  dayPenalty = Math.max(0, d);
-  eveningPenalty = Math.max(0, e);
-  nightPenalty = Math.max(0, n);
-  render();
+  // Legacy stub — penalties now handled per-receiver via initPenaltyTable
 }
 
 function updateOtherCritSelection() {
@@ -3845,7 +3756,7 @@ renderSourceTable('night','nightSrcRows','nightSrcTotal',5);
 renderSourceTable('lmax','nightLmaxRows','nightLmaxTotal',1);
 initPropagationMethod();
 initPenaltyButtons();
-initVicPenaltyCheckboxes();
+initPenaltyTable();
 renderContributions();
 initCollapse();
 </script>
