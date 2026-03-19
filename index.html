@@ -289,7 +289,7 @@ body.state-nsw span.nsw-only { display: inline-block !important; }
 .nsw-sleep-row td { font-size: 12px; padding: 6px 8px; }
 .nsw-sleep-ok { color: #166534; font-weight: 600; }
 .nsw-sleep-warn { color: #b91c1c; font-weight: 600; }
-body.state-nsw .crit-lmax-col { display: none !important; }
+/* NSW Lmax now shown — sleep disturbance screening */
 
 /* OTHER state — manual criteria mode */
 body.state-other .sa-only { display: none !important; }
@@ -1481,12 +1481,15 @@ function calcCriteriaNSW(receiverIndex) {
     intEve = Math.min(intEve, intDay);
     intNight = Math.min(intNight, intEve);
 
+    // Sleep disturbance screening Lmax = max(52, RBL_night + 15)
+    var sleepLmax = Math.max(52, rblNight + 15);
+
     // Project noise trigger = min(intrusiveness, project amenity)
     return {
       day: Math.min(intDay, projAmenDay),
       evening: Math.min(intEve, projAmenEve),
       night: Math.min(intNight, projAmenNight),
-      lmax: '',
+      lmax: sleepLmax,
       _recType: 'residential',
       _rblDay: rblDay, _rblEve: rblEve, _rblNight: rblNight,
       _intDay: intDay, _intEve: intEve, _intNight: intNight,
@@ -3137,7 +3140,7 @@ function render() {
       if (dayEl) dayEl.textContent = fmt(crit.day);
       if (eveEl) eveEl.textContent = fmt(crit.evening);
       if (nightEl) nightEl.textContent = fmt(crit.night);
-      if (lmaxEl) lmaxEl.textContent = '';
+      if (lmaxEl) lmaxEl.textContent = crit.lmax !== '' ? fmt(crit.lmax) : '';
     } else {
       // Auto-calculated criteria (SA / VIC)
       const crit = isVIC ? calcCriteriaVICForReceiver(id) : calcCriteria(src, rec, id);
@@ -3174,7 +3177,7 @@ function render() {
       dayCrit = crit.day;
       eveCrit = crit.evening;
       nightCrit = crit.night;
-      lmaxCrit = '';
+      lmaxCrit = crit.lmax;
     } else {
       const crit = isVIC ? calcCriteriaVICForReceiver(ids[i]) : calcCriteria(src, rec, ids[i]);
       dayCrit = crit.day;
