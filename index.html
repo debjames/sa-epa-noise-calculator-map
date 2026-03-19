@@ -3989,127 +3989,133 @@ initCollapse();
           critBtn.disabled = true;
           critBtn.textContent = "Exporting…";
 
-          // Build a temporary container with only the sections we want
-          const wrapper = document.createElement('div');
-          wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;width:1180px;background:#fff;font-family:inherit;';
-          document.body.appendChild(wrapper);
-
-          // Copy global styles
-          const styles = document.querySelectorAll('style, link[rel="stylesheet"]');
-          styles.forEach(s => wrapper.appendChild(s.cloneNode(true)));
-
-          const inner = document.createElement('div');
-          inner.style.cssText = 'padding:20px;max-width:1180px;';
-          wrapper.appendChild(inner);
-
-          // Title
-          const title = document.createElement('h2');
-          title.style.cssText = 'margin:0 0 8px;font-size:18px;';
-          title.textContent = 'Noise Criteria Derivation';
-          inner.appendChild(title);
-
-          // Address
-          const addr = document.getElementById('mapSearchInput');
-          if (addr && addr.value.trim()) {
-            const addrP = document.createElement('p');
-            addrP.style.cssText = 'margin:0 0 12px;font-size:13px;color:#555;';
-            addrP.textContent = addr.value.trim();
-            inner.appendChild(addrP);
-          }
-
-          // Sections to capture (by card heading text)
-          const sectionNames = [];
-          // Map
-          const mapCard = document.querySelector('#noise-map');
-          if (mapCard) {
-            const mapClone = mapCard.cloneNode(true);
-            // Use html2canvas to capture the live map as an image
-            const mapCanvas = await html2canvas(mapCard, { scale: 2, useCORS: true, windowWidth: 1180 });
-            const mapImg = document.createElement('img');
-            mapImg.src = mapCanvas.toDataURL('image/jpeg', 0.9);
-            mapImg.style.cssText = 'width:100%;border-radius:10px;border:1px solid #ddd;margin-bottom:12px;';
-            inner.appendChild(mapImg);
-          }
-
-          // Helper: clone a card, expand it, and append
-          function cloneCardByTitle(titleText) {
-            const cards = document.querySelectorAll('.card h2');
-            for (let i = 0; i < cards.length; i++) {
-              if (cards[i].textContent.trim() === titleText) {
-                const card = cards[i].closest('.card');
-                if (!card) continue;
-                // Check visibility
-                if (card.offsetParent === null) continue;
-                const clone = card.cloneNode(true);
-                // Expand if collapsed
-                const body = clone.querySelector('.card-body');
-                if (body) body.classList.remove('collapsed');
-                const toggles = clone.querySelectorAll('.collapse-btn');
-                toggles.forEach(t => t.style.display = 'none');
-                clone.style.marginBottom = '12px';
-                inner.appendChild(clone);
-                return true;
+          // Helper: find visible card by h2 title
+          function findCard(titleText) {
+            const h2s = document.querySelectorAll('.card h2');
+            for (let i = 0; i < h2s.length; i++) {
+              if (h2s[i].textContent.trim() === titleText) {
+                const card = h2s[i].closest('.card');
+                if (card && card.offsetParent !== null) return card;
               }
             }
-            return false;
+            return null;
           }
 
-          // Assessment parameters (state-specific)
-          if (typeof currentState !== 'undefined') {
-            if (currentState === 'VIC') cloneCardByTitle('VIC assessment parameters');
-            if (currentState === 'NSW') cloneCardByTitle('NSW assessment parameters');
-          }
+          // Expand cards temporarily, track which were collapsed
+          const cardsToCapture = [];
+          const wasCollapsed = new Set();
+
+          // Map
+          const mapEl = document.getElementById('noise-map');
+
+          // Assessment parameters
+          if (currentState === 'VIC') { var c = findCard('VIC assessment parameters'); if (c) cardsToCapture.push(c); }
+          if (currentState === 'NSW') { var c = findCard('NSW assessment parameters'); if (c) cardsToCapture.push(c); }
 
           // Criteria table
-          cloneCardByTitle('Receivers & criteria') || cloneCardByTitle('Noise sensitive areas & criteria');
+          var critCard = findCard('Receivers & criteria') || findCard('Noise sensitive areas & criteria');
+          if (critCard) cardsToCapture.push(critCard);
 
-          // Derivation table (NSW only)
-          cloneCardByTitle('Derivation of noise emission criteria');
+          // Derivation table
+          var derivCard = findCard('Derivation of noise emission criteria');
+          if (derivCard) cardsToCapture.push(derivCard);
 
-          // Allow layout to settle
-          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-          // Capture the wrapper
-          const canvas = await html2canvas(inner, {
-            scale: 2,
-            backgroundColor: '#ffffff',
-            useCORS: true,
-            windowWidth: 1180
+          // Expand all target cards
+          cardsToCapture.forEach(card => {
+            const body = card.querySelector('.card-body');
+            if (body && body.classList.contains('collapsed')) {
+              wasCollapsed.add(body);
+              body.classList.remove('collapsed');
+            }
+            // Unhide table scroll overflow
+            card.querySelectorAll('.table-scroll').forEach(s => {
+              s.dataset.prevOF = s.style.overflowX || '';
+              s.style.overflowX = 'visible';
+            });
           });
 
-          // Remove temporary wrapper
-          document.body.removeChild(wrapper);
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-          // Build PDF — auto-paginate
+          // Capture each section as a separate canvas
+          const images = []; // {dataUrl, wPx, hPx}
+
+          if (mapEl) {
+            const mc = await html2canvas(mapEl, { scale: 2, useCORS: true });
+            images.push({ data: mc.toDataURL('image/jpeg', 0.9), w: mc.width, h: mc.height });
+          }
+
+          for (const card of cardsToCapture) {
+            const cc = await html2canvas(card, { scale: 2, backgroundColor: '#fff' });
+            images.push({ data: cc.toDataURL('image/jpeg', 0.95), w: cc.width, h: cc.height });
+          }
+
+          // Restore collapsed states and overflow
+          wasCollapsed.forEach(b => b.classList.add('collapsed'));
+          cardsToCapture.forEach(card => {
+            card.querySelectorAll('.table-scroll').forEach(s => {
+              s.style.overflowX = s.dataset.prevOF || '';
+            });
+            const btn = card.querySelector('.collapse-btn');
+            const body = card.querySelector('.card-body');
+            if (btn && body && body.classList.contains('collapsed')) btn.innerHTML = '&#x25BC;';
+          });
+
+          // Build PDF
           const { jsPDF } = window.jspdf;
           const pageW = 210, pageH = 297;
           const margin = 15;
           const contentW = pageW - 2 * margin;
           const contentH = pageH - 2 * margin;
 
-          const imgFullW = canvas.width;
-          const imgFullH = canvas.height;
-          const scale = contentW / imgFullW;
-          const totalImgHmm = imgFullH * scale;
-
           const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-          let yOffset = 0; // in canvas pixels
-          let page = 0;
+          let yMM = margin; // current y position on page in mm
 
-          while (yOffset < imgFullH) {
-            if (page > 0) pdf.addPage();
-            const sliceH = Math.min(Math.round(contentH / scale), imgFullH - yOffset);
-            const sliceCanvas = document.createElement('canvas');
-            sliceCanvas.width = imgFullW;
-            sliceCanvas.height = sliceH;
-            sliceCanvas.getContext('2d').drawImage(canvas,
-              0, yOffset, imgFullW, sliceH,
-              0, 0, imgFullW, sliceH);
-            const sliceImg = sliceCanvas.toDataURL('image/jpeg', 0.95);
-            const sliceHmm = sliceH * scale;
-            pdf.addImage(sliceImg, 'JPEG', margin, margin, contentW, sliceHmm);
-            yOffset += sliceH;
-            page++;
+          // Add title
+          pdf.setFontSize(16);
+          pdf.setFont(undefined, 'bold');
+          pdf.text('Noise Criteria Derivation', margin, yMM + 5);
+          yMM += 8;
+          const addr = document.getElementById('mapSearchInput');
+          if (addr && addr.value.trim()) {
+            pdf.setFontSize(10);
+            pdf.setFont(undefined, 'normal');
+            pdf.text(addr.value.trim(), margin, yMM + 4);
+            yMM += 6;
+          }
+          yMM += 4;
+
+          for (const img of images) {
+            const imgHmm = img.h * contentW / img.w;
+
+            // If this image won't fit on current page, start a new one
+            if (yMM + imgHmm > pageH - margin && yMM > margin + 20) {
+              pdf.addPage();
+              yMM = margin;
+            }
+
+            // If image is taller than one page, slice it
+            if (imgHmm > contentH) {
+              const pxPerMM = img.w / contentW;
+              let srcY = 0;
+              while (srcY < img.h) {
+                if (srcY > 0) { pdf.addPage(); yMM = margin; }
+                const availH = contentH - (yMM - margin);
+                const slicePx = Math.min(Math.round(availH * pxPerMM), img.h - srcY);
+                const sliceC = document.createElement('canvas');
+                sliceC.width = img.w; sliceC.height = slicePx;
+                const tmpImg = new Image();
+                tmpImg.src = img.data;
+                await new Promise(r => { tmpImg.onload = r; });
+                sliceC.getContext('2d').drawImage(tmpImg, 0, srcY, img.w, slicePx, 0, 0, img.w, slicePx);
+                const sliceHmm = slicePx / pxPerMM;
+                pdf.addImage(sliceC.toDataURL('image/jpeg', 0.95), 'JPEG', margin, yMM, contentW, sliceHmm);
+                yMM += sliceHmm + 4;
+                srcY += slicePx;
+              }
+            } else {
+              pdf.addImage(img.data, 'JPEG', margin, yMM, contentW, imgHmm);
+              yMM += imgHmm + 4;
+            }
           }
 
           var pdfName = 'Noise criteria derivation';
