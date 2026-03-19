@@ -4096,11 +4096,10 @@ initCollapse();
 
           var pdfName = 'Noise criteria derivation';
           if (typeof currentState !== 'undefined' && currentState) pdfName += ' (' + currentState + ')';
-          if (lastSelectedAddress) {
-            pdfName += ' - ' + lastSelectedAddress;
-          } else if (addr && addr.value.trim()) {
-            var parts = addr.value.trim().split(',').map(s => s.trim());
-            pdfName += ' - ' + parts.slice(0, Math.max(1, parts.length - 2)).join(', ');
+          if (addr && addr.value.trim()) {
+            var parts = addr.value.trim().split(',').map(function(s){return s.trim();});
+            var cityParts = parts.length > 2 ? parts.slice(0, parts.length - 2) : parts.slice(0, 1);
+            pdfName += ' - ' + cityParts.join(', ');
           }
           pdf.save(pdfName + '.pdf');
         } catch (e) {
