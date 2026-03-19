@@ -5126,19 +5126,18 @@ initCollapse();
           }
         }).catch(function() { setMBS('mbs_rail', '—', false); });
 
-      // 5. Mixed land use areas — use DATA array to check actual land use categories
-      // A zone is "mixed" if its land_use_raw contains more than one category (comma-separated)
+      // 5. Mixed land use areas — any land use other than single Residential is "mixed"
       var srcZoneEl = document.getElementById('src');
       var srcSubzoneKey = srcZoneEl ? srcZoneEl.value : '';
       if (srcSubzoneKey) {
         var rec = DATA.find(function(d) { return d.key === srcSubzoneKey; });
         if (rec) {
           var landUses = rec.land_use_raw || '';
-          var isMixed = landUses.indexOf(',') >= 0;
-          if (isMixed) {
+          var isSingleRes = (rec.is_single == 1 && rec.single_cat === 'Residential');
+          if (!isSingleRes) {
             setMBS('mbs_mixed', rec.zone + ' \u2014 ' + landUses, true);
           } else {
-            setMBS('mbs_mixed', rec.zone + ' \u2014 ' + landUses + ' only (not mixed use)', false);
+            setMBS('mbs_mixed', rec.zone + ' \u2014 Residential only (not mixed use)', false);
           }
         } else {
           setMBS('mbs_mixed', 'N/A', false);
