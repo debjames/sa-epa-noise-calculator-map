@@ -664,6 +664,10 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div style="margin-top:10px;">
           <span class="badge sa-only">Day = 7 am–10 pm</span>
           <span class="badge sa-only">Night = 10 pm–7 am</span>
+          <span class="sa-only" style="display:inline-flex;gap:12px;margin-left:8px;vertical-align:middle;">
+            <label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="saEmergFire" onchange="toggleEmergEquip()"> Fire pump</label>
+            <label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="saEmergGen" onchange="toggleEmergEquip()"> Standby generator</label>
+          </span>
           <span class="badge vic-only vic-settings-only">Day = 7 am–6 pm (Mon–Sat)</span>
           <span class="badge vic-only vic-settings-only">Evening = 6 pm–10 pm</span>
           <span class="badge vic-only vic-settings-only">Night = 10 pm–7 am (& all day Sun)</span>
@@ -704,25 +708,16 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     </div>
 
     <!-- SA: Emergency equipment criteria -->
-    <div class="grid2 sa-only" style="padding-top:0;">
+    <div class="grid2 sa-only" id="emergEquipSection" style="padding-top:0;display:none;">
       <div class="card span2">
         <h2>Emergency equipment criteria</h2>
         <div class="p">Criteria based on the intent of the <i>Environment Protection (Commercial &amp; Industrial) Noise Policy 2023</i>, the testing time and operation of the equipment.</div>
-        <table class="crit-table" style="margin-top:8px;">
-          <tr>
-            <th style="width:30%;">Receiver</th>
-            <th class="num" colspan="2">Criteria, L<sub>eq</sub> dB(A)</th>
-          </tr>
-          <tr>
-            <th></th>
-            <th class="num" style="width:35%;">Fire pump</th>
-            <th class="num" style="width:35%;">Standby generator</th>
-          </tr>
-          <tr><td id="emergR1Label">Receiver 1</td><td class="num" id="emergR1Fire"></td><td class="num" id="emergR1Gen"></td></tr>
-          <tr><td id="emergR2Label">Receiver 2</td><td class="num" id="emergR2Fire"></td><td class="num" id="emergR2Gen"></td></tr>
-          <tr><td id="emergR3Label">Receiver 3</td><td class="num" id="emergR3Fire"></td><td class="num" id="emergR3Gen"></td></tr>
-          <tr><td id="emergR4Label">Receiver 4</td><td class="num" id="emergR4Fire"></td><td class="num" id="emergR4Gen"></td></tr>
-        </table>
+        <div class="table-scroll">
+          <table class="crit-table" style="margin-top:8px;" id="emergEquipTable">
+            <thead id="emergEquipHead"></thead>
+            <tbody id="emergEquipBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -3721,42 +3716,88 @@ function renderContributions() {
   if (currentState === 'SA') renderEmergencyEquipCriteria();
 }
 
+/** Toggle emergency equipment section visibility and expand */
+function toggleEmergEquip() {
+  var fireOn = document.getElementById('saEmergFire') && document.getElementById('saEmergFire').checked;
+  var genOn = document.getElementById('saEmergGen') && document.getElementById('saEmergGen').checked;
+  var section = document.getElementById('emergEquipSection');
+  if (!section) return;
+
+  if (!fireOn && !genOn) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+
+  // Expand the card
+  var card = section.querySelector('.card');
+  if (card) {
+    var body = card.querySelector('.card-body');
+    var btn = card.querySelector('.collapse-btn');
+    if (body) body.classList.remove('collapsed');
+    if (btn) btn.innerHTML = '&#x25B2;';
+  }
+
+  renderEmergencyEquipCriteria();
+}
+
 /** Populate SA emergency equipment criteria table (Fire pump = INL+10, Generator = INL) */
 function renderEmergencyEquipCriteria() {
+  var fireOn = document.getElementById('saEmergFire') && document.getElementById('saEmergFire').checked;
+  var genOn = document.getElementById('saEmergGen') && document.getElementById('saEmergGen').checked;
+  var thead = document.getElementById('emergEquipHead');
+  var tbody = document.getElementById('emergEquipBody');
+  if (!thead || !tbody) return;
+  if (!fireOn && !genOn) { thead.innerHTML = ''; tbody.innerHTML = ''; return; }
+
+  // Build header
+  var colCount = 1 + (fireOn ? 1 : 0) + (genOn ? 1 : 0);
+  var hdr = '<tr><th style="width:30%;">Receiver</th>';
+  hdr += '<th class="num" colspan="' + (colCount - 1) + '">Criteria, L<sub>eq</sub> dB(A)</th></tr>';
+  hdr += '<tr style="background:#D9D9D9;"><th></th>';
+  if (fireOn) hdr += '<th class="num">Fire pump</th>';
+  if (genOn) hdr += '<th class="num">Standby generator</th>';
+  hdr += '</tr>';
+  thead.innerHTML = hdr;
+
+  // Build body
   var ids = ['r1','r2','r3','r4'];
   var srcSel = document.getElementById('sourceZone');
   var srcVal = srcSel ? srcSel.value : '';
   var source = srcVal ? SA_ZONES.find(function(z){ return z.value === srcVal; }) : null;
+  var html = '';
 
   for (var i = 0; i < 4; i++) {
+    var nameEl = document.getElementById('recvName' + (i+1));
+    var label = nameEl && nameEl.value.trim() ? nameEl.value.trim() : ('Receiver ' + (i+1));
     var recSel = document.getElementById(ids[i]);
     var recVal = recSel ? recSel.value : '';
     var rec = recVal ? SA_ZONES.find(function(z){ return z.value === recVal; }) : null;
-    var fireEl = document.getElementById('emergR' + (i+1) + 'Fire');
-    var genEl = document.getElementById('emergR' + (i+1) + 'Gen');
-    if (!fireEl || !genEl) continue;
+
+    html += '<tr><td>' + label + '</td>';
 
     if (!source || !rec) {
-      fireEl.textContent = '';
-      genEl.textContent = '';
-      continue;
-    }
-
-    // Check if same single-category GI/SI
-    var sameCatGI_SI = source.is_single == 1 && rec.is_single == 1 &&
-      source.single_cat && source.single_cat === rec.single_cat &&
-      (source.single_cat === 'General Industry' || source.single_cat === 'Special Industry');
-
-    var inlDay;
-    if (sameCatGI_SI) {
-      inlDay = (source.single_cat === 'General Industry') ? 65 : 70;
+      if (fireOn) html += '<td class="num"></td>';
+      if (genOn) html += '<td class="num"></td>';
     } else {
-      inlDay = Math.round((Number(source.inf_day) + Number(rec.inf_day)) / 2);
-    }
+      var sameCatGI_SI = source.is_single == 1 && rec.is_single == 1 &&
+        source.single_cat && source.single_cat === rec.single_cat &&
+        (source.single_cat === 'General Industry' || source.single_cat === 'Special Industry');
 
-    fireEl.textContent = 'INL+10 (' + (inlDay + 10) + ')';
-    genEl.textContent = 'INL (' + inlDay + ')';
+      var inlDay;
+      if (sameCatGI_SI) {
+        inlDay = (source.single_cat === 'General Industry') ? 65 : 70;
+      } else {
+        inlDay = Math.round((Number(source.inf_day) + Number(rec.inf_day)) / 2);
+      }
+
+      if (fireOn) html += '<td class="num">' + (inlDay + 10) + '</td>';
+      if (genOn) html += '<td class="num">' + inlDay + '</td>';
+    }
+    html += '</tr>';
   }
+
+  tbody.innerHTML = html;
 }
 
 function initCollapse() {
@@ -3785,7 +3826,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
+    var DEFAULT_COLLAPSED = ['Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
