@@ -4020,7 +4020,11 @@ initCollapse();
           var derivCard = findCard('Derivation of noise emission criteria');
           if (derivCard) cardsToCapture.push(derivCard);
 
-          // Expand all target cards
+          // Expand all target cards and fix widths for capture
+          const container = document.querySelector('.container');
+          const prevContainerWidth = container ? container.style.width : '';
+          if (container) container.style.width = '1400px';
+
           cardsToCapture.forEach(card => {
             const body = card.querySelector('.card-body');
             if (body && body.classList.contains('collapsed')) {
@@ -4034,20 +4038,37 @@ initCollapse();
             });
           });
 
+          // Inject temporary PDF print styles for crisp table borders
+          const pdfStyle = document.createElement('style');
+          pdfStyle.id = 'pdf-criteria-temp-style';
+          pdfStyle.textContent = `
+            .card table th, .card table td {
+              border: 1px solid #000 !important;
+              font-size: 12px !important;
+              padding: 4px 6px !important;
+            }
+            .card table { border-collapse: collapse !important; }
+          `;
+          document.head.appendChild(pdfStyle);
+
           await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
           // Capture each section as a separate canvas
           const images = []; // {dataUrl, wPx, hPx}
 
           if (mapEl) {
-            const mc = await html2canvas(mapEl, { scale: 2, useCORS: true });
+            const mc = await html2canvas(mapEl, { scale: 2, useCORS: true, windowWidth: 1400 });
             images.push({ data: mc.toDataURL('image/jpeg', 0.9), w: mc.width, h: mc.height });
           }
 
           for (const card of cardsToCapture) {
-            const cc = await html2canvas(card, { scale: 2, backgroundColor: '#fff' });
+            const cc = await html2canvas(card, { scale: 2, backgroundColor: '#fff', windowWidth: 1400 });
             images.push({ data: cc.toDataURL('image/jpeg', 0.95), w: cc.width, h: cc.height });
           }
+
+          // Remove temporary styles and restore width
+          pdfStyle.remove();
+          if (container) container.style.width = prevContainerWidth;
 
           // Restore collapsed states and overflow
           wasCollapsed.forEach(b => b.classList.add('collapsed'));
