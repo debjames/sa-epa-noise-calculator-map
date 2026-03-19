@@ -5068,7 +5068,7 @@ initCollapse();
           if (data.features && data.features.length) {
             setMBS('mbs_noise', 'Site in a Noise and Air Emissions Overlay', true);
           } else {
-            setMBS('mbs_noise', 'Not within overlay', false);
+            setMBS('mbs_noise', 'Site not in Noise and Air Emissions Overlay', false);
           }
         }).catch(function() { setMBS('mbs_noise', '—', false); });
 
@@ -5096,7 +5096,7 @@ initCollapse();
         if (nearest && nearest.dist < 250) {
           setMBS('mbs_road', 'Type ' + nearest.type + ' \u2014 ' + nearest.name + ' (nearby)', true);
         } else {
-          setMBS('mbs_road', 'No designated road nearby', false);
+          setMBS('mbs_road', 'N/A', false);
         }
       }).catch(function() { setMBS('mbs_road', '—', false); });
 
@@ -5117,10 +5117,10 @@ initCollapse();
             if (nearest) {
               setMBS('mbs_rail', nearest.name + ' (nearby)', true);
             } else {
-              setMBS('mbs_rail', 'No rail corridor nearby', false);
+              setMBS('mbs_rail', 'N/A', false);
             }
           } else {
-            setMBS('mbs_rail', 'No rail corridor nearby', false);
+            setMBS('mbs_rail', 'N/A', false);
           }
         }).catch(function() { setMBS('mbs_rail', '—', false); });
 
@@ -5135,7 +5135,7 @@ initCollapse();
           if (!isPureRes) {
             setMBS('mbs_mixed', zone + ' Zone \u2014 Commercial & residential land uses', true);
           } else {
-            setMBS('mbs_mixed', zone + ' Zone \u2014 Residential only', false);
+            setMBS('mbs_mixed', zone + ' Zone \u2014 Residential only (not mixed use)', false);
           }
         } else {
           setMBS('mbs_mixed', '—', false);
