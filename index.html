@@ -732,18 +732,17 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <table class="crit-table" style="margin-top:8px;" id="saOverlayTable">
             <thead>
               <tr>
-                <th style="width:22%;">Location</th>
-                <th style="width:26%;">Noise and Air Emissions</th>
-                <th style="width:26%;">Aircraft Noise Exposure</th>
-                <th style="width:26%;">Designated Road</th>
+                <th style="width:30%;">Location</th>
+                <th style="width:35%;">Noise and Air Emissions</th>
+                <th style="width:35%;">Aircraft Noise Exposure</th>
               </tr>
             </thead>
             <tbody id="saOverlayBody">
-              <tr><td>Subject site</td><td id="ov_src_noise">—</td><td id="ov_src_aircraft">—</td><td id="ov_src_road">—</td></tr>
-              <tr><td>Receiver 1</td><td id="ov_r1_noise">—</td><td id="ov_r1_aircraft">—</td><td id="ov_r1_road">—</td></tr>
-              <tr><td>Receiver 2</td><td id="ov_r2_noise">—</td><td id="ov_r2_aircraft">—</td><td id="ov_r2_road">—</td></tr>
-              <tr><td>Receiver 3</td><td id="ov_r3_noise">—</td><td id="ov_r3_aircraft">—</td><td id="ov_r3_road">—</td></tr>
-              <tr><td>Receiver 4</td><td id="ov_r4_noise">—</td><td id="ov_r4_aircraft">—</td><td id="ov_r4_road">—</td></tr>
+              <tr><td>Subject site</td><td id="ov_src_noise">—</td><td id="ov_src_aircraft">—</td></tr>
+              <tr><td>Receiver 1</td><td id="ov_r1_noise">—</td><td id="ov_r1_aircraft">—</td></tr>
+              <tr><td>Receiver 2</td><td id="ov_r2_noise">—</td><td id="ov_r2_aircraft">—</td></tr>
+              <tr><td>Receiver 3</td><td id="ov_r3_noise">—</td><td id="ov_r3_aircraft">—</td></tr>
+              <tr><td>Receiver 4</td><td id="ov_r4_noise">—</td><td id="ov_r4_aircraft">—</td></tr>
             </tbody>
           </table>
         </div>
@@ -4718,10 +4717,8 @@ initCollapse();
     var mbs010Toggle = document.getElementById('mbs010ToggleBtn');
 
     var MBS010_OVERLAY_CFG = [
-      { id: 39, name: 'Noise and Air Emissions', color: '#cd6a44', fill: 'rgba(205,170,102,0.25)' },
-      { id: 27, name: 'Aircraft Noise Exposure', color: '#005ce6', fill: 'rgba(0,92,230,0.15)' },
-      { id: 38, name: 'Major Urban Transport Routes', color: '#e6194b', fill: 'rgba(230,25,75,0.12)', weight: 3 },
-      { id: 42, name: 'Urban Transport Routes', color: '#f58231', fill: 'rgba(245,130,49,0.12)', weight: 3 }
+      { id: 39, name: 'Noise and Air Emissions', color: '#cd6a44', fill: 'rgba(205,170,102,0.25)', weight: 1 },
+      { id: 27, name: 'Aircraft Noise Exposure', color: '#005ce6', fill: 'rgba(0,92,230,0.15)' }
     ];
 
     function loadMBS010Layers() {
@@ -4746,7 +4743,7 @@ initCollapse();
               opacity: 0.85,
               fillColor: cfg.fill || cfg.color,
               fillOpacity: 0.2,
-              dashArray: cfg.weight ? null : '5 3'
+              dashArray: null
             },
             onEachFeature: function(feature, lyr) {
               var props = feature.properties || {};
@@ -4997,12 +4994,10 @@ initCollapse();
           }
         });
     }
-    /* ==== SAPPA Overlay Queries (Noise & Air, Aircraft, Designated Road) ==== */
+    /* ==== SAPPA Overlay Queries (Noise & Air, Aircraft) ==== */
     var SA_OVERLAY_LAYERS = {
       noise: 39,     // Noise and Air Emissions
-      aircraft: 27,  // Aircraft Noise Exposure
-      road_major: 38,// Major Urban Transport Routes
-      road_urban: 42 // Urban Transport Routes
+      aircraft: 27   // Aircraft Noise Exposure
     };
 
     function querySAPPAOverlays(mode, latlng) {
@@ -5049,37 +5044,6 @@ initCollapse();
           }
         }).catch(function() { if (aircraftEl) aircraftEl.textContent = '—'; });
 
-      // Query Designated Roads (Major Urban Transport Routes layer 38 + Urban Transport Routes layer 42)
-      var roadEl = document.getElementById('ov_' + prefix + '_road');
-      if (roadEl) roadEl.textContent = '\u2026';
-      // Use a small buffer (50m) around point for road proximity
-      var buf = 0.0005; // ~50m in degrees
-      var env = (latlng.lng - buf) + ',' + (latlng.lat - buf) + ',' + (latlng.lng + buf) + ',' + (latlng.lat + buf);
-      var roadParams = '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json&outFields=name,description';
-      Promise.all([
-        fetch(SAPPA_BASE + '/38/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }),
-        fetch(SAPPA_BASE + '/42/query?geometry=' + env + roadParams).then(function(r) { return r.json(); })
-      ]).then(function(results) {
-        if (!roadEl) return;
-        var roads = [];
-        results.forEach(function(data) {
-          if (data.features) {
-            data.features.forEach(function(f) {
-              var n = f.attributes.name || f.attributes.description || '';
-              if (n && roads.indexOf(n) === -1) roads.push(n);
-            });
-          }
-        });
-        if (roads.length) {
-          roadEl.textContent = roads.join(', ');
-          roadEl.style.color = '#b91c1c';
-          roadEl.style.fontWeight = '600';
-        } else {
-          roadEl.textContent = 'No';
-          roadEl.style.color = '';
-          roadEl.style.fontWeight = '';
-        }
-      }).catch(function() { if (roadEl) roadEl.textContent = '—'; });
     }
     /* ==== End SAPPA Overlay Queries ==== */
 
