@@ -664,22 +664,17 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div style="margin-top:10px;">
           <span class="badge sa-only">Day = 7 am–10 pm</span>
           <span class="badge sa-only">Night = 10 pm–7 am</span>
-          <span class="sa-only" style="display:inline-flex;gap:12px;margin-left:8px;vertical-align:middle;">
-            <label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="saEmergFire" onchange="toggleEmergEquip()"> Fire pump</label>
-            <label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="saEmergGen" onchange="toggleEmergEquip()"> Standby generator</label>
-          </span>
-          <span class="badge vic-only vic-settings-only">Day = 7 am–6 pm (Mon–Sat)</span>
-          <span class="badge vic-only vic-settings-only">Evening = 6 pm–10 pm</span>
-          <span class="badge vic-only vic-settings-only">Night = 10 pm–7 am (& all day Sun)</span>
-
 <span class="badge tooltip sa-only">
-  Criteria = INL − 5
+  Criteria = INL
   <span class="tooltiptext">
     INL = Indicative Noise Level as defined in the Environment Protection
-    (Commercial & Industrial) Noise Policy 2023 Clause 5. It is the averaged value
+    (Commercial &amp; Industrial) Noise Policy 2023 Clause 5. It is the averaged value
       of the Indicative Noise Factors for the applicable land use categories used to determine environmental noise criteria.
   </span>
 </span>
+          <span class="badge vic-only vic-settings-only">Day = 7 am–6 pm (Mon–Sat)</span>
+          <span class="badge vic-only vic-settings-only">Evening = 6 pm–10 pm</span>
+          <span class="badge vic-only vic-settings-only">Night = 10 pm–7 am (& all day Sun)</span>
 <span class="badge tooltip vic-only vic-settings-only">
   Criteria = EPA Pub 1826.5
   <span class="tooltiptext">
@@ -700,6 +695,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     NSW Noise Policy for Industry (2017).
   </span>
 </span>
+
+          <span class="sa-only" style="display:inline-flex;gap:10px;margin-left:8px;vertical-align:middle;font-size:12px;">
+            Emergency equipment:
+            <label style="cursor:pointer;"><input type="checkbox" id="saEmergFire" onchange="toggleEmergEquip()"> Fire pump</label>
+            <label style="cursor:pointer;"><input type="checkbox" id="saEmergGen" onchange="toggleEmergEquip()"> Standby generator</label>
+          </span>
 
         </div>
         </div>
