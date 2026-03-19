@@ -703,6 +703,29 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
     </div>
 
+    <!-- SA: Emergency equipment criteria -->
+    <div class="grid2 sa-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Emergency equipment criteria</h2>
+        <div class="p">Criteria based on the intent of the <i>Environment Protection (Commercial &amp; Industrial) Noise Policy 2023</i>, the testing time and operation of the equipment.</div>
+        <table class="crit-table" style="margin-top:8px;">
+          <tr>
+            <th style="width:30%;">Receiver</th>
+            <th class="num" colspan="2">Criteria, L<sub>eq</sub> dB(A)</th>
+          </tr>
+          <tr>
+            <th></th>
+            <th class="num" style="width:35%;">Fire pump</th>
+            <th class="num" style="width:35%;">Standby generator</th>
+          </tr>
+          <tr><td id="emergR1Label">Receiver 1</td><td class="num" id="emergR1Fire"></td><td class="num" id="emergR1Gen"></td></tr>
+          <tr><td id="emergR2Label">Receiver 2</td><td class="num" id="emergR2Fire"></td><td class="num" id="emergR2Gen"></td></tr>
+          <tr><td id="emergR3Label">Receiver 3</td><td class="num" id="emergR3Fire"></td><td class="num" id="emergR3Gen"></td></tr>
+          <tr><td id="emergR4Label">Receiver 4</td><td class="num" id="emergR4Fire"></td><td class="num" id="emergR4Gen"></td></tr>
+        </table>
+      </div>
+    </div>
+
     <!-- NSW: Derivation of noise emission criteria -->
     <div class="grid2 nsw-only" style="padding-top:0;">
       <div class="card span2">
@@ -3693,6 +3716,47 @@ function renderContributions() {
 
   // NSW derivation table
   if (currentState === 'NSW') renderNSWDerivTable();
+
+  // SA emergency equipment criteria
+  if (currentState === 'SA') renderEmergencyEquipCriteria();
+}
+
+/** Populate SA emergency equipment criteria table (Fire pump = INL+10, Generator = INL) */
+function renderEmergencyEquipCriteria() {
+  var ids = ['r1','r2','r3','r4'];
+  var srcSel = document.getElementById('sourceZone');
+  var srcVal = srcSel ? srcSel.value : '';
+  var source = srcVal ? SA_ZONES.find(function(z){ return z.value === srcVal; }) : null;
+
+  for (var i = 0; i < 4; i++) {
+    var recSel = document.getElementById(ids[i]);
+    var recVal = recSel ? recSel.value : '';
+    var rec = recVal ? SA_ZONES.find(function(z){ return z.value === recVal; }) : null;
+    var fireEl = document.getElementById('emergR' + (i+1) + 'Fire');
+    var genEl = document.getElementById('emergR' + (i+1) + 'Gen');
+    if (!fireEl || !genEl) continue;
+
+    if (!source || !rec) {
+      fireEl.textContent = '';
+      genEl.textContent = '';
+      continue;
+    }
+
+    // Check if same single-category GI/SI
+    var sameCatGI_SI = source.is_single == 1 && rec.is_single == 1 &&
+      source.single_cat && source.single_cat === rec.single_cat &&
+      (source.single_cat === 'General Industry' || source.single_cat === 'Special Industry');
+
+    var inlDay;
+    if (sameCatGI_SI) {
+      inlDay = (source.single_cat === 'General Industry') ? 65 : 70;
+    } else {
+      inlDay = Math.round((Number(source.inf_day) + Number(rec.inf_day)) / 2);
+    }
+
+    fireEl.textContent = 'INL+10 (' + (inlDay + 10) + ')';
+    genEl.textContent = 'INL (' + inlDay + ')';
+  }
 }
 
 function initCollapse() {
