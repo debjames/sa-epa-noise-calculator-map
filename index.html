@@ -5003,9 +5003,37 @@ initCollapse();
       else { el.style.color = ''; el.style.fontWeight = ''; el.style.background = ''; }
     }
 
+    /* Minimum distance (m) from a lat/lng point to a polygon ring array [[lng,lat],...] */
+    function distPointToRings(ptLat, ptLng, rings) {
+      var minD = Infinity;
+      var ptLL = L.latLng(ptLat, ptLng);
+      rings.forEach(function(ring) {
+        for (var i = 0; i < ring.length - 1; i++) {
+          var a = L.latLng(ring[i][1], ring[i][0]);
+          var b = L.latLng(ring[i+1][1], ring[i+1][0]);
+          var d = distPointToSegment(ptLL, a, b);
+          if (d < minD) minD = d;
+        }
+      });
+      return minD;
+    }
+    function distPointToSegment(p, a, b) {
+      var ax = a.lng, ay = a.lat, bx = b.lng, by = b.lat, px = p.lng, py = p.lat;
+      var dx = bx - ax, dy = by - ay;
+      if (dx === 0 && dy === 0) return p.distanceTo(a);
+      var t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+      var projLat = ay + t * dy, projLng = ax + t * dx;
+      return p.distanceTo(L.latLng(projLat, projLng));
+    }
+
+    /* Classify road type: layer 38 = Type A, layer 42 = Type B */
+    function classifyRoadType(layerId) {
+      return layerId === 38 ? 'A' : 'B';
+    }
+
     function querySAPPAOverlays(mode, latlng) {
       if (currentState !== 'SA') return;
-      if (mode !== 'source') return; // MBS 010 only queries at the subject site
+      if (mode !== 'source') return;
       var geom = latlng.lng + ',' + latlng.lat;
       var ptParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
 
@@ -5040,47 +5068,68 @@ initCollapse();
           }
         }).catch(function() { setMBS('mbs_noise', '—', false); });
 
-      // 3. Designated Road (layers 38 Major Urban + 42 Urban Transport Routes) — 50m buffer
-      var buf = 0.0005;
+      // 3. Designated Road (layers 38 Type A, 42 Type B) — 250m buffer, with geometry for distance
+      var buf = 0.0025; // ~250m
       var env = (latlng.lng - buf) + ',' + (latlng.lat - buf) + ',' + (latlng.lng + buf) + ',' + (latlng.lat + buf);
-      var envParams = '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json&outFields=name,description,value';
+      var roadParams = '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&f=json&outFields=name,description,value';
       Promise.all([
-        fetch(SAPPA_BASE + '/38/query?geometry=' + env + envParams).then(function(r) { return r.json(); }),
-        fetch(SAPPA_BASE + '/42/query?geometry=' + env + envParams).then(function(r) { return r.json(); })
+        fetch(SAPPA_BASE + '/38/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }).then(function(d) { d._layerId = 38; return d; }),
+        fetch(SAPPA_BASE + '/42/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }).then(function(d) { d._layerId = 42; return d; })
       ]).then(function(results) {
-        var roads = [];
+        var nearest = null;
         results.forEach(function(data) {
+          var lid = data._layerId;
           if (data.features) data.features.forEach(function(f) {
-            var n = f.attributes.name || f.attributes.description || '';
-            if (n && roads.indexOf(n) === -1) roads.push(n);
+            var name = f.attributes.name || f.attributes.description || 'Designated Road';
+            var rings = f.geometry && f.geometry.rings ? f.geometry.rings : [];
+            var dist = rings.length ? distPointToRings(latlng.lat, latlng.lng, rings) : 9999;
+            if (!nearest || dist < nearest.dist) {
+              nearest = { name: name, dist: dist, type: classifyRoadType(lid) };
+            }
           });
         });
-        setMBS('mbs_road', roads.length ? roads.join(', ') : 'Not adjacent to designated road', roads.length > 0);
+        if (nearest && nearest.dist < 250) {
+          var dStr = Math.round(nearest.dist) + ' m';
+          setMBS('mbs_road', 'Type ' + nearest.type + ' \u2014 ' + nearest.name + ' (' + dStr + ' from site)', true);
+        } else {
+          setMBS('mbs_road', 'No designated road within 250 m', false);
+        }
       }).catch(function() { setMBS('mbs_road', '—', false); });
 
-      // 4. Rail corridor (layer 36 Key Railway Crossings) — 100m buffer
+      // 4. Rail corridor (layer 36) — 100m buffer, with geometry for distance
       var rbuf = 0.001;
       var renv = (latlng.lng - rbuf) + ',' + (latlng.lat - rbuf) + ',' + (latlng.lng + rbuf) + ',' + (latlng.lat + rbuf);
-      fetch(SAPPA_BASE + '/36/query?geometry=' + renv + '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json&outFields=name,description')
+      fetch(SAPPA_BASE + '/36/query?geometry=' + renv + '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&f=json&outFields=name,description')
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.features && data.features.length) {
-            var names = data.features.map(function(f) { return f.attributes.name || f.attributes.description || 'Rail corridor'; });
-            setMBS('mbs_rail', names.join(', '), true);
+            var nearest = null;
+            data.features.forEach(function(f) {
+              var name = f.attributes.name || f.attributes.description || 'Rail corridor';
+              var rings = f.geometry && f.geometry.rings ? f.geometry.rings : [];
+              var dist = rings.length ? distPointToRings(latlng.lat, latlng.lng, rings) : 9999;
+              if (!nearest || dist < nearest.dist) nearest = { name: name, dist: dist };
+            });
+            if (nearest) {
+              var dStr = Math.round(nearest.dist) + ' m';
+              setMBS('mbs_rail', nearest.name + ' (' + dStr + ' from site)', true);
+            } else {
+              setMBS('mbs_rail', 'No rail corridor within 100 m', false);
+            }
           } else {
-            setMBS('mbs_rail', 'Not adjacent to rail corridor', false);
+            setMBS('mbs_rail', 'No rail corridor within 100 m', false);
           }
         }).catch(function() { setMBS('mbs_rail', '—', false); });
 
-      // 5. Mixed land use areas — check if source zone is Urban Corridor type
+      // 5. Mixed land use areas — check if source zone has non-residential land uses
       var zoneUrl = SAPPA_BASE + '/114/query?geometry=' + geom + ptParams + '&outFields=name';
       fetch(zoneUrl).then(function(r) { return r.json(); }).then(function(data) {
         if (data.features && data.features.length) {
           var zone = data.features[0].attributes.name || '';
-          var mixedZones = ['Urban Corridor', 'City Main Street', 'Suburban Main Street', 'Township Main Street', 'Local Activity Centre', 'Suburban Activity Centre', 'Urban Activity Centre', 'Township Activity Centre', 'Business Neighbourhood'];
+          var mixedZones = ['Urban Corridor', 'City Main Street', 'Suburban Main Street', 'Township Main Street', 'Local Activity Centre', 'Suburban Activity Centre', 'Urban Activity Centre', 'Township Activity Centre', 'Business Neighbourhood', 'Suburban Business', 'City Living', 'City Riverbank'];
           var isMixed = mixedZones.some(function(mz) { return zone.indexOf(mz) >= 0; });
           if (isMixed) {
-            setMBS('mbs_mixed', zone + ' Zone\u2014Commercial & residential land uses', true);
+            setMBS('mbs_mixed', zone + ' Zone \u2014 Commercial & residential land uses', true);
           } else {
             setMBS('mbs_mixed', 'Not within mixed land use zone', false);
           }
