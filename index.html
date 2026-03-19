@@ -3567,7 +3567,7 @@ function renderNSWDerivTable() {
     var isResidential = (recType === 'residential');
 
     if (idx > 0) html += '<tr><td colspan="4" style="border-top:2px solid var(--border);"></td></tr>';
-    html += '<tr style="font-weight:600;background:#f9fafb;"><td colspan="4">' + name + ' — ' + typeLabel + '</td></tr>';
+    html += '<tr style="font-weight:600;background:#f9fafb;"><td colspan="4">' + name + ' — ' + typeLabel + (isResidential ? ' (' + areaLabel + ')' : '') + '</td></tr>';
 
     if (isResidential) {
       html += '<tr><td>Rating background level (RBL)</td><td class="num">' + val(c._rblDay) + '</td><td class="num">' + val(c._rblEve) + '</td><td class="num">' + val(c._rblNight) + '</td></tr>';
