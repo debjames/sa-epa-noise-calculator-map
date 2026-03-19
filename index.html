@@ -1055,6 +1055,7 @@ noise. The characteristic should dominate the overall noise impact, rather than 
   </div>
   <div style="margin-top:14px;"></div>
   <button class="pdf-btn" id="pdfBtn" type="button">Export PDF</button>
+  <button class="pdf-btn" id="pdfCriteriaBtn" type="button">PDF Criteria</button>
 </div>
 </div>
 
@@ -3979,6 +3980,156 @@ initCollapse();
         btn.textContent = "Export PDF";
       }
     });
+
+    /* ── PDF Criteria button ── */
+    const critBtn = document.getElementById("pdfCriteriaBtn");
+    if (critBtn) {
+      critBtn.addEventListener("click", async () => {
+        try {
+          critBtn.disabled = true;
+          critBtn.textContent = "Exporting…";
+
+          // Build a temporary container with only the sections we want
+          const wrapper = document.createElement('div');
+          wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;width:1180px;background:#fff;font-family:inherit;';
+          document.body.appendChild(wrapper);
+
+          // Copy global styles
+          const styles = document.querySelectorAll('style, link[rel="stylesheet"]');
+          styles.forEach(s => wrapper.appendChild(s.cloneNode(true)));
+
+          const inner = document.createElement('div');
+          inner.style.cssText = 'padding:20px;max-width:1180px;';
+          wrapper.appendChild(inner);
+
+          // Title
+          const title = document.createElement('h2');
+          title.style.cssText = 'margin:0 0 8px;font-size:18px;';
+          title.textContent = 'Noise Criteria Derivation';
+          inner.appendChild(title);
+
+          // Address
+          const addr = document.getElementById('mapSearchInput');
+          if (addr && addr.value.trim()) {
+            const addrP = document.createElement('p');
+            addrP.style.cssText = 'margin:0 0 12px;font-size:13px;color:#555;';
+            addrP.textContent = addr.value.trim();
+            inner.appendChild(addrP);
+          }
+
+          // Sections to capture (by card heading text)
+          const sectionNames = [];
+          // Map
+          const mapCard = document.querySelector('#noise-map');
+          if (mapCard) {
+            const mapClone = mapCard.cloneNode(true);
+            // Use html2canvas to capture the live map as an image
+            const mapCanvas = await html2canvas(mapCard, { scale: 2, useCORS: true, windowWidth: 1180 });
+            const mapImg = document.createElement('img');
+            mapImg.src = mapCanvas.toDataURL('image/jpeg', 0.9);
+            mapImg.style.cssText = 'width:100%;border-radius:10px;border:1px solid #ddd;margin-bottom:12px;';
+            inner.appendChild(mapImg);
+          }
+
+          // Helper: clone a card, expand it, and append
+          function cloneCardByTitle(titleText) {
+            const cards = document.querySelectorAll('.card h2');
+            for (let i = 0; i < cards.length; i++) {
+              if (cards[i].textContent.trim() === titleText) {
+                const card = cards[i].closest('.card');
+                if (!card) continue;
+                // Check visibility
+                if (card.offsetParent === null) continue;
+                const clone = card.cloneNode(true);
+                // Expand if collapsed
+                const body = clone.querySelector('.card-body');
+                if (body) body.classList.remove('collapsed');
+                const toggles = clone.querySelectorAll('.collapse-btn');
+                toggles.forEach(t => t.style.display = 'none');
+                clone.style.marginBottom = '12px';
+                inner.appendChild(clone);
+                return true;
+              }
+            }
+            return false;
+          }
+
+          // Assessment parameters (state-specific)
+          if (typeof currentState !== 'undefined') {
+            if (currentState === 'VIC') cloneCardByTitle('VIC assessment parameters');
+            if (currentState === 'NSW') cloneCardByTitle('NSW assessment parameters');
+          }
+
+          // Criteria table
+          cloneCardByTitle('Receivers & criteria') || cloneCardByTitle('Noise sensitive areas & criteria');
+
+          // Derivation table (NSW only)
+          cloneCardByTitle('Derivation of noise emission criteria');
+
+          // Allow layout to settle
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+          // Capture the wrapper
+          const canvas = await html2canvas(inner, {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            useCORS: true,
+            windowWidth: 1180
+          });
+
+          // Remove temporary wrapper
+          document.body.removeChild(wrapper);
+
+          // Build PDF — auto-paginate
+          const { jsPDF } = window.jspdf;
+          const pageW = 210, pageH = 297;
+          const margin = 15;
+          const contentW = pageW - 2 * margin;
+          const contentH = pageH - 2 * margin;
+
+          const imgFullW = canvas.width;
+          const imgFullH = canvas.height;
+          const scale = contentW / imgFullW;
+          const totalImgHmm = imgFullH * scale;
+
+          const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+          let yOffset = 0; // in canvas pixels
+          let page = 0;
+
+          while (yOffset < imgFullH) {
+            if (page > 0) pdf.addPage();
+            const sliceH = Math.min(Math.round(contentH / scale), imgFullH - yOffset);
+            const sliceCanvas = document.createElement('canvas');
+            sliceCanvas.width = imgFullW;
+            sliceCanvas.height = sliceH;
+            sliceCanvas.getContext('2d').drawImage(canvas,
+              0, yOffset, imgFullW, sliceH,
+              0, 0, imgFullW, sliceH);
+            const sliceImg = sliceCanvas.toDataURL('image/jpeg', 0.95);
+            const sliceHmm = sliceH * scale;
+            pdf.addImage(sliceImg, 'JPEG', margin, margin, contentW, sliceHmm);
+            yOffset += sliceH;
+            page++;
+          }
+
+          var pdfName = 'Noise criteria derivation';
+          if (typeof currentState !== 'undefined' && currentState) pdfName += ' (' + currentState + ')';
+          if (lastSelectedAddress) {
+            pdfName += ' - ' + lastSelectedAddress;
+          } else if (addr && addr.value.trim()) {
+            var parts = addr.value.trim().split(',').map(s => s.trim());
+            pdfName += ' - ' + parts.slice(0, Math.max(1, parts.length - 2)).join(', ');
+          }
+          pdf.save(pdfName + '.pdf');
+        } catch (e) {
+          console.error(e);
+          alert('PDF criteria export failed — check console.');
+        } finally {
+          critBtn.disabled = false;
+          critBtn.textContent = 'PDF Criteria';
+        }
+      });
+    }
   });
 </script>
 
