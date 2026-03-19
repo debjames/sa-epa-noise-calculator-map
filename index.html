@@ -3762,17 +3762,15 @@ function renderEmergencyEquipCriteria() {
 
   // Build body
   var ids = ['r1','r2','r3','r4'];
-  var srcSel = document.getElementById('sourceZone');
-  var srcVal = srcSel ? srcSel.value : '';
-  var source = srcVal ? SA_ZONES.find(function(z){ return z.value === srcVal; }) : null;
+  var srcVal = document.getElementById('src') ? document.getElementById('src').value : '';
+  var source = srcVal ? byKey.get(srcVal) : null;
   var html = '';
 
   for (var i = 0; i < 4; i++) {
     var nameEl = document.getElementById('recvName' + (i+1));
     var label = nameEl && nameEl.value.trim() ? nameEl.value.trim() : ('Receiver ' + (i+1));
-    var recSel = document.getElementById(ids[i]);
-    var recVal = recSel ? recSel.value : '';
-    var rec = recVal ? SA_ZONES.find(function(z){ return z.value === recVal; }) : null;
+    var recVal = document.getElementById(ids[i]) ? document.getElementById(ids[i]).value : '';
+    var rec = recVal ? byKey.get(recVal) : null;
 
     html += '<tr><td>' + label + '</td>';
 
