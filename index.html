@@ -1521,12 +1521,13 @@ function calcCriteriaNSW(receiverIndex) {
   }
 
   // Non-residential receiver types — fixed amenity levels from Table 2.2
+  // Amenity criterion = ANL − 5 dB + 3 dB (facade correction)
   var levels = NSW_AMENITY_NON_RESIDENTIAL[recType];
   if (!levels) return { day: '', evening: '', night: '', lmax: '', _recType: recType };
   return {
-    day: levels.day !== null ? levels.day : '',
-    evening: levels.evening !== null ? levels.evening : '',
-    night: levels.night !== null ? levels.night : '',
+    day: levels.day !== null ? levels.day - 5 + 3 : '',
+    evening: levels.evening !== null ? levels.evening - 5 + 3 : '',
+    night: levels.night !== null ? levels.night - 5 + 3 : '',
     lmax: '',
     _recType: recType,
     _anlDay: levels.day, _anlEve: levels.evening, _anlNight: levels.night
