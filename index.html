@@ -742,11 +742,10 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <tr><td>ANEF</td><td id="mbs_anef">—</td><td class="center">—</td><td class="center">—</td></tr>
               <tr><td>ANR</td><td id="mbs_anr">—</td><td class="center">—</td><td id="mbs_sec_anr" class="center">—</td></tr>
               <tr><td>Noise Attenuation Area</td><td id="mbs_noise">—</td><td class="center">—</td><td class="center">—</td></tr>
-              <tr><td>Type A Road</td><td id="mbs_road_a">—</td><td id="mbs_dist_a" class="center">—</td><td id="mbs_sec_a" class="center">—</td></tr>
-              <tr><td>Type B Road</td><td id="mbs_road_b">—</td><td id="mbs_dist_b" class="center">—</td><td id="mbs_sec_b" class="center">—</td></tr>
-              <tr><td>Type R Road</td><td id="mbs_road_r">—</td><td id="mbs_dist_r" class="center">—</td><td id="mbs_sec_r" class="center">—</td></tr>
-              <tr><td>Train line</td><td id="mbs_train">—</td><td id="mbs_dist_train" class="center">—</td><td id="mbs_sec_train" class="center">—</td></tr>
-              <tr><td>Tram line</td><td id="mbs_tram">—</td><td id="mbs_dist_tram" class="center">—</td><td id="mbs_sec_tram" class="center">—</td></tr>
+              <!-- Road rows inserted dynamically -->
+              <tr id="mbs_roads_placeholder"><td>Designated Roads</td><td colspan="3">—</td></tr>
+              <!-- Rail rows inserted dynamically -->
+              <tr id="mbs_rail_placeholder"><td>Rail</td><td colspan="3">—</td></tr>
               <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td id="mbs_sec_mixed" class="center">—</td></tr>
             </tbody>
           </table>
@@ -5158,11 +5157,14 @@ initCollapse();
       var ptParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
 
       // Reset all rows
-      var allIds = ['mbs_anef','mbs_anr','mbs_noise','mbs_road_a','mbs_road_b','mbs_road_r','mbs_train','mbs_tram','mbs_mixed'];
-      allIds.forEach(function(id) { setMBS(id, '\u2026'); });
-      ['mbs_dist_a','mbs_dist_b','mbs_dist_r','mbs_dist_train','mbs_dist_tram','mbs_sec_a','mbs_sec_b','mbs_sec_r','mbs_sec_train','mbs_sec_tram'].forEach(function(id) {
-        var el = document.getElementById(id); if (el) { el.textContent = '\u2026'; el.style.fontWeight = ''; el.style.color = ''; }
-      });
+      ['mbs_anef','mbs_anr','mbs_noise','mbs_mixed'].forEach(function(id) { setMBS(id, '\u2026'); });
+      clearDynamicRows();
+      var roadsPh = document.getElementById('mbs_roads_placeholder');
+      var railPh = document.getElementById('mbs_rail_placeholder');
+      if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = '\u2026'; roadsPh.cells[1].colSpan = 3; }
+      if (railPh) { railPh.style.display = ''; railPh.cells[1].textContent = '\u2026'; railPh.cells[1].colSpan = 3; }
+      var secMixed = document.getElementById('mbs_sec_mixed');
+      if (secMixed) { secMixed.textContent = '\u2026'; }
 
       // SEC lookup tables per MBS 010 Tables 4.1, 4.2, 4.3
       // Each entry: [maxDist, SEC] — first match wins (d < maxDist → SEC)
@@ -5350,76 +5352,174 @@ initCollapse();
       // Road corridor offset: road surface is ~3m inside corridor polygon edge
       var ROAD_CORRIDOR_OFFSET = 3;
 
-      function setMBSRoadRail(infoId, distId, secId, geoFile, label, secFn, isRoad, nameField, roadType) {
-        setMBS(infoId, '\u2026');
-        fetch(geoFile).then(function(r) { return r.json(); }).then(function(data) {
-          var result = calcDistToGeoJSON(data, latlng.lat, latlng.lng);
-          var rawDist = result.dist;
-          // MBS 010: separation distance measured from 3m inside road corridor edge.
-          // rawDist = boundary-to-boundary (site parcel to road corridor edge).
-          // The actual noise reference point is 3m further inside the road corridor,
-          // so the separation distance is rawDist + 3m for polygon road data.
-          // For centerline data (Types A/B), the line IS the road — no offset needed.
-          var hasPolygonGeom = geoFile.indexOf('road_type_r') >= 0;
-          var dist = (isRoad && hasPolygonGeom) ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
-          var distEl = document.getElementById(distId);
-          var secEl = document.getElementById(secId);
-          if (rawDist < 250) {
-            var dRound = Math.round(dist);
-            var displayLabel = label;
-            if (result.feature && result.feature.properties && nameField) {
-              var props = result.feature.properties;
-              var fname = props[nameField];
-              if (fname && fname.trim()) {
-                var parts = fname.trim();
-                if (props.roadtype && props.roadtype.trim()) parts += ' ' + props.roadtype.trim();
-                var pretty = parts.toLowerCase().replace(/(?:^|[\s\-'])(\w)/g, function(m, c) { return m.slice(0, -1) + c.toUpperCase(); });
-                displayLabel = label + ' \u2014 ' + pretty;
+      // Find ALL features within maxDist, grouped by road name (closest segment per name)
+      function calcAllNearby(geoData, lat, lng, nameField, maxDist) {
+        var results = {}; // keyed by road name
+        if (!geoData || !geoData.features) return [];
+        var useBoundary = sourceParcelRings && sourceParcelRings.length > 0;
+        var BBOX_BUF = maxDist / 111000; // approx degrees
+        var siteBBox = useBoundary ? ringBBox(sourceParcelRings[0], BBOX_BUF) : [lng - BBOX_BUF, lat - BBOX_BUF, lng + BBOX_BUF, lat + BBOX_BUF];
+
+        geoData.features.forEach(function(f) {
+          var targetRings = extractRings(f.geometry);
+          if (!targetRings.length) return;
+          var featureDist = Infinity;
+          var featureCoord = null;
+
+          targetRings.forEach(function(targetRing) {
+            var tBBox = ringBBox(targetRing, 0);
+            if (!bboxOverlap(siteBBox, tBBox)) return;
+
+            if (useBoundary) {
+              sourceParcelRings.forEach(function(siteRing) {
+                for (var si = 0; si < siteRing.length - 1; si++) {
+                  var sitePt = L.latLng(siteRing[si][1], siteRing[si][0]);
+                  for (var ti = 0; ti < targetRing.length - 1; ti++) {
+                    var r = distPointToSegment(sitePt, L.latLng(targetRing[ti][1], targetRing[ti][0]), L.latLng(targetRing[ti+1][1], targetRing[ti+1][0]));
+                    if (r.dist < featureDist) { featureDist = r.dist; featureCoord = [r.projLng, r.projLat]; }
+                  }
+                }
+              });
+              for (var ti = 0; ti < targetRing.length - 1; ti++) {
+                var targetPt = L.latLng(targetRing[ti][1], targetRing[ti][0]);
+                sourceParcelRings.forEach(function(siteRing) {
+                  for (var si = 0; si < siteRing.length - 1; si++) {
+                    var r = distPointToSegment(targetPt,
+                      L.latLng(siteRing[si][1], siteRing[si][0]),
+                      L.latLng(siteRing[si+1][1], siteRing[si+1][0]));
+                    if (r.dist < featureDist) { featureDist = r.dist; featureCoord = [targetRing[ti][0], targetRing[ti][1]]; }
+                  }
+                });
+              }
+            } else {
+              for (var i = 0; i < targetRing.length - 1; i++) {
+                var r = distPointToSegment(L.latLng(lat, lng), L.latLng(targetRing[i][1], targetRing[i][0]), L.latLng(targetRing[i+1][1], targetRing[i+1][0]));
+                if (r.dist < featureDist) { featureDist = r.dist; featureCoord = [r.projLng, r.projLat]; }
               }
             }
-            if (distEl) distEl.textContent = dRound + ' m';
-            // For roads, query speed limit then calculate SEC
-            if (isRoad && roadType) {
-              var nearCoord = result.nearestCoord || null;
-              var rdName = (result.feature && result.feature.properties && result.feature.properties[nameField]) || '';
-              querySpeedLimit(latlng.lat, latlng.lng, nearCoord, rdName).then(function(speed) {
-                var sec = getSEC_Road(dist, roadType, speed);
-                displayLabel += ' (' + speed + ' km/h)';
-                setMBS(infoId, displayLabel);
-                if (secEl) secEl.textContent = (sec !== null) ? sec : 'N/A';
-              });
-            } else {
-              setMBS(infoId, displayLabel);
-              var sec = secFn(dist);
-              if (secEl) secEl.textContent = (sec !== null) ? sec : 'N/A';
+          });
+
+          if (featureDist < maxDist) {
+            var props = f.properties || {};
+            var rawName = (props[nameField] || '').trim();
+            var roadtype = (props.roadtype || '').trim();
+            var key = rawName ? (rawName + (roadtype ? ' ' + roadtype : '')).toUpperCase() : 'UNKNOWN_' + Math.random();
+            if (!results[key] || featureDist < results[key].dist) {
+              results[key] = { dist: featureDist, feature: f, nearestCoord: featureCoord, rawName: rawName, roadtype: roadtype };
             }
-          } else {
-            setMBS(infoId, 'N/A');
-            if (distEl) distEl.textContent = '—';
-            if (secEl) secEl.textContent = '—';
           }
-        }).catch(function(err) { console.warn('MBS010 ' + geoFile + ' failed:', err); setMBS(infoId, '—'); });
+        });
+        // Convert to sorted array
+        return Object.keys(results).map(function(k) { return results[k]; }).sort(function(a, b) { return a.dist - b.dist; });
+      }
+
+      // Pretty-print road/rail name
+      function prettyName(rawName, roadtype) {
+        var parts = rawName;
+        if (roadtype) parts += ' ' + roadtype;
+        return parts.toLowerCase().replace(/(?:^|[\s\-'])(\w)/g, function(m, c) { return m.slice(0, -1) + c.toUpperCase(); });
+      }
+
+      // Create a table row for a road/rail result
+      function createMBSRow(label, info, dist, sec) {
+        var tr = document.createElement('tr');
+        tr.className = 'mbs-dynamic-row';
+        var td1 = document.createElement('td'); td1.textContent = label;
+        var td2 = document.createElement('td'); td2.textContent = info;
+        var td3 = document.createElement('td'); td3.textContent = dist; td3.className = 'center';
+        var td4 = document.createElement('td'); td4.textContent = sec; td4.className = 'center';
+        tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
+        return tr;
+      }
+
+      function clearDynamicRows() {
+        document.querySelectorAll('.mbs-dynamic-row').forEach(function(r) { r.remove(); });
       }
 
       function setAllBelowNA() {
-        ['mbs_road_a','mbs_road_b','mbs_road_r','mbs_train','mbs_tram','mbs_mixed'].forEach(function(id) { setMBS(id, 'N/A \u2014 MBS 010 not triggered'); });
-        ['mbs_dist_a','mbs_dist_b','mbs_dist_r','mbs_dist_train','mbs_dist_tram'].forEach(function(id) {
-          var el = document.getElementById(id); if (el) { el.textContent = '—'; el.style.fontWeight = ''; }
-        });
-        ['mbs_sec_a','mbs_sec_b','mbs_sec_r','mbs_sec_train','mbs_sec_tram','mbs_sec_mixed'].forEach(function(id) {
-          var el = document.getElementById(id); if (el) { el.textContent = '—'; el.style.fontWeight = ''; el.style.color = ''; }
-        });
+        clearDynamicRows();
+        var roadsPh = document.getElementById('mbs_roads_placeholder');
+        var railPh = document.getElementById('mbs_rail_placeholder');
+        if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = 'N/A \u2014 MBS 010 not triggered'; roadsPh.cells[1].colSpan = 3; }
+        if (railPh) { railPh.style.display = ''; railPh.cells[1].textContent = 'N/A \u2014 MBS 010 not triggered'; railPh.cells[1].colSpan = 3; }
+        setMBS('mbs_mixed', 'N/A \u2014 MBS 010 not triggered');
+        var mixedSec = document.getElementById('mbs_sec_mixed');
+        if (mixedSec) { mixedSec.textContent = '—'; }
       }
 
       function loadRoadRailMixed() {
-        // Wait for parcel boundary to be loaded so we can measure boundary-to-boundary
         var parcelWait = sourceParcelPromise || Promise.resolve();
         parcelWait.then(function() {
-          setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', null, true, 'name', 'TypeA');
-          setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', null, true, 'name', 'TypeB');
-          setMBSRoadRail('mbs_road_r', 'mbs_dist_r', 'mbs_sec_r', 'road_type_r.geojson', 'Type R Road', null, true, 'designatedroad', 'TypeR');
-          setMBSRoadRail('mbs_train', 'mbs_dist_train', 'mbs_sec_train', 'trains.geojson', 'Train line', getSEC_Train, false, 'track_name');
-          setMBSRoadRail('mbs_tram', 'mbs_dist_tram', 'mbs_sec_tram', 'trams.geojson', 'Tram line', getSEC_Tram, false, 'track_name');
+          clearDynamicRows();
+          var roadsPh = document.getElementById('mbs_roads_placeholder');
+          var railPh = document.getElementById('mbs_rail_placeholder');
+
+          // Load all road types and find all nearby roads
+          var roadCfg = [
+            { file: 'road_type_a.geojson', typeLabel: 'Type A Road', roadType: 'TypeA', nameField: 'name', isPolygon: false },
+            { file: 'road_type_b.geojson', typeLabel: 'Type B Road', roadType: 'TypeB', nameField: 'name', isPolygon: false },
+            { file: 'road_type_r.geojson', typeLabel: 'Type R Road', roadType: 'TypeR', nameField: 'designatedroad', isPolygon: true }
+          ];
+          var railCfg = [
+            { file: 'trains.geojson', typeLabel: 'Train line', nameField: 'track_name', secFn: getSEC_Train },
+            { file: 'trams.geojson', typeLabel: 'Tram line', nameField: 'track_name', secFn: getSEC_Tram }
+          ];
+
+          // Process roads
+          var roadPromises = roadCfg.map(function(cfg) {
+            return fetch(cfg.file).then(function(r) { return r.json(); }).then(function(data) {
+              var nearby = calcAllNearby(data, latlng.lat, latlng.lng, cfg.nameField, 250);
+              return nearby.map(function(n) {
+                var rawDist = n.dist;
+                var dist = cfg.isPolygon ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
+                return { cfg: cfg, dist: dist, rawDist: rawDist, nearestCoord: n.nearestCoord, rawName: n.rawName, roadtype: n.roadtype };
+              });
+            }).catch(function(err) { console.warn('MBS010 ' + cfg.file + ' failed:', err); return []; });
+          });
+
+          Promise.all(roadPromises).then(function(roadResults) {
+            var allRoads = roadResults.reduce(function(a, b) { return a.concat(b); }, []);
+            if (roadsPh) roadsPh.style.display = allRoads.length ? 'none' : '';
+            if (!allRoads.length && roadsPh) { roadsPh.cells[1].textContent = 'N/A'; roadsPh.cells[1].colSpan = 3; }
+
+            allRoads.forEach(function(road) {
+              var dRound = Math.round(road.dist);
+              var name = road.rawName ? prettyName(road.rawName, road.roadtype) : '';
+              var info = road.cfg.typeLabel + (name ? ' \u2014 ' + name : '');
+              var tr = createMBSRow(road.cfg.typeLabel, info + ' \u2026', dRound + ' m', '\u2026');
+              if (roadsPh) roadsPh.parentNode.insertBefore(tr, roadsPh);
+
+              // Query speed limit for each road
+              querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord, road.rawName).then(function(speed) {
+                var sec = getSEC_Road(road.dist, road.cfg.roadType, speed);
+                tr.cells[1].textContent = info + ' (' + speed + ' km/h)';
+                tr.cells[3].textContent = (sec !== null) ? sec : 'N/A';
+              });
+            });
+          });
+
+          // Process rail
+          var railPromises = railCfg.map(function(cfg) {
+            return fetch(cfg.file).then(function(r) { return r.json(); }).then(function(data) {
+              var nearby = calcAllNearby(data, latlng.lat, latlng.lng, cfg.nameField, 250);
+              return nearby.map(function(n) { return { cfg: cfg, dist: n.dist, rawName: n.rawName }; });
+            }).catch(function(err) { console.warn('MBS010 ' + cfg.file + ' failed:', err); return []; });
+          });
+
+          Promise.all(railPromises).then(function(railResults) {
+            var allRail = railResults.reduce(function(a, b) { return a.concat(b); }, []);
+            if (railPh) railPh.style.display = allRail.length ? 'none' : '';
+            if (!allRail.length && railPh) { railPh.cells[1].textContent = 'N/A'; railPh.cells[1].colSpan = 3; }
+
+            allRail.forEach(function(rail) {
+              var dRound = Math.round(rail.dist);
+              var name = rail.rawName ? prettyName(rail.rawName, '') : '';
+              var info = rail.cfg.typeLabel + (name ? ' \u2014 ' + name : '');
+              var sec = rail.cfg.secFn(rail.dist);
+              var tr = createMBSRow(rail.cfg.typeLabel, info, dRound + ' m', (sec !== null) ? sec : 'N/A');
+              if (railPh) railPh.parentNode.insertBefore(tr, railPh);
+            });
+          });
         });
         // Mixed land use (kept below)
       }
