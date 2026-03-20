@@ -4800,17 +4800,17 @@ initCollapse();
 
       // Load road and rail GeoJSON layers
       var roadRailCfg = [
-        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: '#8B4040', fill: '#E8B0B0', tipField: 'name' },
-        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: '#8B7030', fill: '#E8D8A0', tipField: 'name' },
-        { file: 'trains.geojson', name: 'Train line', color: '#4a4a4a', fill: 'rgba(80,80,80,0.2)', tipField: 'track_name' },
-        { file: 'trams.geojson', name: 'Tram line', color: '#2e7d32', fill: 'rgba(46,125,50,0.2)', tipField: 'track_name' }
+        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: '#C08080', fill: '#D4A0A0', tipField: 'name' },
+        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: '#B0A060', fill: '#D8C890', tipField: 'name' },
+        { file: 'trains.geojson', name: 'Train line', color: '#6a6a6a', fill: 'rgba(100,100,100,0.35)', tipField: 'track_name' },
+        { file: 'trams.geojson', name: 'Tram line', color: '#4a8a4a', fill: 'rgba(70,140,70,0.35)', tipField: 'track_name' }
       ];
       roadRailCfg.forEach(function(rr) {
         fetch(rr.file).then(function(r) { return r.json(); }).then(function(data) {
           if (!_mbs010On) return;
           if (!data.features || !data.features.length) return;
           var layer = L.geoJSON(data, {
-            style: { color: rr.color, weight: 1.5, opacity: 0.9, fillColor: rr.fill, fillOpacity: 0.4 },
+            style: { color: rr.color, weight: 0.8, opacity: 0.6, fillColor: rr.fill, fillOpacity: 0.5 },
             onEachFeature: function(feature, lyr) {
               var props = feature.properties || {};
               var tip = '<b>' + rr.name + '</b>';
