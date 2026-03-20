@@ -4769,6 +4769,7 @@ initCollapse();
           layer.addTo(map);
           layer._mbs010id = cfg.id;
           _mbs010Layers.push(layer);
+          bringBoundaryToFront();
         }).catch(function(err) { console.warn('MBS010 layer ' + cfg.id + ' failed:', err); });
       });
 
@@ -4789,6 +4790,7 @@ initCollapse();
         layer.addTo(map);
         layer._mbs010id = 'anr';
         _mbs010Layers.push(layer);
+        bringBoundaryToFront();
       }
       if (_anrGeoJSON) {
         addANRLayer(_anrGeoJSON);
@@ -4824,8 +4826,14 @@ initCollapse();
           layer.addTo(map);
           layer._mbs010id = rr.file;
           _mbs010Layers.push(layer);
+          bringBoundaryToFront();
         }).catch(function(err) { console.warn('MBS010 ' + rr.file + ' failed:', err); });
       });
+    }
+
+    function bringBoundaryToFront() {
+      if (sourceParcelOutline && map.hasLayer(sourceParcelOutline)) sourceParcelOutline.bringToFront();
+      if (sourceParcelOutline2 && map.hasLayer(sourceParcelOutline2)) sourceParcelOutline2.bringToFront();
     }
 
     function clearMBS010Layers() {
@@ -4901,13 +4909,7 @@ initCollapse();
         }
       });
 
-      /* Refresh MBS 010 layers on map move if active */
-      map.on('moveend', function() {
-        if (!_mbs010On) return;
-        clearMBS010Layers();
-        loadMBS010Layers();
-        addMBS010Legend();
-      });
+      /* MBS 010 layers are static — no refresh on pan/zoom */
     }
 
     /* Show/hide MBS 010 button based on state */
