@@ -750,7 +750,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td id="mbs_sec_mixed" class="center">—</td></tr>
             </tbody>
           </table>
-          <div class="small" style="margin-top:6px;color:var(--muted);">SEC = Sound Exposure Category per MBS 010. Distance-based SEC assumes 50–60 km/h speed limit for roads.</div>
+          <div class="small" style="margin-top:6px;color:var(--muted);">SEC = Sound Exposure Category per MBS 010. Road speed limits sourced from SA Transport data.</div>
         </div>
       </div>
     </div>
@@ -5164,19 +5164,42 @@ initCollapse();
         var el = document.getElementById(id); if (el) { el.textContent = '\u2026'; el.style.fontWeight = ''; el.style.color = ''; }
       });
 
-      // SEC lookup tables (50-60 km/h speed band for roads)
-      function getSEC_TypeA(d) {
-        if (d >= 100) return null; if (d >= 60) return 1; if (d >= 35) return 2;
-        if (d >= 15) return 3; return 4;
+      // SEC lookup tables per MBS 010 Tables 4.1, 4.2, 4.3
+      // Each entry: [maxDist, SEC] — first match wins (d < maxDist → SEC)
+      var SEC_TABLES = {
+        TypeA: {
+          '50':  [[15,4],[35,3],[60,2],[100,1]],
+          '70':  [[10,5],[25,4],[45,3],[95,2],[150,1]],
+          '100': [[15,5],[35,4],[60,3],[130,2],[200,1]]
+        },
+        TypeB: {
+          '50':  [[10,4],[20,3],[35,2],[60,1]],
+          '70':  [[15,4],[30,3],[55,2],[95,1]],
+          '100': [[10,5],[20,4],[35,3],[75,2],[130,1]]
+        },
+        TypeR: {
+          '50':  [[10,3],[25,2],[35,1]],
+          '70':  [[15,3],[35,2],[55,1]],
+          '100': [[10,4],[20,3],[40,2],[75,1]]
+        }
+      };
+
+      function getSpeedBand(speed) {
+        if (speed <= 60) return '50';
+        if (speed <= 90) return '70';
+        return '100';
       }
-      function getSEC_TypeB(d) {
-        if (d >= 60) return null; if (d >= 35) return 1; if (d >= 20) return 2;
-        if (d >= 10) return 3; return 4;
+
+      function getSEC_Road(d, roadType, speed) {
+        var band = getSpeedBand(speed);
+        var table = SEC_TABLES[roadType] && SEC_TABLES[roadType][band];
+        if (!table) return null;
+        for (var i = 0; i < table.length; i++) {
+          if (d < table[i][0]) return table[i][1];
+        }
+        return null;
       }
-      function getSEC_TypeR(d) {
-        if (d >= 60) return null; if (d >= 35) return 1; if (d >= 20) return 2;
-        if (d >= 10) return 3; return 4;
-      }
+
       function getSEC_Train(d) {
         if (d >= 50) return null; if (d >= 25) return 1; if (d >= 10) return 2; return 3;
       }
@@ -5184,10 +5207,43 @@ initCollapse();
         if (d >= 20) return null; if (d >= 10) return 1; return 2;
       }
 
+      // Query speed limit from SA Transport MapServer (layer 12)
+      var SPEED_LIMIT_URL = 'https://location.sa.gov.au/server6/rest/services/Transport/Speed_Zones/MapServer/12/query';
+      function querySpeedLimit(lat, lng, nearestCoord, roadName) {
+        // Query near the nearest road point with 200m buffer
+        var qLat = nearestCoord ? nearestCoord[1] : lat;
+        var qLng = nearestCoord ? nearestCoord[0] : lng;
+        var geom = qLng + ',' + qLat;
+        var params = 'geometry=' + encodeURIComponent(geom) +
+          '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
+          '&distance=200&units=esriSRUnit_Meter&outFields=SPEED_LIMIT,RDNAME&returnGeometry=false&f=json';
+        return fetch(SPEED_LIMIT_URL + '?' + params)
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d.features && d.features.length) {
+              // Try to match by road name if available
+              if (roadName) {
+                var rn = roadName.toUpperCase();
+                for (var i = 0; i < d.features.length; i++) {
+                  var rdname = (d.features[i].attributes.RDNAME || '').toUpperCase();
+                  if (rdname.indexOf(rn) >= 0 || rn.indexOf(rdname.split(' ')[0]) >= 0) {
+                    return d.features[i].attributes.SPEED_LIMIT || 60;
+                  }
+                }
+              }
+              // Fall back to first result
+              return d.features[0].attributes.SPEED_LIMIT || 60;
+            }
+            return 60; // default if no data
+          })
+          .catch(function() { return 60; });
+      }
+
       function calcDistToGeoJSON(geoData, lat, lng) {
         var minD = Infinity;
         var nearestFeature = null;
-        if (!geoData || !geoData.features) return { dist: minD, feature: null };
+        var nearestCoord = null;
+        if (!geoData || !geoData.features) return { dist: minD, feature: null, nearestCoord: null };
         geoData.features.forEach(function(f) {
           var g = f.geometry;
           if (!g) return;
@@ -5198,22 +5254,21 @@ initCollapse();
           coords.forEach(function(ring) {
             for (var i = 0; i < ring.length - 1; i++) {
               var d = distPointToSegment(L.latLng(lat, lng), L.latLng(ring[i][1], ring[i][0]), L.latLng(ring[i+1][1], ring[i+1][0]));
-              if (d < minD) { minD = d; nearestFeature = f; }
+              if (d < minD) { minD = d; nearestFeature = f; nearestCoord = ring[i]; }
             }
           });
         });
-        return { dist: minD, feature: nearestFeature };
+        return { dist: minD, feature: nearestFeature, nearestCoord: nearestCoord };
       }
 
       // Road corridor offset: road surface is ~3m inside corridor polygon edge
       var ROAD_CORRIDOR_OFFSET = 3;
 
-      function setMBSRoadRail(infoId, distId, secId, geoFile, label, secFn, isRoad, nameField) {
+      function setMBSRoadRail(infoId, distId, secId, geoFile, label, secFn, isRoad, nameField, roadType) {
         setMBS(infoId, '\u2026');
         fetch(geoFile).then(function(r) { return r.json(); }).then(function(data) {
           var result = calcDistToGeoJSON(data, latlng.lat, latlng.lng);
           var rawDist = result.dist;
-          // Roads: distance from site boundary to road boundary (3m inside corridor edge for polygon data)
           var isPolygonRoad = geoFile.indexOf('road_type_r') >= 0;
           var dist = (isRoad && isPolygonRoad) ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
           var distEl = document.getElementById(distId);
@@ -5226,16 +5281,27 @@ initCollapse();
               var fname = props[nameField];
               if (fname && fname.trim()) {
                 var parts = fname.trim();
-                // Combine name + roadtype for road data (e.g. "FULLARTON" + "ROAD" = "Fullarton Road")
                 if (props.roadtype && props.roadtype.trim()) parts += ' ' + props.roadtype.trim();
                 var pretty = parts.replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\B\w+/g, function(w) { return w.toLowerCase(); });
                 displayLabel = label + ' \u2014 ' + pretty;
               }
             }
-            setMBS(infoId, displayLabel);
             if (distEl) distEl.textContent = dRound + ' m';
-            var sec = secFn(dist);
-            if (secEl) secEl.textContent = (sec !== null) ? sec : 'N/A';
+            // For roads, query speed limit then calculate SEC
+            if (isRoad && roadType) {
+              var nearCoord = result.nearestCoord || null;
+              var rdName = (result.feature && result.feature.properties && result.feature.properties[nameField]) || '';
+              querySpeedLimit(latlng.lat, latlng.lng, nearCoord, rdName).then(function(speed) {
+                var sec = getSEC_Road(dist, roadType, speed);
+                displayLabel += ' (' + speed + ' km/h)';
+                setMBS(infoId, displayLabel);
+                if (secEl) secEl.textContent = (sec !== null) ? sec : 'N/A';
+              });
+            } else {
+              setMBS(infoId, displayLabel);
+              var sec = secFn(dist);
+              if (secEl) secEl.textContent = (sec !== null) ? sec : 'N/A';
+            }
           } else {
             setMBS(infoId, 'N/A');
             if (distEl) distEl.textContent = '—';
@@ -5255,9 +5321,9 @@ initCollapse();
       }
 
       function loadRoadRailMixed() {
-        setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', getSEC_TypeA, true, 'name');
-        setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', getSEC_TypeB, true, 'name');
-        setMBSRoadRail('mbs_road_r', 'mbs_dist_r', 'mbs_sec_r', 'road_type_r.geojson', 'Type R Road', getSEC_TypeR, true, 'designatedroad');
+        setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', null, true, 'name', 'TypeA');
+        setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', null, true, 'name', 'TypeB');
+        setMBSRoadRail('mbs_road_r', 'mbs_dist_r', 'mbs_sec_r', 'road_type_r.geojson', 'Type R Road', null, true, 'designatedroad', 'TypeR');
         setMBSRoadRail('mbs_train', 'mbs_dist_train', 'mbs_sec_train', 'trains.geojson', 'Train line', getSEC_Train, false, 'track_name');
         setMBSRoadRail('mbs_tram', 'mbs_dist_tram', 'mbs_sec_tram', 'trams.geojson', 'Tram line', getSEC_Tram, false, 'track_name');
         // Mixed land use (kept below)
