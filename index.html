@@ -4804,8 +4804,8 @@ initCollapse();
       // Load road and rail GeoJSON layers
       // Roads are LineString centerlines — render as thick colored lines to approximate SAPPA corridor display
       var roadRailCfg = [
-        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: 'rgba(255,190,190,0.7)', lineWeight: 3, tipField: 'name' },
-        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: 'rgba(255,235,175,0.7)', lineWeight: 3, tipField: 'name' },
+        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: 'rgba(255,190,190,0.7)', lineWeight: 1.5, tipField: 'name' },
+        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: 'rgba(255,235,175,0.7)', lineWeight: 1.5, tipField: 'name' },
         { file: 'road_type_r.geojson', name: 'Designated Road — Type R', color: 'rgba(190,232,255,0.7)', lineWeight: 1.5, tipField: 'designatedroad', isPolygon: true },
         { file: 'trains.geojson', name: 'Train line', color: 'rgba(100,100,100,0.5)', lineWeight: 1.5, tipField: 'track_name' },
         { file: 'trams.geojson', name: 'Tram line', color: 'rgba(70,140,70,0.5)', lineWeight: 1.5, tipField: 'track_name' }
@@ -4815,7 +4815,7 @@ initCollapse();
           if (!_mbs010On) return;
           if (!data.features || !data.features.length) return;
           var styleOpts = rr.isPolygon
-            ? { color: rr.color, weight: 0.8, opacity: 0.6, fillColor: rr.color, fillOpacity: 0.5 }
+            ? { color: rr.color, weight: 1.5, opacity: 0.6, fillColor: rr.color, fillOpacity: 0.5 }
             : { color: rr.color, weight: rr.lineWeight, opacity: 1, lineCap: 'round', lineJoin: 'round' };
           var layer = L.geoJSON(data, {
             style: styleOpts,
@@ -5332,9 +5332,26 @@ initCollapse();
       // Query ANEF + Noise overlay first, then conditionally load road/rail
       var _mbsTriggered = false;
 
+      // Retry helper for SAPPA queries (502 errors are common)
+      function fetchWithRetry(url, retries) {
+        retries = retries || 2;
+        return fetch(url).then(function(r) {
+          if (!r.ok && retries > 0) {
+            return new Promise(function(resolve) { setTimeout(resolve, 1000); })
+              .then(function() { return fetchWithRetry(url, retries - 1); });
+          }
+          return r.json();
+        }).catch(function(err) {
+          if (retries > 0) {
+            return new Promise(function(resolve) { setTimeout(resolve, 1000); })
+              .then(function() { return fetchWithRetry(url, retries - 1); });
+          }
+          throw err;
+        });
+      }
+
       // 1. Aircraft Noise Exposure (layer 27)
-      var anefPromise = fetch(SAPPA_BASE + '/27/query?geometry=' + geom + ptParams + '&outFields=name,value')
-        .then(function(r) { return r.json(); })
+      var anefPromise = fetchWithRetry(SAPPA_BASE + '/27/query?geometry=' + geom + ptParams + '&outFields=name,value')
         .then(function(data) {
           var anefVals = [];
           if (data.features) {
@@ -5371,8 +5388,7 @@ initCollapse();
         }).catch(function() { setMBS('mbs_anef', '—'); setMBS('mbs_anr', '—'); return false; });
 
       // 2. Noise and Air Emissions (layer 39)
-      var noisePromise = fetch(SAPPA_BASE + '/39/query?geometry=' + geom + ptParams + '&outFields=name,description')
-        .then(function(r) { return r.json(); })
+      var noisePromise = fetchWithRetry(SAPPA_BASE + '/39/query?geometry=' + geom + ptParams + '&outFields=name,description')
         .then(function(data) {
           var inOverlay = data.features && data.features.length > 0;
           setMBS('mbs_noise', inOverlay ? 'Site in a Noise and Air Emissions Overlay' : 'Site not in Noise and Air Emissions Overlay', inOverlay);
@@ -5389,8 +5405,7 @@ initCollapse();
         }
         loadRoadRailMixed();
         // Mixed land use areas — query zone then check DATA for land use classification
-        fetch(SAPPA_BASE + '/114/query?geometry=' + geom + ptParams + '&outFields=name')
-          .then(function(r) { return r.json(); })
+        fetchWithRetry(SAPPA_BASE + '/114/query?geometry=' + geom + ptParams + '&outFields=name')
           .then(function(data) {
             if (data.features && data.features.length) {
               var zoneName = data.features[0].attributes.name || '';
