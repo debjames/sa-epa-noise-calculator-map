@@ -4835,36 +4835,45 @@ initCollapse();
     function addMBS010Legend() {
       if (_mbs010LegendCtrl) return;
       _mbs010LegendCtrl = L.control({ position: 'bottomleft' });
-      _mbs010LegendCtrl.onAdd = function() {
+      _mbs010LegendCtrl.onAdd = function(map) {
         var div = L.DomUtil.create('div', 'zone-legend');
-        div.style.cssText = 'background:#fff;padding:8px 12px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:12px;line-height:1.6;';
-        var html = '<div style="font-weight:700;margin-bottom:4px;">MBS 010 Overlays</div>';
-        MBS010_OVERLAY_CFG.forEach(function(cfg) {
-          html += '<div style="display:flex;align-items:center;gap:6px;">' +
-            '<span style="display:inline-block;width:14px;height:14px;background:' + cfg.color + ';opacity:0.7;border:1px solid ' + cfg.color + ';border-radius:2px;"></span> ' +
-            cfg.name + '</div>';
-        });
-        // ANR contour legend
-        var anrLevels = [20,24,28,32,36,40];
-        anrLevels.forEach(function(v) {
-          var c = ANR_COLOURS[v] || '#FFAB66';
-          html += '<div style="display:flex;align-items:center;gap:6px;">' +
-            '<span style="display:inline-block;width:14px;height:14px;background:' + c + ';opacity:0.7;border:1px solid #999;border-radius:2px;"></span> ' +
-            'ANR ' + v + ' dB(A)</div>';
-        });
-        // Road and rail legend
-        var rrLegend = [
-          { name: 'Type A Road', color: '#c47a7a' },
-          { name: 'Type B Road', color: '#b5a050' },
-          { name: 'Train line', color: '#4a4a4a' },
-          { name: 'Tram line', color: '#2e7d32' }
+        div.style.cssText = 'background:#fff;padding:8px 12px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:12px;line-height:1.8;';
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+
+        var layerGroups = [
+          { key: 39, label: 'Noise & Air Emissions', color: '#b04030' },
+          { key: 27, label: 'ANEF', color: '#005ce6' },
+          { key: 'anr', label: 'ANR Contours', color: '#FFAB66' },
+          { key: 'road_type_a.geojson', label: 'Type A Road', color: '#C08080' },
+          { key: 'road_type_b.geojson', label: 'Type B Road', color: '#B0A060' },
+          { key: 'trains.geojson', label: 'Train line', color: '#6a6a6a' },
+          { key: 'trams.geojson', label: 'Tram line', color: '#4a8a4a' }
         ];
-        rrLegend.forEach(function(rr) {
-          html += '<div style="display:flex;align-items:center;gap:6px;">' +
-            '<span style="display:inline-block;width:14px;height:14px;background:' + rr.color + ';opacity:0.7;border:1px solid ' + rr.color + ';border-radius:2px;"></span> ' +
-            rr.name + '</div>';
+
+        var html = '<div style="font-weight:700;margin-bottom:4px;">MBS 010 Screening</div>';
+        layerGroups.forEach(function(lg) {
+          html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">' +
+            '<input type="checkbox" checked data-mbs-key="' + lg.key + '" style="margin:0;">' +
+            '<span style="display:inline-block;width:14px;height:14px;background:' + lg.color + ';opacity:0.7;border:1px solid ' + lg.color + ';border-radius:2px;flex-shrink:0;"></span> ' +
+            lg.label + '</label>';
         });
         div.innerHTML = html;
+
+        // Wire up checkbox toggles
+        div.querySelectorAll('input[data-mbs-key]').forEach(function(cb) {
+          cb.addEventListener('change', function() {
+            var key = this.dataset.mbsKey;
+            var show = this.checked;
+            _mbs010Layers.forEach(function(l) {
+              if (String(l._mbs010id) === String(key)) {
+                if (show) { if (!map.hasLayer(l)) l.addTo(map); }
+                else { if (map.hasLayer(l)) map.removeLayer(l); }
+              }
+            });
+          });
+        });
+
         return div;
       };
       _mbs010LegendCtrl.addTo(map);
