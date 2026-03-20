@@ -740,13 +740,13 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             </thead>
             <tbody id="mbs010Body">
               <tr><td>ANEF</td><td id="mbs_anef">—</td><td class="center">—</td><td class="center">—</td></tr>
-              <tr><td>ANR</td><td id="mbs_anr">—</td><td class="center">—</td><td class="center">—</td></tr>
+              <tr><td>ANR</td><td id="mbs_anr">—</td><td class="center">—</td><td id="mbs_sec_anr" class="center">—</td></tr>
               <tr><td>Noise Attenuation Area</td><td id="mbs_noise">—</td><td class="center">—</td><td class="center">—</td></tr>
               <tr><td>Type A Road</td><td id="mbs_road_a">—</td><td id="mbs_dist_a" class="center">—</td><td id="mbs_sec_a" class="center">—</td></tr>
               <tr><td>Type B Road</td><td id="mbs_road_b">—</td><td id="mbs_dist_b" class="center">—</td><td id="mbs_sec_b" class="center">—</td></tr>
               <tr><td>Train line</td><td id="mbs_train">—</td><td id="mbs_dist_train" class="center">—</td><td id="mbs_sec_train" class="center">—</td></tr>
               <tr><td>Tram line</td><td id="mbs_tram">—</td><td id="mbs_dist_tram" class="center">—</td><td id="mbs_sec_tram" class="center">—</td></tr>
-              <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td class="center">—</td></tr>
+              <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td id="mbs_sec_mixed" class="center">—</td></tr>
             </tbody>
           </table>
           <div class="small" style="margin-top:6px;color:var(--muted);">SEC = Sound Exposure Category per MBS 010. Distance-based SEC assumes 70–90 km/h speed limit for roads. Check SAPPA ▸ Layers ▸ Planning & Building ▸ Planning Reference ▸ Designated Road Polygon for road type confirmation.</div>
@@ -5220,7 +5220,7 @@ initCollapse();
         ['mbs_dist_a','mbs_dist_b','mbs_dist_train','mbs_dist_tram'].forEach(function(id) {
           var el = document.getElementById(id); if (el) { el.textContent = '—'; el.style.fontWeight = ''; }
         });
-        ['mbs_sec_a','mbs_sec_b','mbs_sec_train','mbs_sec_tram'].forEach(function(id) {
+        ['mbs_sec_a','mbs_sec_b','mbs_sec_train','mbs_sec_tram','mbs_sec_mixed'].forEach(function(id) {
           var el = document.getElementById(id); if (el) { el.textContent = '—'; el.style.fontWeight = ''; el.style.color = ''; }
         });
       }
@@ -5259,7 +5259,13 @@ initCollapse();
                 }
               });
             }
-            if (anrVal !== null) { setMBS('mbs_anr', 'ANR ' + anrVal + ' dB(A)', true); }
+            if (anrVal !== null) {
+              setMBS('mbs_anr', 'ANR ' + anrVal + ' dB(A)', true);
+              // SEC from Table 4.4: 20<24→1, 24<28→2, 28<32→3, 32<36→4, ≥36→5
+              var anrSec = anrVal >= 36 ? 5 : anrVal >= 32 ? 4 : anrVal >= 28 ? 3 : anrVal >= 24 ? 2 : 1;
+              var secEl = document.getElementById('mbs_sec_anr');
+              if (secEl) { secEl.textContent = anrSec; secEl.style.fontWeight = '600'; secEl.style.color = '#b91c1c'; }
+            }
             else if (anefVals.length) { setMBS('mbs_anr', 'Within ANEF but not within ANR contour', false); }
             else { setMBS('mbs_anr', 'Not within ANR contour', false); }
           }
@@ -5296,10 +5302,13 @@ initCollapse();
               var rec = DATA.find(function(d) { return d.key === key; });
               if (rec) {
                 var isSingleRes = (rec.is_single == 1 && rec.single_cat === 'Residential');
+                var mixedSecEl = document.getElementById('mbs_sec_mixed');
                 if (!isSingleRes) {
                   setMBS('mbs_mixed', rec.zone + ' \u2014 ' + rec.land_use_raw, true);
+                  if (mixedSecEl) { mixedSecEl.textContent = '1'; mixedSecEl.style.fontWeight = '600'; mixedSecEl.style.color = '#b91c1c'; }
                 } else {
                   setMBS('mbs_mixed', rec.zone + ' \u2014 Residential only (not mixed use)', false);
+                  if (mixedSecEl) { mixedSecEl.textContent = '—'; mixedSecEl.style.fontWeight = ''; mixedSecEl.style.color = ''; }
                 }
               } else {
                 setMBS('mbs_mixed', zoneName + ' Zone \u2014 not in lookup', false);
