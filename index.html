@@ -732,19 +732,24 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <table class="crit-table" style="margin-top:8px;" id="mbs010Table">
             <thead>
               <tr>
-                <th style="width:50%;">Relevant Layers</th>
-                <th style="width:50%;">Relevant information</th>
+                <th style="width:30%;">Relevant Layers</th>
+                <th style="width:40%;">Relevant information</th>
+                <th style="width:15%;" class="center">Distance to site</th>
+                <th style="width:15%;" class="center">Indicative SEC</th>
               </tr>
             </thead>
             <tbody id="mbs010Body">
-              <tr><td>ANEF</td><td id="mbs_anef">—</td></tr>
-              <tr><td>ANR</td><td id="mbs_anr">—</td></tr>
-              <tr><td>Noise Attenuation Area</td><td id="mbs_noise">—</td></tr>
-              <tr><td>Designated Road</td><td id="mbs_road">—</td></tr>
-              <tr><td>Rail corridor</td><td id="mbs_rail">—</td></tr>
-              <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td></tr>
+              <tr><td>ANEF</td><td id="mbs_anef">—</td><td class="center">—</td><td class="center">—</td></tr>
+              <tr><td>ANR</td><td id="mbs_anr">—</td><td class="center">—</td><td class="center">—</td></tr>
+              <tr><td>Noise Attenuation Area</td><td id="mbs_noise">—</td><td class="center">—</td><td class="center">—</td></tr>
+              <tr><td>Type A Road</td><td id="mbs_road_a">—</td><td id="mbs_dist_a" class="center">—</td><td id="mbs_sec_a" class="center">—</td></tr>
+              <tr><td>Type B Road</td><td id="mbs_road_b">—</td><td id="mbs_dist_b" class="center">—</td><td id="mbs_sec_b" class="center">—</td></tr>
+              <tr><td>Train line</td><td id="mbs_train">—</td><td id="mbs_dist_train" class="center">—</td><td id="mbs_sec_train" class="center">—</td></tr>
+              <tr><td>Tram line</td><td id="mbs_tram">—</td><td id="mbs_dist_tram" class="center">—</td><td id="mbs_sec_tram" class="center">—</td></tr>
+              <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td class="center">—</td></tr>
             </tbody>
           </table>
+          <div class="small" style="margin-top:6px;color:var(--muted);">SEC = Sound Exposure Category per MBS 010. Distance-based SEC assumes 70–90 km/h speed limit for roads. Check SAPPA ▸ Layers ▸ Planning & Building ▸ Planning Reference ▸ Designated Road Polygon for road type confirmation.</div>
         </div>
       </div>
     </div>
@@ -5140,7 +5145,10 @@ initCollapse();
       var ptParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
 
       // Reset all rows
-      ['mbs_anef','mbs_anr','mbs_noise','mbs_road','mbs_rail','mbs_mixed'].forEach(function(id) { setMBS(id, '\u2026', false); });
+      ['mbs_anef','mbs_anr','mbs_noise','mbs_road_a','mbs_road_b','mbs_train','mbs_tram','mbs_mixed'].forEach(function(id) { setMBS(id, '\u2026', false); });
+      ['mbs_dist_a','mbs_dist_b','mbs_dist_train','mbs_dist_tram','mbs_sec_a','mbs_sec_b','mbs_sec_train','mbs_sec_tram'].forEach(function(id) {
+        var el = document.getElementById(id); if (el) { el.textContent = '\u2026'; el.style.fontWeight = ''; el.style.color = ''; }
+      });
 
       // 1. Aircraft Noise Exposure (layer 27) → ANEF contour + ANR guidance
       fetch(SAPPA_BASE + '/27/query?geometry=' + geom + ptParams + '&outFields=name,value')
@@ -5194,57 +5202,75 @@ initCollapse();
           }
         }).catch(function() { setMBS('mbs_noise', '—', false); });
 
-      // 3. Designated Road (layers 38 Type A, 42 Type B, 37 Type R) — 250m buffer, with geometry for distance
-      var buf = 0.0025; // ~250m
-      var env = (latlng.lng - buf) + ',' + (latlng.lat - buf) + ',' + (latlng.lng + buf) + ',' + (latlng.lat + buf);
-      var roadParams = '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&f=json&outFields=name,description,value';
-      Promise.all([
-        fetch(SAPPA_BASE + '/38/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }).then(function(d) { d._layerId = 38; return d; }),
-        fetch(SAPPA_BASE + '/42/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }).then(function(d) { d._layerId = 42; return d; }),
-        fetch(SAPPA_BASE + '/37/query?geometry=' + env + roadParams).then(function(r) { return r.json(); }).then(function(d) { d._layerId = 37; return d; })
-      ]).then(function(results) {
-        var nearest = null;
-        results.forEach(function(data) {
-          var lid = data._layerId;
-          if (data.features) data.features.forEach(function(f) {
-            var name = f.attributes.name || f.attributes.description || 'Designated Road';
-            var rings = f.geometry && f.geometry.rings ? f.geometry.rings : [];
-            var dist = rings.length ? distPointToRings(latlng.lat, latlng.lng, rings) : 9999;
-            if (!nearest || dist < nearest.dist) {
-              nearest = { name: name, dist: dist, type: classifyRoadType(lid) };
+      // 3. Road and rail distances from local GeoJSON files
+      // SEC lookup tables (70-90 km/h speed band for roads)
+      // Returns SEC 1-5 or null if beyond range
+      function getSEC_TypeA(d) {
+        if (d >= 200) return null; if (d >= 150) return null;
+        if (d >= 95) return 1; if (d >= 45) return 2; if (d >= 25) return 3;
+        if (d >= 10) return 4; return 5;
+      }
+      function getSEC_TypeB(d) {
+        if (d >= 95) return null;
+        if (d >= 55) return 1; if (d >= 30) return 2; if (d >= 15) return 3;
+        if (d >= 0) return 4; return null;
+      }
+      function getSEC_Train(d) {
+        if (d >= 50) return null;
+        if (d >= 25) return 1; if (d >= 10) return 2; return 3;
+      }
+      function getSEC_Tram(d) {
+        if (d >= 20) return null;
+        if (d >= 10) return 1; return 2;
+      }
+
+      function calcDistToGeoJSON(geoData, lat, lng) {
+        var minD = Infinity;
+        if (!geoData || !geoData.features) return minD;
+        geoData.features.forEach(function(f) {
+          var geom = f.geometry;
+          if (!geom) return;
+          var coords = geom.type === 'MultiPolygon' ? geom.coordinates.reduce(function(a,b){ return a.concat(b); }, []) :
+                       geom.type === 'Polygon' ? geom.coordinates :
+                       geom.type === 'MultiLineString' ? geom.coordinates :
+                       geom.type === 'LineString' ? [geom.coordinates] : [];
+          coords.forEach(function(ring) {
+            for (var i = 0; i < ring.length - 1; i++) {
+              var d = distPointToSegment(L.latLng(lat, lng), L.latLng(ring[i][1], ring[i][0]), L.latLng(ring[i+1][1], ring[i+1][0]));
+              if (d < minD) minD = d;
             }
           });
         });
-        if (nearest && nearest.dist < 250) {
-          setMBS('mbs_road', 'Check SAPPA \u25B8 Layers \u25B8 Planning & Building \u25B8 Planning Reference \u25B8 Designated Road Polygon', true);
-        } else {
-          setMBS('mbs_road', 'N/A', false);
-        }
-      }).catch(function() { setMBS('mbs_road', '—', false); });
+        return minD;
+      }
 
-      // 4. Rail corridor (layer 36) — 100m buffer, with geometry for distance
-      var rbuf = 0.001;
-      var renv = (latlng.lng - rbuf) + ',' + (latlng.lat - rbuf) + ',' + (latlng.lng + rbuf) + ',' + (latlng.lat + rbuf);
-      fetch(SAPPA_BASE + '/36/query?geometry=' + renv + '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=true&f=json&outFields=name,description')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data.features && data.features.length) {
-            var nearest = null;
-            data.features.forEach(function(f) {
-              var name = f.attributes.name || f.attributes.description || 'Rail corridor';
-              var rings = f.geometry && f.geometry.rings ? f.geometry.rings : [];
-              var dist = rings.length ? distPointToRings(latlng.lat, latlng.lng, rings) : 9999;
-              if (!nearest || dist < nearest.dist) nearest = { name: name, dist: dist };
-            });
-            if (nearest) {
-              setMBS('mbs_rail', nearest.name + ' (nearby)', true);
-            } else {
-              setMBS('mbs_rail', 'N/A', false);
+      function setMBSRoadRail(infoId, distId, secId, geoFile, label, secFn) {
+        setMBS(infoId, '\u2026', false);
+        fetch(geoFile).then(function(r) { return r.json(); }).then(function(data) {
+          var dist = calcDistToGeoJSON(data, latlng.lat, latlng.lng);
+          var distEl = document.getElementById(distId);
+          var secEl = document.getElementById(secId);
+          if (dist < 250) {
+            var dRound = Math.round(dist);
+            setMBS(infoId, label + ' (nearby)', true);
+            if (distEl) { distEl.textContent = dRound + ' m'; distEl.style.fontWeight = '600'; }
+            var sec = secFn(dist);
+            if (secEl) {
+              if (sec !== null) { secEl.textContent = sec; secEl.style.fontWeight = '600'; secEl.style.color = '#b91c1c'; }
+              else { secEl.textContent = 'N/A'; secEl.style.fontWeight = ''; secEl.style.color = ''; }
             }
           } else {
-            setMBS('mbs_rail', 'N/A', false);
+            setMBS(infoId, 'N/A', false);
+            if (distEl) { distEl.textContent = '—'; distEl.style.fontWeight = ''; }
+            if (secEl) { secEl.textContent = '—'; secEl.style.fontWeight = ''; secEl.style.color = ''; }
           }
-        }).catch(function() { setMBS('mbs_rail', '—', false); });
+        }).catch(function() { setMBS(infoId, '—', false); });
+      }
+
+      setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', getSEC_TypeA);
+      setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', getSEC_TypeB);
+      setMBSRoadRail('mbs_train', 'mbs_dist_train', 'mbs_sec_train', 'trains.geojson', 'Train line', getSEC_Train);
+      setMBSRoadRail('mbs_tram', 'mbs_dist_tram', 'mbs_sec_tram', 'trams.geojson', 'Tram line', getSEC_Tram);
 
       // 5. Mixed land use areas — query zone then check DATA for land use classification
       // Any land use other than single Residential is considered "mixed"
