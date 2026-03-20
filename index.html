@@ -5145,95 +5145,38 @@ initCollapse();
       var ptParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
 
       // Reset all rows
-      ['mbs_anef','mbs_anr','mbs_noise','mbs_road_a','mbs_road_b','mbs_train','mbs_tram','mbs_mixed'].forEach(function(id) { setMBS(id, '\u2026', false); });
+      var allIds = ['mbs_anef','mbs_anr','mbs_noise','mbs_road_a','mbs_road_b','mbs_train','mbs_tram','mbs_mixed'];
+      allIds.forEach(function(id) { setMBS(id, '\u2026', false); });
       ['mbs_dist_a','mbs_dist_b','mbs_dist_train','mbs_dist_tram','mbs_sec_a','mbs_sec_b','mbs_sec_train','mbs_sec_tram'].forEach(function(id) {
         var el = document.getElementById(id); if (el) { el.textContent = '\u2026'; el.style.fontWeight = ''; el.style.color = ''; }
       });
 
-      // 1. Aircraft Noise Exposure (layer 27) → ANEF contour + ANR guidance
-      fetch(SAPPA_BASE + '/27/query?geometry=' + geom + ptParams + '&outFields=name,value')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          var anefVals = [];
-          if (data.features) {
-            data.features.forEach(function(f) {
-              var v = f.attributes.value || f.attributes.name || '';
-              if (v.indexOf('ANEF') >= 0) anefVals.push(v + ' contour');
-            });
-          }
-          setMBS('mbs_anef', anefVals.length ? anefVals.join(', ') : 'Not within ANEF contour', anefVals.length > 0);
-          // ANR: check local ANR contour GeoJSON
-          function checkANR(anrData) {
-            var anrVal = null;
-            if (anrData && anrData.features) {
-              anrData.features.forEach(function(f) {
-                if (pointInGeoJSONFeature(latlng.lat, latlng.lng, f)) {
-                  var v = f.properties.ANR;
-                  if (anrVal === null || v > anrVal) anrVal = v;
-                }
-              });
-            }
-            if (anrVal !== null) {
-              setMBS('mbs_anr', 'ANR ' + anrVal + ' dB(A)', true);
-            } else if (anefVals.length) {
-              setMBS('mbs_anr', 'Within ANEF but not within ANR contour', false);
-            } else {
-              setMBS('mbs_anr', 'Not within ANR contour', false);
-            }
-          }
-          if (_anrGeoJSON) {
-            checkANR(_anrGeoJSON);
-          } else {
-            fetch('anr.geojson').then(function(r) { return r.json(); }).then(function(d) {
-              _anrGeoJSON = d;
-              checkANR(d);
-            }).catch(function() { setMBS('mbs_anr', '—', false); });
-          }
-        }).catch(function() { setMBS('mbs_anef', '—', false); setMBS('mbs_anr', '—', false); });
-
-      // 2. Noise and Air Emissions (layer 39) → Noise Attenuation Area
-      fetch(SAPPA_BASE + '/39/query?geometry=' + geom + ptParams + '&outFields=name,description')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data.features && data.features.length) {
-            setMBS('mbs_noise', 'Site in a Noise and Air Emissions Overlay', true);
-          } else {
-            setMBS('mbs_noise', 'Site not in Noise and Air Emissions Overlay', false);
-          }
-        }).catch(function() { setMBS('mbs_noise', '—', false); });
-
-      // 3. Road and rail distances from local GeoJSON files
       // SEC lookup tables (70-90 km/h speed band for roads)
-      // Returns SEC 1-5 or null if beyond range
       function getSEC_TypeA(d) {
-        if (d >= 200) return null; if (d >= 150) return null;
-        if (d >= 95) return 1; if (d >= 45) return 2; if (d >= 25) return 3;
-        if (d >= 10) return 4; return 5;
+        if (d >= 150) return null; if (d >= 95) return 1; if (d >= 45) return 2;
+        if (d >= 25) return 3; if (d >= 10) return 4; return 5;
       }
       function getSEC_TypeB(d) {
-        if (d >= 95) return null;
-        if (d >= 55) return 1; if (d >= 30) return 2; if (d >= 15) return 3;
-        if (d >= 0) return 4; return null;
+        if (d >= 95) return null; if (d >= 55) return 1; if (d >= 30) return 2;
+        if (d >= 15) return 3; return 4;
       }
       function getSEC_Train(d) {
-        if (d >= 50) return null;
-        if (d >= 25) return 1; if (d >= 10) return 2; return 3;
+        if (d >= 50) return null; if (d >= 25) return 1; if (d >= 10) return 2; return 3;
       }
       function getSEC_Tram(d) {
-        if (d >= 20) return null;
-        if (d >= 10) return 1; return 2;
+        if (d >= 20) return null; if (d >= 10) return 1; return 2;
       }
 
       function calcDistToGeoJSON(geoData, lat, lng) {
         var minD = Infinity;
         if (!geoData || !geoData.features) return minD;
         geoData.features.forEach(function(f) {
-          var geom = f.geometry;
-          if (!geom) return;
-          var coords = geom.type === 'MultiPolygon' ? geom.coordinates.reduce(function(a,b){ return a.concat(b); }, []) :
-                       geom.type === 'Polygon' ? geom.coordinates :
-                       geom.type === 'MultiLineString' ? geom.coordinates :
-                       geom.type === 'LineString' ? [geom.coordinates] : [];
+          var g = f.geometry;
+          if (!g) return;
+          var coords = g.type === 'MultiPolygon' ? g.coordinates.reduce(function(a,b){ return a.concat(b); }, []) :
+                       g.type === 'Polygon' ? g.coordinates :
+                       g.type === 'MultiLineString' ? g.coordinates :
+                       g.type === 'LineString' ? [g.coordinates] : [];
           coords.forEach(function(ring) {
             for (var i = 0; i < ring.length - 1; i++) {
               var d = distPointToSegment(L.latLng(lat, lng), L.latLng(ring[i][1], ring[i][0]), L.latLng(ring[i+1][1], ring[i+1][0]));
@@ -5244,13 +5187,18 @@ initCollapse();
         return minD;
       }
 
-      function setMBSRoadRail(infoId, distId, secId, geoFile, label, secFn) {
+      // Road corridor offset: road surface is ~3m inside corridor polygon edge
+      var ROAD_CORRIDOR_OFFSET = 3;
+
+      function setMBSRoadRail(infoId, distId, secId, geoFile, label, secFn, isRoad) {
         setMBS(infoId, '\u2026', false);
         fetch(geoFile).then(function(r) { return r.json(); }).then(function(data) {
-          var dist = calcDistToGeoJSON(data, latlng.lat, latlng.lng);
+          var rawDist = calcDistToGeoJSON(data, latlng.lat, latlng.lng);
+          // For roads, add 3m offset (road surface is 3m inside corridor edge)
+          var dist = isRoad ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
           var distEl = document.getElementById(distId);
           var secEl = document.getElementById(secId);
-          if (dist < 250) {
+          if (rawDist < 250) {
             var dRound = Math.round(dist);
             setMBS(infoId, label + ' (nearby)', true);
             if (distEl) { distEl.textContent = dRound + ' m'; distEl.style.fontWeight = '600'; }
@@ -5267,35 +5215,100 @@ initCollapse();
         }).catch(function() { setMBS(infoId, '—', false); });
       }
 
-      setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', getSEC_TypeA);
-      setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', getSEC_TypeB);
-      setMBSRoadRail('mbs_train', 'mbs_dist_train', 'mbs_sec_train', 'trains.geojson', 'Train line', getSEC_Train);
-      setMBSRoadRail('mbs_tram', 'mbs_dist_tram', 'mbs_sec_tram', 'trams.geojson', 'Tram line', getSEC_Tram);
+      function setAllBelowNA() {
+        ['mbs_road_a','mbs_road_b','mbs_train','mbs_tram','mbs_mixed'].forEach(function(id) { setMBS(id, 'N/A \u2014 MBS 010 not triggered', false); });
+        ['mbs_dist_a','mbs_dist_b','mbs_dist_train','mbs_dist_tram'].forEach(function(id) {
+          var el = document.getElementById(id); if (el) { el.textContent = '—'; el.style.fontWeight = ''; }
+        });
+        ['mbs_sec_a','mbs_sec_b','mbs_sec_train','mbs_sec_tram'].forEach(function(id) {
+          var el = document.getElementById(id); if (el) { el.textContent = '—'; el.style.fontWeight = ''; el.style.color = ''; }
+        });
+      }
 
-      // 5. Mixed land use areas — query zone then check DATA for land use classification
-      // Any land use other than single Residential is considered "mixed"
-      fetch(SAPPA_BASE + '/114/query?geometry=' + geom + ptParams + '&outFields=name')
+      function loadRoadRailMixed() {
+        setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', getSEC_TypeA, true);
+        setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', getSEC_TypeB, true);
+        setMBSRoadRail('mbs_train', 'mbs_dist_train', 'mbs_sec_train', 'trains.geojson', 'Train line', getSEC_Train, false);
+        setMBSRoadRail('mbs_tram', 'mbs_dist_tram', 'mbs_sec_tram', 'trams.geojson', 'Tram line', getSEC_Tram, false);
+        // Mixed land use (kept below)
+      }
+
+      // Query ANEF + Noise overlay first, then conditionally load road/rail
+      var _mbsTriggered = false;
+
+      // 1. Aircraft Noise Exposure (layer 27)
+      var anefPromise = fetch(SAPPA_BASE + '/27/query?geometry=' + geom + ptParams + '&outFields=name,value')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (data.features && data.features.length) {
-            var zoneName = data.features[0].attributes.name || '';
-            // Find matching entry in DATA (no subzone = default)
-            var key = zoneName + ' Zone | (no subzone)';
-            var rec = DATA.find(function(d) { return d.key === key; });
-            if (rec) {
-              var isSingleRes = (rec.is_single == 1 && rec.single_cat === 'Residential');
-              if (!isSingleRes) {
-                setMBS('mbs_mixed', rec.zone + ' \u2014 ' + rec.land_use_raw, true);
+          var anefVals = [];
+          if (data.features) {
+            data.features.forEach(function(f) {
+              var v = f.attributes.value || f.attributes.name || '';
+              if (v.indexOf('ANEF') >= 0) anefVals.push(v + ' contour');
+            });
+          }
+          setMBS('mbs_anef', anefVals.length ? anefVals.join(', ') : 'Not within ANEF contour', anefVals.length > 0);
+          // ANR check
+          function checkANR(anrData) {
+            var anrVal = null;
+            if (anrData && anrData.features) {
+              anrData.features.forEach(function(f) {
+                if (pointInGeoJSONFeature(latlng.lat, latlng.lng, f)) {
+                  var v = f.properties.ANR;
+                  if (anrVal === null || v > anrVal) anrVal = v;
+                }
+              });
+            }
+            if (anrVal !== null) { setMBS('mbs_anr', 'ANR ' + anrVal + ' dB(A)', true); }
+            else if (anefVals.length) { setMBS('mbs_anr', 'Within ANEF but not within ANR contour', false); }
+            else { setMBS('mbs_anr', 'Not within ANR contour', false); }
+          }
+          if (_anrGeoJSON) { checkANR(_anrGeoJSON); }
+          else { fetch('anr.geojson').then(function(r) { return r.json(); }).then(function(d) { _anrGeoJSON = d; checkANR(d); }).catch(function() { setMBS('mbs_anr', '—', false); }); }
+          return anefVals.length > 0;
+        }).catch(function() { setMBS('mbs_anef', '—', false); setMBS('mbs_anr', '—', false); return false; });
+
+      // 2. Noise and Air Emissions (layer 39)
+      var noisePromise = fetch(SAPPA_BASE + '/39/query?geometry=' + geom + ptParams + '&outFields=name,description')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var inOverlay = data.features && data.features.length > 0;
+          setMBS('mbs_noise', inOverlay ? 'Site in a Noise and Air Emissions Overlay' : 'Site not in Noise and Air Emissions Overlay', inOverlay);
+          return inOverlay;
+        }).catch(function() { setMBS('mbs_noise', '—', false); return false; });
+
+      // After both checks: load road/rail/mixed only if triggered
+      Promise.all([anefPromise, noisePromise]).then(function(results) {
+        var inANEF = results[0];
+        var inNoise = results[1];
+        if (!inANEF && !inNoise) {
+          setAllBelowNA();
+          return;
+        }
+        loadRoadRailMixed();
+        // Mixed land use areas — query zone then check DATA for land use classification
+        fetch(SAPPA_BASE + '/114/query?geometry=' + geom + ptParams + '&outFields=name')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.features && data.features.length) {
+              var zoneName = data.features[0].attributes.name || '';
+              var key = zoneName + ' Zone | (no subzone)';
+              var rec = DATA.find(function(d) { return d.key === key; });
+              if (rec) {
+                var isSingleRes = (rec.is_single == 1 && rec.single_cat === 'Residential');
+                if (!isSingleRes) {
+                  setMBS('mbs_mixed', rec.zone + ' \u2014 ' + rec.land_use_raw, true);
+                } else {
+                  setMBS('mbs_mixed', rec.zone + ' \u2014 Residential only (not mixed use)', false);
+                }
               } else {
-                setMBS('mbs_mixed', rec.zone + ' \u2014 Residential only (not mixed use)', false);
+                setMBS('mbs_mixed', zoneName + ' Zone \u2014 not in lookup', false);
               }
             } else {
-              setMBS('mbs_mixed', zoneName + ' Zone \u2014 not in lookup', false);
+              setMBS('mbs_mixed', 'N/A', false);
             }
-          } else {
-            setMBS('mbs_mixed', 'N/A', false);
-          }
-        }).catch(function() { setMBS('mbs_mixed', 'N/A', false); });
+          }).catch(function() { setMBS('mbs_mixed', 'N/A', false); });
+      });
     }
     /* ==== End SAPPA Overlay Queries ==== */
 
