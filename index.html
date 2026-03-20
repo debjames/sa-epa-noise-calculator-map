@@ -5110,8 +5110,8 @@ initCollapse();
         for (var i = 0; i < ring.length - 1; i++) {
           var a = L.latLng(ring[i][1], ring[i][0]);
           var b = L.latLng(ring[i+1][1], ring[i+1][0]);
-          var d = distPointToSegment(ptLL, a, b);
-          if (d < minD) minD = d;
+          var r = distPointToSegment(ptLL, a, b);
+          if (r.dist < minD) minD = r.dist;
         }
       });
       return minD;
@@ -5119,10 +5119,10 @@ initCollapse();
     function distPointToSegment(p, a, b) {
       var ax = a.lng, ay = a.lat, bx = b.lng, by = b.lat, px = p.lng, py = p.lat;
       var dx = bx - ax, dy = by - ay;
-      if (dx === 0 && dy === 0) return p.distanceTo(a);
+      if (dx === 0 && dy === 0) return { dist: p.distanceTo(a), projLng: ax, projLat: ay };
       var t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
       var projLat = ay + t * dy, projLng = ax + t * dx;
-      return p.distanceTo(L.latLng(projLat, projLng));
+      return { dist: p.distanceTo(L.latLng(projLat, projLng)), projLng: projLng, projLat: projLat };
     }
 
     /* Point-in-polygon (ray casting) for GeoJSON ring [[lng,lat],...] */
@@ -5210,33 +5210,45 @@ initCollapse();
       // Query speed limit from SA Transport MapServer (layer 12)
       var SPEED_LIMIT_URL = 'https://location.sa.gov.au/server6/rest/services/Transport/Speed_Zones/MapServer/12/query';
       function querySpeedLimit(lat, lng, nearestCoord, roadName) {
-        // Query near the nearest road point with 200m buffer
         var qLat = nearestCoord ? nearestCoord[1] : lat;
         var qLng = nearestCoord ? nearestCoord[0] : lng;
-        var geom = qLng + ',' + qLat;
-        var params = 'geometry=' + encodeURIComponent(geom) +
+        var speedGeom = qLng + ',' + qLat;
+        var params = 'geometry=' + encodeURIComponent(speedGeom) +
           '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
           '&distance=200&units=esriSRUnit_Meter&outFields=SPEED_LIMIT,RDNAME&returnGeometry=false&f=json';
         return fetch(SPEED_LIMIT_URL + '?' + params)
           .then(function(r) { return r.json(); })
           .then(function(d) {
             if (d.features && d.features.length) {
-              // Try to match by road name if available
+              // Match by road name — compare normalised base name (strip RD/ST/TCE/HWY suffixes)
               if (roadName) {
-                var rn = roadName.toUpperCase();
+                var rnBase = roadName.toUpperCase().replace(/\s+(ROAD|RD|STREET|ST|TERRACE|TCE|HIGHWAY|HWY|AVENUE|AVE|DRIVE|DR|PLACE|PL|LANE|LN|BOULEVARD|BLVD|CRESCENT|CRES|PARADE|PDE|WAY|COURT|CT|CIRCUIT|CCT|CLOSE|CL)$/i, '').trim();
+                var bestMatch = null;
+                var bestScore = 0;
                 for (var i = 0; i < d.features.length; i++) {
                   var rdname = (d.features[i].attributes.RDNAME || '').toUpperCase();
-                  if (rdname.indexOf(rn) >= 0 || rn.indexOf(rdname.split(' ')[0]) >= 0) {
+                  var rdBase = rdname.replace(/\s+(ROAD|RD|STREET|ST|TERRACE|TCE|HIGHWAY|HWY|AVENUE|AVE|DRIVE|DR|PLACE|PL|LANE|LN|BOULEVARD|BLVD|CRESCENT|CRES|PARADE|PDE|WAY|COURT|CT|CIRCUIT|CCT|CLOSE|CL)$/i, '').trim();
+                  // Exact base name match is strongest
+                  if (rdBase === rnBase) {
                     return d.features[i].attributes.SPEED_LIMIT || 60;
                   }
+                  // Full name contains match (weaker)
+                  if (rdname === roadName.toUpperCase()) {
+                    bestMatch = d.features[i];
+                    bestScore = 2;
+                  } else if (bestScore < 1 && (rdBase.indexOf(rnBase) >= 0 || rnBase.indexOf(rdBase) >= 0) && rnBase.length > 2) {
+                    bestMatch = d.features[i];
+                    bestScore = 1;
+                  }
                 }
+                if (bestMatch) return bestMatch.attributes.SPEED_LIMIT || 60;
               }
               // Fall back to first result
               return d.features[0].attributes.SPEED_LIMIT || 60;
             }
             return 60; // default if no data
           })
-          .catch(function() { return 60; });
+          .catch(function(err) { console.warn('Speed limit query failed:', err); return 60; });
       }
 
       function calcDistToGeoJSON(geoData, lat, lng) {
@@ -5253,8 +5265,8 @@ initCollapse();
                        g.type === 'LineString' ? [g.coordinates] : [];
           coords.forEach(function(ring) {
             for (var i = 0; i < ring.length - 1; i++) {
-              var d = distPointToSegment(L.latLng(lat, lng), L.latLng(ring[i][1], ring[i][0]), L.latLng(ring[i+1][1], ring[i+1][0]));
-              if (d < minD) { minD = d; nearestFeature = f; nearestCoord = ring[i]; }
+              var r = distPointToSegment(L.latLng(lat, lng), L.latLng(ring[i][1], ring[i][0]), L.latLng(ring[i+1][1], ring[i+1][0]));
+              if (r.dist < minD) { minD = r.dist; nearestFeature = f; nearestCoord = [r.projLng, r.projLat]; }
             }
           });
         });
@@ -5269,8 +5281,12 @@ initCollapse();
         fetch(geoFile).then(function(r) { return r.json(); }).then(function(data) {
           var result = calcDistToGeoJSON(data, latlng.lat, latlng.lng);
           var rawDist = result.dist;
-          var isPolygonRoad = geoFile.indexOf('road_type_r') >= 0;
-          var dist = (isRoad && isPolygonRoad) ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
+          // MBS 010: separation distance measured from 3m inside road corridor edge.
+          // For polygon data (Type R), rawDist is to corridor edge, so add 3m offset.
+          // For centerline data (Types A/B), rawDist is to road centreline — no offset
+          // as centreline is already well inside the corridor boundary.
+          var hasPolygonGeom = geoFile.indexOf('road_type_r') >= 0;
+          var dist = (isRoad && hasPolygonGeom) ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
           var distEl = document.getElementById(distId);
           var secEl = document.getElementById(secId);
           if (rawDist < 250) {
@@ -5282,7 +5298,7 @@ initCollapse();
               if (fname && fname.trim()) {
                 var parts = fname.trim();
                 if (props.roadtype && props.roadtype.trim()) parts += ' ' + props.roadtype.trim();
-                var pretty = parts.replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\B\w+/g, function(w) { return w.toLowerCase(); });
+                var pretty = parts.toLowerCase().replace(/(?:^|[\s\-'])(\w)/g, function(m, c) { return m.slice(0, -1) + c.toUpperCase(); });
                 displayLabel = label + ' \u2014 ' + pretty;
               }
             }
@@ -5307,7 +5323,7 @@ initCollapse();
             if (distEl) distEl.textContent = '—';
             if (secEl) secEl.textContent = '—';
           }
-        }).catch(function() { setMBS(infoId, '—'); });
+        }).catch(function(err) { console.warn('MBS010 ' + geoFile + ' failed:', err); setMBS(infoId, '—'); });
       }
 
       function setAllBelowNA() {
@@ -5336,13 +5352,16 @@ initCollapse();
       function fetchWithRetry(url, retries) {
         retries = retries || 2;
         return fetch(url).then(function(r) {
-          if (!r.ok && retries > 0) {
-            return new Promise(function(resolve) { setTimeout(resolve, 1000); })
-              .then(function() { return fetchWithRetry(url, retries - 1); });
+          if (!r.ok) {
+            if (retries > 0) {
+              return new Promise(function(resolve) { setTimeout(resolve, 1000); })
+                .then(function() { return fetchWithRetry(url, retries - 1); });
+            }
+            throw new Error('HTTP ' + r.status + ' from ' + url.split('?')[0]);
           }
           return r.json();
         }).catch(function(err) {
-          if (retries > 0) {
+          if (retries > 0 && !(err.message && err.message.indexOf('HTTP ') === 0)) {
             return new Promise(function(resolve) { setTimeout(resolve, 1000); })
               .then(function() { return fetchWithRetry(url, retries - 1); });
           }
@@ -5360,7 +5379,7 @@ initCollapse();
               if (v.indexOf('ANEF') >= 0) anefVals.push(v + ' contour');
             });
           }
-          setMBS('mbs_anef', anefVals.length ? anefVals.join(', ') : 'Not within ANEF contour', anefVals.length > 0);
+          setMBS('mbs_anef', anefVals.length ? anefVals.join(', ') : 'Not within ANEF contour');
           // ANR check
           function checkANR(anrData) {
             var anrVal = null;
@@ -5391,7 +5410,7 @@ initCollapse();
       var noisePromise = fetchWithRetry(SAPPA_BASE + '/39/query?geometry=' + geom + ptParams + '&outFields=name,description')
         .then(function(data) {
           var inOverlay = data.features && data.features.length > 0;
-          setMBS('mbs_noise', inOverlay ? 'Site in a Noise and Air Emissions Overlay' : 'Site not in Noise and Air Emissions Overlay', inOverlay);
+          setMBS('mbs_noise', inOverlay ? 'Site in a Noise and Air Emissions Overlay' : 'Site not in Noise and Air Emissions Overlay');
           return inOverlay;
         }).catch(function() { setMBS('mbs_noise', '—'); return false; });
 
@@ -5427,8 +5446,8 @@ initCollapse();
             } else {
               setMBS('mbs_mixed', 'N/A');
             }
-          }).catch(function() { setMBS('mbs_mixed', 'N/A'); });
-      });
+          }).catch(function(err) { console.warn('MBS010 mixed land use query failed:', err); setMBS('mbs_mixed', 'N/A'); });
+      }).catch(function(err) { console.warn('MBS010 Promise.all failed:', err); });
     }
     /* ==== End SAPPA Overlay Queries ==== */
 
