@@ -5213,14 +5213,14 @@ initCollapse();
         setMBS(infoId, '\u2026', false);
         fetch(geoFile).then(function(r) { return r.json(); }).then(function(data) {
           var rawDist = calcDistToGeoJSON(data, latlng.lat, latlng.lng);
-          // Type R uses polygon data (add 3m offset), Type A/B use centerlines (no offset needed)
+          // Roads: distance from site boundary to road boundary (3m inside corridor edge for polygon data)
           var isPolygonRoad = geoFile.indexOf('road_type_r') >= 0;
           var dist = (isRoad && isPolygonRoad) ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
           var distEl = document.getElementById(distId);
           var secEl = document.getElementById(secId);
           if (rawDist < 250) {
             var dRound = Math.round(dist);
-            setMBS(infoId, label + ' (nearby)', true);
+            setMBS(infoId, label, true);
             if (distEl) { distEl.textContent = dRound + ' m'; distEl.style.fontWeight = '600'; }
             var sec = secFn(dist);
             if (secEl) {
