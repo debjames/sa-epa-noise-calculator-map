@@ -750,7 +750,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td id="mbs_sec_mixed" class="center">—</td></tr>
             </tbody>
           </table>
-          <div class="small" style="margin-top:6px;color:var(--muted);">SEC = Sound Exposure Category per MBS 010. Distance-based SEC assumes 50–60 km/h speed limit for roads. Check SAPPA ▸ Layers ▸ Planning & Building ▸ Planning Reference ▸ Designated Road Polygon for road type confirmation.</div>
+          <div class="small" style="margin-top:6px;color:var(--muted);">SEC = Sound Exposure Category per MBS 010. Distance-based SEC assumes 50–60 km/h speed limit for roads.</div>
         </div>
       </div>
     </div>
@@ -5096,12 +5096,10 @@ initCollapse();
         });
     }
     /* ==== MBS 010 Overlay Queries (source site only) ==== */
-    function setMBS(id, text, highlight) {
+    function setMBS(id, text) {
       var el = document.getElementById(id);
       if (!el) return;
       el.textContent = text;
-      if (highlight) { el.style.color = '#b91c1c'; el.style.fontWeight = '600'; }
-      else { el.style.color = ''; el.style.fontWeight = ''; }
     }
 
     /* Minimum distance (m) from a lat/lng point to a polygon ring array [[lng,lat],...] */
@@ -5161,7 +5159,7 @@ initCollapse();
 
       // Reset all rows
       var allIds = ['mbs_anef','mbs_anr','mbs_noise','mbs_road_a','mbs_road_b','mbs_road_r','mbs_train','mbs_tram','mbs_mixed'];
-      allIds.forEach(function(id) { setMBS(id, '\u2026', false); });
+      allIds.forEach(function(id) { setMBS(id, '\u2026'); });
       ['mbs_dist_a','mbs_dist_b','mbs_dist_r','mbs_dist_train','mbs_dist_tram','mbs_sec_a','mbs_sec_b','mbs_sec_r','mbs_sec_train','mbs_sec_tram'].forEach(function(id) {
         var el = document.getElementById(id); if (el) { el.textContent = '\u2026'; el.style.fontWeight = ''; el.style.color = ''; }
       });
@@ -5210,7 +5208,7 @@ initCollapse();
       var ROAD_CORRIDOR_OFFSET = 3;
 
       function setMBSRoadRail(infoId, distId, secId, geoFile, label, secFn, isRoad) {
-        setMBS(infoId, '\u2026', false);
+        setMBS(infoId, '\u2026');
         fetch(geoFile).then(function(r) { return r.json(); }).then(function(data) {
           var rawDist = calcDistToGeoJSON(data, latlng.lat, latlng.lng);
           // Roads: distance from site boundary to road boundary (3m inside corridor edge for polygon data)
@@ -5220,23 +5218,20 @@ initCollapse();
           var secEl = document.getElementById(secId);
           if (rawDist < 250) {
             var dRound = Math.round(dist);
-            setMBS(infoId, label, true);
-            if (distEl) { distEl.textContent = dRound + ' m'; distEl.style.fontWeight = '600'; }
+            setMBS(infoId, label);
+            if (distEl) distEl.textContent = dRound + ' m';
             var sec = secFn(dist);
-            if (secEl) {
-              if (sec !== null) { secEl.textContent = sec; secEl.style.fontWeight = '600'; secEl.style.color = '#b91c1c'; }
-              else { secEl.textContent = 'N/A'; secEl.style.fontWeight = ''; secEl.style.color = ''; }
-            }
+            if (secEl) secEl.textContent = (sec !== null) ? sec : 'N/A';
           } else {
-            setMBS(infoId, 'N/A', false);
-            if (distEl) { distEl.textContent = '—'; distEl.style.fontWeight = ''; }
-            if (secEl) { secEl.textContent = '—'; secEl.style.fontWeight = ''; secEl.style.color = ''; }
+            setMBS(infoId, 'N/A');
+            if (distEl) distEl.textContent = '—';
+            if (secEl) secEl.textContent = '—';
           }
-        }).catch(function() { setMBS(infoId, '—', false); });
+        }).catch(function() { setMBS(infoId, '—'); });
       }
 
       function setAllBelowNA() {
-        ['mbs_road_a','mbs_road_b','mbs_road_r','mbs_train','mbs_tram','mbs_mixed'].forEach(function(id) { setMBS(id, 'N/A \u2014 MBS 010 not triggered', false); });
+        ['mbs_road_a','mbs_road_b','mbs_road_r','mbs_train','mbs_tram','mbs_mixed'].forEach(function(id) { setMBS(id, 'N/A \u2014 MBS 010 not triggered'); });
         ['mbs_dist_a','mbs_dist_b','mbs_dist_r','mbs_dist_train','mbs_dist_tram'].forEach(function(id) {
           var el = document.getElementById(id); if (el) { el.textContent = '—'; el.style.fontWeight = ''; }
         });
@@ -5246,11 +5241,11 @@ initCollapse();
       }
 
       function loadRoadRailMixed() {
-        setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', getSEC_TypeA, true);
-        setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', getSEC_TypeB, true);
-        setMBSRoadRail('mbs_road_r', 'mbs_dist_r', 'mbs_sec_r', 'road_type_r.geojson', 'Type R Road', getSEC_TypeR, true);
-        setMBSRoadRail('mbs_train', 'mbs_dist_train', 'mbs_sec_train', 'trains.geojson', 'Train line', getSEC_Train, false);
-        setMBSRoadRail('mbs_tram', 'mbs_dist_tram', 'mbs_sec_tram', 'trams.geojson', 'Tram line', getSEC_Tram, false);
+        setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', getSEC_TypeA);
+        setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', getSEC_TypeB);
+        setMBSRoadRail('mbs_road_r', 'mbs_dist_r', 'mbs_sec_r', 'road_type_r.geojson', 'Type R Road', getSEC_TypeR);
+        setMBSRoadRail('mbs_train', 'mbs_dist_train', 'mbs_sec_train', 'trains.geojson', 'Train line', getSEC_Train);
+        setMBSRoadRail('mbs_tram', 'mbs_dist_tram', 'mbs_sec_tram', 'trams.geojson', 'Tram line', getSEC_Tram);
         // Mixed land use (kept below)
       }
 
@@ -5281,19 +5276,19 @@ initCollapse();
               });
             }
             if (anrVal !== null) {
-              setMBS('mbs_anr', 'ANR ' + anrVal + ' dB(A)', true);
+              setMBS('mbs_anr', 'ANR ' + anrVal + ' dB(A)');
               // SEC from Table 4.4: 20<24→1, 24<28→2, 28<32→3, 32<36→4, ≥36→5
               var anrSec = anrVal >= 36 ? 5 : anrVal >= 32 ? 4 : anrVal >= 28 ? 3 : anrVal >= 24 ? 2 : 1;
               var secEl = document.getElementById('mbs_sec_anr');
-              if (secEl) { secEl.textContent = anrSec; secEl.style.fontWeight = '600'; secEl.style.color = '#b91c1c'; }
+              if (secEl) { secEl.textContent = anrSec; }
             }
-            else if (anefVals.length) { setMBS('mbs_anr', 'Within ANEF but not within ANR contour', false); }
-            else { setMBS('mbs_anr', 'Not within ANR contour', false); }
+            else if (anefVals.length) { setMBS('mbs_anr', 'Within ANEF but not within ANR contour'); }
+            else { setMBS('mbs_anr', 'Not within ANR contour'); }
           }
           if (_anrGeoJSON) { checkANR(_anrGeoJSON); }
-          else { fetch('anr.geojson').then(function(r) { return r.json(); }).then(function(d) { _anrGeoJSON = d; checkANR(d); }).catch(function() { setMBS('mbs_anr', '—', false); }); }
+          else { fetch('anr.geojson').then(function(r) { return r.json(); }).then(function(d) { _anrGeoJSON = d; checkANR(d); }).catch(function() { setMBS('mbs_anr', '—'); }); }
           return anefVals.length > 0;
-        }).catch(function() { setMBS('mbs_anef', '—', false); setMBS('mbs_anr', '—', false); return false; });
+        }).catch(function() { setMBS('mbs_anef', '—'); setMBS('mbs_anr', '—'); return false; });
 
       // 2. Noise and Air Emissions (layer 39)
       var noisePromise = fetch(SAPPA_BASE + '/39/query?geometry=' + geom + ptParams + '&outFields=name,description')
@@ -5302,7 +5297,7 @@ initCollapse();
           var inOverlay = data.features && data.features.length > 0;
           setMBS('mbs_noise', inOverlay ? 'Site in a Noise and Air Emissions Overlay' : 'Site not in Noise and Air Emissions Overlay', inOverlay);
           return inOverlay;
-        }).catch(function() { setMBS('mbs_noise', '—', false); return false; });
+        }).catch(function() { setMBS('mbs_noise', '—'); return false; });
 
       // After both checks: load road/rail/mixed only if triggered
       Promise.all([anefPromise, noisePromise]).then(function(results) {
@@ -5325,19 +5320,19 @@ initCollapse();
                 var isSingleRes = (rec.is_single == 1 && rec.single_cat === 'Residential');
                 var mixedSecEl = document.getElementById('mbs_sec_mixed');
                 if (!isSingleRes) {
-                  setMBS('mbs_mixed', rec.zone + ' \u2014 ' + rec.land_use_raw, true);
-                  if (mixedSecEl) { mixedSecEl.textContent = '1'; mixedSecEl.style.fontWeight = '600'; mixedSecEl.style.color = '#b91c1c'; }
+                  setMBS('mbs_mixed', rec.zone + ' \u2014 ' + rec.land_use_raw);
+                  if (mixedSecEl) { mixedSecEl.textContent = '1'; }
                 } else {
-                  setMBS('mbs_mixed', rec.zone + ' \u2014 Residential only (not mixed use)', false);
+                  setMBS('mbs_mixed', rec.zone + ' \u2014 Residential only (not mixed use)');
                   if (mixedSecEl) { mixedSecEl.textContent = '—'; mixedSecEl.style.fontWeight = ''; mixedSecEl.style.color = ''; }
                 }
               } else {
-                setMBS('mbs_mixed', zoneName + ' Zone \u2014 not in lookup', false);
+                setMBS('mbs_mixed', zoneName + ' Zone \u2014 not in lookup');
               }
             } else {
-              setMBS('mbs_mixed', 'N/A', false);
+              setMBS('mbs_mixed', 'N/A');
             }
-          }).catch(function() { setMBS('mbs_mixed', 'N/A', false); });
+          }).catch(function() { setMBS('mbs_mixed', 'N/A'); });
       });
     }
     /* ==== End SAPPA Overlay Queries ==== */
