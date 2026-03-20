@@ -744,6 +744,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <tr><td>Noise Attenuation Area</td><td id="mbs_noise">—</td><td class="center">—</td><td class="center">—</td></tr>
               <tr><td>Type A Road</td><td id="mbs_road_a">—</td><td id="mbs_dist_a" class="center">—</td><td id="mbs_sec_a" class="center">—</td></tr>
               <tr><td>Type B Road</td><td id="mbs_road_b">—</td><td id="mbs_dist_b" class="center">—</td><td id="mbs_sec_b" class="center">—</td></tr>
+              <tr><td>Type R Road</td><td id="mbs_road_r">—</td><td id="mbs_dist_r" class="center">—</td><td id="mbs_sec_r" class="center">—</td></tr>
               <tr><td>Train line</td><td id="mbs_train">—</td><td id="mbs_dist_train" class="center">—</td><td id="mbs_sec_train" class="center">—</td></tr>
               <tr><td>Tram line</td><td id="mbs_tram">—</td><td id="mbs_dist_tram" class="center">—</td><td id="mbs_sec_tram" class="center">—</td></tr>
               <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td id="mbs_sec_mixed" class="center">—</td></tr>
@@ -4800,8 +4801,9 @@ initCollapse();
 
       // Load road and rail GeoJSON layers
       var roadRailCfg = [
-        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: '#C08080', fill: '#D4A0A0', tipField: 'name' },
-        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: '#B0A060', fill: '#D8C890', tipField: 'name' },
+        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: '#C08080', fill: 'rgba(255,190,190,0.5)', tipField: 'designatedroad' },
+        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: '#B0A060', fill: 'rgba(255,235,175,0.5)', tipField: 'designatedroad' },
+        { file: 'road_type_r.geojson', name: 'Designated Road — Type R', color: '#6090C0', fill: 'rgba(190,232,255,0.5)', tipField: 'designatedroad' },
         { file: 'trains.geojson', name: 'Train line', color: '#6a6a6a', fill: 'rgba(100,100,100,0.35)', tipField: 'track_name' },
         { file: 'trams.geojson', name: 'Tram line', color: '#4a8a4a', fill: 'rgba(70,140,70,0.35)', tipField: 'track_name' }
       ];
@@ -4847,6 +4849,7 @@ initCollapse();
           { key: 'anr', label: 'ANR Contours', color: '#FFAB66' },
           { key: 'road_type_a.geojson', label: 'Type A Road', color: '#C08080' },
           { key: 'road_type_b.geojson', label: 'Type B Road', color: '#B0A060' },
+          { key: 'road_type_r.geojson', label: 'Type R Road', color: '#6090C0' },
           { key: 'trains.geojson', label: 'Train line', color: '#6a6a6a' },
           { key: 'trams.geojson', label: 'Tram line', color: '#4a8a4a' }
         ];
@@ -5154,9 +5157,9 @@ initCollapse();
       var ptParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
 
       // Reset all rows
-      var allIds = ['mbs_anef','mbs_anr','mbs_noise','mbs_road_a','mbs_road_b','mbs_train','mbs_tram','mbs_mixed'];
+      var allIds = ['mbs_anef','mbs_anr','mbs_noise','mbs_road_a','mbs_road_b','mbs_road_r','mbs_train','mbs_tram','mbs_mixed'];
       allIds.forEach(function(id) { setMBS(id, '\u2026', false); });
-      ['mbs_dist_a','mbs_dist_b','mbs_dist_train','mbs_dist_tram','mbs_sec_a','mbs_sec_b','mbs_sec_train','mbs_sec_tram'].forEach(function(id) {
+      ['mbs_dist_a','mbs_dist_b','mbs_dist_r','mbs_dist_train','mbs_dist_tram','mbs_sec_a','mbs_sec_b','mbs_sec_r','mbs_sec_train','mbs_sec_tram'].forEach(function(id) {
         var el = document.getElementById(id); if (el) { el.textContent = '\u2026'; el.style.fontWeight = ''; el.style.color = ''; }
       });
 
@@ -5166,6 +5169,10 @@ initCollapse();
         if (d >= 15) return 3; return 4;
       }
       function getSEC_TypeB(d) {
+        if (d >= 60) return null; if (d >= 35) return 1; if (d >= 20) return 2;
+        if (d >= 10) return 3; return 4;
+      }
+      function getSEC_TypeR(d) {
         if (d >= 60) return null; if (d >= 35) return 1; if (d >= 20) return 2;
         if (d >= 10) return 3; return 4;
       }
@@ -5225,11 +5232,11 @@ initCollapse();
       }
 
       function setAllBelowNA() {
-        ['mbs_road_a','mbs_road_b','mbs_train','mbs_tram','mbs_mixed'].forEach(function(id) { setMBS(id, 'N/A \u2014 MBS 010 not triggered', false); });
-        ['mbs_dist_a','mbs_dist_b','mbs_dist_train','mbs_dist_tram'].forEach(function(id) {
+        ['mbs_road_a','mbs_road_b','mbs_road_r','mbs_train','mbs_tram','mbs_mixed'].forEach(function(id) { setMBS(id, 'N/A \u2014 MBS 010 not triggered', false); });
+        ['mbs_dist_a','mbs_dist_b','mbs_dist_r','mbs_dist_train','mbs_dist_tram'].forEach(function(id) {
           var el = document.getElementById(id); if (el) { el.textContent = '—'; el.style.fontWeight = ''; }
         });
-        ['mbs_sec_a','mbs_sec_b','mbs_sec_train','mbs_sec_tram','mbs_sec_mixed'].forEach(function(id) {
+        ['mbs_sec_a','mbs_sec_b','mbs_sec_r','mbs_sec_train','mbs_sec_tram','mbs_sec_mixed'].forEach(function(id) {
           var el = document.getElementById(id); if (el) { el.textContent = '—'; el.style.fontWeight = ''; el.style.color = ''; }
         });
       }
@@ -5237,6 +5244,7 @@ initCollapse();
       function loadRoadRailMixed() {
         setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', getSEC_TypeA, true);
         setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', getSEC_TypeB, true);
+        setMBSRoadRail('mbs_road_r', 'mbs_dist_r', 'mbs_sec_r', 'road_type_r.geojson', 'Type R Road', getSEC_TypeR, true);
         setMBSRoadRail('mbs_train', 'mbs_dist_train', 'mbs_sec_train', 'trains.geojson', 'Train line', getSEC_Train, false);
         setMBSRoadRail('mbs_tram', 'mbs_dist_tram', 'mbs_sec_tram', 'trams.geojson', 'Tram line', getSEC_Tram, false);
         // Mixed land use (kept below)
