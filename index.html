@@ -4792,6 +4792,33 @@ initCollapse();
           addANRLayer(data);
         }).catch(function(err) { console.warn('ANR contours failed:', err); });
       }
+
+      // Load road and rail GeoJSON layers
+      var roadRailCfg = [
+        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: '#c47a7a', fill: 'rgba(220,160,160,0.35)', tipField: 'name' },
+        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: '#b5a050', fill: 'rgba(210,200,140,0.35)', tipField: 'name' },
+        { file: 'trains.geojson', name: 'Train line', color: '#4a4a4a', fill: 'rgba(80,80,80,0.2)', tipField: 'track_name' },
+        { file: 'trams.geojson', name: 'Tram line', color: '#2e7d32', fill: 'rgba(46,125,50,0.2)', tipField: 'track_name' }
+      ];
+      roadRailCfg.forEach(function(rr) {
+        fetch(rr.file).then(function(r) { return r.json(); }).then(function(data) {
+          if (!_mbs010On) return;
+          if (!data.features || !data.features.length) return;
+          var layer = L.geoJSON(data, {
+            style: { color: rr.color, weight: 1.5, opacity: 0.85, fillColor: rr.fill, fillOpacity: 0.25 },
+            onEachFeature: function(feature, lyr) {
+              var props = feature.properties || {};
+              var tip = '<b>' + rr.name + '</b>';
+              var val = props[rr.tipField];
+              if (val) tip += '<br>' + val;
+              lyr.bindTooltip(tip, { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
+            }
+          });
+          layer.addTo(map);
+          layer._mbs010id = rr.file;
+          _mbs010Layers.push(layer);
+        }).catch(function(err) { console.warn('MBS010 ' + rr.file + ' failed:', err); });
+      });
     }
 
     function clearMBS010Layers() {
@@ -4819,6 +4846,18 @@ initCollapse();
           html += '<div style="display:flex;align-items:center;gap:6px;">' +
             '<span style="display:inline-block;width:14px;height:14px;background:' + c + ';opacity:0.7;border:1px solid #999;border-radius:2px;"></span> ' +
             'ANR ' + v + ' dB(A)</div>';
+        });
+        // Road and rail legend
+        var rrLegend = [
+          { name: 'Type A Road', color: '#c47a7a' },
+          { name: 'Type B Road', color: '#b5a050' },
+          { name: 'Train line', color: '#4a4a4a' },
+          { name: 'Tram line', color: '#2e7d32' }
+        ];
+        rrLegend.forEach(function(rr) {
+          html += '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<span style="display:inline-block;width:14px;height:14px;background:' + rr.color + ';opacity:0.7;border:1px solid ' + rr.color + ';border-radius:2px;"></span> ' +
+            rr.name + '</div>';
         });
         div.innerHTML = html;
         return div;
