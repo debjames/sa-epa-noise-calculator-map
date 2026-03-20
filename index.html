@@ -5096,7 +5096,11 @@ initCollapse();
           });
         });
         if (nearest && nearest.dist < 250) {
-          setMBS('mbs_road', 'Type ' + nearest.type + ' \u2014 ' + nearest.name + ' (nearby)', true);
+          var el = document.getElementById('mbs_road');
+          if (el) {
+            el.innerHTML = 'Type ' + nearest.type + ' \u2014 ' + nearest.name + ' (nearby)<br><span style="font-size:11px;font-weight:400;color:var(--muted);">Check SAPPA \u203A Layers \u203A Planning &amp; Building \u203A Planning Reference \u203A Designated Road Polygon</span>';
+            el.style.color = '#b91c1c'; el.style.fontWeight = '600';
+          }
         } else {
           setMBS('mbs_road', 'N/A', false);
         }
