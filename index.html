@@ -5251,24 +5251,98 @@ initCollapse();
           .catch(function(err) { console.warn('Speed limit query failed:', err); return 60; });
       }
 
+      // Extract all segment rings from a GeoJSON feature geometry
+      function extractRings(geom) {
+        if (!geom) return [];
+        if (geom.type === 'MultiPolygon') return geom.coordinates.reduce(function(a,b){ return a.concat(b); }, []);
+        if (geom.type === 'Polygon') return geom.coordinates;
+        if (geom.type === 'MultiLineString') return geom.coordinates;
+        if (geom.type === 'LineString') return [geom.coordinates];
+        return [];
+      }
+
+      // Min distance from a single point to all segments in rings
+      function minDistPointToRingsResult(ptLL, rings) {
+        var minD = Infinity, bestCoord = null;
+        rings.forEach(function(ring) {
+          for (var i = 0; i < ring.length - 1; i++) {
+            var r = distPointToSegment(ptLL, L.latLng(ring[i][1], ring[i][0]), L.latLng(ring[i+1][1], ring[i+1][0]));
+            if (r.dist < minD) { minD = r.dist; bestCoord = [r.projLng, r.projLat]; }
+          }
+        });
+        return { dist: minD, nearestCoord: bestCoord };
+      }
+
+      // Bounding box of a ring [[lng,lat],...] with degree buffer
+      function ringBBox(ring, buf) {
+        var minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+        ring.forEach(function(c) {
+          if (c[0] < minLng) minLng = c[0]; if (c[0] > maxLng) maxLng = c[0];
+          if (c[1] < minLat) minLat = c[1]; if (c[1] > maxLat) maxLat = c[1];
+        });
+        return [minLng - buf, minLat - buf, maxLng + buf, maxLat + buf];
+      }
+      function bboxOverlap(a, b) {
+        return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+      }
+
       function calcDistToGeoJSON(geoData, lat, lng) {
         var minD = Infinity;
         var nearestFeature = null;
         var nearestCoord = null;
         if (!geoData || !geoData.features) return { dist: minD, feature: null, nearestCoord: null };
+
+        // Use site boundary if available, otherwise fall back to marker point
+        var useBoundary = sourceParcelRings && sourceParcelRings.length > 0;
+        // ~0.003° ≈ 300m buffer for bbox pre-filter
+        var BBOX_BUF = 0.003;
+        var siteBBox = useBoundary ? ringBBox(sourceParcelRings[0], BBOX_BUF) : [lng - BBOX_BUF, lat - BBOX_BUF, lng + BBOX_BUF, lat + BBOX_BUF];
+
         geoData.features.forEach(function(f) {
-          var g = f.geometry;
-          if (!g) return;
-          var coords = g.type === 'MultiPolygon' ? g.coordinates.reduce(function(a,b){ return a.concat(b); }, []) :
-                       g.type === 'Polygon' ? g.coordinates :
-                       g.type === 'MultiLineString' ? g.coordinates :
-                       g.type === 'LineString' ? [g.coordinates] : [];
-          coords.forEach(function(ring) {
-            for (var i = 0; i < ring.length - 1; i++) {
-              var r = distPointToSegment(L.latLng(lat, lng), L.latLng(ring[i][1], ring[i][0]), L.latLng(ring[i+1][1], ring[i+1][0]));
-              if (r.dist < minD) { minD = r.dist; nearestFeature = f; nearestCoord = [r.projLng, r.projLat]; }
-            }
-          });
+          var targetRings = extractRings(f.geometry);
+          if (!targetRings.length) return;
+
+          if (useBoundary) {
+            // Boundary-to-boundary: min distance between any segment on site and any segment on target
+            targetRings.forEach(function(targetRing) {
+              // Skip rings whose bbox doesn't overlap the site bbox (fast reject)
+              var tBBox = ringBBox(targetRing, 0);
+              if (!bboxOverlap(siteBBox, tBBox)) return;
+
+              // Test site boundary points against target ring segments
+              sourceParcelRings.forEach(function(siteRing) {
+                for (var si = 0; si < siteRing.length - 1; si++) {
+                  var sitePt = L.latLng(siteRing[si][1], siteRing[si][0]);
+                  for (var ti = 0; ti < targetRing.length - 1; ti++) {
+                    var r = distPointToSegment(sitePt, L.latLng(targetRing[ti][1], targetRing[ti][0]), L.latLng(targetRing[ti+1][1], targetRing[ti+1][0]));
+                    if (r.dist < minD) { minD = r.dist; nearestFeature = f; nearestCoord = [r.projLng, r.projLat]; }
+                  }
+                }
+              });
+              // Test target ring points against site boundary segments
+              for (var ti = 0; ti < targetRing.length - 1; ti++) {
+                var targetPt = L.latLng(targetRing[ti][1], targetRing[ti][0]);
+                sourceParcelRings.forEach(function(siteRing) {
+                  for (var si = 0; si < siteRing.length - 1; si++) {
+                    var r = distPointToSegment(targetPt,
+                      L.latLng(siteRing[si][1], siteRing[si][0]),
+                      L.latLng(siteRing[si+1][1], siteRing[si+1][0]));
+                    if (r.dist < minD) { minD = r.dist; nearestFeature = f; nearestCoord = [targetRing[ti][0], targetRing[ti][1]]; }
+                  }
+                });
+              }
+            });
+          } else {
+            // Point-to-geometry fallback
+            targetRings.forEach(function(ring) {
+              var rBBox = ringBBox(ring, 0);
+              if (!bboxOverlap(siteBBox, rBBox)) return;
+              for (var i = 0; i < ring.length - 1; i++) {
+                var r = distPointToSegment(L.latLng(lat, lng), L.latLng(ring[i][1], ring[i][0]), L.latLng(ring[i+1][1], ring[i+1][0]));
+                if (r.dist < minD) { minD = r.dist; nearestFeature = f; nearestCoord = [r.projLng, r.projLat]; }
+              }
+            });
+          }
         });
         return { dist: minD, feature: nearestFeature, nearestCoord: nearestCoord };
       }
@@ -5282,9 +5356,10 @@ initCollapse();
           var result = calcDistToGeoJSON(data, latlng.lat, latlng.lng);
           var rawDist = result.dist;
           // MBS 010: separation distance measured from 3m inside road corridor edge.
-          // For polygon data (Type R), rawDist is to corridor edge, so add 3m offset.
-          // For centerline data (Types A/B), rawDist is to road centreline — no offset
-          // as centreline is already well inside the corridor boundary.
+          // rawDist = boundary-to-boundary (site parcel to road corridor edge).
+          // The actual noise reference point is 3m further inside the road corridor,
+          // so the separation distance is rawDist + 3m for polygon road data.
+          // For centerline data (Types A/B), the line IS the road — no offset needed.
           var hasPolygonGeom = geoFile.indexOf('road_type_r') >= 0;
           var dist = (isRoad && hasPolygonGeom) ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
           var distEl = document.getElementById(distId);
@@ -5337,11 +5412,15 @@ initCollapse();
       }
 
       function loadRoadRailMixed() {
-        setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', null, true, 'name', 'TypeA');
-        setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', null, true, 'name', 'TypeB');
-        setMBSRoadRail('mbs_road_r', 'mbs_dist_r', 'mbs_sec_r', 'road_type_r.geojson', 'Type R Road', null, true, 'designatedroad', 'TypeR');
-        setMBSRoadRail('mbs_train', 'mbs_dist_train', 'mbs_sec_train', 'trains.geojson', 'Train line', getSEC_Train, false, 'track_name');
-        setMBSRoadRail('mbs_tram', 'mbs_dist_tram', 'mbs_sec_tram', 'trams.geojson', 'Tram line', getSEC_Tram, false, 'track_name');
+        // Wait for parcel boundary to be loaded so we can measure boundary-to-boundary
+        var parcelWait = sourceParcelPromise || Promise.resolve();
+        parcelWait.then(function() {
+          setMBSRoadRail('mbs_road_a', 'mbs_dist_a', 'mbs_sec_a', 'road_type_a.geojson', 'Type A Road', null, true, 'name', 'TypeA');
+          setMBSRoadRail('mbs_road_b', 'mbs_dist_b', 'mbs_sec_b', 'road_type_b.geojson', 'Type B Road', null, true, 'name', 'TypeB');
+          setMBSRoadRail('mbs_road_r', 'mbs_dist_r', 'mbs_sec_r', 'road_type_r.geojson', 'Type R Road', null, true, 'designatedroad', 'TypeR');
+          setMBSRoadRail('mbs_train', 'mbs_dist_train', 'mbs_sec_train', 'trains.geojson', 'Train line', getSEC_Train, false, 'track_name');
+          setMBSRoadRail('mbs_tram', 'mbs_dist_tram', 'mbs_sec_tram', 'trams.geojson', 'Tram line', getSEC_Tram, false, 'track_name');
+        });
         // Mixed land use (kept below)
       }
 
@@ -5971,9 +6050,12 @@ initCollapse();
     /* Two overlapping polygons create alternating black/white dash effect */
     var sourceParcelOutline = null;   /* black base layer */
     var sourceParcelOutline2 = null;  /* white offset dashes */
+    var sourceParcelRings = null;     /* raw boundary rings [[lng,lat],...] for distance calcs */
+    var sourceParcelPromise = null;   /* promise that resolves when parcel boundary is loaded */
     function removeParcelOutlines() {
       if (sourceParcelOutline) { try { map.removeLayer(sourceParcelOutline); } catch(e){} sourceParcelOutline = null; }
       if (sourceParcelOutline2) { try { map.removeLayer(sourceParcelOutline2); } catch(e){} sourceParcelOutline2 = null; }
+      sourceParcelRings = null;
     }
     function querySourceParcel(latlng) {
       // Remove previous outline
@@ -5981,17 +6063,19 @@ initCollapse();
       // Look up parcel API for the detected Australian state
       var stateForParcel = detectedAusState || currentState;
       var baseUrl = PARCEL_API_URLS[stateForParcel];
-      if (!baseUrl) return; // No parcel API available for this state
+      if (!baseUrl) { sourceParcelPromise = Promise.resolve(); return; }
       var url = baseUrl +
         '?geometry=' + latlng.lng + ',' + latlng.lat +
         '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
         '&returnGeometry=true&outSR=4326&outFields=*&f=json';
-      fetch(url)
+      sourceParcelPromise = fetch(url)
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (!data || !data.features || !data.features.length) return;
           var rings = data.features[0].geometry.rings;
           if (!rings || !rings.length) return;
+          // Store raw rings as [lng, lat] for MBS 010 boundary-to-boundary distance calcs
+          sourceParcelRings = rings;
           var coords = rings.map(function(ring) {
             return ring.map(function(pt) { return [pt[1], pt[0]]; });
           });
