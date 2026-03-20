@@ -4803,9 +4803,9 @@ initCollapse();
 
       // Load road and rail GeoJSON layers
       var roadRailCfg = [
-        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: '#C08080', fill: 'rgba(255,190,190,0.5)', tipField: 'designatedroad' },
-        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: '#B0A060', fill: 'rgba(255,235,175,0.5)', tipField: 'designatedroad' },
-        { file: 'road_type_r.geojson', name: 'Designated Road — Type R', color: '#6090C0', fill: 'rgba(190,232,255,0.5)', tipField: 'designatedroad' },
+        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: '#6e6e6e', fill: 'rgba(255,190,190,0.5)', tipField: 'designatedroad' },
+        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: '#6e6e6e', fill: 'rgba(255,235,175,0.5)', tipField: 'designatedroad' },
+        { file: 'road_type_r.geojson', name: 'Designated Road — Type R', color: '#6e6e6e', fill: 'rgba(190,232,255,0.5)', tipField: 'designatedroad' },
         { file: 'trains.geojson', name: 'Train line', color: '#6a6a6a', fill: 'rgba(100,100,100,0.35)', tipField: 'track_name' },
         { file: 'trams.geojson', name: 'Tram line', color: '#4a8a4a', fill: 'rgba(70,140,70,0.35)', tipField: 'track_name' }
       ];
@@ -4814,7 +4814,7 @@ initCollapse();
           if (!_mbs010On) return;
           if (!data.features || !data.features.length) return;
           var layer = L.geoJSON(data, {
-            style: { color: rr.color, weight: 0.8, opacity: 0.6, fillColor: rr.fill, fillOpacity: 0.5 },
+            style: { color: rr.color, weight: 0.7, opacity: 0.8, fillColor: rr.fill, fillOpacity: 0.5 },
             onEachFeature: function(feature, lyr) {
               var props = feature.properties || {};
               var tip = '<b>' + rr.name + '</b>';
@@ -4855,9 +4855,9 @@ initCollapse();
           { key: 39, label: 'Noise & Air Emissions', color: '#b04030' },
           { key: 27, label: 'ANEF', color: '#005ce6' },
           { key: 'anr', label: 'ANR Contours', color: '#FFAB66' },
-          { key: 'road_type_a.geojson', label: 'Type A Road', color: '#C08080' },
-          { key: 'road_type_b.geojson', label: 'Type B Road', color: '#B0A060' },
-          { key: 'road_type_r.geojson', label: 'Type R Road', color: '#6090C0' },
+          { key: 'road_type_a.geojson', label: 'Type A Road', color: '#ffbebe' },
+          { key: 'road_type_b.geojson', label: 'Type B Road', color: '#ffebaf' },
+          { key: 'road_type_r.geojson', label: 'Type R Road', color: '#bee8ff' },
           { key: 'trains.geojson', label: 'Train line', color: '#6a6a6a' },
           { key: 'trams.geojson', label: 'Tram line', color: '#4a8a4a' }
         ];
