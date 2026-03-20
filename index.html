@@ -4724,6 +4724,10 @@ initCollapse();
       { id: 27, name: 'Aircraft Noise Exposure (ANEF)', color: '#005ce6', fill: 'rgba(0,92,230,0.15)', weight: 1.5 }
     ];
 
+    /* ANR contour colours matching SAPPA legend (light to dark) */
+    var ANR_COLOURS = {20:'#FFF5E6',24:'#FFE0B2',28:'#FFAB66',32:'#E88080',36:'#CC4444',40:'#AA0000'};
+    var _anrGeoJSON = null; // cached ANR GeoJSON data
+
     function loadMBS010Layers() {
       var bounds = map.getBounds();
       var env = bounds.getWest() + ',' + bounds.getSouth() + ',' + bounds.getEast() + ',' + bounds.getNorth();
@@ -4761,6 +4765,33 @@ initCollapse();
           _mbs010Layers.push(layer);
         }).catch(function(err) { console.warn('MBS010 layer ' + cfg.id + ' failed:', err); });
       });
+
+      // Load ANR contours from local GeoJSON file
+      function addANRLayer(data) {
+        if (!_mbs010On) return;
+        var layer = L.geoJSON(data, {
+          style: function(feature) {
+            var anr = feature.properties.ANR || 20;
+            var col = ANR_COLOURS[anr] || '#FFAB66';
+            return { color: col, weight: 1.5, opacity: 0.85, fillColor: col, fillOpacity: 0.3 };
+          },
+          onEachFeature: function(feature, lyr) {
+            var anr = feature.properties.ANR || '';
+            lyr.bindTooltip('<b>ANR ' + anr + ' dB(A)</b>', { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
+          }
+        });
+        layer.addTo(map);
+        layer._mbs010id = 'anr';
+        _mbs010Layers.push(layer);
+      }
+      if (_anrGeoJSON) {
+        addANRLayer(_anrGeoJSON);
+      } else {
+        fetch('anr.geojson').then(function(r) { return r.json(); }).then(function(data) {
+          _anrGeoJSON = data;
+          addANRLayer(data);
+        }).catch(function(err) { console.warn('ANR contours failed:', err); });
+      }
     }
 
     function clearMBS010Layers() {
@@ -4780,6 +4811,14 @@ initCollapse();
           html += '<div style="display:flex;align-items:center;gap:6px;">' +
             '<span style="display:inline-block;width:14px;height:14px;background:' + cfg.color + ';opacity:0.7;border:1px solid ' + cfg.color + ';border-radius:2px;"></span> ' +
             cfg.name + '</div>';
+        });
+        // ANR contour legend
+        var anrLevels = [20,24,28,32,36,40];
+        anrLevels.forEach(function(v) {
+          var c = ANR_COLOURS[v] || '#FFAB66';
+          html += '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<span style="display:inline-block;width:14px;height:14px;background:' + c + ';opacity:0.7;border:1px solid #999;border-radius:2px;"></span> ' +
+            'ANR ' + v + ' dB(A)</div>';
         });
         div.innerHTML = html;
         return div;
@@ -5029,6 +5068,27 @@ initCollapse();
       return p.distanceTo(L.latLng(projLat, projLng));
     }
 
+    /* Point-in-polygon (ray casting) for GeoJSON ring [[lng,lat],...] */
+    function pointInRing(lat, lng, ring) {
+      var inside = false;
+      for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+        if ((yi > lat) !== (yj > lat) && lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    }
+    function pointInGeoJSONFeature(lat, lng, feature) {
+      var geom = feature.geometry;
+      if (!geom) return false;
+      var coords = geom.coordinates;
+      if (geom.type === 'Polygon') {
+        return pointInRing(lat, lng, coords[0]);
+      } else if (geom.type === 'MultiPolygon') {
+        return coords.some(function(poly) { return pointInRing(lat, lng, poly[0]); });
+      }
+      return false;
+    }
+
     /* Classify road type: layer 38 = Type A, layer 42 = Type B, layer 37 = Type R */
     function classifyRoadType(layerId) {
       return layerId === 38 ? 'A' : layerId === 37 ? 'R' : 'B';
@@ -5055,11 +5115,32 @@ initCollapse();
             });
           }
           setMBS('mbs_anef', anefVals.length ? anefVals.join(', ') : 'Not within ANEF contour', anefVals.length > 0);
-          // ANR: if within ANEF, direct user to check SAPPA Building Code layer
-          if (anefVals.length || (data.features && data.features.length)) {
-            setMBS('mbs_anr', 'Check SAPPA \u25B8 Layers \u25B8 Planning & Building \u25B8 Building Code \u25B8 ANR', true);
+          // ANR: check local ANR contour GeoJSON
+          function checkANR(anrData) {
+            var anrVal = null;
+            if (anrData && anrData.features) {
+              anrData.features.forEach(function(f) {
+                if (pointInGeoJSONFeature(latlng.lat, latlng.lng, f)) {
+                  var v = f.properties.ANR;
+                  if (anrVal === null || v > anrVal) anrVal = v;
+                }
+              });
+            }
+            if (anrVal !== null) {
+              setMBS('mbs_anr', 'ANR ' + anrVal + ' dB(A)', true);
+            } else if (anefVals.length) {
+              setMBS('mbs_anr', 'Within ANEF but not within ANR contour', false);
+            } else {
+              setMBS('mbs_anr', 'Not within ANR contour', false);
+            }
+          }
+          if (_anrGeoJSON) {
+            checkANR(_anrGeoJSON);
           } else {
-            setMBS('mbs_anr', 'Not within ANEF — ANR not applicable', false);
+            fetch('anr.geojson').then(function(r) { return r.json(); }).then(function(d) {
+              _anrGeoJSON = d;
+              checkANR(d);
+            }).catch(function() { setMBS('mbs_anr', '—', false); });
           }
         }).catch(function() { setMBS('mbs_anef', '—', false); setMBS('mbs_anr', '—', false); });
 
