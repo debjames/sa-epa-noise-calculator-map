@@ -4802,24 +4802,25 @@ initCollapse();
       }
 
       // Load road and rail GeoJSON layers
+      // Roads are LineString centerlines — render as thick colored lines to approximate SAPPA corridor display
       var roadRailCfg = [
-        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: '#6e6e6e', fill: 'rgba(255,190,190,0.5)', tipField: 'designatedroad' },
-        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: '#6e6e6e', fill: 'rgba(255,235,175,0.5)', tipField: 'designatedroad' },
-        { file: 'road_type_r.geojson', name: 'Designated Road — Type R', color: '#6e6e6e', fill: 'rgba(190,232,255,0.5)', tipField: 'designatedroad' },
-        { file: 'trains.geojson', name: 'Train line', color: '#6a6a6a', fill: 'rgba(100,100,100,0.35)', tipField: 'track_name' },
-        { file: 'trams.geojson', name: 'Tram line', color: '#4a8a4a', fill: 'rgba(70,140,70,0.35)', tipField: 'track_name' }
+        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: 'rgba(255,190,190,0.7)', lineWeight: 8, tipField: 'name' },
+        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: 'rgba(255,235,175,0.7)', lineWeight: 8, tipField: 'name' },
+        { file: 'road_type_r.geojson', name: 'Designated Road — Type R', color: 'rgba(190,232,255,0.7)', lineWeight: 6, tipField: 'designatedroad', isPolygon: true },
+        { file: 'trains.geojson', name: 'Train line', color: 'rgba(100,100,100,0.5)', lineWeight: 4, tipField: 'track_name' },
+        { file: 'trams.geojson', name: 'Tram line', color: 'rgba(70,140,70,0.5)', lineWeight: 4, tipField: 'track_name' }
       ];
       roadRailCfg.forEach(function(rr) {
         fetch(rr.file).then(function(r) { return r.json(); }).then(function(data) {
           if (!_mbs010On) return;
           if (!data.features || !data.features.length) return;
+          var styleOpts = rr.isPolygon
+            ? { color: rr.color, weight: 0.8, opacity: 0.6, fillColor: rr.color, fillOpacity: 0.5 }
+            : { color: rr.color, weight: rr.lineWeight, opacity: 1, lineCap: 'round', lineJoin: 'round' };
           var layer = L.geoJSON(data, {
-            style: { color: rr.color, weight: 0.7, opacity: 0.8, fillColor: rr.fill, fillOpacity: 0.5 },
+            style: styleOpts,
             onEachFeature: function(feature, lyr) {
-              var props = feature.properties || {};
               var tip = '<b>' + rr.name + '</b>';
-              var val = props[rr.tipField];
-              if (val) tip += '<br>' + val;
               lyr.bindTooltip(tip, { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
             }
           });
@@ -5212,8 +5213,9 @@ initCollapse();
         setMBS(infoId, '\u2026', false);
         fetch(geoFile).then(function(r) { return r.json(); }).then(function(data) {
           var rawDist = calcDistToGeoJSON(data, latlng.lat, latlng.lng);
-          // For roads, add 3m offset (road surface is 3m inside corridor edge)
-          var dist = isRoad ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
+          // Type R uses polygon data (add 3m offset), Type A/B use centerlines (no offset needed)
+          var isPolygonRoad = geoFile.indexOf('road_type_r') >= 0;
+          var dist = (isRoad && isPolygonRoad) ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
           var distEl = document.getElementById(distId);
           var secEl = document.getElementById(secId);
           if (rawDist < 250) {
