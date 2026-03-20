@@ -749,7 +749,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td id="mbs_sec_mixed" class="center">—</td></tr>
             </tbody>
           </table>
-          <div class="small" style="margin-top:6px;color:var(--muted);">SEC = Sound Exposure Category per MBS 010. Distance-based SEC assumes 70–90 km/h speed limit for roads. Check SAPPA ▸ Layers ▸ Planning & Building ▸ Planning Reference ▸ Designated Road Polygon for road type confirmation.</div>
+          <div class="small" style="margin-top:6px;color:var(--muted);">SEC = Sound Exposure Category per MBS 010. Distance-based SEC assumes 50–60 km/h speed limit for roads. Check SAPPA ▸ Layers ▸ Planning & Building ▸ Planning Reference ▸ Designated Road Polygon for road type confirmation.</div>
         </div>
       </div>
     </div>
@@ -5151,14 +5151,14 @@ initCollapse();
         var el = document.getElementById(id); if (el) { el.textContent = '\u2026'; el.style.fontWeight = ''; el.style.color = ''; }
       });
 
-      // SEC lookup tables (70-90 km/h speed band for roads)
+      // SEC lookup tables (50-60 km/h speed band for roads)
       function getSEC_TypeA(d) {
-        if (d >= 150) return null; if (d >= 95) return 1; if (d >= 45) return 2;
-        if (d >= 25) return 3; if (d >= 10) return 4; return 5;
+        if (d >= 100) return null; if (d >= 60) return 1; if (d >= 35) return 2;
+        if (d >= 15) return 3; return 4;
       }
       function getSEC_TypeB(d) {
-        if (d >= 95) return null; if (d >= 55) return 1; if (d >= 30) return 2;
-        if (d >= 15) return 3; return 4;
+        if (d >= 60) return null; if (d >= 35) return 1; if (d >= 20) return 2;
+        if (d >= 10) return 3; return 4;
       }
       function getSEC_Train(d) {
         if (d >= 50) return null; if (d >= 25) return 1; if (d >= 10) return 2; return 3;
