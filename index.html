@@ -4800,24 +4800,85 @@ initCollapse();
         }).catch(function(err) { console.warn('ANR contours failed:', err); });
       }
 
-      // Load road and rail GeoJSON layers
-      // Roads are MultiPolygon corridor data from SAPPA; rail are LineString
-      var roadRailCfg = [
-        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', outline: '#6e6e6e', fill: 'rgba(255,190,190,0.5)', isPolygon: true, tipField: 'designatedroad' },
-        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', outline: '#6e6e6e', fill: 'rgba(255,235,175,0.5)', isPolygon: true, tipField: 'designatedroad' },
-        { file: 'road_type_r.geojson', name: 'Designated Road — Type R', outline: '#6e6e6e', fill: 'rgba(190,232,255,0.5)', isPolygon: true, tipField: 'designatedroad' },
+      // Load designated road polygons from SAPPA GeoHub (layer 210)
+      var SAPPA_GEOHUB = 'https://geohub.sa.gov.au/server/rest/services/SAPPA/PropertyPlanningAtlasV18/MapServer';
+      var ROAD_STYLES = {
+        'Type A': { outline: '#6e6e6e', fill: '#ffbebe', name: 'Designated Road — Type A', legendKey: 'road_type_a.geojson' },
+        'Type B': { outline: '#6e6e6e', fill: '#ffebaf', name: 'Designated Road — Type B', legendKey: 'road_type_b.geojson' },
+        'Type R': { outline: '#6e6e6e', fill: '#bee8ff', name: 'Designated Road — Type R', legendKey: 'road_type_r.geojson' }
+      };
+
+      var roadUrl = SAPPA_GEOHUB + '/210/query' +
+        '?geometry=' + encodeURIComponent(env) +
+        '&geometryType=esriGeometryEnvelope&inSR=4326' +
+        '&spatialRel=esriSpatialRelIntersects' +
+        '&outFields=designatedroad' +
+        '&returnGeometry=true&outSR=4326&f=geojson';
+
+      fetch(roadUrl).then(function(r) { return r.json(); }).then(function(data) {
+        if (!_mbs010On) return;
+        if (!data.features || !data.features.length) {
+          // Fallback to local GeoJSON files if SAPPA GeoHub unavailable
+          loadRoadLayersFromLocal();
+          return;
+        }
+        // Split features by road type and create separate layers
+        ['Type A', 'Type B', 'Type R'].forEach(function(rdType) {
+          var style = ROAD_STYLES[rdType];
+          var features = data.features.filter(function(f) {
+            return f.properties && f.properties.designatedroad === rdType;
+          });
+          if (!features.length) return;
+          var fc = { type: 'FeatureCollection', features: features };
+          var layer = L.geoJSON(fc, {
+            style: { color: style.outline, weight: 0.7, opacity: 0.8, fillColor: style.fill, fillOpacity: 0.5 },
+            onEachFeature: function(feature, lyr) {
+              lyr.bindTooltip('<b>' + style.name + '</b>', { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
+            }
+          });
+          layer.addTo(map);
+          layer._mbs010id = style.legendKey;
+          _mbs010Layers.push(layer);
+        });
+        bringBoundaryToFront();
+      }).catch(function(err) {
+        console.warn('SAPPA road query failed, using local fallback:', err);
+        loadRoadLayersFromLocal();
+      });
+
+      function loadRoadLayersFromLocal() {
+        var localRoadCfg = [
+          { file: 'road_type_a.geojson', name: 'Designated Road — Type A', outline: '#6e6e6e', fill: '#ffbebe' },
+          { file: 'road_type_b.geojson', name: 'Designated Road — Type B', outline: '#6e6e6e', fill: '#ffebaf' },
+          { file: 'road_type_r.geojson', name: 'Designated Road — Type R', outline: '#6e6e6e', fill: '#bee8ff' }
+        ];
+        localRoadCfg.forEach(function(rr) {
+          fetch(rr.file).then(function(r) { return r.json(); }).then(function(data) {
+            if (!_mbs010On || !data.features || !data.features.length) return;
+            var layer = L.geoJSON(data, {
+              style: { color: rr.outline, weight: 0.7, opacity: 0.8, fillColor: rr.fill, fillOpacity: 0.5 },
+              onEachFeature: function(feature, lyr) {
+                lyr.bindTooltip('<b>' + rr.name + '</b>', { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
+              }
+            });
+            layer.addTo(map);
+            layer._mbs010id = rr.file;
+            _mbs010Layers.push(layer);
+            bringBoundaryToFront();
+          }).catch(function(err) { console.warn('MBS010 ' + rr.file + ' failed:', err); });
+        });
+      }
+
+      // Load rail GeoJSON layers (always from local files)
+      var railCfg = [
         { file: 'trains.geojson', name: 'Train line', color: 'rgba(100,100,100,0.5)', lineWeight: 4, tipField: 'track_name' },
         { file: 'trams.geojson', name: 'Tram line', color: 'rgba(70,140,70,0.5)', lineWeight: 4, tipField: 'track_name' }
       ];
-      roadRailCfg.forEach(function(rr) {
+      railCfg.forEach(function(rr) {
         fetch(rr.file).then(function(r) { return r.json(); }).then(function(data) {
-          if (!_mbs010On) return;
-          if (!data.features || !data.features.length) return;
-          var styleOpts = rr.isPolygon
-            ? { color: rr.outline, weight: 0.7, opacity: 0.8, fillColor: rr.fill, fillOpacity: 0.5 }
-            : { color: rr.color, weight: rr.lineWeight, opacity: 1, lineCap: 'round', lineJoin: 'round' };
+          if (!_mbs010On || !data.features || !data.features.length) return;
           var layer = L.geoJSON(data, {
-            style: styleOpts,
+            style: { color: rr.color, weight: rr.lineWeight, opacity: 1, lineCap: 'round', lineJoin: 'round' },
             onEachFeature: function(feature, lyr) {
               var tip = '<b>' + rr.name + '</b>';
               lyr.bindTooltip(tip, { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
@@ -5454,8 +5515,13 @@ initCollapse();
           var roadsPh = document.getElementById('mbs_roads_placeholder');
           var railPh = document.getElementById('mbs_rail_placeholder');
 
-          // Load all road types and find all nearby roads
-          var roadCfg = [
+          // Road type config for distance/SEC lookup
+          var ROAD_TYPE_MAP = {
+            'Type A': { typeLabel: 'Type A Road', roadType: 'TypeA' },
+            'Type B': { typeLabel: 'Type B Road', roadType: 'TypeB' },
+            'Type R': { typeLabel: 'Type R Road', roadType: 'TypeR' }
+          };
+          var roadCfgLocal = [
             { file: 'road_type_a.geojson', typeLabel: 'Type A Road', roadType: 'TypeA', nameField: 'designatedroad', isPolygon: true },
             { file: 'road_type_b.geojson', typeLabel: 'Type B Road', roadType: 'TypeB', nameField: 'designatedroad', isPolygon: true },
             { file: 'road_type_r.geojson', typeLabel: 'Type R Road', roadType: 'TypeR', nameField: 'designatedroad', isPolygon: true }
@@ -5465,17 +5531,56 @@ initCollapse();
             { file: 'trams.geojson', typeLabel: 'Tram line', nameField: 'track_name', secFn: getSEC_Tram }
           ];
 
-          // Process roads
-          var roadPromises = roadCfg.map(function(cfg) {
-            return fetch(cfg.file).then(function(r) { return r.json(); }).then(function(data) {
-              var nearby = calcAllNearby(data, latlng.lat, latlng.lng, cfg.nameField, 250);
-              return nearby.map(function(n) {
-                var rawDist = n.dist;
-                var dist = cfg.isPolygon ? rawDist + ROAD_CORRIDOR_OFFSET : rawDist;
-                return { cfg: cfg, dist: dist, rawDist: rawDist, nearestCoord: n.nearestCoord, rawName: n.rawName, roadtype: n.roadtype };
+          // Try SAPPA GeoHub for designated road polygons, fallback to local files
+          function processRoadData(data) {
+            var allRoads = [];
+            ['Type A', 'Type B', 'Type R'].forEach(function(rdType) {
+              var cfg = ROAD_TYPE_MAP[rdType];
+              var features = data.features.filter(function(f) {
+                return f.properties && f.properties.designatedroad === rdType;
               });
-            }).catch(function(err) { console.warn('MBS010 ' + cfg.file + ' failed:', err); return []; });
-          });
+              if (!features.length) return;
+              var fc = { type: 'FeatureCollection', features: features };
+              var nearby = calcAllNearby(fc, latlng.lat, latlng.lng, 'designatedroad', 250);
+              nearby.forEach(function(n) {
+                allRoads.push({ cfg: cfg, dist: n.dist + ROAD_CORRIDOR_OFFSET, rawDist: n.dist, nearestCoord: n.nearestCoord, rawName: n.rawName, roadtype: n.roadtype, isPolygon: true });
+              });
+            });
+            return allRoads;
+          }
+
+          var SAPPA_ROAD_URL = 'https://geohub.sa.gov.au/server/rest/services/SAPPA/PropertyPlanningAtlasV18/MapServer/210/query';
+          var siteEnv = (latlng.lng - 0.02) + ',' + (latlng.lat - 0.02) + ',' + (latlng.lng + 0.02) + ',' + (latlng.lat + 0.02);
+          var roadQueryUrl = SAPPA_ROAD_URL +
+            '?geometry=' + encodeURIComponent(siteEnv) +
+            '&geometryType=esriGeometryEnvelope&inSR=4326' +
+            '&spatialRel=esriSpatialRelIntersects' +
+            '&outFields=designatedroad' +
+            '&returnGeometry=true&outSR=4326&f=geojson';
+
+          var roadPromise = fetch(roadQueryUrl, { signal: AbortSignal.timeout(8000) })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (!data.features || !data.features.length) throw new Error('No SAPPA road data');
+              return processRoadData(data);
+            })
+            .catch(function(err) {
+              console.warn('SAPPA road query failed, using local fallback:', err);
+              // Fallback: load from local GeoJSON files
+              var localPromises = roadCfgLocal.map(function(cfg) {
+                return fetch(cfg.file).then(function(r) { return r.json(); }).then(function(data) {
+                  var nearby = calcAllNearby(data, latlng.lat, latlng.lng, cfg.nameField, 250);
+                  return nearby.map(function(n) {
+                    return { cfg: cfg, dist: n.dist + ROAD_CORRIDOR_OFFSET, rawDist: n.dist, nearestCoord: n.nearestCoord, rawName: n.rawName, roadtype: n.roadtype, isPolygon: true };
+                  });
+                }).catch(function() { return []; });
+              });
+              return Promise.all(localPromises).then(function(results) {
+                return results.reduce(function(a, b) { return a.concat(b); }, []);
+              });
+            });
+
+          var roadPromises = [roadPromise];
 
           Promise.all(roadPromises).then(function(roadResults) {
             var allRoads = roadResults.reduce(function(a, b) { return a.concat(b); }, []);
