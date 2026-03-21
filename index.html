@@ -5533,18 +5533,21 @@ initCollapse();
         return fetch(url).then(function(r) {
           if (!r.ok) {
             if (retries > 0) {
-              return new Promise(function(resolve) { setTimeout(resolve, 1000); })
+              return new Promise(function(resolve) { setTimeout(resolve, 1500); })
                 .then(function() { return fetchWithRetry(url, retries - 1); });
             }
-            throw new Error('HTTP ' + r.status + ' from ' + url.split('?')[0]);
+            console.warn('SAPPA query failed after retries: HTTP ' + r.status, url.split('?')[0]);
+            // Return empty result instead of throwing so table still populates
+            return { features: [] };
           }
           return r.json();
         }).catch(function(err) {
-          if (retries > 0 && !(err.message && err.message.indexOf('HTTP ') === 0)) {
-            return new Promise(function(resolve) { setTimeout(resolve, 1000); })
+          if (retries > 0) {
+            return new Promise(function(resolve) { setTimeout(resolve, 1500); })
               .then(function() { return fetchWithRetry(url, retries - 1); });
           }
-          throw err;
+          console.warn('SAPPA query failed after retries:', err);
+          return { features: [] };
         });
       }
 
