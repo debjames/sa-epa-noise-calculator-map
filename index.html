@@ -743,9 +743,9 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <tr><td>ANR</td><td id="mbs_anr">—</td><td class="center">—</td><td id="mbs_sec_anr" class="center">—</td></tr>
               <tr><td>Noise Attenuation Area</td><td id="mbs_noise">—</td><td class="center">—</td><td class="center">—</td></tr>
               <!-- Road rows inserted dynamically -->
-              <tr id="mbs_roads_placeholder"><td>Designated Roads</td><td colspan="3">—</td></tr>
+              <tr id="mbs_roads_placeholder"><td>Designated Roads</td><td>—</td><td class="center">—</td><td class="center">—</td></tr>
               <!-- Rail rows inserted dynamically -->
-              <tr id="mbs_rail_placeholder"><td>Rail</td><td colspan="3">—</td></tr>
+              <tr id="mbs_rail_placeholder"><td>Rail</td><td>—</td><td class="center">—</td><td class="center">—</td></tr>
               <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td id="mbs_sec_mixed" class="center">—</td></tr>
             </tbody>
           </table>
@@ -5203,8 +5203,8 @@ initCollapse();
       clearDynamicRows();
       var roadsPh = document.getElementById('mbs_roads_placeholder');
       var railPh = document.getElementById('mbs_rail_placeholder');
-      if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = '\u2026'; roadsPh.cells[1].colSpan = 3; }
-      if (railPh) { railPh.style.display = ''; railPh.cells[1].textContent = '\u2026'; railPh.cells[1].colSpan = 3; }
+      if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = '\u2026'; roadsPh.cells[2].textContent = '—'; roadsPh.cells[3].textContent = '—'; }
+      if (railPh) { railPh.style.display = ''; railPh.cells[1].textContent = '\u2026'; railPh.cells[2].textContent = '—'; railPh.cells[3].textContent = '—'; }
       var secMixed = document.getElementById('mbs_sec_mixed');
       if (secMixed) { secMixed.textContent = '\u2026'; }
 
@@ -5463,8 +5463,8 @@ initCollapse();
         clearDynamicRows();
         var roadsPh = document.getElementById('mbs_roads_placeholder');
         var railPh = document.getElementById('mbs_rail_placeholder');
-        if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = 'N/A \u2014 MBS 010 not triggered'; roadsPh.cells[1].colSpan = 3; }
-        if (railPh) { railPh.style.display = ''; railPh.cells[1].textContent = 'N/A \u2014 MBS 010 not triggered'; railPh.cells[1].colSpan = 3; }
+        if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = 'N/A \u2014 MBS 010 not triggered'; roadsPh.cells[2].textContent = '—'; roadsPh.cells[3].textContent = '—'; }
+        if (railPh) { railPh.style.display = ''; railPh.cells[1].textContent = 'N/A \u2014 MBS 010 not triggered'; railPh.cells[2].textContent = '—'; railPh.cells[3].textContent = '—'; }
         setMBS('mbs_mixed', 'N/A \u2014 MBS 010 not triggered');
         var mixedSec = document.getElementById('mbs_sec_mixed');
         if (mixedSec) { mixedSec.textContent = '—'; }
@@ -5501,7 +5501,7 @@ initCollapse();
             .then(function(r) { return r.json(); })
             .then(function(data) {
               if (!data.features || !data.features.length) {
-                if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = 'N/A'; }
+                if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = 'N/A'; roadsPh.cells[2].textContent = '—'; roadsPh.cells[3].textContent = '—'; }
                 return;
               }
               // Process each road type
@@ -5520,7 +5520,7 @@ initCollapse();
               });
 
               if (roadsPh) roadsPh.style.display = allRoads.length ? 'none' : '';
-              if (!allRoads.length && roadsPh) { roadsPh.cells[1].textContent = 'N/A'; }
+              if (!allRoads.length && roadsPh) { roadsPh.cells[1].textContent = 'N/A'; roadsPh.cells[2].textContent = '—'; roadsPh.cells[3].textContent = '—'; }
 
               allRoads.forEach(function(road) {
                 var dRound = Math.round(road.dist);
@@ -5540,7 +5540,7 @@ initCollapse();
             })
             .catch(function(err) {
               console.warn('SAPPA road query failed:', err);
-              if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = 'Unable to query SAPPA'; }
+              if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = 'Unable to query SAPPA'; roadsPh.cells[2].textContent = '—'; roadsPh.cells[3].textContent = '—'; }
             });
 
           // Process rail
@@ -5554,7 +5554,7 @@ initCollapse();
           Promise.all(railPromises).then(function(railResults) {
             var allRail = railResults.reduce(function(a, b) { return a.concat(b); }, []);
             if (railPh) railPh.style.display = allRail.length ? 'none' : '';
-            if (!allRail.length && railPh) { railPh.cells[1].textContent = 'N/A'; railPh.cells[1].colSpan = 3; }
+            if (!allRail.length && railPh) { railPh.cells[1].textContent = 'N/A'; railPh.cells[2].textContent = '—'; railPh.cells[3].textContent = '—'; }
 
             allRail.forEach(function(rail) {
               var dRound = Math.round(rail.dist);
