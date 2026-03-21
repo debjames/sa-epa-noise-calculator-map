@@ -4801,11 +4801,11 @@ initCollapse();
       }
 
       // Load road and rail GeoJSON layers
-      // Roads are LineString centerlines — render as thick colored lines to approximate SAPPA corridor display
+      // Roads are MultiPolygon corridor data from SAPPA; rail are LineString
       var roadRailCfg = [
-        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: 'rgba(255,190,190,0.7)', lineWeight: 8, tipField: 'name' },
-        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: 'rgba(255,235,175,0.7)', lineWeight: 8, tipField: 'name' },
-        { file: 'road_type_r.geojson', name: 'Designated Road — Type R', color: 'rgba(190,232,255,0.7)', lineWeight: 1.5, tipField: 'designatedroad', isPolygon: true },
+        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', outline: '#6e6e6e', fill: 'rgba(255,190,190,0.5)', isPolygon: true, tipField: 'designatedroad' },
+        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', outline: '#6e6e6e', fill: 'rgba(255,235,175,0.5)', isPolygon: true, tipField: 'designatedroad' },
+        { file: 'road_type_r.geojson', name: 'Designated Road — Type R', outline: '#6e6e6e', fill: 'rgba(190,232,255,0.5)', isPolygon: true, tipField: 'designatedroad' },
         { file: 'trains.geojson', name: 'Train line', color: 'rgba(100,100,100,0.5)', lineWeight: 4, tipField: 'track_name' },
         { file: 'trams.geojson', name: 'Tram line', color: 'rgba(70,140,70,0.5)', lineWeight: 4, tipField: 'track_name' }
       ];
@@ -4814,7 +4814,7 @@ initCollapse();
           if (!_mbs010On) return;
           if (!data.features || !data.features.length) return;
           var styleOpts = rr.isPolygon
-            ? { color: rr.color, weight: 1.5, opacity: 0.6, fillColor: rr.color, fillOpacity: 0.5 }
+            ? { color: rr.outline, weight: 0.7, opacity: 0.8, fillColor: rr.fill, fillOpacity: 0.5 }
             : { color: rr.color, weight: rr.lineWeight, opacity: 1, lineCap: 'round', lineJoin: 'round' };
           var layer = L.geoJSON(data, {
             style: styleOpts,
@@ -5456,8 +5456,8 @@ initCollapse();
 
           // Load all road types and find all nearby roads
           var roadCfg = [
-            { file: 'road_type_a.geojson', typeLabel: 'Type A Road', roadType: 'TypeA', nameField: 'name', isPolygon: false },
-            { file: 'road_type_b.geojson', typeLabel: 'Type B Road', roadType: 'TypeB', nameField: 'name', isPolygon: false },
+            { file: 'road_type_a.geojson', typeLabel: 'Type A Road', roadType: 'TypeA', nameField: 'designatedroad', isPolygon: true },
+            { file: 'road_type_b.geojson', typeLabel: 'Type B Road', roadType: 'TypeB', nameField: 'designatedroad', isPolygon: true },
             { file: 'road_type_r.geojson', typeLabel: 'Type R Road', roadType: 'TypeR', nameField: 'designatedroad', isPolygon: true }
           ];
           var railCfg = [
