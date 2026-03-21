@@ -727,7 +727,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="grid2 sa-only" id="mbs010Section" style="padding-top:0;display:none;">
       <div class="card span2">
         <h2>MBS 010</h2>
-        <div class="p">The application of MBS 010 will be triggered if the subject site is located in an ANEF contour or is within a Noise Attenuation Area (Noise and Air Emissions Overlay). <a id="sappaLink" href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener" class="tool-btn map-mode-btn" style="text-decoration:none;display:inline-block;font-size:12px;padding:3px 10px;vertical-align:middle;" title="Open SAPPA to view layers">SAPPA &#8599;</a></div>
+        <div class="p">The application of MBS 010 will be triggered if the subject site is located in an ANEF contour or is within a Noise Attenuation Area (Noise and Air Emissions Overlay). <a id="sappaLink" href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener" class="tool-btn map-mode-btn" style="text-decoration:none;display:inline-block;font-size:12px;padding:3px 10px;vertical-align:middle;" title="Open SAPPA to view layers">SAPPA &#8599;</a> <button class="tool-btn map-mode-btn" id="mbs010RefreshBtn" onclick="refreshMBS010()" style="font-size:12px;padding:3px 10px;" title="Re-query SAPPA for MBS 010 data">&#8635; Refresh</button></div>
         <div class="table-scroll">
           <table class="crit-table" style="margin-top:8px;" id="mbs010Table">
             <thead>
@@ -5185,6 +5185,11 @@ initCollapse();
     /* Classify road type: layer 38 = Type A, layer 42 = Type B, layer 37 = Type R */
     function classifyRoadType(layerId) {
       return layerId === 38 ? 'A' : layerId === 37 ? 'R' : 'B';
+    }
+
+    function refreshMBS010() {
+      if (currentState !== 'SA' || !latlngs['source']) return;
+      querySAPPAOverlays('source', latlngs['source']);
     }
 
     function querySAPPAOverlays(mode, latlng) {
