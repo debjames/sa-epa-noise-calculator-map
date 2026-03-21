@@ -4800,17 +4800,24 @@ initCollapse();
         }).catch(function(err) { console.warn('ANR contours failed:', err); });
       }
 
-      // Load designated road polygons from local GeoJSON files (downloaded from SAPPA GeoHub layer 210)
+      // Load designated road data from local GeoJSON files
+      // Supports both polygon (SAPPA export) and centreline (shapefile) geometry
       var roadLayerCfg = [
-        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', outline: '#6e6e6e', fill: '#ffbebe', legendKey: 'road_type_a.geojson' },
-        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', outline: '#6e6e6e', fill: '#ffebaf', legendKey: 'road_type_b.geojson' },
-        { file: 'road_type_r.geojson', name: 'Designated Road — Type R', outline: '#6e6e6e', fill: '#bee8ff', legendKey: 'road_type_r.geojson' }
+        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', outline: '#6e6e6e', fill: '#ffbebe', lineColor: 'rgba(255,190,190,0.7)', legendKey: 'road_type_a.geojson' },
+        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', outline: '#6e6e6e', fill: '#ffebaf', lineColor: 'rgba(255,235,175,0.7)', legendKey: 'road_type_b.geojson' },
+        { file: 'road_type_r.geojson', name: 'Designated Road — Type R', outline: '#6e6e6e', fill: '#bee8ff', lineColor: 'rgba(190,232,255,0.7)', legendKey: 'road_type_r.geojson' }
       ];
       roadLayerCfg.forEach(function(rr) {
         fetch(rr.file).then(function(r) { return r.json(); }).then(function(data) {
           if (!_mbs010On || !data.features || !data.features.length) return;
+          // Detect geometry type from first feature
+          var geomType = data.features[0].geometry ? data.features[0].geometry.type : '';
+          var isPolygon = geomType.indexOf('Polygon') >= 0;
+          var styleOpts = isPolygon
+            ? { color: rr.outline, weight: 0.7, opacity: 0.8, fillColor: rr.fill, fillOpacity: 0.5 }
+            : { color: rr.lineColor, weight: 8, opacity: 1, lineCap: 'round', lineJoin: 'round' };
           var layer = L.geoJSON(data, {
-            style: { color: rr.outline, weight: 0.7, opacity: 0.8, fillColor: rr.fill, fillOpacity: 0.5 },
+            style: styleOpts,
             onEachFeature: function(feature, lyr) {
               lyr.bindTooltip('<b>' + rr.name + '</b>', { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
             }
@@ -5455,9 +5462,9 @@ initCollapse();
           var railPh = document.getElementById('mbs_rail_placeholder');
 
           var roadCfg = [
-            { file: 'road_type_a.geojson', typeLabel: 'Type A Road', roadType: 'TypeA', nameField: 'designatedroad' },
-            { file: 'road_type_b.geojson', typeLabel: 'Type B Road', roadType: 'TypeB', nameField: 'designatedroad' },
-            { file: 'road_type_r.geojson', typeLabel: 'Type R Road', roadType: 'TypeR', nameField: 'designatedroad' }
+            { file: 'road_type_a.geojson', typeLabel: 'Type A Road', roadType: 'TypeA', nameField: 'name' },
+            { file: 'road_type_b.geojson', typeLabel: 'Type B Road', roadType: 'TypeB', nameField: 'name' },
+            { file: 'road_type_r.geojson', typeLabel: 'Type R Road', roadType: 'TypeR', nameField: 'name' }
           ];
           var railCfg = [
             { file: 'trains.geojson', typeLabel: 'Train line', nameField: 'track_name', secFn: getSEC_Train },
