@@ -749,7 +749,23 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td id="mbs_sec_mixed" class="center">—</td></tr>
             </tbody>
           </table>
-          <div class="small" style="margin-top:6px;color:var(--muted);">SEC = Sound Exposure Category per MBS 010. Road speed limits sourced from SA Transport data.</div>
+          <div class="small" style="margin-top:10px;color:var(--muted);line-height:1.6;">
+            <details style="cursor:pointer;">
+              <summary style="font-weight:600;color:var(--dark);">Notes on MBS 010 screening methodology</summary>
+              <div style="margin-top:6px;padding:8px 12px;background:#f8f8f8;border-radius:4px;">
+                <p style="margin:4px 0;"><strong>Triggering:</strong> MBS 010 applies if the site is within an ANEF contour (Aircraft Noise Exposure Forecast) or a Noise Attenuation Area (Noise and Air Emissions Overlay) as identified in the Planning and Design Code. Overlay data is queried from SAPPA (location.sa.gov.au). If neither overlay applies, designated road/rail/mixed use rows show N/A.</p>
+                <p style="margin:4px 0;"><strong>Distances to roads:</strong> Measured as the straight-line distance from the nearest point on the site boundary (cadastral parcel) to the nearest edge of the designated road corridor polygon, plus 3 m. Per MBS 010, separation distance for roads is measured from a point 3 m inside the road corridor boundary (i.e. 3 m from the corridor edge to the road surface).</p>
+                <p style="margin:4px 0;"><strong>Distances to rail:</strong> Measured as the straight-line distance from the nearest point on the site boundary to the closest rail line (centreline). Per MBS 010, separation distance for rail is measured from the closest rail line, not the corridor boundary.</p>
+                <p style="margin:4px 0;"><strong>Road polygons:</strong> Designated Road Polygon data (Type A, B, R) is sourced from SAPPA (Planning &amp; Building &gt; Planning Reference &gt; Designated Road Polygon). Currently using local GeoJSON files &mdash; coverage may be limited to Adelaide CBD. Check SAPPA for confirmation.</p>
+                <p style="margin:4px 0;"><strong>Road names:</strong> Road names are sourced from the SA Department for Infrastructure and Transport Speed Zones MapServer (layer 12). The nearest road segment within 200 m of the closest road corridor point is identified and its RDNAME attribute is used.</p>
+                <p style="margin:4px 0;"><strong>Road speeds:</strong> Posted speed limits are queried from the SA DIT Speed Zones MapServer at the point on the road corridor nearest to the site. If speed data is unavailable, a default of 60 km/h is assumed.</p>
+                <p style="margin:4px 0;"><strong>SEC calculation:</strong> Sound Exposure Categories are determined per MBS 010 Tables 4.1 (Type A &amp; B roads), 4.2 (Type R roads), and 4.3 (rail). Distance thresholds vary by road type and speed band (50&ndash;60, 70&ndash;90, 100&ndash;110 km/h). For ANR contours, SEC is per Table 4.4 based on the ANR dB(A) value. Mixed land use areas are assigned SEC 1 per Clause 4.3.3 where the zone includes non-residential land uses.</p>
+                <p style="margin:4px 0;"><strong>Rail data:</strong> Train and tram line data is sourced from SA government shapefiles (centreline geometry).</p>
+                <p style="margin:4px 0;"><strong>ANR contours:</strong> Aircraft Noise Reduction contours are sourced from local GeoJSON data (Adelaide, Parafield, RAAF Edinburgh airports).</p>
+                <p style="margin:4px 0;"><strong>Limitations:</strong> Distances are straight-line only and do not account for terrain, barriers, or building shielding. All values are indicative &mdash; verify with SAPPA and consult an acoustic engineer for detailed assessment. The governing SEC for a building element is the highest SEC from all applicable sound sources (Clause 4.2.2).</p>
+              </div>
+            </details>
+          </div>
         </div>
       </div>
     </div>
