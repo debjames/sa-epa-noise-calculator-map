@@ -4803,11 +4803,11 @@ initCollapse();
       // Load road and rail GeoJSON layers
       // Roads are LineString centerlines — render as thick colored lines to approximate SAPPA corridor display
       var roadRailCfg = [
-        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: 'rgba(255,190,190,0.7)', lineWeight: 1.5, tipField: 'name' },
-        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: 'rgba(255,235,175,0.7)', lineWeight: 1.5, tipField: 'name' },
+        { file: 'road_type_a.geojson', name: 'Designated Road — Type A', color: 'rgba(255,190,190,0.7)', lineWeight: 8, tipField: 'name' },
+        { file: 'road_type_b.geojson', name: 'Designated Road — Type B', color: 'rgba(255,235,175,0.7)', lineWeight: 8, tipField: 'name' },
         { file: 'road_type_r.geojson', name: 'Designated Road — Type R', color: 'rgba(190,232,255,0.7)', lineWeight: 1.5, tipField: 'designatedroad', isPolygon: true },
-        { file: 'trains.geojson', name: 'Train line', color: 'rgba(100,100,100,0.5)', lineWeight: 1.5, tipField: 'track_name' },
-        { file: 'trams.geojson', name: 'Tram line', color: 'rgba(70,140,70,0.5)', lineWeight: 1.5, tipField: 'track_name' }
+        { file: 'trains.geojson', name: 'Train line', color: 'rgba(100,100,100,0.5)', lineWeight: 4, tipField: 'track_name' },
+        { file: 'trams.geojson', name: 'Tram line', color: 'rgba(70,140,70,0.5)', lineWeight: 4, tipField: 'track_name' }
       ];
       roadRailCfg.forEach(function(rr) {
         fetch(rr.file).then(function(r) { return r.json(); }).then(function(data) {
