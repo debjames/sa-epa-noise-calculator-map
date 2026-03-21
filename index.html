@@ -5178,6 +5178,12 @@ initCollapse();
         return pointInRing(lat, lng, coords[0]);
       } else if (geom.type === 'MultiPolygon') {
         return coords.some(function(poly) { return pointInRing(lat, lng, poly[0]); });
+      } else if (geom.type === 'LineString') {
+        // Treat closed contour lines (e.g. ANR contours) as polygon rings
+        return pointInRing(lat, lng, coords);
+      } else if (geom.type === 'MultiLineString') {
+        // Each line in a MultiLineString is treated as a separate ring
+        return coords.some(function(line) { return pointInRing(lat, lng, line); });
       }
       return false;
     }
@@ -5191,6 +5197,7 @@ initCollapse();
       if (currentState !== 'SA' || !latlngs['source']) return;
       querySAPPAOverlays('source', latlngs['source']);
     }
+    window.refreshMBS010 = refreshMBS010;
 
     function querySAPPAOverlays(mode, latlng) {
       if (currentState !== 'SA') return;
@@ -5583,7 +5590,7 @@ initCollapse();
             });
           }
           setMBS('mbs_anef', anefVals.length ? anefVals.join(', ') : 'Not within ANEF contour');
-          // ANR check
+          // ANR check against local GeoJSON contours
           function checkANR(anrData) {
             var anrVal = null;
             if (anrData && anrData.features) {
@@ -5601,8 +5608,8 @@ initCollapse();
               var secEl = document.getElementById('mbs_sec_anr');
               if (secEl) { secEl.textContent = anrSec; }
             }
-            else if (anefVals.length) { setMBS('mbs_anr', 'Within ANEF but not within ANR contour'); }
-            else { setMBS('mbs_anr', 'Not within ANR contour'); }
+            else if (anefVals.length) { setMBS('mbs_anr', 'Within ANEF but not within ANR contour'); var secEl = document.getElementById('mbs_sec_anr'); if (secEl) secEl.textContent = '—'; }
+            else { setMBS('mbs_anr', 'Not within ANR contour'); var secEl = document.getElementById('mbs_sec_anr'); if (secEl) secEl.textContent = '—'; }
           }
           if (_anrGeoJSON) { checkANR(_anrGeoJSON); }
           else { fetch('anr.geojson').then(function(r) { return r.json(); }).then(function(d) { _anrGeoJSON = d; checkANR(d); }).catch(function() { setMBS('mbs_anr', '—'); }); }
