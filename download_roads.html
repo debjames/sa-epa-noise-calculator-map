@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head><title>Download Designated Road Polygons from SAPPA</title></head>
+<body>
+<h2>Download Designated Road Polygons from SAPPA</h2>
+<p>Click the button below to query SAPPA for all designated road polygons (Type A, B, R) and download as GeoJSON files.</p>
+<button id="btn" onclick="downloadAll()" style="padding:12px 24px;font-size:16px;cursor:pointer;">Download Road Polygons</button>
+<div id="status" style="margin-top:12px;font-family:monospace;white-space:pre-wrap;"></div>
+
+<script>
+var SAPPA_URL = 'https://geohub.sa.gov.au/server/rest/services/SAPPA/PropertyPlanningAtlasV18/MapServer/210/query';
+
+function log(msg) {
+  document.getElementById('status').textContent += msg + '\n';
+}
+
+function downloadFile(data, filename) {
+  var blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function queryAll() {
+  // Query all features - may need pagination
+  var allFeatures = [];
+  var offset = 0;
+  var batchSize = 1000;
+
+  while (true) {
+    log('Querying offset ' + offset + '...');
+    var url = SAPPA_URL + '?where=1%3D1&outFields=designatedroad&returnGeometry=true&outSR=4326&f=geojson&resultOffset=' + offset + '&resultRecordCount=' + batchSize;
+    var resp = await fetch(url);
+    var data = await resp.json();
+
+    if (!data.features || data.features.length === 0) break;
+    allFeatures = allFeatures.concat(data.features);
+    log('Got ' + data.features.length + ' features (total: ' + allFeatures.length + ')');
+
+    if (data.features.length < batchSize) break;
+    offset += batchSize;
+  }
+
+  return allFeatures;
+}
+
+async function downloadAll() {
+  document.getElementById('btn').disabled = true;
+  log('Starting download from SAPPA GeoHub layer 210...');
+
+  try {
+    var allFeatures = await queryAll();
+    log('Total features: ' + allFeatures.length);
+
+    // Split by road type
+    ['Type A', 'Type B', 'Type R'].forEach(function(rdType) {
+      var features = allFeatures.filter(function(f) {
+        return f.properties && f.properties.designatedroad === rdType;
+      });
+      log(rdType + ': ' + features.length + ' features');
+
+      if (features.length) {
+        var fc = { type: 'FeatureCollection', features: features };
+        var filename = 'road_type_' + rdType.split(' ')[1].toLowerCase() + '.geojson';
+        downloadFile(fc, filename);
+        log('Downloaded: ' + filename);
+      }
+    });
+
+    log('\nDone! Move the downloaded files to:\n  ' + 'sa-epa-noise-calculator-map/');
+  } catch(err) {
+    log('ERROR: ' + err.message);
+    log('Make sure you can access sappa.plan.sa.gov.au');
+  }
+
+  document.getElementById('btn').disabled = false;
+}
+</script>
+</body>
+</html>
