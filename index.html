@@ -4734,6 +4734,29 @@ initCollapse();
       });
     }
 
+    // Retry helper for SAPPA queries (502 errors are common)
+    function fetchWithRetry(url, retries) {
+      retries = retries || 2;
+      return fetch(url).then(function(r) {
+        if (!r.ok) {
+          if (retries > 0) {
+            return new Promise(function(resolve) { setTimeout(resolve, 1500); })
+              .then(function() { return fetchWithRetry(url, retries - 1); });
+          }
+          console.warn('SAPPA query failed after retries: HTTP ' + r.status, url.split('?')[0]);
+          return { features: [] };
+        }
+        return r.json();
+      }).catch(function(err) {
+        if (retries > 0) {
+          return new Promise(function(resolve) { setTimeout(resolve, 1500); })
+            .then(function() { return fetchWithRetry(url, retries - 1); });
+        }
+        console.warn('SAPPA query failed after retries:', err);
+        return { features: [] };
+      });
+    }
+
     /* --- MBS 010 Overlay Layers toggle (SA only) --- */
     var _mbs010Layers = [];  // Leaflet layers for MBS 010 overlays
     var _mbs010On = false;
@@ -4761,7 +4784,7 @@ initCollapse();
           '&outFields=name,value,description' +
           '&returnGeometry=true&outSR=4326&maxAllowableOffset=0.0001&f=geojson';
 
-        fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+        fetchWithRetry(url).then(function(data) {
           if (!_mbs010On) return;
           if (!data.features || !data.features.length) return;
           var layer = L.geoJSON(data, {
@@ -5555,30 +5578,6 @@ initCollapse();
       // Query ANEF + Noise overlay first, then conditionally load road/rail
       var _mbsTriggered = false;
 
-      // Retry helper for SAPPA queries (502 errors are common)
-      function fetchWithRetry(url, retries) {
-        retries = retries || 2;
-        return fetch(url).then(function(r) {
-          if (!r.ok) {
-            if (retries > 0) {
-              return new Promise(function(resolve) { setTimeout(resolve, 1500); })
-                .then(function() { return fetchWithRetry(url, retries - 1); });
-            }
-            console.warn('SAPPA query failed after retries: HTTP ' + r.status, url.split('?')[0]);
-            // Return empty result instead of throwing so table still populates
-            return { features: [] };
-          }
-          return r.json();
-        }).catch(function(err) {
-          if (retries > 0) {
-            return new Promise(function(resolve) { setTimeout(resolve, 1500); })
-              .then(function() { return fetchWithRetry(url, retries - 1); });
-          }
-          console.warn('SAPPA query failed after retries:', err);
-          return { features: [] };
-        });
-      }
-
       // 1. Aircraft Noise Exposure (layer 27)
       var anefPromise = fetchWithRetry(SAPPA_BASE + '/27/query?geometry=' + geom + ptParams + '&outFields=name,value')
         .then(function(data) {
@@ -5620,7 +5619,16 @@ initCollapse();
       var noisePromise = fetchWithRetry(SAPPA_BASE + '/39/query?geometry=' + geom + ptParams + '&outFields=name,description')
         .then(function(data) {
           var inOverlay = data.features && data.features.length > 0;
-          setMBS('mbs_noise', inOverlay ? 'Site in a Noise and Air Emissions Overlay' : 'Site not in Noise and Air Emissions Overlay');
+          if (inOverlay) {
+            var overlayNames = [];
+            data.features.forEach(function(f) {
+              var n = f.attributes.name || f.attributes.description || 'Noise and Air Emissions';
+              if (overlayNames.indexOf(n) === -1) overlayNames.push(n);
+            });
+            setMBS('mbs_noise', 'Site in ' + overlayNames.join(', ') + ' Overlay');
+          } else {
+            setMBS('mbs_noise', 'Site not in Noise and Air Emissions Overlay');
+          }
           return inOverlay;
         }).catch(function() { setMBS('mbs_noise', '—'); return false; });
 
