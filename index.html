@@ -5285,18 +5285,29 @@ initCollapse();
       // Query speed limit from SA Transport MapServer (layer 12)
       var SPEED_LIMIT_URL = 'https://location.sa.gov.au/server6/rest/services/Transport/Speed_Zones/MapServer/12/query';
       // Returns { speed, rdname } — queries SA Transport for speed limit and road name at nearest point
-      function querySpeedLimit(lat, lng, nearestCoord) {
-        var qLat = nearestCoord ? nearestCoord[1] : lat;
-        var qLng = nearestCoord ? nearestCoord[0] : lng;
+      function querySpeedLimit(lat, lng, nearestCoord, corridorPt) {
+        // Query at a point ~20m inside the road corridor (perpendicular to the polygon edge)
+        // This ensures we hit the correct road's speed zone, not an adjacent road
+        var qLat, qLng;
+        if (corridorPt) {
+          qLat = corridorPt[1];
+          qLng = corridorPt[0];
+        } else if (nearestCoord) {
+          qLat = nearestCoord[1];
+          qLng = nearestCoord[0];
+        } else {
+          qLat = lat;
+          qLng = lng;
+        }
         var speedGeom = qLng + ',' + qLat;
         var params = 'geometry=' + encodeURIComponent(speedGeom) +
           '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
-          '&distance=100&units=esriSRUnit_Meter&outFields=SPEED_LIMIT,RDNAME&returnGeometry=true&outSR=4326&f=json';
+          '&distance=50&units=esriSRUnit_Meter&outFields=SPEED_LIMIT,RDNAME&returnGeometry=true&outSR=4326&f=json';
         return fetch(SPEED_LIMIT_URL + '?' + params)
           .then(function(r) { return r.json(); })
           .then(function(d) {
             if (d.features && d.features.length) {
-              // Find the speed zone segment closest to the designated road point
+              // Find the speed zone segment closest to the offset point inside the corridor
               var qPt = L.latLng(qLat, qLng);
               var best = null;
               var bestDist = Infinity;
@@ -5433,6 +5444,8 @@ initCollapse();
           if (!targetRings.length) return;
           var featureDist = Infinity;
           var featureCoord = null;
+          var closestSegA = null; // endpoints of nearest edge segment
+          var closestSegB = null;
 
           targetRings.forEach(function(targetRing) {
             var tBBox = ringBBox(targetRing, 0);
@@ -5444,7 +5457,7 @@ initCollapse();
                   var sitePt = L.latLng(siteRing[si][1], siteRing[si][0]);
                   for (var ti = 0; ti < targetRing.length - 1; ti++) {
                     var r = distPointToSegment(sitePt, L.latLng(targetRing[ti][1], targetRing[ti][0]), L.latLng(targetRing[ti+1][1], targetRing[ti+1][0]));
-                    if (r.dist < featureDist) { featureDist = r.dist; featureCoord = [r.projLng, r.projLat]; }
+                    if (r.dist < featureDist) { featureDist = r.dist; featureCoord = [r.projLng, r.projLat]; closestSegA = targetRing[ti]; closestSegB = targetRing[ti+1]; }
                   }
                 }
               });
@@ -5455,14 +5468,14 @@ initCollapse();
                     var r = distPointToSegment(targetPt,
                       L.latLng(siteRing[si][1], siteRing[si][0]),
                       L.latLng(siteRing[si+1][1], siteRing[si+1][0]));
-                    if (r.dist < featureDist) { featureDist = r.dist; featureCoord = [targetRing[ti][0], targetRing[ti][1]]; }
+                    if (r.dist < featureDist) { featureDist = r.dist; featureCoord = [targetRing[ti][0], targetRing[ti][1]]; closestSegA = targetRing[ti]; closestSegB = targetRing[ti+1]; }
                   }
                 });
               }
             } else {
               for (var i = 0; i < targetRing.length - 1; i++) {
                 var r = distPointToSegment(L.latLng(lat, lng), L.latLng(targetRing[i][1], targetRing[i][0]), L.latLng(targetRing[i+1][1], targetRing[i+1][0]));
-                if (r.dist < featureDist) { featureDist = r.dist; featureCoord = [r.projLng, r.projLat]; }
+                if (r.dist < featureDist) { featureDist = r.dist; featureCoord = [r.projLng, r.projLat]; closestSegA = targetRing[i]; closestSegB = targetRing[i+1]; }
               }
             }
           });
@@ -5471,9 +5484,32 @@ initCollapse();
             var props = f.properties || {};
             var rawName = (props[nameField] || '').trim();
             var roadtype = (props.roadtype || '').trim();
+            // Compute a point ~20m inward from the nearest polygon edge (perpendicular to the edge segment)
+            // This lands on the road centreline inside the corridor, ensuring the speed zone query hits the correct road
+            var corridorPt = null;
+            if (closestSegA && closestSegB && featureCoord) {
+              var edgeDx = closestSegB[0] - closestSegA[0];
+              var edgeDy = closestSegB[1] - closestSegA[1];
+              var edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
+              if (edgeLen > 0) {
+                // Perpendicular unit vector (rotated 90 degrees)
+                var perpX = -edgeDy / edgeLen;
+                var perpY = edgeDx / edgeLen;
+                var offsetDeg = 20 / 111000; // ~20m in degrees
+                // Try both perpendicular directions, pick the one pointing away from the site
+                var testLng1 = featureCoord[0] + perpX * offsetDeg;
+                var testLat1 = featureCoord[1] + perpY * offsetDeg;
+                var testLng2 = featureCoord[0] - perpX * offsetDeg;
+                var testLat2 = featureCoord[1] - perpY * offsetDeg;
+                var d1 = Math.sqrt((testLng1 - lng) * (testLng1 - lng) + (testLat1 - lat) * (testLat1 - lat));
+                var d2 = Math.sqrt((testLng2 - lng) * (testLng2 - lng) + (testLat2 - lat) * (testLat2 - lat));
+                // Pick the direction further from the site (inward into the polygon)
+                corridorPt = d1 > d2 ? [testLng1, testLat1] : [testLng2, testLat2];
+              }
+            }
             var key = rawName ? (rawName + (roadtype ? ' ' + roadtype : '')).toUpperCase() : 'UNKNOWN_' + Math.random();
             if (!results[key] || featureDist < results[key].dist) {
-              results[key] = { dist: featureDist, feature: f, nearestCoord: featureCoord, rawName: rawName, roadtype: roadtype };
+              results[key] = { dist: featureDist, feature: f, nearestCoord: featureCoord, corridorPt: corridorPt, rawName: rawName, roadtype: roadtype };
             }
           }
         });
@@ -5537,7 +5573,7 @@ initCollapse();
             return fetch(cfg.file).then(function(r) { return r.json(); }).then(function(data) {
               var nearby = calcAllNearby(data, latlng.lat, latlng.lng, cfg.nameField, 250);
               return nearby.map(function(n) {
-                return { cfg: cfg, dist: n.dist + ROAD_CORRIDOR_OFFSET, nearestCoord: n.nearestCoord };
+                return { cfg: cfg, dist: n.dist + ROAD_CORRIDOR_OFFSET, nearestCoord: n.nearestCoord, corridorPt: n.corridorPt };
               });
             }).catch(function(err) { console.warn('MBS010 ' + cfg.file + ' failed:', err); return []; });
           });
@@ -5553,7 +5589,7 @@ initCollapse();
               if (roadsPh) roadsPh.parentNode.insertBefore(tr, roadsPh);
 
               // Query speed limit AND road name from SA Transport
-              querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord).then(function(result) {
+              querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord, road.corridorPt).then(function(result) {
                 var rdname = result.rdname ? prettyName(result.rdname, '') : '';
                 var info = road.cfg.typeLabel + (rdname ? ' \u2014 ' + rdname : '');
                 info += ' (' + result.speed + ' km/h)';
