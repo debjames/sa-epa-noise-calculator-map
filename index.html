@@ -5287,14 +5287,11 @@ initCollapse();
       // Query speed limit from SA Transport MapServer (layer 12)
       var SPEED_LIMIT_URL = 'https://location.sa.gov.au/server6/rest/services/Transport/Speed_Zones/MapServer/12/query';
       // Returns { speed, rdname } — queries SA Transport for speed limit and road name at nearest point
-      function querySpeedLimit(lat, lng, nearestCoord, corridorPt, edgeBearing) {
-        // Query at a point ~20m inside the road corridor (perpendicular to the polygon edge)
-        // This ensures we hit the correct road's speed zone, not an adjacent road
+      function querySpeedLimit(lat, lng, nearestCoord, corridorPt, edgeBearing, corridorFeature) {
+        // Query at the nearest corridor boundary point with a 50m buffer
+        // Then filter results to only include speed zone segments that run through the corridor polygon
         var qLat, qLng;
-        if (corridorPt) {
-          qLat = corridorPt[1];
-          qLng = corridorPt[0];
-        } else if (nearestCoord) {
+        if (nearestCoord) {
           qLat = nearestCoord[1];
           qLng = nearestCoord[0];
         } else {
@@ -5310,32 +5307,54 @@ initCollapse();
           .then(function(d) {
             if (d.features && d.features.length) {
               var qPt = L.latLng(qLat, qLng);
-              // Score each speed zone segment by distance AND bearing alignment with the corridor edge
+              // Score each speed zone segment:
+              // 1. Count how many path vertices fall inside the corridor polygon (more = better match)
+              // 2. Use segment distance as tiebreaker
               var scored = d.features.map(function(f) {
-                var minD = Infinity;
-                var midDist = Infinity;
+                var insideCount = 0;
+                var totalVerts = 0;
+                var segDist = Infinity;
                 if (f.geometry && f.geometry.paths) {
                   f.geometry.paths.forEach(function(path) {
                     for (var i = 0; i < path.length; i++) {
-                      var dd = qPt.distanceTo(L.latLng(path[i][1], path[i][0]));
-                      if (dd < minD) minD = dd;
+                      totalVerts++;
+                      if (corridorFeature && pointInGeoJSONFeature(path[i][1], path[i][0], corridorFeature)) {
+                        insideCount++;
+                      }
                     }
-                    // Distance from query point to the MIDPOINT of the segment
-                    // Prefers roads whose centre is near the corridor, not just an endpoint
-                    if (path.length >= 2) {
-                      var midIdx = Math.floor(path.length / 2);
-                      midDist = qPt.distanceTo(L.latLng(path[midIdx][1], path[midIdx][0]));
+                    for (var i = 0; i < path.length - 1; i++) {
+                      var r = distPointToSegment(qPt,
+                        L.latLng(path[i][1], path[i][0]),
+                        L.latLng(path[i+1][1], path[i+1][0]));
+                      if (r.dist < segDist) segDist = r.dist;
+                    }
+                    if (path.length === 1) {
+                      var dd = qPt.distanceTo(L.latLng(path[0][1], path[0][0]));
+                      if (dd < segDist) segDist = dd;
                     }
                   });
-                } else { minD = 0; }
-                return { feature: f, dist: minD, midDist: midDist };
+                } else { segDist = 0; }
+                return { feature: f, insideCount: insideCount, totalVerts: totalVerts, segDist: segDist };
               });
-              // Only consider segments that have an endpoint or vertex near the query point
-              var nearby = scored.filter(function(s) { return s.dist < 100; });
-              var pool = nearby.length ? nearby : scored;
-              // Sort by midpoint distance — the road whose centre is closest to the corridor is the designated road
-              pool.sort(function(a, b) { return a.midDist - b.midDist; });
-              var best = pool[0].feature;
+              // Prefer segments with vertices inside the corridor polygon
+              // If corridor filtering is available, only keep segments with at least 1 vertex inside
+              if (corridorFeature) {
+                var insiders = scored.filter(function(s) { return s.insideCount > 0; });
+                if (insiders.length) {
+                  // Sort by fraction of vertices inside (descending), then segment distance (ascending)
+                  insiders.sort(function(a, b) {
+                    var fracA = a.insideCount / (a.totalVerts || 1);
+                    var fracB = b.insideCount / (b.totalVerts || 1);
+                    if (fracB !== fracA) return fracB - fracA;
+                    return a.segDist - b.segDist;
+                  });
+                  var best = insiders[0].feature;
+                  return { speed: best.attributes.SPEED_LIMIT || 60, rdname: best.attributes.RDNAME || '' };
+                }
+              }
+              // Fallback: sort by segment distance
+              scored.sort(function(a, b) { return a.segDist - b.segDist; });
+              var best = scored[0].feature;
               return { speed: best.attributes.SPEED_LIMIT || 60, rdname: best.attributes.RDNAME || '' };
             }
             return { speed: 60, rdname: '' };
@@ -5495,27 +5514,21 @@ initCollapse();
             var props = f.properties || {};
             var rawName = (props[nameField] || '').trim();
             var roadtype = (props.roadtype || '').trim();
-            // Compute a point ~20m inward from the nearest polygon edge (perpendicular to the edge segment)
-            // This lands on the road centreline inside the corridor, ensuring the speed zone query hits the correct road
+            // Compute a point ~20m inward from the nearest corridor boundary toward the road centre
+            // Offset along the line FROM the site THROUGH the nearest boundary point, extending past it
+            // This ensures the query point is on the same side of intersections as the site
             var corridorPt = null;
-            if (closestSegA && closestSegB && featureCoord) {
-              var edgeDx = closestSegB[0] - closestSegA[0];
-              var edgeDy = closestSegB[1] - closestSegA[1];
-              var edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
-              if (edgeLen > 0) {
-                // Perpendicular unit vector (rotated 90 degrees)
-                var perpX = -edgeDy / edgeLen;
-                var perpY = edgeDx / edgeLen;
+            if (featureCoord) {
+              var dxToCorr = featureCoord[0] - lng;
+              var dyToCorr = featureCoord[1] - lat;
+              var distToCorr = Math.sqrt(dxToCorr * dxToCorr + dyToCorr * dyToCorr);
+              if (distToCorr > 0) {
                 var offsetDeg = 20 / 111000; // ~20m in degrees
-                // Try both perpendicular directions, pick the one pointing away from the site
-                var testLng1 = featureCoord[0] + perpX * offsetDeg;
-                var testLat1 = featureCoord[1] + perpY * offsetDeg;
-                var testLng2 = featureCoord[0] - perpX * offsetDeg;
-                var testLat2 = featureCoord[1] - perpY * offsetDeg;
-                var d1 = Math.sqrt((testLng1 - lng) * (testLng1 - lng) + (testLat1 - lat) * (testLat1 - lat));
-                var d2 = Math.sqrt((testLng2 - lng) * (testLng2 - lng) + (testLat2 - lat) * (testLat2 - lat));
-                // Pick the direction further from the site (inward into the polygon)
-                corridorPt = d1 > d2 ? [testLng1, testLat1] : [testLng2, testLat2];
+                // Extend past the boundary point, away from the site, into the corridor
+                corridorPt = [
+                  featureCoord[0] + (dxToCorr / distToCorr) * offsetDeg,
+                  featureCoord[1] + (dyToCorr / distToCorr) * offsetDeg
+                ];
               }
             }
             // Store the corridor edge bearing (radians) for filtering speed zone results
@@ -5586,7 +5599,7 @@ initCollapse();
             return fetch(cfg.file).then(function(r) { return r.json(); }).then(function(data) {
               var nearby = calcAllNearby(data, latlng.lat, latlng.lng, cfg.nameField, 250);
               return nearby.map(function(n) {
-                return { cfg: cfg, dist: n.dist + ROAD_CORRIDOR_OFFSET, nearestCoord: n.nearestCoord, corridorPt: n.corridorPt, edgeBearing: n.edgeBearing };
+                return { cfg: cfg, dist: n.dist + ROAD_CORRIDOR_OFFSET, nearestCoord: n.nearestCoord, corridorPt: n.corridorPt, edgeBearing: n.edgeBearing, corridorFeature: n.feature };
               });
             }).catch(function(err) { console.warn('MBS010 ' + cfg.file + ' failed:', err); return []; });
           });
@@ -5602,7 +5615,7 @@ initCollapse();
               if (roadsPh) roadsPh.parentNode.insertBefore(tr, roadsPh);
 
               // Query speed limit AND road name from SA Transport
-              querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord, road.corridorPt, road.edgeBearing).then(function(result) {
+              querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord, road.corridorPt, road.edgeBearing, road.corridorFeature).then(function(result) {
                 var rdname = result.rdname ? prettyName(result.rdname, '') : '';
                 var info = road.cfg.typeLabel + (rdname ? ' \u2014 ' + rdname : '');
                 info += ' (' + result.speed + ' km/h)';
