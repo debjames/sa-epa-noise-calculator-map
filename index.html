@@ -5285,7 +5285,7 @@ initCollapse();
       // Query speed limit from SA Transport MapServer (layer 12)
       var SPEED_LIMIT_URL = 'https://location.sa.gov.au/server6/rest/services/Transport/Speed_Zones/MapServer/12/query';
       // Returns { speed, rdname } — queries SA Transport for speed limit and road name at nearest point
-      function querySpeedLimit(lat, lng, nearestCoord, corridorPt) {
+      function querySpeedLimit(lat, lng, nearestCoord, corridorPt, edgeBearing) {
         // Query at a point ~20m inside the road corridor (perpendicular to the polygon edge)
         // This ensures we hit the correct road's speed zone, not an adjacent road
         var qLat, qLng;
@@ -5307,25 +5307,40 @@ initCollapse();
           .then(function(r) { return r.json(); })
           .then(function(d) {
             if (d.features && d.features.length) {
-              // Find the speed zone segment closest to the offset point inside the corridor
               var qPt = L.latLng(qLat, qLng);
-              var best = null;
-              var bestDist = Infinity;
-              d.features.forEach(function(f) {
+              // Score each speed zone segment by distance AND bearing alignment with the corridor edge
+              var scored = d.features.map(function(f) {
                 var minD = Infinity;
+                var segBearing = null;
                 if (f.geometry && f.geometry.paths) {
                   f.geometry.paths.forEach(function(path) {
                     for (var i = 0; i < path.length; i++) {
                       var dd = qPt.distanceTo(L.latLng(path[i][1], path[i][0]));
                       if (dd < minD) minD = dd;
                     }
+                    // Compute overall bearing of this speed zone segment
+                    if (path.length >= 2) {
+                      var p0 = path[0], pN = path[path.length - 1];
+                      segBearing = Math.atan2(pN[0] - p0[0], pN[1] - p0[1]);
+                    }
                   });
                 } else { minD = 0; }
-                if (minD < bestDist) { bestDist = minD; best = f; }
+                // Bearing alignment score: 0 = perfect parallel, PI/2 = perpendicular
+                var bearingDiff = Math.PI / 2; // default: worst case
+                if (edgeBearing !== null && segBearing !== null) {
+                  bearingDiff = Math.abs(edgeBearing - segBearing) % Math.PI;
+                  if (bearingDiff > Math.PI / 2) bearingDiff = Math.PI - bearingDiff;
+                }
+                return { feature: f, dist: minD, bearingDiff: bearingDiff };
               });
-              if (best) {
-                return { speed: best.attributes.SPEED_LIMIT || 60, rdname: best.attributes.RDNAME || '' };
-              }
+              // Filter: only consider segments running roughly parallel to the corridor (within 30 degrees)
+              var parallel = scored.filter(function(s) { return s.bearingDiff < Math.PI / 6; });
+              // If no parallel segments found, fall back to all segments
+              var pool = parallel.length ? parallel : scored;
+              // Pick the closest from the filtered pool
+              pool.sort(function(a, b) { return a.dist - b.dist; });
+              var best = pool[0].feature;
+              return { speed: best.attributes.SPEED_LIMIT || 60, rdname: best.attributes.RDNAME || '' };
             }
             return { speed: 60, rdname: '' };
           })
@@ -5507,9 +5522,11 @@ initCollapse();
                 corridorPt = d1 > d2 ? [testLng1, testLat1] : [testLng2, testLat2];
               }
             }
+            // Store the corridor edge bearing (radians) for filtering speed zone results
+            var edgeBearing = (closestSegA && closestSegB) ? Math.atan2(closestSegB[0] - closestSegA[0], closestSegB[1] - closestSegA[1]) : null;
             var key = rawName ? (rawName + (roadtype ? ' ' + roadtype : '')).toUpperCase() : 'UNKNOWN_' + Math.random();
             if (!results[key] || featureDist < results[key].dist) {
-              results[key] = { dist: featureDist, feature: f, nearestCoord: featureCoord, corridorPt: corridorPt, rawName: rawName, roadtype: roadtype };
+              results[key] = { dist: featureDist, feature: f, nearestCoord: featureCoord, corridorPt: corridorPt, edgeBearing: edgeBearing, rawName: rawName, roadtype: roadtype };
             }
           }
         });
@@ -5573,7 +5590,7 @@ initCollapse();
             return fetch(cfg.file).then(function(r) { return r.json(); }).then(function(data) {
               var nearby = calcAllNearby(data, latlng.lat, latlng.lng, cfg.nameField, 250);
               return nearby.map(function(n) {
-                return { cfg: cfg, dist: n.dist + ROAD_CORRIDOR_OFFSET, nearestCoord: n.nearestCoord, corridorPt: n.corridorPt };
+                return { cfg: cfg, dist: n.dist + ROAD_CORRIDOR_OFFSET, nearestCoord: n.nearestCoord, corridorPt: n.corridorPt, edgeBearing: n.edgeBearing };
               });
             }).catch(function(err) { console.warn('MBS010 ' + cfg.file + ' failed:', err); return []; });
           });
@@ -5589,7 +5606,7 @@ initCollapse();
               if (roadsPh) roadsPh.parentNode.insertBefore(tr, roadsPh);
 
               // Query speed limit AND road name from SA Transport
-              querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord, road.corridorPt).then(function(result) {
+              querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord, road.corridorPt, road.edgeBearing).then(function(result) {
                 var rdname = result.rdname ? prettyName(result.rdname, '') : '';
                 var info = road.cfg.typeLabel + (rdname ? ' \u2014 ' + rdname : '');
                 info += ' (' + result.speed + ' km/h)';
