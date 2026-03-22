@@ -5287,9 +5287,9 @@ initCollapse();
       // Query speed limit from SA Transport MapServer (layer 12)
       var SPEED_LIMIT_URL = 'https://location.sa.gov.au/server6/rest/services/Transport/Speed_Zones/MapServer/12/query';
       // Returns { speed, rdname } — queries SA Transport for speed limit and road name at nearest point
-      function querySpeedLimit(lat, lng, nearestCoord, corridorPt, edgeBearing, corridorFeature) {
+      function querySpeedLimit(lat, lng, nearestCoord, corridorPt, edgeBearing, corridorFeature, otherCorridors) {
         // Query at the nearest corridor boundary point with a 50m buffer
-        // Then filter results to only include speed zone segments that run through the corridor polygon
+        // Then filter results using corridor polygon containment and cross-corridor exclusion
         var qLat, qLng;
         if (nearestCoord) {
           qLat = nearestCoord[1];
@@ -5307,19 +5307,28 @@ initCollapse();
           .then(function(d) {
             if (d.features && d.features.length) {
               var qPt = L.latLng(qLat, qLng);
-              // Score each speed zone segment:
-              // 1. Count how many path vertices fall inside the corridor polygon (more = better match)
-              // 2. Use segment distance as tiebreaker
               var scored = d.features.map(function(f) {
                 var insideCount = 0;
                 var totalVerts = 0;
                 var segDist = Infinity;
+                // Count vertices inside OTHER corridor types (for cross-corridor exclusion)
+                var otherInsideCounts = {};
+                if (otherCorridors) {
+                  otherCorridors.forEach(function(oc) { otherInsideCounts[oc.roadType] = 0; });
+                }
                 if (f.geometry && f.geometry.paths) {
                   f.geometry.paths.forEach(function(path) {
                     for (var i = 0; i < path.length; i++) {
                       totalVerts++;
                       if (corridorFeature && pointInGeoJSONFeature(path[i][1], path[i][0], corridorFeature)) {
                         insideCount++;
+                      }
+                      if (otherCorridors) {
+                        otherCorridors.forEach(function(oc) {
+                          if (pointInGeoJSONFeature(path[i][1], path[i][0], oc.feature)) {
+                            otherInsideCounts[oc.roadType]++;
+                          }
+                        });
                       }
                     }
                     for (var i = 0; i < path.length - 1; i++) {
@@ -5334,21 +5343,28 @@ initCollapse();
                     }
                   });
                 } else { segDist = 0; }
-                return { feature: f, insideCount: insideCount, totalVerts: totalVerts, segDist: segDist };
+                // A segment "belongs" to another corridor if >50% of vertices are inside it
+                var belongsToOther = false;
+                if (otherCorridors && totalVerts > 0) {
+                  otherCorridors.forEach(function(oc) {
+                    if (otherInsideCounts[oc.roadType] / totalVerts > 0.5) belongsToOther = true;
+                  });
+                }
+                return { feature: f, insideCount: insideCount, totalVerts: totalVerts, segDist: segDist, belongsToOther: belongsToOther };
               });
-              // Prefer segments with vertices inside the corridor polygon
-              // If corridor filtering is available, only keep segments with at least 1 vertex inside
               if (corridorFeature) {
                 var insiders = scored.filter(function(s) { return s.insideCount > 0; });
                 if (insiders.length) {
-                  // Sort by fraction of vertices inside (descending), then segment distance (ascending)
-                  insiders.sort(function(a, b) {
+                  // Try excluding segments that belong to another corridor type
+                  var exclusive = insiders.filter(function(s) { return !s.belongsToOther; });
+                  var pool = exclusive.length ? exclusive : insiders;
+                  pool.sort(function(a, b) {
                     var fracA = a.insideCount / (a.totalVerts || 1);
                     var fracB = b.insideCount / (b.totalVerts || 1);
                     if (fracB !== fracA) return fracB - fracA;
                     return a.segDist - b.segDist;
                   });
-                  var best = insiders[0].feature;
+                  var best = pool[0].feature;
                   return { speed: best.attributes.SPEED_LIMIT || 60, rdname: best.attributes.RDNAME || '' };
                 }
               }
@@ -5594,18 +5610,31 @@ initCollapse();
             { file: 'trams.geojson', typeLabel: 'Tram line', nameField: 'track_name', secFn: getSEC_Tram }
           ];
 
-          // Process roads from local GeoJSON files
-          var roadPromises = roadCfg.map(function(cfg) {
-            return fetch(cfg.file).then(function(r) { return r.json(); }).then(function(data) {
-              var nearby = calcAllNearby(data, latlng.lat, latlng.lng, cfg.nameField, 250);
-              return nearby.map(function(n) {
-                return { cfg: cfg, dist: n.dist + ROAD_CORRIDOR_OFFSET, nearestCoord: n.nearestCoord, corridorPt: n.corridorPt, edgeBearing: n.edgeBearing, corridorFeature: n.feature };
-              });
-            }).catch(function(err) { console.warn('MBS010 ' + cfg.file + ' failed:', err); return []; });
+          // Load all corridor GeoJSON files first, then process roads
+          // This allows cross-corridor filtering (e.g., exclude Type B roads from Type A results)
+          var corridorDataPromises = roadCfg.map(function(cfg) {
+            return fetch(cfg.file).then(function(r) { return r.json(); }).catch(function() { return { features: [] }; });
           });
 
-          Promise.all(roadPromises).then(function(roadResults) {
-            var allRoads = roadResults.reduce(function(a, b) { return a.concat(b); }, []);
+          Promise.all(corridorDataPromises).then(function(corridorDatasets) {
+            // Collect all corridor features for cross-referencing
+            var allCorridorFeatures = [];
+            corridorDatasets.forEach(function(data, idx) {
+              if (data.features && data.features.length) {
+                allCorridorFeatures.push({ roadType: roadCfg[idx].roadType, feature: data.features[0] });
+              }
+            });
+
+            // Process each road type
+            var allRoads = [];
+            corridorDatasets.forEach(function(data, idx) {
+              var cfg = roadCfg[idx];
+              var nearby = calcAllNearby(data, latlng.lat, latlng.lng, cfg.nameField, 250);
+              nearby.forEach(function(n) {
+                allRoads.push({ cfg: cfg, dist: n.dist + ROAD_CORRIDOR_OFFSET, nearestCoord: n.nearestCoord, corridorPt: n.corridorPt, edgeBearing: n.edgeBearing, corridorFeature: n.feature });
+              });
+            });
+
             if (roadsPh) roadsPh.style.display = allRoads.length ? 'none' : '';
             if (!allRoads.length && roadsPh) { roadsPh.cells[1].textContent = 'N/A'; roadsPh.cells[2].textContent = '—'; roadsPh.cells[3].textContent = '—'; }
 
@@ -5614,8 +5643,11 @@ initCollapse();
               var tr = createMBSRow(road.cfg.typeLabel, road.cfg.typeLabel + ' \u2026', dRound + ' m', '\u2026');
               if (roadsPh) roadsPh.parentNode.insertBefore(tr, roadsPh);
 
+              // Collect OTHER corridor features for cross-filtering
+              var otherCorridors = allCorridorFeatures.filter(function(c) { return c.roadType !== road.cfg.roadType; });
+
               // Query speed limit AND road name from SA Transport
-              querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord, road.corridorPt, road.edgeBearing, road.corridorFeature).then(function(result) {
+              querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord, road.corridorPt, road.edgeBearing, road.corridorFeature, otherCorridors).then(function(result) {
                 var rdname = result.rdname ? prettyName(result.rdname, '') : '';
                 var info = road.cfg.typeLabel + (rdname ? ' \u2014 ' + rdname : '');
                 info += ' (' + result.speed + ' km/h)';
