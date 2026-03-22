@@ -751,6 +751,9 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <tr><td>Mixed land use areas</td><td id="mbs_mixed">—</td><td class="center">—</td><td id="mbs_sec_mixed" class="center">—</td></tr>
             </tbody>
           </table>
+          <div id="mbs_road_footnote" style="display:none;margin-top:6px;font-size:11px;color:#856404;background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:6px 10px;">
+            <strong>*</strong> Road name could not be automatically identified from the speed zone data. SEC is based on an assumed speed of 50&ndash;60 km/h and should be confirmed by the user against actual posted speed limits and designated road classification.
+          </div>
           <div class="small" style="margin-top:10px;color:var(--muted);line-height:1.6;">
             <details style="cursor:pointer;">
               <summary style="font-weight:600;color:var(--dark);">Notes on MBS 010 screening methodology</summary>
@@ -760,7 +763,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
                 <p style="margin:4px 0;"><strong>Distances to rail:</strong> Measured as the straight-line distance from the nearest point on the site boundary to the closest rail line (centreline). Per MBS 010, separation distance for rail is measured from the closest rail line, not the corridor boundary.</p>
                 <p style="margin:4px 0;"><strong>Road polygons:</strong> Designated Road Polygon data (Type A, B, R) is sourced from SAPPA (Planning &amp; Building &gt; Planning Reference &gt; Designated Road Polygon). Using local GeoJSON files (road_type_a/b/r.geojson). Check SAPPA for confirmation of coverage.</p>
                 <p style="margin:4px 0;"><strong>Road names:</strong> Road names are sourced from the SA Department for Infrastructure and Transport Speed Zones MapServer (layer 12). The nearest road segment within 200 m of the closest road corridor point is identified and its RDNAME attribute is used.</p>
-                <p style="margin:4px 0;"><strong>Road speeds:</strong> Posted speed limits are queried from the SA DIT Speed Zones MapServer at the point on the road corridor nearest to the site. If speed data is unavailable, a default of 60 km/h is assumed.</p>
+                <p style="margin:4px 0;"><strong>Road speeds:</strong> Posted speed limits are queried from the SA DIT Speed Zones MapServer at the point on the road corridor nearest to the site. If the road name and speed cannot be automatically identified (marked with *), an assumed speed of 50&ndash;60 km/h is used for SEC calculation and should be confirmed by the user against actual posted speed limits.</p>
                 <p style="margin:4px 0;"><strong>SEC calculation:</strong> Sound Exposure Categories are determined per MBS 010 Tables 4.1 (Type A &amp; B roads), 4.2 (Type R roads), and 4.3 (rail). Distance thresholds vary by road type and speed band (50&ndash;60, 70&ndash;90, 100&ndash;110 km/h). For ANR contours, SEC is per Table 4.4 based on the ANR dB(A) value. Mixed land use areas are assigned SEC 1 per Clause 4.3.3 where the zone includes non-residential land uses.</p>
                 <p style="margin:4px 0;"><strong>Rail data:</strong> Train and tram line data is sourced from SA government shapefiles (centreline geometry).</p>
                 <p style="margin:4px 0;"><strong>ANR contours:</strong> Aircraft Noise Reduction contours are sourced from local GeoJSON data (Adelaide, Parafield, RAAF Edinburgh airports).</p>
@@ -5291,7 +5294,11 @@ initCollapse();
         // Query at the nearest corridor boundary point with a 50m buffer
         // Then filter results using corridor polygon containment and cross-corridor exclusion
         var qLat, qLng;
-        if (nearestCoord) {
+        if (corridorPt) {
+          // Prefer corridorPt (20m inside corridor) — more likely to be on the actual road
+          qLat = corridorPt[1];
+          qLng = corridorPt[0];
+        } else if (nearestCoord) {
           qLat = nearestCoord[1];
           qLng = nearestCoord[0];
         } else {
@@ -5301,7 +5308,7 @@ initCollapse();
         var speedGeom = qLng + ',' + qLat;
         var params = 'geometry=' + encodeURIComponent(speedGeom) +
           '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
-          '&distance=50&units=esriSRUnit_Meter&outFields=SPEED_LIMIT,RDNAME&returnGeometry=true&outSR=4326&f=json';
+          '&distance=100&units=esriSRUnit_Meter&outFields=SPEED_LIMIT,RDNAME&returnGeometry=true&outSR=4326&f=json';
         return fetch(SPEED_LIMIT_URL + '?' + params)
           .then(function(r) { return r.json(); })
           .then(function(d) {
@@ -5638,7 +5645,11 @@ initCollapse();
             if (roadsPh) roadsPh.style.display = allRoads.length ? 'none' : '';
             if (!allRoads.length && roadsPh) { roadsPh.cells[1].textContent = 'N/A'; roadsPh.cells[2].textContent = '—'; roadsPh.cells[3].textContent = '—'; }
 
-            allRoads.forEach(function(road) {
+            // Reset footnote
+            var roadFootnote = document.getElementById('mbs_road_footnote');
+            if (roadFootnote) roadFootnote.style.display = 'none';
+
+            var roadSpeedPromises = allRoads.map(function(road) {
               var dRound = Math.round(road.dist);
               var tr = createMBSRow(road.cfg.typeLabel, road.cfg.typeLabel + ' \u2026', dRound + ' m', '\u2026');
               if (roadsPh) roadsPh.parentNode.insertBefore(tr, roadsPh);
@@ -5647,14 +5658,30 @@ initCollapse();
               var otherCorridors = allCorridorFeatures.filter(function(c) { return c.roadType !== road.cfg.roadType; });
 
               // Query speed limit AND road name from SA Transport
-              querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord, road.corridorPt, road.edgeBearing, road.corridorFeature, otherCorridors).then(function(result) {
+              return querySpeedLimit(latlng.lat, latlng.lng, road.nearestCoord, road.corridorPt, road.edgeBearing, road.corridorFeature, otherCorridors).then(function(result) {
                 var rdname = result.rdname ? prettyName(result.rdname, '') : '';
-                var info = road.cfg.typeLabel + (rdname ? ' \u2014 ' + rdname : '');
-                info += ' (' + result.speed + ' km/h)';
-                var sec = getSEC_Road(road.dist, road.cfg.roadType, result.speed);
-                tr.cells[1].textContent = info;
-                tr.cells[3].textContent = (sec !== null) ? sec : 'N/A';
+                if (rdname) {
+                  // Road name identified — show name, speed, and SEC as normal
+                  var info = road.cfg.typeLabel + ' \u2014 ' + rdname + ' (' + result.speed + ' km/h)';
+                  var sec = getSEC_Road(road.dist, road.cfg.roadType, result.speed);
+                  tr.cells[1].textContent = info;
+                  tr.cells[3].textContent = (sec !== null) ? sec : 'N/A';
+                  return false; // not unconfirmed
+                } else {
+                  // Road name NOT identified — note this and use conservative 50-60 km/h assumption
+                  var assumedSpeed = 60; // conservative upper end of 50-60 band
+                  var info = road.cfg.typeLabel + ' \u2014 road not identified (50\u201360 km/h assumed \u2014 to be confirmed)';
+                  var sec = getSEC_Road(road.dist, road.cfg.roadType, assumedSpeed);
+                  tr.cells[1].textContent = info;
+                  tr.cells[3].textContent = (sec !== null) ? sec + '*' : 'N/A';
+                  return true; // unconfirmed
+                }
               });
+            });
+            // Show footnote if any road name was unconfirmed
+            Promise.all(roadSpeedPromises).then(function(results) {
+              var hasUnconfirmed = results.some(function(r) { return r; });
+              if (hasUnconfirmed && roadFootnote) roadFootnote.style.display = 'block';
             });
           });
 
