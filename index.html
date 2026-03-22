@@ -5313,34 +5313,28 @@ initCollapse();
               // Score each speed zone segment by distance AND bearing alignment with the corridor edge
               var scored = d.features.map(function(f) {
                 var minD = Infinity;
-                var segBearing = null;
+                var midDist = Infinity;
                 if (f.geometry && f.geometry.paths) {
                   f.geometry.paths.forEach(function(path) {
                     for (var i = 0; i < path.length; i++) {
                       var dd = qPt.distanceTo(L.latLng(path[i][1], path[i][0]));
                       if (dd < minD) minD = dd;
                     }
-                    // Compute overall bearing of this speed zone segment
+                    // Distance from query point to the MIDPOINT of the segment
+                    // Prefers roads whose centre is near the corridor, not just an endpoint
                     if (path.length >= 2) {
-                      var p0 = path[0], pN = path[path.length - 1];
-                      segBearing = Math.atan2(pN[0] - p0[0], pN[1] - p0[1]);
+                      var midIdx = Math.floor(path.length / 2);
+                      midDist = qPt.distanceTo(L.latLng(path[midIdx][1], path[midIdx][0]));
                     }
                   });
                 } else { minD = 0; }
-                // Bearing alignment score: 0 = perfect parallel, PI/2 = perpendicular
-                var bearingDiff = Math.PI / 2; // default: worst case
-                if (edgeBearing !== null && segBearing !== null) {
-                  bearingDiff = Math.abs(edgeBearing - segBearing) % Math.PI;
-                  if (bearingDiff > Math.PI / 2) bearingDiff = Math.PI - bearingDiff;
-                }
-                return { feature: f, dist: minD, bearingDiff: bearingDiff };
+                return { feature: f, dist: minD, midDist: midDist };
               });
-              // Filter: only consider segments running roughly parallel to the corridor (within 30 degrees)
-              var parallel = scored.filter(function(s) { return s.bearingDiff < Math.PI / 6; });
-              // If no parallel segments found, fall back to all segments
-              var pool = parallel.length ? parallel : scored;
-              // Pick the closest from the filtered pool
-              pool.sort(function(a, b) { return a.dist - b.dist; });
+              // Only consider segments that have an endpoint or vertex near the query point
+              var nearby = scored.filter(function(s) { return s.dist < 100; });
+              var pool = nearby.length ? nearby : scored;
+              // Sort by midpoint distance — the road whose centre is closest to the corridor is the designated road
+              pool.sort(function(a, b) { return a.midDist - b.midDist; });
               var best = pool[0].feature;
               return { speed: best.attributes.SPEED_LIMIT || 60, rdname: best.attributes.RDNAME || '' };
             }
