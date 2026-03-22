@@ -5291,16 +5291,30 @@ initCollapse();
         var speedGeom = qLng + ',' + qLat;
         var params = 'geometry=' + encodeURIComponent(speedGeom) +
           '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
-          '&distance=200&units=esriSRUnit_Meter&outFields=SPEED_LIMIT,RDNAME&returnGeometry=false&f=json';
+          '&distance=100&units=esriSRUnit_Meter&outFields=SPEED_LIMIT,RDNAME&returnGeometry=true&outSR=4326&f=json';
         return fetch(SPEED_LIMIT_URL + '?' + params)
           .then(function(r) { return r.json(); })
           .then(function(d) {
             if (d.features && d.features.length) {
-              // Pick the closest/first result
-              var feat = d.features[0];
-              var speed = feat.attributes.SPEED_LIMIT || 60;
-              var rdname = feat.attributes.RDNAME || '';
-              return { speed: speed, rdname: rdname };
+              // Find the speed zone segment closest to the designated road point
+              var qPt = L.latLng(qLat, qLng);
+              var best = null;
+              var bestDist = Infinity;
+              d.features.forEach(function(f) {
+                var minD = Infinity;
+                if (f.geometry && f.geometry.paths) {
+                  f.geometry.paths.forEach(function(path) {
+                    for (var i = 0; i < path.length; i++) {
+                      var dd = qPt.distanceTo(L.latLng(path[i][1], path[i][0]));
+                      if (dd < minD) minD = dd;
+                    }
+                  });
+                } else { minD = 0; }
+                if (minD < bestDist) { bestDist = minD; best = f; }
+              });
+              if (best) {
+                return { speed: best.attributes.SPEED_LIMIT || 60, rdname: best.attributes.RDNAME || '' };
+              }
             }
             return { speed: 60, rdname: '' };
           })
