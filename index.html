@@ -2893,7 +2893,7 @@ function calcCriteriaVIC_Urban(srcVal, recVal, recvId) {
     eveLevel = Math.round((eveLevel + bgEve) / 2 + 3);
   }
   if (nightClass === 'high' && Number.isFinite(bgNight)) {
-    nightLevel = Math.max(nightLevel, bgNight + 3);
+    nightLevel = Math.min(Math.max(nightLevel, bgNight + 3), 55);  // capped at 55 dB(A) per Clause 6(c)(i)
   } else if (nightClass === 'low' && Number.isFinite(bgNight)) {
     nightLevel = Math.round((nightLevel + bgNight) / 2 + 3);
   }
@@ -3174,7 +3174,7 @@ function calcCriteriaVIC_Rural(srcVal, recVal) {
     eveLevel = Math.round((eveLevel + bgEve) / 2 + 3);
   }
   if (nightClass === 'high' && Number.isFinite(bgNight)) {
-    nightLevel = Math.max(nightLevel, bgNight + 3);
+    nightLevel = Math.min(Math.max(nightLevel, bgNight + 3), 55);  // capped at 55 dB(A) per Clause 6(c)(i)
   } else if (nightClass === 'low' && Number.isFinite(bgNight)) {
     nightLevel = Math.round((nightLevel + bgNight) / 2 + 3);
   }
