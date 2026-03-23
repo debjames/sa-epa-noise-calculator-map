@@ -6750,7 +6750,7 @@ initCollapse();
       if (visibleIds.length === 0) return;
 
       // Single control containing all NSA legends in a responsive grid
-      var ctrl = L.control({ position: 'bottomright' });
+      var ctrl = L.control({ position: 'bottomleft' });
       ctrl.onAdd = function() {
         var wrapper = L.DomUtil.create('div', '');
         // Use 2-column grid when 3+ legends, single column for 1-2
