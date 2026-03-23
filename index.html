@@ -422,7 +422,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <input type="number" id="vicIF" min="0" max="1" step="0.01" placeholder="auto" style="width:120px;" oninput="handleIFInput()" onchange="handleIFInput()">
               <a href="#" id="vicIFReset" style="font-size:10px;display:none;color:#2563eb;" onclick="event.preventDefault();document.getElementById('vicIF').value='';handleIFInput();">Reset to auto</a>
             </div>
-            <div class="small" style="margin-top:4px;">0 = fully Type 1 (residential), 1 = fully Type 3 (industrial). Per Figure 1 of Pub 1826.5. Leave blank to auto-derive from zone analysis within 140 m / 400 m circles.</div>
+            <div class="small" style="margin-top:4px;">0 = fully Type 1 (residential), 1 = fully Type 3 (industrial). Per Figure 1 of Pub 1826.5, IF is derived from zones within 140 m / 400 m circles around each <b>receiver</b> (NSA). Leave blank to auto-derive per receiver, or enter a value to override all receivers.</div>
             <div id="vicDetectedZones" style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;display:none;"></div>
           </div>
         </div>
@@ -1104,6 +1104,7 @@ const VIC_ZONE_TYPE_MAP = {
 /* VIC Urban Zoning Levels — Figure 1 of Pub 1826.5
    The urban method uses an Influencing Factor (IF) from 0 to 1.
    IF = 0.25 × (sum of Type 2 fractions for 140m+400m circles) + 0.5 × (sum of Type 3 fractions)
+   Circles are centred on each RECEIVER (NSA), not the source.
    Zoning level is read from Figure 1: linear relationship from IF=0 to IF=1.
    Day: 46 → 56 dB(A), Evening: 40 → 50 dB(A), Night: 36 → 46 dB(A) */
 function getVicUrbanZoningLevel(influencingFactor) {
@@ -1206,7 +1207,11 @@ function estimateAreaFractions(centerLat, centerLng, radiusM, zoneFeatures) {
   };
 }
 
-/* ── Auto-IF state ── */
+/* ── Auto-IF state (per receiver) ── */
+// Per Pub 1826.5 Figure 1, IF is derived from zones around the RECEIVER (NSA), not the source.
+var autoIFPerReceiver = {r1: null, r2: null, r3: null, r4: null};
+var autoIFDataPerReceiver = {r1: null, r2: null, r3: null, r4: null};
+// Legacy aliases for backward compat (used by detected-zones display, etc.)
 let autoIF = null;
 var autoIFData = null; // stores {zones140, zones400, fracs140, fracs400, IF}
 
@@ -2321,12 +2326,11 @@ function switchToState(state) {
   renderSourceTable('night','nightSrcRows','nightSrcTotal',5);
   renderSourceTable('lmax','nightLmaxRows','nightLmaxTotal',1);
 
-  // Clear/update concentric circles and auto-IF on state change
+  // Clear/update concentric circles and auto-IF on state change (circles around receivers)
   if (typeof updateConcentricCircles === 'function') {
-    const srcMarkerLatlng = window.getSourceLatLng ? window.getSourceLatLng() : null;
-    updateConcentricCircles(srcMarkerLatlng);
-    if (currentState === 'VIC' && vicAreaType === 'urban' && srcMarkerLatlng) {
-      triggerAutoIF(srcMarkerLatlng);
+    updateConcentricCircles();
+    if (currentState === 'VIC' && vicAreaType === 'urban') {
+      triggerAutoIFAllReceivers();
     }
   }
 
@@ -2457,10 +2461,9 @@ function setVicAreaType(type) {
   if (currentState === 'VIC') {
     rebuildZoneSelects();
     render();
-    // Trigger auto-IF when switching to urban with source already placed
+    // Trigger auto-IF when switching to urban with receivers already placed
     if (type === 'urban') {
-      var srcLL = window.getSourceLatLng ? window.getSourceLatLng() : null;
-      if (srcLL) triggerAutoIF(srcLL);
+      triggerAutoIFAllReceivers();
     }
   }
 }
@@ -2816,8 +2819,10 @@ function calcCriteriaVICForReceiver(recSelectId) {
 
   if (vicAreaType === 'urban') {
     // In urban mode with auto-IF, dropdowns are optional — criteria can be derived from IF alone
-    if (!srcVal && !recVal && autoIF === null) return {day:"", evening:"", night:"", lmax:""};
-    return calcCriteriaVIC_Urban(srcVal, recVal);
+    var recvId = recSelectId; // e.g. 'r1', 'r2', etc.
+    var hasAutoIF = autoIFPerReceiver[recvId] !== null;
+    if (!srcVal && !recVal && !hasAutoIF) return {day:"", evening:"", night:"", lmax:""};
+    return calcCriteriaVIC_Urban(srcVal, recVal, recvId);
   } else {
     // Rural mode requires both source and receiver zone selections
     if (!srcVal || !recVal) return {day:"", evening:"", night:"", lmax:""};
@@ -2825,16 +2830,16 @@ function calcCriteriaVICForReceiver(recSelectId) {
   }
 }
 
-function calcCriteriaVIC_Urban(srcVal, recVal) {
+function calcCriteriaVIC_Urban(srcVal, recVal, recvId) {
   /* Urban method uses Influencing Factor (IF) from Figure 1 of Pub 1826.5.
-     Priority: 1) manual entry, 2) auto-derived from zone analysis, 3) receiver zone type.
-     Zoning level = base + 10 × IF, where base is Day 46, Eve 40, Night 36. */
+     Per the standard, IF is derived from zones surrounding the RECEIVER (NSA).
+     Priority: 1) manual entry (global override), 2) auto-derived per receiver, 3) receiver zone type. */
   var ifInput = document.getElementById('vicIF');
   var IF;
   if (ifInput && ifInput.value !== '') {
-    IF = Number(ifInput.value);
-  } else if (autoIF !== null) {
-    IF = autoIF;
+    IF = Number(ifInput.value); // Manual override applies to all receivers
+  } else if (recvId && autoIFPerReceiver[recvId] !== null) {
+    IF = autoIFPerReceiver[recvId]; // Per-receiver auto-IF
   } else {
     // Derive from receiver zone type as screening approximation
     var recType = getVicDropdownType(recVal);
@@ -2896,23 +2901,23 @@ function calcCriteriaVIC_Urban(srcVal, recVal) {
   return {day: dayLevel, evening: eveLevel, night: nightLevel, lmax: VIC_LMAX_NIGHT};
 }
 
-/** Auto-derive IF from zone analysis within 140m and 400m circles.
+/** Auto-derive IF from zone analysis within 140m and 400m circles around a receiver.
+ *  Per Pub 1826.5 Figure 1, the IF is based on zones surrounding the RECEIVER (NSA).
  *  Queries VicPlan for all zones in each circle, estimates area fractions,
  *  and computes IF = 0.25×(T2_140+T2_400) + 0.5×(T3_140+T3_400).
- *  Updates the IF input placeholder and detected-zones display. */
-function calcAutoInfluencingFactor(srcLat, srcLng) {
+ *  @param {string} recvId - receiver ID ('r1','r2','r3','r4')
+ *  @param {number} lat - receiver latitude
+ *  @param {number} lng - receiver longitude */
+function calcAutoInfluencingFactor(recvId, lat, lng) {
   var zonesEl = document.getElementById('vicDetectedZones');
   if (zonesEl) {
     zonesEl.style.display = 'block';
-    zonesEl.innerHTML = '<div style="color:var(--muted);font-size:11px;">Analysing zones\u2026</div>';
+    zonesEl.innerHTML = '<div style="color:var(--muted);font-size:11px;">Analysing zones around receivers\u2026</div>';
   }
 
-  // Track request to detect stale results
-  var requestLat = srcLat, requestLng = srcLng;
-
   return Promise.all([
-    queryVicZonesInCircle(srcLat, srcLng, 140),
-    queryVicZonesInCircle(srcLat, srcLng, 400)
+    queryVicZonesInCircle(lat, lng, 140),
+    queryVicZonesInCircle(lat, lng, 400)
   ]).then(function(results) {
     // Discard if state changed while query was in-flight
     if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
@@ -2920,15 +2925,16 @@ function calcAutoInfluencingFactor(srcLat, srcLng) {
     var zones140 = results[0];
     var zones400 = results[1];
 
-    var fracs140 = estimateAreaFractions(srcLat, srcLng, 140, zones140);
-    var fracs400 = estimateAreaFractions(srcLat, srcLng, 400, zones400);
+    var fracs140 = estimateAreaFractions(lat, lng, 140, zones140);
+    var fracs400 = estimateAreaFractions(lat, lng, 400, zones400);
 
     var IF = 0.25 * ((fracs140[2] || 0) + (fracs400[2] || 0))
            + 0.5  * ((fracs140[3] || 0) + (fracs400[3] || 0));
     IF = Math.round(IF * 100) / 100; // round to 2 decimals
 
-    autoIF = IF;
-    autoIFData = {
+    // Store per-receiver
+    autoIFPerReceiver[recvId] = IF;
+    autoIFDataPerReceiver[recvId] = {
       zones140: zones140,
       zones400: zones400,
       fracs140: fracs140,
@@ -2936,13 +2942,14 @@ function calcAutoInfluencingFactor(srcLat, srcLng) {
       IF: IF
     };
 
-    // Update IF input placeholder
-    var ifInput = document.getElementById('vicIF');
-    if (ifInput && ifInput.value === '') {
-      ifInput.placeholder = IF.toFixed(2) + ' (auto)';
-    }
+    // Legacy: set global autoIF/autoIFData to first available receiver for display compat
+    autoIF = IF;
+    autoIFData = autoIFDataPerReceiver[recvId];
 
-    // Update detected zones display
+    // Update IF input placeholder (show range if receivers differ)
+    updateIFPlaceholder();
+
+    // Update detected zones display (shows all receivers)
     renderDetectedZones();
 
     // Render zone polygons on map
@@ -2950,74 +2957,117 @@ function calcAutoInfluencingFactor(srcLat, srcLng) {
 
     // Re-render criteria
     render();
-    return autoIFData;
   }).catch(function(err) {
-    console.warn('Auto-IF calculation failed:', err);
+    console.warn('Auto-IF calculation failed for ' + recvId + ':', err);
     if (currentState === 'VIC' && vicAreaType === 'urban' && zonesEl) {
       zonesEl.innerHTML = '<div style="color:#dc2626;font-size:11px;">Zone analysis failed</div>';
     }
   });
 }
 
-/** Render the detected zones into the UI panel */
+/** Update IF placeholder to show per-receiver values */
+function updateIFPlaceholder() {
+  var ifInput = document.getElementById('vicIF');
+  if (!ifInput || ifInput.value !== '') return;
+  var vals = [];
+  ['r1','r2','r3','r4'].forEach(function(id) {
+    if (autoIFPerReceiver[id] !== null) vals.push(autoIFPerReceiver[id]);
+  });
+  if (vals.length === 0) { ifInput.placeholder = 'auto'; return; }
+  var allSame = vals.every(function(v) { return v === vals[0]; });
+  if (allSame || vals.length === 1) {
+    ifInput.placeholder = vals[0].toFixed(2) + ' (auto)';
+  } else {
+    var minV = Math.min.apply(null, vals);
+    var maxV = Math.max.apply(null, vals);
+    ifInput.placeholder = minV.toFixed(2) + '\u2013' + maxV.toFixed(2) + ' (auto, per receiver)';
+  }
+}
+
+/** Render the detected zones into the UI panel — shows per-receiver IF data */
 function renderDetectedZones() {
   var el = document.getElementById('vicDetectedZones');
-  if (!el || !autoIFData) { if (el) el.style.display = 'none'; return; }
+  var hasAny = ['r1','r2','r3','r4'].some(function(id) { return autoIFDataPerReceiver[id] !== null; });
+  if (!el || !hasAny) { if (el) el.style.display = 'none'; return; }
   el.style.display = 'block';
 
   var TYPE_COLORS = {1: '#059669', 2: '#d97706', 3: '#dc2626'};
   var TYPE_LABELS = {1: 'Type 1', 2: 'Type 2', 3: 'Type 3'};
+  var RECV_LABELS = {r1: 'Receiver 1', r2: 'Receiver 2', r3: 'Receiver 3', r4: 'Receiver 4'};
 
   function zoneList(zones, fracs, label) {
-    // Deduplicate zone codes
     var seen = {};
     var unique = [];
     zones.forEach(function(z) {
       if (!seen[z.zoneCode]) { seen[z.zoneCode] = true; unique.push(z); }
     });
-
-    var html = '<div style="margin-bottom:6px;"><span style="font-weight:600;font-size:11px;">' + label + '</span>';
+    var html = '<div style="margin-bottom:4px;"><span style="font-weight:600;font-size:10px;">' + label + '</span>';
     if (unique.length === 0) {
-      html += ' <span style="color:var(--muted);font-size:11px;">No zones detected</span>';
+      html += ' <span style="color:var(--muted);font-size:10px;">No zones detected</span>';
     } else {
-      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
       unique.forEach(function(z) {
         var col = TYPE_COLORS[z.type] || '#6b7280';
-        html += '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;font-weight:500;">' +
+        html += '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;font-weight:500;">' +
                 z.zoneCode + ' = ' + (TYPE_LABELS[z.type] || '?') + '</span>';
       });
       html += '</div>';
     }
-    // Area percentages
-    html += '<div style="font-size:10px;color:var(--muted);margin-top:2px;">';
+    html += '<div style="font-size:9px;color:var(--muted);margin-top:1px;">';
     html += 'T1: ' + Math.round(fracs[1] * 100) + '% · T2: ' + Math.round(fracs[2] * 100) + '% · T3: ' + Math.round(fracs[3] * 100) + '%';
     html += '</div></div>';
     return html;
   }
 
-  var h = '<div style="display:flex;gap:12px;margin-bottom:6px;font-size:10px;font-weight:600;">';
+  var h = '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Per Pub 1826.5 Figure 1, IF is derived from zones surrounding each <b>receiver</b> (NSA).</div>';
+  h += '<div style="display:flex;gap:12px;margin-bottom:6px;font-size:10px;font-weight:600;">';
   h += '<span style="color:#059669;">\u25A0 Type 1 — Residential</span>';
   h += '<span style="color:#d97706;">\u25A0 Type 2 — Commercial</span>';
   h += '<span style="color:#dc2626;">\u25A0 Type 3 — Industrial</span>';
   h += '</div>';
-  h += zoneList(autoIFData.zones140, autoIFData.fracs140, '140 m circle');
-  h += zoneList(autoIFData.zones400, autoIFData.fracs400, '400 m circle');
-  h += '<div style="font-size:11px;font-weight:600;margin-top:4px;color:var(--heading);">Computed IF = ' + autoIFData.IF.toFixed(2) + '</div>';
+
+  ['r1','r2','r3','r4'].forEach(function(id) {
+    var data = autoIFDataPerReceiver[id];
+    if (!data) return;
+    // Get custom receiver name if set
+    var nameEl = document.getElementById('name_' + id);
+    var recvName = (nameEl && nameEl.value) ? nameEl.value : RECV_LABELS[id];
+    h += '<div style="margin-bottom:8px;padding:6px 8px;background:#f0f0f0;border-radius:4px;">';
+    h += '<div style="font-weight:600;font-size:11px;margin-bottom:4px;color:var(--heading);">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</div>';
+    h += zoneList(data.zones140, data.fracs140, '140 m circle');
+    h += zoneList(data.zones400, data.fracs400, '400 m circle');
+    h += '</div>';
+  });
 
   el.innerHTML = h;
 }
 
-/** Trigger auto-IF only when in VIC urban mode with source marker placed */
-function triggerAutoIF(latlng) {
+/** Trigger auto-IF for a specific receiver (VIC urban mode)
+ *  @param {string} recvId - receiver ID ('r1','r2','r3','r4')
+ *  @param {L.LatLng} latlng - receiver position */
+function triggerAutoIF(recvId, latlng) {
   if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
   if (!latlng) return;
-  calcAutoInfluencingFactor(latlng.lat, latlng.lng);
+  calcAutoInfluencingFactor(recvId, latlng.lat, latlng.lng);
+}
+
+/** Trigger auto-IF for ALL placed receivers */
+function triggerAutoIFAllReceivers() {
+  if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
+  var getRecvLL = window.getReceiverLatLng;
+  if (!getRecvLL) return;
+  ['r1','r2','r3','r4'].forEach(function(id) {
+    var ll = getRecvLL(id);
+    if (ll) triggerAutoIF(id, ll);
+  });
 }
 
 /** Reset auto-IF state and clear detected zones display */
 function clearAutoIF() {
   autoIF = null;
   autoIFData = null;
+  autoIFPerReceiver = {r1: null, r2: null, r3: null, r4: null};
+  autoIFDataPerReceiver = {r1: null, r2: null, r3: null, r4: null};
   if (typeof clearVicZonePolygons === 'function') clearVicZonePolygons();
   var el = document.getElementById('vicDetectedZones');
   if (el) { el.innerHTML = ''; el.style.display = 'none'; }
@@ -3035,9 +3085,7 @@ function handleIFInput() {
     } else {
       resetLink.style.display = 'none';
       // Restore auto placeholder if available
-      if (autoIF !== null) {
-        ifInput.placeholder = autoIF.toFixed(2) + ' (auto)';
-      }
+      updateIFPlaceholder();
     }
   }
   render();
@@ -4446,8 +4494,9 @@ initCollapse();
     var lines   = {};   /* key -> L.polyline */
     var currentMode = 'source';
 
-    /* Expose source position for functions outside the IIFE */
+    /* Expose source and receiver positions for functions outside the IIFE */
     window.getSourceLatLng = function() { return latlngs['source'] || null; };
+    window.getReceiverLatLng = function(id) { return latlngs[id] || null; };
 
     /* ==== SAPPA Zoning Integration ==== */
     var SAPPA_BASE = 'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/CurrentPDC_wmas/MapServer';
@@ -6309,29 +6358,37 @@ initCollapse();
     }
 
     /* ---- place or move a marker ---- */
-    /* VIC urban concentric circles (140m / 400m) */
+    /* VIC urban concentric circles (140m / 400m) — drawn around each RECEIVER */
     var concentricCircles = [];
-    function updateConcentricCircles(latlng) {
+    var RECV_CIRCLE_COLORS = {r1: '#2563eb', r2: '#059669', r3: '#d97706', r4: '#7c3aed'};
+    function updateConcentricCircles() {
       // Clear existing circles
       concentricCircles.forEach(function(c) { map.removeLayer(c); });
       concentricCircles = [];
       // Only show in VIC urban mode
       if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
-      if (!latlng) return;
 
-      var c140 = L.circle(latlng, {
-        radius: 140, color: '#d97706', weight: 2, dashArray: '6,4',
-        fillOpacity: 0.03, interactive: false
-      }).addTo(map);
-      c140.bindTooltip('140 m', {permanent: true, direction: 'right', className: 'circle-label'});
+      ['r1','r2','r3','r4'].forEach(function(id) {
+        var ll = latlngs[id];
+        if (!ll) return;
+        var col = RECV_CIRCLE_COLORS[id] || '#6b7280';
+        var nameEl = document.getElementById('name_' + id);
+        var label = (nameEl && nameEl.value) ? nameEl.value : id.toUpperCase();
 
-      var c400 = L.circle(latlng, {
-        radius: 400, color: '#dc2626', weight: 2, dashArray: '6,4',
-        fillOpacity: 0.02, interactive: false
-      }).addTo(map);
-      c400.bindTooltip('400 m', {permanent: true, direction: 'right', className: 'circle-label'});
+        var c140 = L.circle(ll, {
+          radius: 140, color: col, weight: 1.5, dashArray: '6,4',
+          fillOpacity: 0.02, interactive: false
+        }).addTo(map);
+        c140.bindTooltip(label + ' 140 m', {permanent: false, direction: 'right', className: 'circle-label'});
 
-      concentricCircles = [c140, c400];
+        var c400 = L.circle(ll, {
+          radius: 400, color: col, weight: 1.5, dashArray: '6,4',
+          fillOpacity: 0.01, interactive: false
+        }).addTo(map);
+        c400.bindTooltip(label + ' 400 m', {permanent: false, direction: 'right', className: 'circle-label'});
+
+        concentricCircles.push(c140, c400);
+      });
     }
 
     /* VIC zone polygons rendered on map (Type 1/2/3 colours) */
@@ -6344,11 +6401,17 @@ initCollapse();
 
     window.renderVicZonePolygonsOnMap = function() {
       clearVicZonePolygons();
-      if (!window.autoIFData) return;
+      // Combine zones from all receivers
       var TYPE_COLORS = {1: '#059669', 2: '#d97706', 3: '#dc2626'};
       var TYPE_LABELS = {1: 'Type 1 (Residential)', 2: 'Type 2 (Commercial)', 3: 'Type 3 (Industrial)'};
-      // Combine zones from both circles, deduplicate by zoneCode + first ring coord
-      var allZones = (window.autoIFData.zones140 || []).concat(window.autoIFData.zones400 || []);
+      var allZones = [];
+      ['r1','r2','r3','r4'].forEach(function(id) {
+        var data = window.autoIFDataPerReceiver ? window.autoIFDataPerReceiver[id] : null;
+        if (data) {
+          allZones = allZones.concat(data.zones140 || []).concat(data.zones400 || []);
+        }
+      });
+      if (allZones.length === 0) return;
       var seen = {};
       allZones.forEach(function(z) {
         if (!z.rings || z.rings.length === 0) return;
@@ -6527,10 +6590,13 @@ initCollapse();
         latlngs[mode] = e.target.getLatLng();
         updateAll();
         if (mode === 'source') {
-          updateConcentricCircles(e.target.getLatLng());
-          triggerAutoIF(e.target.getLatLng());
           detectStateFromCoords(e.target.getLatLng());
           querySourceParcel(e.target.getLatLng());
+        }
+        if (mode !== 'source') {
+          // Receiver moved — update concentric circles and auto-IF for this receiver
+          updateConcentricCircles();
+          triggerAutoIF(mode, e.target.getLatLng());
         }
         queryAndSetZone(mode, e.target.getLatLng());
       });
@@ -6543,10 +6609,10 @@ initCollapse();
 
       updateAll();
 
-      /* VIC urban: concentric circles + auto-IF around source marker */
-      if (mode === 'source') {
-        updateConcentricCircles(latlng);
-        triggerAutoIF(latlng);
+      /* VIC urban: concentric circles + auto-IF around RECEIVER markers */
+      if (mode !== 'source') {
+        updateConcentricCircles();
+        triggerAutoIF(mode, latlng);
       }
 
       /* Auto-detect state from coordinates when source is placed */
@@ -6613,12 +6679,17 @@ initCollapse();
       if (statusEl) {
         if (mode === 'source') {
           setStatusText(statusEl, '\u25CF Source: not placed');
-          updateConcentricCircles(null);
           removeParcelOutlines();
         } else {
           setStatusText(statusEl, '\u25CF ' + cfg.label + ': not placed');
+          // Clear per-receiver IF data when receiver removed
+          if (typeof autoIFPerReceiver !== 'undefined') {
+            autoIFPerReceiver[mode] = null;
+            autoIFDataPerReceiver[mode] = null;
+          }
         }
       }
+      updateConcentricCircles();
 
       updateAll();
       render();
@@ -6834,6 +6905,8 @@ initCollapse();
         });
         markers = {}; latlngs = {}; lines = {};
         removeParcelOutlines();
+        updateConcentricCircles();
+        if (typeof clearAutoIF === 'function') clearAutoIF();
 
         /* reset distance inputs + zone labels */
         ['r1','r2','r3','r4'].forEach(function (id) {
