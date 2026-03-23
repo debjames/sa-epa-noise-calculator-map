@@ -1046,6 +1046,29 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   </div>
   </div>
   </div>
+
+  <!-- ═══ Octave band spectrum chart ═══ -->
+  <div class="grid2" style="margin-top:4px;">
+    <div class="card span2">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h2>Octave band spectrum</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="spectrumPeriodSel" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;" onchange="updateSpectrumChart()">
+            <option value="day" selected>Day</option>
+            <option value="eve">Evening</option>
+            <option value="night">Night</option>
+          </select>
+          <button class="collapse-btn" onclick="var cb=this.closest('.card').querySelector('.card-body');if(cb){cb.classList.toggle('collapsed');this.innerHTML=cb.classList.contains('collapsed')?'&#x25BC;':'&#x25B2;';}">&#x25B2;</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="p" style="margin-bottom:8px;">A-weighted sound power level per octave band (63 Hz – 8 kHz) for each selected source, with combined prediction at each receiver.</div>
+        <div style="position:relative;height:340px;"><canvas id="spectrumChart"></canvas></div>
+        <div id="spectrumChartEmpty" style="display:none;text-align:center;color:var(--muted);font-size:13px;padding:40px 0;">Select sources in the table above to view the octave band spectrum.</div>
+      </div>
+    </div>
+  </div>
+
   <div class="sheet1" style="margin-top:20px;">
     <div class="h2">Sound pressure level calculator</div>
     <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources.
@@ -3843,6 +3866,9 @@ function render() {
 
   // Update source contribution tables whenever results re-render
   if (typeof renderContributions === 'function') renderContributions();
+
+  // Update octave band spectrum chart
+  if (typeof updateSpectrumChart === 'function') updateSpectrumChart();
 }
 
 
@@ -4081,6 +4107,214 @@ function updateNSWIntrusiveness() {
   if (elD) elD.textContent = 'Intrusiveness: ' + Math.round(intD);
   if (elE) elE.textContent = 'Intrusiveness: ' + Math.round(intE);
   if (elN) elN.textContent = 'Intrusiveness: ' + Math.round(intN);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Octave Band Spectrum Chart
+   ══════════════════════════════════════════════════════════════ */
+var _spectrumChart = null;
+var SPECTRUM_LABELS = ['63', '125', '250', '500', '1k', '2k', '4k', '8k'];
+var SPECTRUM_SOURCE_COLORS = [
+  'rgba(37,99,235,0.7)',   // blue
+  'rgba(220,38,38,0.7)',   // red
+  'rgba(5,150,105,0.7)',   // green
+  'rgba(217,119,6,0.7)',   // amber
+  'rgba(124,58,237,0.7)'   // purple
+];
+var SPECTRUM_RECV_COLORS = [
+  'rgba(37,99,235,1)',     // R1 blue
+  'rgba(5,150,105,1)',     // R2 green
+  'rgba(217,119,6,1)',     // R3 amber
+  'rgba(124,58,237,1)'     // R4 purple
+];
+
+/** Gather per-source adjusted spectra and combined prediction at each receiver for one period */
+function getSpectrumData(prefix) {
+  var tbodyEl = document.getElementById(prefix + 'SrcRows');
+  if (!tbodyEl) return {sources: [], receivers: []};
+
+  var libFlat = SOURCE_LIBRARY;
+  var isSA = (currentState === 'SA' || currentState === null);
+  var divisor = isSA ? 15 : 100;
+  var defaultOp = isSA ? 15 : 100;
+  var sources = [];
+
+  var trs = tbodyEl.querySelectorAll('tr');
+  trs.forEach(function(tr, idx) {
+    var i = idx + 1;
+    var sel = tr.querySelector('select');
+    var srcName = sel ? sel.value : '';
+    if (!srcName) return;
+
+    var picked = libFlat.find(function(s) { return s.name === srcName; });
+    if (!picked || !picked.spectrum) return;
+
+    var nEl = document.getElementById(prefix + '_n_inp_' + i);
+    var minEl = document.getElementById(prefix + '_min_inp_' + i);
+    var barEl = tr.querySelectorAll('select')[1];
+    var n = nEl ? Number(nEl.value) : 1;
+    if (!Number.isFinite(n) || n <= 0) return;
+    var opVal = minEl ? Number(minEl.value) : defaultOp;
+    if (!Number.isFinite(opVal)) opVal = defaultOp;
+    if (opVal <= 0) return;
+    var barrier = barEl && barEl.value === 'Yes';
+
+    var adjDB = 10 * log10(n) + 10 * log10(opVal / divisor);
+    if (barrier) adjDB -= 5;
+
+    // Build adjusted spectrum
+    var spec = [];
+    for (var b = 0; b < 8; b++) {
+      var v = picked.spectrum[b];
+      spec.push(v !== null && v !== undefined && Number.isFinite(v) ? v + adjDB : null);
+    }
+
+    // Short label: take first meaningful part of name
+    var shortName = srcName.split('—')[0].split('(')[0].trim();
+    if (shortName.length > 35) shortName = shortName.substring(0, 32) + '…';
+
+    sources.push({name: shortName, spectrum: spec, height: picked.height || 1.5});
+  });
+
+  // Combined spectrum per receiver (energy sum of all sources, then propagation)
+  var receivers = [];
+  for (var ri = 1; ri <= 4; ri++) {
+    var dist = getReceiverDistance(ri);
+    if (!Number.isFinite(dist) || dist <= 0) continue;
+
+    var recvSpec = [];
+    for (var b = 0; b < 8; b++) {
+      var linSum = 0;
+      var anyBand = false;
+      sources.forEach(function(src) {
+        if (src.spectrum[b] !== null) {
+          // Apply propagation per band
+          var Lw_f = src.spectrum[b];
+          if (propagationMethod === 'iso9613') {
+            var d = Math.max(dist, 1);
+            var hS = Math.max(src.height, 0.01);
+            var hR = iso_receiverHeight;
+            var alpha = calcAlphaAtm(iso_temperature, iso_humidity);
+            var Adiv = 20 * log10(d) + 11;
+            var Agr = calcAgrPerBand(hS, hR, d, iso_groundFactor);
+            var Aatm_f = alpha[b] * d / 1000;
+            var Lp_f = Lw_f - (Adiv + Aatm_f + Agr[b]);
+            linSum += Math.pow(10, Lp_f / 10);
+          } else {
+            var Lp_f_simple = Lw_f - 20 * log10(Math.max(dist, 1)) - 8;
+            linSum += Math.pow(10, Lp_f_simple / 10);
+          }
+          anyBand = true;
+        }
+      });
+      recvSpec.push(anyBand && linSum > 0 ? 10 * log10(linSum) : null);
+    }
+
+    var nameEl = document.getElementById('recvName' + ri);
+    var rname = (nameEl && nameEl.value.trim()) ? nameEl.value.trim() : ('Receiver ' + ri);
+    receivers.push({name: rname, spectrum: recvSpec, index: ri});
+  }
+
+  return {sources: sources, receivers: receivers};
+}
+
+function updateSpectrumChart() {
+  var canvas = document.getElementById('spectrumChart');
+  var emptyMsg = document.getElementById('spectrumChartEmpty');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  var periodSel = document.getElementById('spectrumPeriodSel');
+  var prefix = periodSel ? periodSel.value : 'day';
+
+  var data = getSpectrumData(prefix);
+
+  if (data.sources.length === 0) {
+    canvas.style.display = 'none';
+    if (emptyMsg) emptyMsg.style.display = '';
+    if (_spectrumChart) { _spectrumChart.destroy(); _spectrumChart = null; }
+    return;
+  }
+  canvas.style.display = '';
+  if (emptyMsg) emptyMsg.style.display = 'none';
+
+  var datasets = [];
+
+  // Source spectra as bar groups
+  data.sources.forEach(function(src, si) {
+    datasets.push({
+      label: src.name + ' (Lw)',
+      data: src.spectrum.map(function(v) { return v !== null ? Math.round(v * 10) / 10 : null; }),
+      backgroundColor: SPECTRUM_SOURCE_COLORS[si % SPECTRUM_SOURCE_COLORS.length],
+      borderColor: SPECTRUM_SOURCE_COLORS[si % SPECTRUM_SOURCE_COLORS.length].replace('0.7', '1'),
+      borderWidth: 1,
+      type: 'bar',
+      order: 2
+    });
+  });
+
+  // Receiver predictions as line overlays
+  data.receivers.forEach(function(recv, ri) {
+    datasets.push({
+      label: recv.name + ' (Lp)',
+      data: recv.spectrum.map(function(v) { return v !== null ? Math.round(v * 10) / 10 : null; }),
+      borderColor: SPECTRUM_RECV_COLORS[recv.index - 1] || SPECTRUM_RECV_COLORS[0],
+      backgroundColor: 'transparent',
+      borderWidth: 2.5,
+      borderDash: [6, 3],
+      pointRadius: 4,
+      pointStyle: 'circle',
+      pointBackgroundColor: SPECTRUM_RECV_COLORS[recv.index - 1] || SPECTRUM_RECV_COLORS[0],
+      type: 'line',
+      order: 1,
+      spanGaps: true
+    });
+  });
+
+  if (_spectrumChart) {
+    _spectrumChart.data.labels = SPECTRUM_LABELS;
+    _spectrumChart.data.datasets = datasets;
+    _spectrumChart.update();
+    return;
+  }
+
+  _spectrumChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: SPECTRUM_LABELS,
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 14, font: { size: 11 }, padding: 10, usePointStyle: false }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              var v = ctx.parsed.y;
+              if (v === null || v === undefined) return '';
+              return ctx.dataset.label + ': ' + v.toFixed(1) + ' dB(A)';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Octave band centre frequency (Hz)', font: { size: 12 } },
+          grid: { display: false }
+        },
+        y: {
+          title: { display: true, text: 'Sound level, dB(A)', font: { size: 12 } },
+          beginAtZero: false,
+          grid: { color: 'rgba(0,0,0,0.06)' }
+        }
+      }
+    }
+  });
 }
 
 /** Populate the NSW derivation of noise emission criteria table */
@@ -4903,6 +5137,7 @@ initCollapse();
 })();
 </script>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous"></script>
 
