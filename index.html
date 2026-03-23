@@ -2924,12 +2924,12 @@ function calcCriteriaVIC_Urban(srcVal, recVal, recvId) {
 
   // Background classification — per-period, Clause 4 of Pub 1826.5
   // Each period classified independently (day uses 6/12/13 dB thresholds, eve/night uses 3/9/10)
-  var bgDay = getVicBgLevel('day');
-  var bgEve = getVicBgLevel('evening');
-  var bgNight = getVicBgLevel('night');
-  var dayClass = getEffectiveBgClass('day', dayLevel);
-  var eveClass = getEffectiveBgClass('evening', eveLevel);
-  var nightClass = getEffectiveBgClass('night', nightLevel);
+  var bgDay = getVicBgLevel('day', recvId);
+  var bgEve = getVicBgLevel('evening', recvId);
+  var bgNight = getVicBgLevel('night', recvId);
+  var dayClass = getEffectiveBgClass('day', dayLevel, recvId);
+  var eveClass = getEffectiveBgClass('evening', eveLevel, recvId);
+  var nightClass = getEffectiveBgClass('night', nightLevel, recvId);
 
   // Apply per-period background adjustments
   if (dayClass === 'high' && Number.isFinite(bgDay)) {
@@ -3117,6 +3117,30 @@ function renderDetectedZones() {
     h += '</div>';
     h += _buildZoneListHTML(data.zones140, data.fracs140, '140 m circle');
     h += _buildZoneListHTML(data.zones400, data.fracs400, '400 m circle');
+    // Per-NSA background levels & classification
+    var nsaBg = _vicPerNsaBg[id] || {day:NaN, evening:NaN, night:NaN, class:'auto'};
+    h += '<div style="margin-top:6px;padding-top:5px;border-top:1px solid #ddd;">';
+    h += '<div style="font-size:9px;font-weight:600;color:var(--heading);margin-bottom:3px;">Background L<sub>A90</sub></div>';
+    h += '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">';
+    ['day','evening','night'].forEach(function(p) {
+      var pLabel = p.charAt(0).toUpperCase() + p.slice(1,3);
+      var val = Number.isFinite(nsaBg[p]) ? nsaBg[p] : '';
+      h += '<label style="font-size:8px;display:flex;align-items:center;gap:2px;">' + pLabel +
+           '<input type="number" id="vicNsaBg_' + id + '_' + p + '" min="0" max="100" step="1" ' +
+           'value="' + val + '" placeholder="—" ' +
+           'style="width:38px;font-size:9px;padding:1px 2px;" ' +
+           'oninput="updatePerNsaBg(\'' + id + '\',\'' + p + '\')" ' +
+           'onchange="updatePerNsaBg(\'' + id + '\',\'' + p + '\')"></label>';
+    });
+    var nsaClassVal = nsaBg.class || 'auto';
+    h += '<select id="vicNsaBgClass_' + id + '" style="font-size:8px;padding:1px;width:60px;" ' +
+         'onchange="updatePerNsaBgClass(\'' + id + '\')">';
+    h += '<option value="auto"' + (nsaClassVal === 'auto' ? ' selected' : '') + '>Auto</option>';
+    h += '<option value="neutral"' + (nsaClassVal === 'neutral' ? ' selected' : '') + '>Neutral</option>';
+    h += '<option value="low"' + (nsaClassVal === 'low' ? ' selected' : '') + '>Low</option>';
+    h += '<option value="high"' + (nsaClassVal === 'high' ? ' selected' : '') + '>High</option>';
+    h += '</select>';
+    h += '</div></div>';
     h += '</div>';
   });
   h += '</div>';
@@ -3251,12 +3275,12 @@ function calcCriteriaVIC_Rural(srcVal, recVal, recvId) {
   nightLevel -= distAdj;
 
   // Background classification — per-period, Clause 4 of Pub 1826.5
-  var bgDay = getVicBgLevel('day');
-  var bgEve = getVicBgLevel('evening');
-  var bgNight = getVicBgLevel('night');
-  var dayClass = getEffectiveBgClass('day', dayLevel);
-  var eveClass = getEffectiveBgClass('evening', eveLevel);
-  var nightClass = getEffectiveBgClass('night', nightLevel);
+  var bgDay = getVicBgLevel('day', recvId);
+  var bgEve = getVicBgLevel('evening', recvId);
+  var bgNight = getVicBgLevel('night', recvId);
+  var dayClass = getEffectiveBgClass('day', dayLevel, recvId);
+  var eveClass = getEffectiveBgClass('evening', eveLevel, recvId);
+  var nightClass = getEffectiveBgClass('night', nightLevel, recvId);
 
   if (dayClass === 'high' && Number.isFinite(bgDay)) {
     dayLevel = Math.max(dayLevel, bgDay + 6);
@@ -3286,12 +3310,29 @@ function calcCriteriaVIC_Rural(srcVal, recVal, recvId) {
 }
 
 /* Helper functions for VIC background inputs */
+
+// Per-NSA background data: { r1: {day:NaN, evening:NaN, night:NaN, class:'auto'}, ... }
+var _vicPerNsaBg = {
+  r1: {day: NaN, evening: NaN, night: NaN, class: 'auto'},
+  r2: {day: NaN, evening: NaN, night: NaN, class: 'auto'},
+  r3: {day: NaN, evening: NaN, night: NaN, class: 'auto'},
+  r4: {day: NaN, evening: NaN, night: NaN, class: 'auto'}
+};
+
 function getVicBackgroundClass() {
   var sel = document.getElementById('vicBgClass');
   return sel ? sel.value : 'auto';
 }
 
-function getVicBgLevel(period) {
+/** Get background level for a period, optionally per-NSA.
+ *  Per-NSA value takes priority if set, otherwise falls back to global. */
+function getVicBgLevel(period, recvId) {
+  // Check per-NSA value first
+  if (recvId && _vicPerNsaBg[recvId]) {
+    var nsaVal = _vicPerNsaBg[recvId][period];
+    if (Number.isFinite(nsaVal)) return nsaVal;
+  }
+  // Fall back to global
   var id = 'vicBg_' + period;
   var el = document.getElementById(id);
   if (!el || !el.value) return NaN;
@@ -3307,28 +3348,51 @@ function autoClassifyBackground(bgLevel, zoningLevel, period) {
   if (!Number.isFinite(bgLevel) || !Number.isFinite(zoningLevel)) return 'neutral';
   var diff = zoningLevel - bgLevel; // how far BG is below zoning level
   if (period === 'day') {
-    // Day: neutral = 6–12 dB below, high = BG+6 exceeds zoning (diff < 6), low = 13+ below
-    if (diff < 6) return 'high';    // BG + 6 > zoning level
-    if (diff >= 13) return 'low';   // BG is 13+ dB below
-    return 'neutral';               // BG is 6–12 dB below
+    if (diff < 6) return 'high';
+    if (diff >= 13) return 'low';
+    return 'neutral';
   } else {
-    // Evening/Night: neutral = 3–9 dB below, high = BG+3 exceeds zoning (diff < 3), low = 10+ below
-    if (diff < 3) return 'high';    // BG + 3 > zoning level
-    if (diff >= 10) return 'low';   // BG is 10+ dB below
-    return 'neutral';               // BG is 3–9 dB below
+    if (diff < 3) return 'high';
+    if (diff >= 10) return 'low';
+    return 'neutral';
   }
 }
 
 /** Get the effective background classification for a specific period.
- *  Uses manual override if set, otherwise auto-classifies from BG levels.
+ *  Per-NSA override > global override > auto from per-NSA BG > auto from global BG.
  *  @param {string} period - 'day', 'evening', or 'night'
  *  @param {number} zoningLevel - applicable zoning level for this period
+ *  @param {string} [recvId] - optional receiver ID for per-NSA lookup
  *  @returns {string} 'neutral', 'low', or 'high' */
-function getEffectiveBgClass(period, zoningLevel) {
+function getEffectiveBgClass(period, zoningLevel, recvId) {
+  // Check per-NSA classification override first
+  if (recvId && _vicPerNsaBg[recvId] && _vicPerNsaBg[recvId].class !== 'auto') {
+    return _vicPerNsaBg[recvId].class;
+  }
+  // Then global override
   var manualClass = getVicBackgroundClass();
   if (manualClass !== 'auto') return manualClass;
-  var bgLevel = getVicBgLevel(period);
+  // Then auto-classify from background levels (per-NSA first, then global)
+  var bgLevel = getVicBgLevel(period, recvId);
   return autoClassifyBackground(bgLevel, zoningLevel, period);
+}
+
+/** Update per-NSA background value from input */
+function updatePerNsaBg(recvId, period) {
+  var el = document.getElementById('vicNsaBg_' + recvId + '_' + period);
+  if (el) {
+    _vicPerNsaBg[recvId][period] = el.value ? Number(el.value) : NaN;
+  }
+  render();
+}
+
+/** Update per-NSA classification override */
+function updatePerNsaBgClass(recvId) {
+  var el = document.getElementById('vicNsaBgClass_' + recvId);
+  if (el) {
+    _vicPerNsaBg[recvId].class = el.value;
+  }
+  render();
 }
 
 /** Update the auto-classification display labels and render */
