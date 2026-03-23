@@ -2986,8 +2986,8 @@ function calcAutoInfluencingFactor(recvId, lat, lng) {
   }
 
   return Promise.all([
-    queryVicZonesInCircle(lat, lng, 140),
-    queryVicZonesInCircle(lat, lng, 400)
+    queryVicZonesInCircle(lat, lng, 70),
+    queryVicZonesInCircle(lat, lng, 200)
   ]).then(function(results) {
     // Discard if state changed while query was in-flight
     if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
@@ -2995,8 +2995,8 @@ function calcAutoInfluencingFactor(recvId, lat, lng) {
     var zones140 = results[0];
     var zones400 = results[1];
 
-    var fracs140 = estimateAreaFractions(lat, lng, 140, zones140);
-    var fracs400 = estimateAreaFractions(lat, lng, 400, zones400);
+    var fracs140 = estimateAreaFractions(lat, lng, 70, zones140);
+    var fracs400 = estimateAreaFractions(lat, lng, 200, zones400);
 
     var IF = 0.25 * ((fracs140[2] || 0) + (fracs400[2] || 0))
            + 0.5  * ((fracs140[3] || 0) + (fracs400[3] || 0));
@@ -7497,16 +7497,16 @@ initCollapse();
         var label = (nameEl && nameEl.value) ? nameEl.value : id.toUpperCase();
 
         var c140 = L.circle(ll, {
-          radius: 140, color: col, weight: 1.5, dashArray: '6,4',
+          radius: 70, color: col, weight: 1.5, dashArray: '6,4',
           fillOpacity: 0.02, interactive: false
         }).addTo(map);
-        c140.bindTooltip(label + ' 140 m', {permanent: false, direction: 'right', className: 'circle-label'});
+        c140.bindTooltip(label + ' 140 m dia.', {permanent: false, direction: 'right', className: 'circle-label'});
 
         var c400 = L.circle(ll, {
-          radius: 400, color: col, weight: 1.5, dashArray: '6,4',
+          radius: 200, color: col, weight: 1.5, dashArray: '6,4',
           fillOpacity: 0.01, interactive: false
         }).addTo(map);
-        c400.bindTooltip(label + ' 400 m', {permanent: false, direction: 'right', className: 'circle-label'});
+        c400.bindTooltip(label + ' 400 m dia.', {permanent: false, direction: 'right', className: 'circle-label'});
 
         concentricCircles.push(c140, c400);
 
@@ -7618,8 +7618,8 @@ initCollapse();
       visibleIds.forEach(function(id) {
         var ll = latlngs[id];
         if (!ll) return;
-        // Extend bounds to include the 400m circle around each receiver
-        var circle = L.circle(ll, {radius: 400});
+        // Extend bounds to include the 400m diameter (200m radius) circle around each receiver
+        var circle = L.circle(ll, {radius: 200});
         bounds.extend(circle.getBounds());
       });
       // Also include source location
