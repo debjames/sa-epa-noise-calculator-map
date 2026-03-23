@@ -422,7 +422,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <input type="number" id="vicIF" min="0" max="1" step="0.01" placeholder="auto" style="width:120px;" oninput="handleIFInput()" onchange="handleIFInput()">
               <a href="#" id="vicIFReset" style="font-size:10px;display:none;color:#2563eb;" onclick="event.preventDefault();document.getElementById('vicIF').value='';handleIFInput();">Reset to auto</a>
             </div>
-            <div class="small" style="margin-top:4px;">0 = fully Type 1 (residential), 1 = fully Type 3 (industrial). Per Figure 1 of Pub 1826.5, IF is derived from zones within 140 m / 400 m circles around each <b>receiver</b> (NSA). Leave blank to auto-derive per receiver, or enter a value to override all receivers.</div>
+            <div class="small" style="margin-top:4px;">0 = fully Type 1 (residential), 1 = fully Type 3 (industrial). Per Figure 1 of Pub 1826.5, IF is derived from zones within 140 m / 400 m circles around each <b>noise sensitive area</b> (NSA). Leave blank to auto-derive per NSA, or enter a value to override all.</div>
             <div id="vicDetectedZones" style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;display:none;"></div>
           </div>
         </div>
@@ -2872,7 +2872,7 @@ function calcCriteriaVICForReceiver(recSelectId) {
 
 function calcCriteriaVIC_Urban(srcVal, recVal, recvId) {
   /* Urban method uses Influencing Factor (IF) from Figure 1 of Pub 1826.5.
-     Per the standard, IF is derived from zones surrounding the RECEIVER (NSA).
+     Per the standard, IF is derived from zones surrounding each noise sensitive area (NSA).
      Priority: 1) manual entry (global override), 2) auto-derived per receiver, 3) receiver zone type. */
   var ifInput = document.getElementById('vicIF');
   var IF;
@@ -2956,7 +2956,7 @@ function calcAutoInfluencingFactor(recvId, lat, lng) {
   var zonesEl = document.getElementById('vicDetectedZones');
   if (zonesEl) {
     zonesEl.style.display = 'block';
-    zonesEl.innerHTML = '<div style="color:var(--muted);font-size:11px;">Analysing zones around receivers\u2026</div>';
+    zonesEl.innerHTML = '<div style="color:var(--muted);font-size:11px;">Analysing zones around noise sensitive areas\u2026</div>';
   }
 
   return Promise.all([
@@ -3024,7 +3024,7 @@ function updateIFPlaceholder() {
   } else {
     var minV = Math.min.apply(null, vals);
     var maxV = Math.max.apply(null, vals);
-    ifInput.placeholder = minV.toFixed(2) + '\u2013' + maxV.toFixed(2) + ' (auto, per receiver)';
+    ifInput.placeholder = minV.toFixed(2) + '\u2013' + maxV.toFixed(2) + ' (auto, per NSA)';
   }
 }
 
@@ -3077,10 +3077,10 @@ function renderDetectedZones() {
   if (!el || !hasAny) { if (el) el.style.display = 'none'; return; }
   el.style.display = 'block';
 
-  var RECV_LABELS = {r1: 'Receiver 1', r2: 'Receiver 2', r3: 'Receiver 3', r4: 'Receiver 4'};
+  var NSA_LABELS = {r1: 'NSA 1', r2: 'NSA 2', r3: 'NSA 3', r4: 'NSA 4'};
   var RECV_COLORS = {r1: '#2563eb', r2: '#059669', r3: '#d97706', r4: '#7c3aed'};
 
-  var h = '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Per Pub 1826.5 Figure 1, IF is derived from zones surrounding each <b>receiver</b> (NSA).</div>';
+  var h = '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Per Pub 1826.5 Figure 1, IF is derived from zones surrounding each <b>noise sensitive area</b> (NSA).</div>';
   h += '<div style="display:flex;gap:12px;margin-bottom:6px;font-size:10px;font-weight:600;">';
   h += '<span style="color:#059669;">\u25A0 Type 1 — Residential</span>';
   h += '<span style="color:#d97706;">\u25A0 Type 2 — Commercial</span>';
@@ -3091,7 +3091,7 @@ function renderDetectedZones() {
     var data = autoIFDataPerReceiver[id];
     if (!data) return;
     var nameEl = document.getElementById('name_' + id);
-    var recvName = (nameEl && nameEl.value) ? nameEl.value : RECV_LABELS[id];
+    var recvName = (nameEl && nameEl.value) ? nameEl.value : NSA_LABELS[id];
     var col = RECV_COLORS[id] || '#6b7280';
     var isVis = _vicRecvMapVisible[id];
     h += '<div style="margin-bottom:8px;padding:6px 8px;background:#f0f0f0;border-radius:4px;">';
@@ -6697,18 +6697,7 @@ initCollapse();
     }
 
     /** Update per-receiver map legends (zone analysis panels shown on the map).
-     *  Distributes legends across map corners for readability:
-     *  1 legend  → bottomright
-     *  2 legends → bottomleft + bottomright
-     *  3 legends → topleft + bottomleft + bottomright
-     *  4 legends → topleft + topright + bottomleft + bottomright */
-    var LEGEND_POSITIONS_BY_COUNT = {
-      1: ['bottomright'],
-      2: ['bottomleft', 'bottomright'],
-      3: ['topleft', 'bottomleft', 'bottomright'],
-      4: ['topleft', 'topright', 'bottomleft', 'bottomright']
-    };
-
+     *  All NSA legends stack on the right side; urban boundary legend stays bottom-left. */
     function updateRecvMapLegends() {
       // Remove existing legends
       ['r1','r2','r3','r4'].forEach(function(id) {
@@ -6719,7 +6708,7 @@ initCollapse();
       });
       if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
 
-      var RECV_LABELS = {r1: 'Receiver 1', r2: 'Receiver 2', r3: 'Receiver 3', r4: 'Receiver 4'};
+      var NSA_LABELS = {r1: 'NSA 1', r2: 'NSA 2', r3: 'NSA 3', r4: 'NSA 4'};
 
       // Collect visible receivers
       var visibleIds = [];
@@ -6731,17 +6720,14 @@ initCollapse();
       });
       if (visibleIds.length === 0) return;
 
-      // Assign positions based on count
-      var positions = LEGEND_POSITIONS_BY_COUNT[visibleIds.length] || LEGEND_POSITIONS_BY_COUNT[4];
-
-      visibleIds.forEach(function(id, idx) {
+      // All NSA legends on the right side, stacked vertically
+      visibleIds.forEach(function(id) {
         var data = window.autoIFDataPerReceiver[id];
         var nameEl = document.getElementById('name_' + id);
-        var recvName = (nameEl && nameEl.value) ? nameEl.value : RECV_LABELS[id];
+        var recvName = (nameEl && nameEl.value) ? nameEl.value : NSA_LABELS[id];
         var col = RECV_CIRCLE_COLORS[id] || '#6b7280';
-        var pos = positions[idx] || 'bottomright';
 
-        var ctrl = L.control({ position: pos });
+        var ctrl = L.control({ position: 'bottomright' });
         ctrl.onAdd = function() {
           var div = L.DomUtil.create('div', 'zone-legend');
           div.style.maxWidth = '260px';
