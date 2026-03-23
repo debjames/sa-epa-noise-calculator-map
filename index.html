@@ -829,6 +829,39 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <div class="small" style="margin-top:10px;color:var(--muted);">
             Source heights use library defaults and can be adjusted per source row when visible. L<sub>max</sub> predictions always use the simple method.
           </div>
+          <details style="margin-top:12px;cursor:pointer;">
+            <summary style="font-weight:600;font-size:13px;color:var(--dark);">Notes on ISO 9613-2 implementation</summary>
+            <div style="margin-top:8px;padding:10px 14px;background:#f8f8f8;border-radius:4px;font-size:12px;color:var(--muted);line-height:1.7;">
+              <p style="margin:4px 0;"><strong>Standard:</strong> Acoustics &mdash; Attenuation of sound during propagation outdoors &mdash; Part 2: General method of calculation (ISO 9613-2:1996).</p>
+              <p style="margin:4px 0;"><strong>Overall formula:</strong> For each octave band <i>f</i> (63&nbsp;Hz to 8&nbsp;kHz):<br>
+                L<sub>p</sub>(f) = L<sub>w</sub>(f) &minus; A(f), &nbsp; where &nbsp; A(f) = A<sub>div</sub> + A<sub>atm</sub>(f) + A<sub>gr</sub>(f)
+              </p>
+              <p style="margin:4px 0;"><strong>Geometric divergence (A<sub>div</sub>):</strong> Point source, free-field spherical spreading per Equation&nbsp;8:<br>
+                A<sub>div</sub> = 20&thinsp;log<sub>10</sub>(d) + 11 &nbsp;dB
+              </p>
+              <p style="margin:4px 0;"><strong>Atmospheric absorption (A<sub>atm</sub>):</strong> Per octave band, calculated from ISO 9613-1 using temperature and humidity:<br>
+                A<sub>atm</sub>(f) = &alpha;(f) &times; d / 1000 &nbsp;dB<br>
+                where &alpha;(f) is the absorption coefficient in dB/km. Default values at 10&thinsp;&deg;C, 70% RH: [0.1, 0.4, 1.0, 1.9, 3.7, 9.7, 32.8, 117.0] dB/km for [63, 125, 250, 500, 1k, 2k, 4k, 8k] Hz. For other conditions, the full ISO 9613-1 formula is used (O<sub>2</sub> and N<sub>2</sub> relaxation frequencies, saturation pressure, molar concentration).
+              </p>
+              <p style="margin:4px 0;"><strong>Ground attenuation (A<sub>gr</sub>):</strong> Frequency-dependent, detailed method per &sect;7.3.1, Table&nbsp;3:<br>
+                A<sub>gr</sub>(f) = A<sub>s</sub>(f) + A<sub>r</sub>(f) + A<sub>m</sub>(f)<br>
+                <em>Source region A<sub>s</sub></em> and <em>receiver region A<sub>r</sub></em> use height-dependent functions a&prime;(h), b&prime;(h), c&prime;(h), d&prime;(h) for 125&ndash;1000&nbsp;Hz bands, scaled by ground factor G. At 63&nbsp;Hz, A<sub>s</sub>&nbsp;=&nbsp;A<sub>r</sub>&nbsp;=&nbsp;&minus;1.5&nbsp;dB (ground reflection). At 2k&ndash;8k&nbsp;Hz, A<sub>s</sub>&nbsp;=&nbsp;&minus;1.5(1&minus;G).<br>
+                <em>Middle region A<sub>m</sub></em> applies when d &gt; 30(h<sub>s</sub>+h<sub>r</sub>), with factor q&nbsp;=&nbsp;1&nbsp;&minus;&nbsp;30(h<sub>s</sub>+h<sub>r</sub>)/d.<br>
+                Negative A<sub>gr</sub> values represent ground reflection amplification (e.g. hard paved surfaces). On soft porous ground (G=1), A<sub>gr</sub> can exceed 10&nbsp;dB at 250&ndash;500&nbsp;Hz (ground dip effect).
+              </p>
+              <p style="margin:4px 0;"><strong>Ground factor G:</strong> G=0 for hard reflective surfaces (concrete, asphalt, water); G=0.5 for mixed; G=1 for soft porous ground (grass, soil, rural land). A single G value is used for all three regions in this tool.</p>
+              <p style="margin:4px 0;"><strong>Band summation:</strong> The overall A-weighted predicted level is the energetic sum across all octave bands:<br>
+                L<sub>Aeq</sub> = 10&thinsp;log<sub>10</sub>&thinsp;&Sigma;&thinsp;10<sup>L<sub>p</sub>(f)/10</sup> &nbsp;dB(A)<br>
+                Source spectra in the library are pre-A-weighted, so no additional A-weighting correction is applied.
+              </p>
+              <p style="margin:4px 0;"><strong>Multi-source combination:</strong> Individual source predictions are combined energetically (Equation&nbsp;3). Each source&rsquo;s level is adjusted for quantity (10&thinsp;log<sub>10</sub>&thinsp;n), operational time fraction (10&thinsp;log<sub>10</sub>(t/T)), and barrier (&minus;5&nbsp;dB if selected).</p>
+              <p style="margin:4px 0;"><strong>Barrier attenuation:</strong> A simplified fixed &minus;5&nbsp;dB broadband reduction is applied when barrier is set to &ldquo;Yes&rdquo;. The standard&rsquo;s detailed barrier calculation (A<sub>bar</sub> via Fresnel number) is not implemented &mdash; actual barrier performance varies by frequency and geometry.</p>
+              <p style="margin:4px 0;"><strong>Directivity (D<sub>c</sub>):</strong> All sources are treated as omnidirectional (D<sub>c</sub>&nbsp;=&nbsp;0). Source directivity is not modelled.</p>
+              <p style="margin:4px 0;"><strong>Screening (A<sub>bar</sub>), miscellaneous (A<sub>misc</sub>):</strong> Not implemented. No terrain screening, industrial-site screening, or housing/vegetation attenuation is included. Terrain is assumed flat.</p>
+              <p style="margin:4px 0;"><strong>Convergence with simple method:</strong> On hard ground (G=0) with no atmospheric absorption, A<sub>gr</sub>&nbsp;=&nbsp;&minus;3&nbsp;dB at all bands, so the ISO formula reduces to L<sub>w</sub>&nbsp;&minus;&nbsp;20&thinsp;log<sub>10</sub>(d)&nbsp;&minus;&nbsp;8, matching the simple hemispherical spreading method.</p>
+              <p style="margin:4px 0;"><strong>Limitations:</strong> This is a screening-level implementation. For detailed assessment, use dedicated acoustic modelling software (e.g. SoundPLAN, CadnaA, iNoise) with site-specific terrain, barriers, building reflections, and meteorological corrections (C<sub>met</sub>).</p>
+            </div>
+          </details>
         </div>
       </div>
     </div>
