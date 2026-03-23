@@ -3077,11 +3077,8 @@ function toggleRecvMapView(recvId) {
   _vicRecvMapVisible[recvId] = !_vicRecvMapVisible[recvId];
   if (typeof updateConcentricCircles === 'function') updateConcentricCircles();
   if (typeof updateRecvMapLegends === 'function') updateRecvMapLegends();
-  // Update toggle button styling
-  var btn = document.getElementById('vicRecvToggle_' + recvId);
-  if (btn) {
-    btn.classList.toggle('active', _vicRecvMapVisible[recvId]);
-  }
+  // Re-render the panel to update button text (Show/Hide)
+  renderDetectedZones();
 }
 
 /** Render the detected zones into the UI panel — shows per-receiver IF data */
