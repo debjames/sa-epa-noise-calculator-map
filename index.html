@@ -1064,6 +1064,9 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   <div style="margin-top:14px;"></div>
   <button class="pdf-btn" id="pdfBtn" type="button">Export PDF</button>
   <button class="pdf-btn" id="pdfCriteriaBtn" type="button" style="display:none;">PDF Criteria</button>
+  <button class="pdf-btn" id="exportJsonBtn" type="button" style="margin-left:8px;">Save Assessment</button>
+  <button class="pdf-btn" id="importJsonBtn" type="button">Load Assessment</button>
+  <input type="file" id="importJsonFile" accept=".json" style="display:none;">
 </div>
 </div>
 
@@ -4472,6 +4475,434 @@ renderContributions();
 initCollapse();
 </script>
 
+<script>
+/* ══════════════════════════════════════════════════════════════
+   JSON Export / Import — Save & Load assessment state
+   ══════════════════════════════════════════════════════════════ */
+(function() {
+  document.addEventListener('DOMContentLoaded', function() {
+
+    /* ── EXPORT ── */
+    var exportBtn = document.getElementById('exportJsonBtn');
+    if (exportBtn) exportBtn.addEventListener('click', function() {
+      try {
+        var data = {};
+        data._format = 'resonate-noise-tool';
+        data._version = 1;
+        data._exportedAt = new Date().toISOString();
+
+        // State
+        data.currentState = currentState;
+        data.vicAreaType = vicAreaType;
+
+        // Source table data (all periods)
+        var srcData = {};
+        ['day','eve','night','lmax'].forEach(function(pfx) {
+          for (var i = 1; i <= 5; i++) {
+            ['src','n','min','bar'].forEach(function(field) {
+              var key = pfx + '_' + field + '_' + i;
+              var v = loadLS(key);
+              if (v) srcData[key] = v;
+            });
+          }
+        });
+        data.sourceTable = srcData;
+
+        // Zone selections
+        data.zones = {};
+        ['src','r1','r2','r3','r4'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) data.zones[id] = el.value;
+        });
+
+        // SA receiver types
+        data.saRecvTypes = {};
+        ['r1','r2','r3','r4'].forEach(function(id) {
+          var el = document.getElementById(id + '_recvtype');
+          if (el) data.saRecvTypes[id] = el.value;
+        });
+
+        // Receiver names
+        data.receiverNames = {};
+        for (var ri = 1; ri <= 4; ri++) {
+          var nameEl = document.getElementById('recvName' + ri);
+          if (nameEl && nameEl.value) data.receiverNames['recvName' + ri] = nameEl.value;
+        }
+
+        // Distances
+        data.distances = {};
+        for (var di = 1; di <= 4; di++) {
+          var distEl = document.getElementById('dist_r' + di);
+          if (distEl && distEl.value) data.distances['dist_r' + di] = distEl.value;
+        }
+
+        // Predicted levels
+        data.predictions = {};
+        ['r1','r2','r3','r4'].forEach(function(rid) {
+          ['day','eve','night','lmax'].forEach(function(per) {
+            var v = loadPred(rid + '_' + per);
+            if (v) data.predictions[rid + '_' + per] = v;
+          });
+        });
+
+        // Characteristic penalties
+        data.recvPenalties = JSON.parse(JSON.stringify(recvPenalties));
+
+        // Propagation method & ISO parameters
+        data.propagation = {
+          method: propagationMethod,
+          receiverHeight: iso_receiverHeight,
+          groundFactor: iso_groundFactor,
+          temperature: iso_temperature,
+          humidity: iso_humidity
+        };
+
+        // VIC-specific
+        data.vic = {};
+        var vicIFEl = document.getElementById('vicIF');
+        if (vicIFEl && vicIFEl.value) data.vic.IF = vicIFEl.value;
+        var vicUtilEl = document.getElementById('vicIsUtility');
+        if (vicUtilEl) data.vic.isUtility = vicUtilEl.checked;
+        var vicEREl = document.getElementById('vicIsEarthResources');
+        if (vicEREl) data.vic.isEarthResources = vicEREl.checked;
+        var vicIFarmEl = document.getElementById('vicIsIntensiveFarming');
+        if (vicIFarmEl) data.vic.isIntensiveFarming = vicIFarmEl.checked;
+        // NaN → null in JSON; we'll restore on import
+        data.vic.perNsaBg = JSON.parse(JSON.stringify(_vicPerNsaBg));
+        data.vic.lastDetectedZones = JSON.parse(JSON.stringify(_lastDetectedZones));
+        data.vic.lastDetectedZoneLabels = JSON.parse(JSON.stringify(_lastDetectedZoneLabels));
+        data.vic.recvMapVisible = JSON.parse(JSON.stringify(_vicRecvMapVisible));
+        data.vic.autoIFPerReceiver = JSON.parse(JSON.stringify(autoIFPerReceiver));
+
+        // NSW-specific
+        data.nsw = {};
+        var nswAmenity = document.getElementById('nswAmenityArea');
+        if (nswAmenity) data.nsw.amenityArea = nswAmenity.value;
+        var nswRD = document.getElementById('nswRblDay');
+        if (nswRD && nswRD.value) data.nsw.rblDay = nswRD.value;
+        var nswRE = document.getElementById('nswRblEve');
+        if (nswRE && nswRE.value) data.nsw.rblEve = nswRE.value;
+        var nswRN = document.getElementById('nswRblNight');
+        if (nswRN && nswRN.value) data.nsw.rblNight = nswRN.value;
+        for (var ni = 1; ni <= 4; ni++) {
+          var nrt = document.getElementById('nswRecType' + ni);
+          if (nrt) data.nsw['recType' + ni] = nrt.value;
+        }
+
+        // OTHER-mode criteria checkboxes
+        data.other = {};
+        ['otherCritDay','otherCritEve','otherCritNight','otherCritLmax'].forEach(function(id) {
+          var cb = document.getElementById(id);
+          if (cb) data.other[id] = cb.checked;
+        });
+
+        // Map marker positions
+        data.markers = {};
+        var srcLL = window.getSourceLatLng ? window.getSourceLatLng() : null;
+        if (srcLL) data.markers.source = {lat: srcLL.lat, lng: srcLL.lng};
+        for (var mi = 1; mi <= 4; mi++) {
+          var rLL = window.getReceiverLatLng ? window.getReceiverLatLng('r' + mi) : null;
+          if (rLL) data.markers['r' + mi] = {lat: rLL.lat, lng: rLL.lng};
+        }
+
+        // Address bar text
+        var searchInp = document.getElementById('mapSearchInput');
+        if (searchInp && searchInp.value) data.addressText = searchInp.value;
+
+        // Download
+        var json = JSON.stringify(data, null, 2);
+        var blob = new Blob([json], {type: 'application/json'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        var fname = 'Noise Assessment';
+        if (searchInp && searchInp.value) {
+          var parts = searchInp.value.split(',').map(function(s){return s.trim();});
+          var city = parts.length > 2 ? parts.slice(0, parts.length - 2) : parts.slice(0, 1);
+          fname += ' - ' + city.join(', ');
+        }
+        a.download = fname + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch(e) {
+        console.error('Export error:', e);
+        alert('Export failed — check console for details.');
+      }
+    });
+
+    /* ── IMPORT ── */
+    var importBtn = document.getElementById('importJsonBtn');
+    var importFile = document.getElementById('importJsonFile');
+    if (importBtn && importFile) {
+      importBtn.addEventListener('click', function() { importFile.click(); });
+      importFile.addEventListener('change', function(ev) {
+        var file = ev.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            var data = JSON.parse(e.target.result);
+            if (data._format !== 'resonate-noise-tool') {
+              alert('This file does not appear to be a valid Resonate noise assessment export.');
+              return;
+            }
+            loadAssessment(data);
+          } catch(err) {
+            console.error('Import error:', err);
+            alert('Failed to load assessment — check console for details.');
+          }
+        };
+        reader.readAsText(file);
+        importFile.value = ''; // allow re-importing same file
+      });
+    }
+
+    function loadAssessment(data) {
+      // 1. Set state
+      if (data.currentState && typeof switchToState === 'function') {
+        switchToState(data.currentState);
+      }
+
+      // 2. VIC area type
+      if (data.vicAreaType && typeof setVicAreaType === 'function') {
+        setVicAreaType(data.vicAreaType);
+      }
+
+      // 3. Source table data — write to localStorage then re-render tables
+      if (data.sourceTable) {
+        Object.keys(data.sourceTable).forEach(function(k) {
+          saveLS(k, data.sourceTable[k]);
+        });
+        ['day','eve','night','lmax'].forEach(function(pfx) {
+          renderSourceTable(pfx, pfx + 'SrcRows', pfx + 'SrcTotal', 5);
+        });
+      }
+
+      // 4. Receiver names
+      if (data.receiverNames) {
+        Object.keys(data.receiverNames).forEach(function(k) {
+          var el = document.getElementById(k);
+          if (el) el.value = data.receiverNames[k];
+          // Also save to LS for persistence
+          var idx = k.replace('recvName','');
+          saveLS('recvName_' + idx, data.receiverNames[k]);
+        });
+      }
+
+      // 5. Distances
+      if (data.distances) {
+        Object.keys(data.distances).forEach(function(k) {
+          var el = document.getElementById(k);
+          if (el) {
+            el.value = data.distances[k];
+            el.dispatchEvent(new Event('input', {bubbles:true}));
+          }
+        });
+      }
+
+      // 6. Zone selections
+      if (data.zones) {
+        // Delay slightly so zone options are populated after state switch
+        setTimeout(function() {
+          Object.keys(data.zones).forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) {
+              el.value = data.zones[id];
+              // If the value doesn't exist in options (zone not loaded yet), try setting anyway
+              if (el.value !== data.zones[id]) {
+                // Add as option temporarily
+                var opt = document.createElement('option');
+                opt.value = data.zones[id];
+                opt.textContent = data.zones[id];
+                el.appendChild(opt);
+                el.value = data.zones[id];
+              }
+            }
+          });
+
+          // SA receiver types
+          if (data.saRecvTypes) {
+            Object.keys(data.saRecvTypes).forEach(function(id) {
+              var el = document.getElementById(id + '_recvtype');
+              if (el) el.value = data.saRecvTypes[id];
+            });
+          }
+
+          // VIC detected zone labels
+          if (data.vic && data.vic.lastDetectedZones) {
+            Object.keys(data.vic.lastDetectedZones).forEach(function(k) {
+              _lastDetectedZones[k] = data.vic.lastDetectedZones[k];
+            });
+          }
+          if (data.vic && data.vic.lastDetectedZoneLabels) {
+            Object.keys(data.vic.lastDetectedZoneLabels).forEach(function(k) {
+              _lastDetectedZoneLabels[k] = data.vic.lastDetectedZoneLabels[k];
+            });
+          }
+
+          render();
+        }, 300);
+      }
+
+      // 7. Predicted levels (saved to localStorage; recalculated on render)
+      if (data.predictions) {
+        Object.keys(data.predictions).forEach(function(k) {
+          savePred(k, data.predictions[k]);
+        });
+      }
+
+      // 8. Characteristic penalties
+      if (data.recvPenalties) {
+        recvPenalties = JSON.parse(JSON.stringify(data.recvPenalties));
+        // Update the UI controls
+        ['r1','r2','r3','r4'].forEach(function(rid) {
+          ['day','eve','night'].forEach(function(per) {
+            var RID = rid.charAt(0).toUpperCase() + rid.slice(1);
+            var PER = per.charAt(0).toUpperCase() + per.slice(1);
+            var wrap = document.getElementById('pen' + RID + PER + '_wrap');
+            if (!wrap) return;
+            var inp = wrap.querySelector('input, select');
+            if (inp && data.recvPenalties[rid]) {
+              inp.value = data.recvPenalties[rid][per] || 0;
+            }
+          });
+        });
+      }
+
+      // 9. Propagation settings
+      if (data.propagation) {
+        propagationMethod = data.propagation.method || 'simple';
+        iso_receiverHeight = data.propagation.receiverHeight || 1.5;
+        iso_groundFactor = data.propagation.groundFactor || 0.5;
+        iso_temperature = data.propagation.temperature || 10;
+        iso_humidity = data.propagation.humidity || 70;
+        localStorage.setItem('prop_method', propagationMethod);
+        localStorage.setItem('iso_recvHeight', String(iso_receiverHeight));
+        localStorage.setItem('iso_ground', String(iso_groundFactor));
+        localStorage.setItem('iso_temp', String(iso_temperature));
+        localStorage.setItem('iso_humidity', String(iso_humidity));
+        // Update propagation UI buttons
+        document.querySelectorAll('[data-group="prop"]').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.val === propagationMethod);
+        });
+        var paramsDiv = document.getElementById('isoParamsDiv');
+        if (paramsDiv) paramsDiv.style.display = propagationMethod === 'iso9613' ? '' : 'none';
+        var rhEl = document.getElementById('isoRecvHeight');
+        if (rhEl) rhEl.value = iso_receiverHeight;
+        var gfEl = document.getElementById('isoGround');
+        if (gfEl) gfEl.value = iso_groundFactor;
+        var tEl = document.getElementById('isoTemp');
+        if (tEl) tEl.value = iso_temperature;
+        var hEl = document.getElementById('isoHumidity');
+        if (hEl) hEl.value = iso_humidity;
+      }
+
+      // 10. VIC-specific settings
+      if (data.vic) {
+        if (data.vic.IF) {
+          var vicIFEl = document.getElementById('vicIF');
+          if (vicIFEl) { vicIFEl.value = data.vic.IF; if (typeof handleIFInput === 'function') handleIFInput(); }
+        }
+        var vicUtilEl = document.getElementById('vicIsUtility');
+        if (vicUtilEl && data.vic.isUtility !== undefined) vicUtilEl.checked = data.vic.isUtility;
+        var vicEREl = document.getElementById('vicIsEarthResources');
+        if (vicEREl && data.vic.isEarthResources !== undefined) vicEREl.checked = data.vic.isEarthResources;
+        var vicIFarmEl = document.getElementById('vicIsIntensiveFarming');
+        if (vicIFarmEl && data.vic.isIntensiveFarming !== undefined) vicIFarmEl.checked = data.vic.isIntensiveFarming;
+
+        if (data.vic.perNsaBg) {
+          _vicPerNsaBg = JSON.parse(JSON.stringify(data.vic.perNsaBg));
+          // Restore NaN values (JSON serializes NaN as null)
+          ['r1','r2','r3','r4'].forEach(function(rid) {
+            if (_vicPerNsaBg[rid]) {
+              ['day','evening','night'].forEach(function(p) {
+                if (_vicPerNsaBg[rid][p] === null) _vicPerNsaBg[rid][p] = NaN;
+              });
+            }
+          });
+        }
+        if (data.vic.recvMapVisible) {
+          _vicRecvMapVisible = JSON.parse(JSON.stringify(data.vic.recvMapVisible));
+        }
+        if (data.vic.autoIFPerReceiver) {
+          autoIFPerReceiver = JSON.parse(JSON.stringify(data.vic.autoIFPerReceiver));
+        }
+      }
+
+      // 11. NSW-specific
+      if (data.nsw) {
+        var nswAmenity = document.getElementById('nswAmenityArea');
+        if (nswAmenity && data.nsw.amenityArea) nswAmenity.value = data.nsw.amenityArea;
+        var nswRD = document.getElementById('nswRblDay');
+        if (nswRD && data.nsw.rblDay) nswRD.value = data.nsw.rblDay;
+        var nswRE = document.getElementById('nswRblEve');
+        if (nswRE && data.nsw.rblEve) nswRE.value = data.nsw.rblEve;
+        var nswRN = document.getElementById('nswRblNight');
+        if (nswRN && data.nsw.rblNight) nswRN.value = data.nsw.rblNight;
+        for (var ni = 1; ni <= 4; ni++) {
+          var nrt = document.getElementById('nswRecType' + ni);
+          if (nrt && data.nsw['recType' + ni]) nrt.value = data.nsw['recType' + ni];
+        }
+        if (typeof updateNSWIntrusiveness === 'function') updateNSWIntrusiveness();
+      }
+
+      // 12. OTHER-mode criteria checkboxes
+      if (data.other) {
+        Object.keys(data.other).forEach(function(id) {
+          var cb = document.getElementById(id);
+          if (cb) cb.checked = data.other[id];
+        });
+        if (typeof updateOtherCritSelection === 'function') updateOtherCritSelection();
+      }
+
+      // 13. Place map markers (after a delay to ensure map is ready)
+      if (data.markers && window._placeMarker) {
+        setTimeout(function() {
+          var map = window._getMapRef ? window._getMapRef() : null;
+          // Place source first
+          if (data.markers.source) {
+            window._placeMarker('source', data.markers.source);
+          }
+          // Place receivers
+          for (var mi = 1; mi <= 4; mi++) {
+            var key = 'r' + mi;
+            if (data.markers[key]) {
+              window._placeMarker(key, data.markers[key]);
+            }
+          }
+          // Fit map bounds to markers
+          if (map) {
+            var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+            var bounds = [];
+            Object.keys(allLL).forEach(function(k) {
+              if (allLL[k]) bounds.push([allLL[k].lat, allLL[k].lng]);
+            });
+            if (bounds.length > 0) {
+              map.fitBounds(bounds, {padding: [40, 40], maxZoom: 16});
+            }
+          }
+        }, 500);
+      }
+
+      // 14. Address bar text
+      if (data.addressText) {
+        var searchInp = document.getElementById('mapSearchInput');
+        if (searchInp) searchInp.value = data.addressText;
+      }
+
+      // 15. Re-render detected zones panel for VIC
+      setTimeout(function() {
+        if (typeof renderDetectedZones === 'function') renderDetectedZones();
+        render();
+      }, 800);
+    }
+
+  });
+})();
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous"></script>
 
@@ -4887,6 +5318,9 @@ initCollapse();
     /* Expose source and receiver positions for functions outside the IIFE */
     window.getSourceLatLng = function() { return latlngs['source'] || null; };
     window.getReceiverLatLng = function(id) { return latlngs[id] || null; };
+    window._placeMarker = function(mode, ll) { placeMarker(mode, L.latLng(ll.lat, ll.lng)); };
+    window._getMapRef = function() { return map; };
+    window._getAllLatLngs = function() { return latlngs; };
 
     /* ==== SAPPA Zoning Integration ==== */
     var SAPPA_BASE = 'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/CurrentPDC_wmas/MapServer';
