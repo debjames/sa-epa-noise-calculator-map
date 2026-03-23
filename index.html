@@ -7361,11 +7361,11 @@ initCollapse();
           return inOverlay;
         }).catch(function() { setMBS('mbs_noise', '—'); return false; });
 
-      // After both checks: load road/rail/mixed only if triggered
+      // After both checks: load road/rail/mixed only if site is in Noise and Air Emissions Overlay
       Promise.all([anefPromise, noisePromise]).then(function(results) {
         var inANEF = results[0];
         var inNoise = results[1];
-        if (!inANEF && !inNoise) {
+        if (!inNoise) {
           setAllBelowNA();
           return;
         }
