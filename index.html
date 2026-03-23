@@ -1042,31 +1042,30 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       <span class="badge sa-only">Residential/Rural Living caps: L<sub>eq</sub>52 day, L<sub>eq</sub>45 night, L<sub>max</sub> 60 night</span>
       <span class="badge vic-only vic-settings-only">Night cap: 55 dB(A). Min limits: 45/40/35 (urban) or 45/37/32 (rural). L<sub>max</sub> 65 night.</span>
     </div>
-  </div>
-  </div>
-  </div>
-  </div>
 
-  <!-- ═══ Octave band spectrum chart ═══ -->
-  <div class="grid2" style="margin-top:4px;">
-    <div class="card span2">
+    <!-- ═══ Octave band spectrum chart ═══ -->
+    <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h2>Octave band spectrum</h2>
+        <h2 style="font-size:13px;margin:0;">Octave band spectrum</h2>
         <div style="display:flex;gap:8px;align-items:center;">
-          <select id="spectrumPeriodSel" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;" onchange="updateSpectrumChart()">
+          <select id="spectrumPeriodSel" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;" onchange="updateSpectrumChart()">
             <option value="day" selected>Day</option>
-            <option value="eve">Evening</option>
+            <option value="eve" id="spectrumEveOpt" style="display:none;">Evening</option>
             <option value="night">Night</option>
           </select>
-          <button class="collapse-btn" onclick="var cb=this.closest('.card').querySelector('.card-body');if(cb){cb.classList.toggle('collapsed');this.innerHTML=cb.classList.contains('collapsed')?'&#x25BC;':'&#x25B2;';}">&#x25B2;</button>
+          <button class="collapse-btn" style="font-size:11px;" onclick="var cb=document.getElementById('spectrumChartBody');if(cb){cb.classList.toggle('collapsed');this.innerHTML=cb.classList.contains('collapsed')?'&#x25BC;':'&#x25B2;';}">&#x25BC;</button>
         </div>
       </div>
-      <div class="card-body">
-        <div class="p" style="margin-bottom:8px;">A-weighted sound power level per octave band (63 Hz – 8 kHz) for each selected source, with combined prediction at each receiver.</div>
+      <div id="spectrumChartBody" class="card-body collapsed">
+        <div class="p" style="margin:8px 0 8px;">A-weighted sound power level per octave band (63 Hz – 8 kHz) for each selected source, with combined prediction at each receiver.</div>
         <div style="position:relative;height:340px;"><canvas id="spectrumChart"></canvas></div>
         <div id="spectrumChartEmpty" style="display:none;text-align:center;color:var(--muted);font-size:13px;padding:40px 0;">Select sources in the table above to view the octave band spectrum.</div>
       </div>
     </div>
+
+  </div>
+  </div>
+  </div>
   </div>
 
   <div class="sheet1" style="margin-top:20px;">
@@ -4223,8 +4222,15 @@ function updateSpectrumChart() {
   var emptyMsg = document.getElementById('spectrumChartEmpty');
   if (!canvas || typeof Chart === 'undefined') return;
 
+  // Show evening option only when state has an evening period
+  var hasEve = (currentState === 'VIC' || currentState === 'NSW' || currentState === 'OTHER');
+  var eveOpt = document.getElementById('spectrumEveOpt');
+  if (eveOpt) eveOpt.style.display = hasEve ? '' : 'none';
+
   var periodSel = document.getElementById('spectrumPeriodSel');
   var prefix = periodSel ? periodSel.value : 'day';
+  // If evening selected but not available, fall back to day
+  if (prefix === 'eve' && !hasEve) { prefix = 'day'; if (periodSel) periodSel.value = 'day'; }
 
   var data = getSpectrumData(prefix);
 
