@@ -6696,7 +6696,19 @@ initCollapse();
       concentricCircles.forEach(function(c) { c.bringToFront(); });
     }
 
-    /** Update per-receiver map legends (zone analysis panels shown on the map) */
+    /** Update per-receiver map legends (zone analysis panels shown on the map).
+     *  Distributes legends across map corners for readability:
+     *  1 legend  → bottomright
+     *  2 legends → bottomleft + bottomright
+     *  3 legends → topleft + bottomleft + bottomright
+     *  4 legends → topleft + topright + bottomleft + bottomright */
+    var LEGEND_POSITIONS_BY_COUNT = {
+      1: ['bottomright'],
+      2: ['bottomleft', 'bottomright'],
+      3: ['topleft', 'bottomleft', 'bottomright'],
+      4: ['topleft', 'topright', 'bottomleft', 'bottomright']
+    };
+
     function updateRecvMapLegends() {
       // Remove existing legends
       ['r1','r2','r3','r4'].forEach(function(id) {
@@ -6709,20 +6721,31 @@ initCollapse();
 
       var RECV_LABELS = {r1: 'Receiver 1', r2: 'Receiver 2', r3: 'Receiver 3', r4: 'Receiver 4'};
 
+      // Collect visible receivers
+      var visibleIds = [];
       ['r1','r2','r3','r4'].forEach(function(id) {
-        if (!_vicRecvMapVisible[id]) return;
-        var data = window.autoIFDataPerReceiver ? window.autoIFDataPerReceiver[id] : null;
-        if (!data) return;
+        if (_vicRecvMapVisible[id]) {
+          var data = window.autoIFDataPerReceiver ? window.autoIFDataPerReceiver[id] : null;
+          if (data) visibleIds.push(id);
+        }
+      });
+      if (visibleIds.length === 0) return;
 
+      // Assign positions based on count
+      var positions = LEGEND_POSITIONS_BY_COUNT[visibleIds.length] || LEGEND_POSITIONS_BY_COUNT[4];
+
+      visibleIds.forEach(function(id, idx) {
+        var data = window.autoIFDataPerReceiver[id];
         var nameEl = document.getElementById('name_' + id);
         var recvName = (nameEl && nameEl.value) ? nameEl.value : RECV_LABELS[id];
         var col = RECV_CIRCLE_COLORS[id] || '#6b7280';
+        var pos = positions[idx] || 'bottomright';
 
-        var ctrl = L.control({ position: 'bottomright' });
+        var ctrl = L.control({ position: pos });
         ctrl.onAdd = function() {
           var div = L.DomUtil.create('div', 'zone-legend');
-          div.style.maxWidth = '280px';
-          div.style.minWidth = '200px';
+          div.style.maxWidth = '260px';
+          div.style.minWidth = '180px';
           div.style.borderLeft = '3px solid ' + col;
           var html = '<div class="zone-legend-title" style="color:' + col + ';">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</div>';
           html += '<div style="display:flex;gap:8px;margin-bottom:4px;font-size:9px;font-weight:600;">';
@@ -6741,8 +6764,29 @@ initCollapse();
         ctrl.addTo(map);
         _recvMapLegends[id] = ctrl;
       });
+
+      // Auto-fit map to show all visible receivers with their 400m circles
+      fitMapToVisibleReceivers(visibleIds);
     }
     window.updateRecvMapLegends = updateRecvMapLegends;
+
+    /** Fit map bounds to show all visible receivers and their 400m circles */
+    function fitMapToVisibleReceivers(visibleIds) {
+      if (!visibleIds || visibleIds.length === 0) return;
+      var bounds = L.latLngBounds([]);
+      visibleIds.forEach(function(id) {
+        var ll = latlngs[id];
+        if (!ll) return;
+        // Extend bounds to include the 400m circle around each receiver
+        var circle = L.circle(ll, {radius: 400});
+        bounds.extend(circle.getBounds());
+      });
+      // Also include source location
+      if (latlngs['source']) bounds.extend(latlngs['source']);
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, {padding: [60, 60], maxZoom: 16});
+      }
+    }
 
     function clearVicZonePolygons() {
       vicZonePolygonLayers.forEach(function(l) { map.removeLayer(l); });
