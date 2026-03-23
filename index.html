@@ -374,7 +374,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial</button>
           <button class="tool-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastre</button>
           <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
-          <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundary (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Urban Boundary</button>
+          <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Major urban areas</button>
           <button class="tool-btn map-mode-btn" id="mapClearBtn" title="Remove all markers and clear distances" style="margin-left:auto;color:#dc2626;border-color:#dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg> Clear All</button>
         </div>
         <!-- Map display options -->
@@ -2325,7 +2325,8 @@ function switchToState(state) {
     if (state !== 'VIC' && typeof _vicMuaBoundaryLayer !== 'undefined' && _vicMuaBoundaryLayer && typeof map !== 'undefined') {
       try { map.removeLayer(_vicMuaBoundaryLayer); } catch(e){}
       urbanBdyBtn.classList.remove('active');
-      urbanBdyBtn.querySelector('svg').nextSibling.textContent = ' Urban Boundary';
+      urbanBdyBtn.querySelector('svg').nextSibling.textContent = ' Major urban areas';
+      if (typeof removeMuaLegend === 'function') removeMuaLegend();
     }
   }
 
@@ -5008,8 +5009,9 @@ initCollapse();
           _vicMuaBoundaryLayer = null;
           urbanBdyToggle.classList.remove('active');
           var svg1 = urbanBdyToggle.querySelector('svg');
-          urbanBdyToggle.textContent = ' Urban Boundary';
+          urbanBdyToggle.textContent = ' Major urban areas';
           if (svg1) urbanBdyToggle.insertBefore(svg1, urbanBdyToggle.firstChild);
+          removeMuaLegend();
         } else {
           /* Build layer from cached GeoJSON (already fetched on VIC state entry) */
           fetchVicMuaPolygons().then(function() {
@@ -5034,11 +5036,39 @@ initCollapse();
             _vicMuaBoundaryLayer.addTo(map);
             urbanBdyToggle.classList.add('active');
             var svg2 = urbanBdyToggle.querySelector('svg');
-            urbanBdyToggle.textContent = ' Hide Boundary';
+            urbanBdyToggle.textContent = ' Hide urban areas';
             if (svg2) urbanBdyToggle.insertBefore(svg2, urbanBdyToggle.firstChild);
+            addMuaLegend();
           });
         }
       });
+    }
+
+    /* --- Major Urban Area legend control --- */
+    var _muaLegendControl = null;
+    function addMuaLegend() {
+      if (_muaLegendControl) return; // already showing
+      _muaLegendControl = L.control({ position: 'bottomleft' });
+      _muaLegendControl.onAdd = function() {
+        var div = L.DomUtil.create('div', 'zone-legend');
+        div.style.marginTop = '6px';
+        div.innerHTML =
+          '<div class="zone-legend-title">Urban Boundaries</div>' +
+          '<div class="zone-legend-items">' +
+          '<div class="zone-legend-item">' +
+          '<span class="zone-legend-swatch" style="background:#6b7280;opacity:0.7;border:1.5px solid #4b5563;"></span>' +
+          '<span class="zone-legend-name">Major urban area boundaries</span>' +
+          '</div></div>';
+        L.DomEvent.disableClickPropagation(div);
+        return div;
+      };
+      _muaLegendControl.addTo(map);
+    }
+    function removeMuaLegend() {
+      if (_muaLegendControl) {
+        map.removeControl(_muaLegendControl);
+        _muaLegendControl = null;
+      }
     }
 
     // Retry helper for SAPPA queries (502 errors are common)
