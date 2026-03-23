@@ -3501,10 +3501,11 @@ function render() {
   var srcVicTypeEl = document.getElementById('src_victype');
   if (srcVicZoneEl && srcVicTypeEl) {
     if (isVIC && srcKey) {
+      var srcSel = document.getElementById('src');
+      var srcZoneName = srcSel && srcSel.selectedIndex >= 0 ? srcSel.options[srcSel.selectedIndex].text : '';
       var srcCode = srcKey.replace(/^VIC_(TYPE)?/, '');
-      var srcZoneCode = _lastDetectedZones && _lastDetectedZones['src'] ? _lastDetectedZones['src'] : srcCode;
       var srcZoneType = srcKey.indexOf('VIC_TYPE') === 0 ? srcCode : getVicZoneType(srcCode);
-      srcVicZoneEl.textContent = srcZoneCode;
+      srcVicZoneEl.textContent = srcZoneName;
       srcVicTypeEl.textContent = srcZoneType ? 'Type ' + srcZoneType : '';
     } else {
       srcVicZoneEl.textContent = '';
@@ -3526,10 +3527,11 @@ function render() {
     if (recvVicZoneEl && recvVicTypeEl) {
       var rKey = rKeys[idx];
       if (isVIC && rKey) {
+        var rSel = document.getElementById(id);
+        var rZoneName = rSel && rSel.selectedIndex >= 0 ? rSel.options[rSel.selectedIndex].text : '';
         var rCode = rKey.replace(/^VIC_(TYPE)?/, '');
-        var rZoneCode = _lastDetectedZones && _lastDetectedZones[id] ? _lastDetectedZones[id] : rCode;
         var rZoneType = rKey.indexOf('VIC_TYPE') === 0 ? rCode : getVicZoneType(rCode);
-        recvVicZoneEl.textContent = rZoneCode;
+        recvVicZoneEl.textContent = rZoneName;
         recvVicTypeEl.textContent = rZoneType ? 'Type ' + rZoneType : '';
       } else {
         recvVicZoneEl.textContent = '';
