@@ -3027,6 +3027,48 @@ function updateIFPlaceholder() {
   }
 }
 
+/** Per-receiver map visibility state */
+var _vicRecvMapVisible = {r1: false, r2: false, r3: false, r4: false};
+
+/** Build zone list HTML (reused by panel and map legend) */
+function _buildZoneListHTML(zones, fracs, label) {
+  var TYPE_COLORS = {1: '#059669', 2: '#d97706', 3: '#dc2626'};
+  var TYPE_LABELS = {1: 'Type 1', 2: 'Type 2', 3: 'Type 3'};
+  var seen = {};
+  var unique = [];
+  zones.forEach(function(z) {
+    if (!seen[z.zoneCode]) { seen[z.zoneCode] = true; unique.push(z); }
+  });
+  var html = '<div style="margin-bottom:4px;"><span style="font-weight:600;font-size:10px;">' + label + '</span>';
+  if (unique.length === 0) {
+    html += ' <span style="color:var(--muted);font-size:10px;">No zones detected</span>';
+  } else {
+    html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
+    unique.forEach(function(z) {
+      var col = TYPE_COLORS[z.type] || '#6b7280';
+      html += '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;font-weight:500;">' +
+              z.zoneCode + ' = ' + (TYPE_LABELS[z.type] || '?') + '</span>';
+    });
+    html += '</div>';
+  }
+  html += '<div style="font-size:9px;color:var(--muted);margin-top:1px;">';
+  html += 'T1: ' + Math.round(fracs[1] * 100) + '% · T2: ' + Math.round(fracs[2] * 100) + '% · T3: ' + Math.round(fracs[3] * 100) + '%';
+  html += '</div></div>';
+  return html;
+}
+
+/** Toggle a receiver's zone analysis display on/off on the map */
+function toggleRecvMapView(recvId) {
+  _vicRecvMapVisible[recvId] = !_vicRecvMapVisible[recvId];
+  if (typeof updateConcentricCircles === 'function') updateConcentricCircles();
+  if (typeof updateRecvMapLegends === 'function') updateRecvMapLegends();
+  // Update toggle button styling
+  var btn = document.getElementById('vicRecvToggle_' + recvId);
+  if (btn) {
+    btn.classList.toggle('active', _vicRecvMapVisible[recvId]);
+  }
+}
+
 /** Render the detected zones into the UI panel — shows per-receiver IF data */
 function renderDetectedZones() {
   var el = document.getElementById('vicDetectedZones');
@@ -3034,33 +3076,8 @@ function renderDetectedZones() {
   if (!el || !hasAny) { if (el) el.style.display = 'none'; return; }
   el.style.display = 'block';
 
-  var TYPE_COLORS = {1: '#059669', 2: '#d97706', 3: '#dc2626'};
-  var TYPE_LABELS = {1: 'Type 1', 2: 'Type 2', 3: 'Type 3'};
   var RECV_LABELS = {r1: 'Receiver 1', r2: 'Receiver 2', r3: 'Receiver 3', r4: 'Receiver 4'};
-
-  function zoneList(zones, fracs, label) {
-    var seen = {};
-    var unique = [];
-    zones.forEach(function(z) {
-      if (!seen[z.zoneCode]) { seen[z.zoneCode] = true; unique.push(z); }
-    });
-    var html = '<div style="margin-bottom:4px;"><span style="font-weight:600;font-size:10px;">' + label + '</span>';
-    if (unique.length === 0) {
-      html += ' <span style="color:var(--muted);font-size:10px;">No zones detected</span>';
-    } else {
-      html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
-      unique.forEach(function(z) {
-        var col = TYPE_COLORS[z.type] || '#6b7280';
-        html += '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;font-weight:500;">' +
-                z.zoneCode + ' = ' + (TYPE_LABELS[z.type] || '?') + '</span>';
-      });
-      html += '</div>';
-    }
-    html += '<div style="font-size:9px;color:var(--muted);margin-top:1px;">';
-    html += 'T1: ' + Math.round(fracs[1] * 100) + '% · T2: ' + Math.round(fracs[2] * 100) + '% · T3: ' + Math.round(fracs[3] * 100) + '%';
-    html += '</div></div>';
-    return html;
-  }
+  var RECV_COLORS = {r1: '#2563eb', r2: '#059669', r3: '#d97706', r4: '#7c3aed'};
 
   var h = '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Per Pub 1826.5 Figure 1, IF is derived from zones surrounding each <b>receiver</b> (NSA).</div>';
   h += '<div style="display:flex;gap:12px;margin-bottom:6px;font-size:10px;font-weight:600;">';
@@ -3072,13 +3089,21 @@ function renderDetectedZones() {
   ['r1','r2','r3','r4'].forEach(function(id) {
     var data = autoIFDataPerReceiver[id];
     if (!data) return;
-    // Get custom receiver name if set
     var nameEl = document.getElementById('name_' + id);
     var recvName = (nameEl && nameEl.value) ? nameEl.value : RECV_LABELS[id];
+    var col = RECV_COLORS[id] || '#6b7280';
+    var isVis = _vicRecvMapVisible[id];
     h += '<div style="margin-bottom:8px;padding:6px 8px;background:#f0f0f0;border-radius:4px;">';
-    h += '<div style="font-weight:600;font-size:11px;margin-bottom:4px;color:var(--heading);">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</div>';
-    h += zoneList(data.zones140, data.fracs140, '140 m circle');
-    h += zoneList(data.zones400, data.fracs400, '400 m circle');
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">';
+    h += '<span style="font-weight:600;font-size:11px;color:var(--heading);">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</span>';
+    h += '<button id="vicRecvToggle_' + id + '" onclick="toggleRecvMapView(\'' + id + '\')" ' +
+         'style="font-size:9px;padding:2px 8px;border-radius:4px;cursor:pointer;border:1.5px solid ' + col + ';' +
+         'background:' + (isVis ? col : 'transparent') + ';color:' + (isVis ? '#fff' : col) + ';font-weight:600;" ' +
+         'title="Show/hide zones on map">' +
+         (isVis ? '\u2713 On map' : 'Show on map') + '</button>';
+    h += '</div>';
+    h += _buildZoneListHTML(data.zones140, data.fracs140, '140 m circle');
+    h += _buildZoneListHTML(data.zones400, data.fracs400, '400 m circle');
     h += '</div>';
   });
 
@@ -3111,7 +3136,9 @@ function clearAutoIF() {
   autoIFData = null;
   autoIFPerReceiver = {r1: null, r2: null, r3: null, r4: null};
   autoIFDataPerReceiver = {r1: null, r2: null, r3: null, r4: null};
+  _vicRecvMapVisible = {r1: false, r2: false, r3: false, r4: false};
   if (typeof clearVicZonePolygons === 'function') clearVicZonePolygons();
+  if (typeof updateRecvMapLegends === 'function') updateRecvMapLegends();
   var el = document.getElementById('vicDetectedZones');
   if (el) { el.innerHTML = ''; el.style.display = 'none'; }
   var ifInput = document.getElementById('vicIF');
@@ -6569,15 +6596,24 @@ initCollapse();
     /* ---- place or move a marker ---- */
     /* VIC urban concentric circles (140m / 400m) — drawn around each RECEIVER */
     var concentricCircles = [];
+    var vicZonePolygonLayers = [];
+    var _recvMapLegends = {}; // {r1: L.control, ...}
     var RECV_CIRCLE_COLORS = {r1: '#2563eb', r2: '#059669', r3: '#d97706', r4: '#7c3aed'};
+
     function updateConcentricCircles() {
-      // Clear existing circles
+      // Clear existing circles and zone polygons
       concentricCircles.forEach(function(c) { map.removeLayer(c); });
       concentricCircles = [];
+      vicZonePolygonLayers.forEach(function(l) { map.removeLayer(l); });
+      vicZonePolygonLayers = [];
       // Only show in VIC urban mode
       if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
 
+      var TYPE_COLORS = {1: '#059669', 2: '#d97706', 3: '#dc2626'};
+      var TYPE_LABELS = {1: 'Type 1 (Residential)', 2: 'Type 2 (Commercial)', 3: 'Type 3 (Industrial)'};
+
       ['r1','r2','r3','r4'].forEach(function(id) {
+        if (!_vicRecvMapVisible[id]) return; // only show toggled-on receivers
         var ll = latlngs[id];
         if (!ll) return;
         var col = RECV_CIRCLE_COLORS[id] || '#6b7280';
@@ -6597,11 +6633,83 @@ initCollapse();
         c400.bindTooltip(label + ' 400 m', {permanent: false, direction: 'right', className: 'circle-label'});
 
         concentricCircles.push(c140, c400);
+
+        // Draw zone polygons for this receiver
+        var data = window.autoIFDataPerReceiver ? window.autoIFDataPerReceiver[id] : null;
+        if (data) {
+          var allZones = (data.zones140 || []).concat(data.zones400 || []);
+          var seen = {};
+          allZones.forEach(function(z) {
+            if (!z.rings || z.rings.length === 0) return;
+            var key = z.zoneCode + '_' + z.rings[0][0][0] + '_' + z.rings[0][0][1];
+            if (seen[key]) return;
+            seen[key] = true;
+            var zcol = TYPE_COLORS[z.type] || '#6b7280';
+            var polyLatlngs = z.rings.map(function(ring) {
+              return ring.map(function(coord) { return [coord[1], coord[0]]; });
+            });
+            var poly = L.polygon(polyLatlngs, {
+              color: zcol, weight: 1.5, opacity: 0.8,
+              fillColor: zcol, fillOpacity: 0.15,
+              interactive: true
+            }).addTo(map);
+            poly.bindTooltip(z.zoneCode + ' \u2014 ' + (TYPE_LABELS[z.type] || 'Unknown'), {sticky: true, className: 'circle-label'});
+            vicZonePolygonLayers.push(poly);
+          });
+        }
       });
+      // Bring circles to front so they render on top of polygons
+      concentricCircles.forEach(function(c) { c.bringToFront(); });
     }
 
-    /* VIC zone polygons rendered on map (Type 1/2/3 colours) */
-    var vicZonePolygonLayers = [];
+    /** Update per-receiver map legends (zone analysis panels shown on the map) */
+    function updateRecvMapLegends() {
+      // Remove existing legends
+      ['r1','r2','r3','r4'].forEach(function(id) {
+        if (_recvMapLegends[id]) {
+          map.removeControl(_recvMapLegends[id]);
+          _recvMapLegends[id] = null;
+        }
+      });
+      if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
+
+      var RECV_LABELS = {r1: 'Receiver 1', r2: 'Receiver 2', r3: 'Receiver 3', r4: 'Receiver 4'};
+
+      ['r1','r2','r3','r4'].forEach(function(id) {
+        if (!_vicRecvMapVisible[id]) return;
+        var data = window.autoIFDataPerReceiver ? window.autoIFDataPerReceiver[id] : null;
+        if (!data) return;
+
+        var nameEl = document.getElementById('name_' + id);
+        var recvName = (nameEl && nameEl.value) ? nameEl.value : RECV_LABELS[id];
+        var col = RECV_CIRCLE_COLORS[id] || '#6b7280';
+
+        var ctrl = L.control({ position: 'bottomright' });
+        ctrl.onAdd = function() {
+          var div = L.DomUtil.create('div', 'zone-legend');
+          div.style.maxWidth = '280px';
+          div.style.minWidth = '200px';
+          div.style.borderLeft = '3px solid ' + col;
+          var html = '<div class="zone-legend-title" style="color:' + col + ';">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</div>';
+          html += '<div style="display:flex;gap:8px;margin-bottom:4px;font-size:9px;font-weight:600;">';
+          html += '<span style="color:#059669;">\u25A0 T1 Res</span>';
+          html += '<span style="color:#d97706;">\u25A0 T2 Com</span>';
+          html += '<span style="color:#dc2626;">\u25A0 T3 Ind</span>';
+          html += '</div>';
+          html += _buildZoneListHTML(data.zones140, data.fracs140, '140 m circle');
+          html += _buildZoneListHTML(data.zones400, data.fracs400, '400 m circle');
+          html += '<div style="font-size:10px;font-weight:600;color:#059669;margin-top:4px;">Computed IF = ' + data.IF.toFixed(2) + '</div>';
+          div.innerHTML = html;
+          L.DomEvent.disableClickPropagation(div);
+          L.DomEvent.disableScrollPropagation(div);
+          return div;
+        };
+        ctrl.addTo(map);
+        _recvMapLegends[id] = ctrl;
+      });
+    }
+    window.updateRecvMapLegends = updateRecvMapLegends;
+
     function clearVicZonePolygons() {
       vicZonePolygonLayers.forEach(function(l) { map.removeLayer(l); });
       vicZonePolygonLayers = [];
@@ -6609,39 +6717,7 @@ initCollapse();
     window.clearVicZonePolygons = clearVicZonePolygons;
 
     window.renderVicZonePolygonsOnMap = function() {
-      clearVicZonePolygons();
-      // Combine zones from all receivers
-      var TYPE_COLORS = {1: '#059669', 2: '#d97706', 3: '#dc2626'};
-      var TYPE_LABELS = {1: 'Type 1 (Residential)', 2: 'Type 2 (Commercial)', 3: 'Type 3 (Industrial)'};
-      var allZones = [];
-      ['r1','r2','r3','r4'].forEach(function(id) {
-        var data = window.autoIFDataPerReceiver ? window.autoIFDataPerReceiver[id] : null;
-        if (data) {
-          allZones = allZones.concat(data.zones140 || []).concat(data.zones400 || []);
-        }
-      });
-      if (allZones.length === 0) return;
-      var seen = {};
-      allZones.forEach(function(z) {
-        if (!z.rings || z.rings.length === 0) return;
-        var key = z.zoneCode + '_' + z.rings[0][0][0] + '_' + z.rings[0][0][1];
-        if (seen[key]) return;
-        seen[key] = true;
-        var col = TYPE_COLORS[z.type] || '#6b7280';
-        // Convert rings from [lng,lat] (ArcGIS) to [lat,lng] (Leaflet)
-        var latlngs = z.rings.map(function(ring) {
-          return ring.map(function(coord) { return [coord[1], coord[0]]; });
-        });
-        var poly = L.polygon(latlngs, {
-          color: col, weight: 1.5, opacity: 0.8,
-          fillColor: col, fillOpacity: 0.2,
-          interactive: true
-        }).addTo(map);
-        poly.bindTooltip(z.zoneCode + ' — ' + (TYPE_LABELS[z.type] || 'Unknown'), {sticky: true, className: 'circle-label'});
-        vicZonePolygonLayers.push(poly);
-      });
-      // Bring circles to front so they render on top of polygons
-      concentricCircles.forEach(function(c) { c.bringToFront(); });
+      updateConcentricCircles(); // now handled inside updateConcentricCircles
     };
 
     /* Detect Australian state from coordinates and update address bar via Nominatim reverse geocode */
