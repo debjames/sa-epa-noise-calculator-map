@@ -427,30 +427,34 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           </div>
         </div>
         <div style="margin-top:12px;">
-          <label class="h2" style="font-size:12px;">Background noise classification</label>
-          <div style="display:flex;gap:12px;align-items:center;margin-top:4px;">
-            <select id="vicBgClass" onchange="document.getElementById('vicBgLevels').style.display=this.value==='neutral'?'none':'';render();" style="width:160px;">
-              <option value="neutral" selected>Neutral</option>
+          <label class="h2" style="font-size:12px;">Background noise levels &amp; classification</label>
+          <div class="small" style="margin-top:2px;margin-bottom:6px;">Enter measured background levels (L<sub>A90</sub>) to auto-determine classification per Clause 4 of Pub 1826.5. Classification can be overridden manually.</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:480px;margin-top:4px;">
+            <div>
+              <label style="font-size:11px;font-weight:600;">Day L<sub>A90</sub></label>
+              <input type="number" id="vicBg_day" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="updateVicBgClassification()" onchange="updateVicBgClassification()">
+              <div id="vicBgAutoClass_day" style="font-size:10px;margin-top:2px;color:var(--muted);"></div>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Evening L<sub>A90</sub></label>
+              <input type="number" id="vicBg_evening" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="updateVicBgClassification()" onchange="updateVicBgClassification()">
+              <div id="vicBgAutoClass_evening" style="font-size:10px;margin-top:2px;color:var(--muted);"></div>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Night L<sub>A90</sub></label>
+              <input type="number" id="vicBg_night" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="updateVicBgClassification()" onchange="updateVicBgClassification()">
+              <div id="vicBgAutoClass_night" style="font-size:10px;margin-top:2px;color:var(--muted);"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:8px;">
+            <label style="font-size:11px;font-weight:600;white-space:nowrap;">Override classification:</label>
+            <select id="vicBgClass" onchange="updateVicBgClassification()" style="width:160px;">
+              <option value="auto" selected>Auto (from background levels)</option>
+              <option value="neutral">Neutral</option>
               <option value="low">Low</option>
               <option value="high">High</option>
             </select>
-            <span class="small">Neutral = limit equals zone level. Low/High = adjusted per Clause 6.</span>
-          </div>
-          <div id="vicBgLevels" style="display:none;margin-top:8px;">
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:400px;">
-              <div>
-                <label style="font-size:11px;font-weight:600;">Day L<sub>A90</sub></label>
-                <input type="number" id="vicBg_day" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
-              </div>
-              <div>
-                <label style="font-size:11px;font-weight:600;">Evening L<sub>A90</sub></label>
-                <input type="number" id="vicBg_evening" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
-              </div>
-              <div>
-                <label style="font-size:11px;font-weight:600;">Night L<sub>A90</sub></label>
-                <input type="number" id="vicBg_night" min="0" max="100" step="1" placeholder="dB(A)" style="width:80px;" oninput="render()" onchange="render()">
-              </div>
-            </div>
+            <a href="#" id="vicBgClassReset" style="font-size:10px;display:none;color:#2563eb;" onclick="event.preventDefault();document.getElementById('vicBgClass').value='auto';updateVicBgClassification();">Reset to auto</a>
           </div>
         </div>
         <div style="margin-top:12px;" class="vic-rural-only">
@@ -2868,27 +2872,31 @@ function calcCriteriaVIC_Urban(srcVal, recVal, recvId) {
   eveLevel -= distAdj;
   nightLevel -= distAdj;
 
-  // Background classification — Clause 4 of Pub 1826.5
-  var bgClass = getVicBackgroundClass();
-  if (bgClass === 'high') {
-    // Clause 6: high background → limit = BG + 6 dB (day) or BG + 3 dB (eve/night)
-    var bgDay = getVicBgLevel('day');
-    var bgEve = getVicBgLevel('evening');
-    var bgNight = getVicBgLevel('night');
-    if (Number.isFinite(bgDay)) dayLevel = Math.max(dayLevel, bgDay + 6);
-    if (Number.isFinite(bgEve)) eveLevel = Math.max(eveLevel, bgEve + 3);
-    if (Number.isFinite(bgNight)) nightLevel = Math.max(nightLevel, bgNight + 3);
-  } else if (bgClass === 'low') {
-    // Clause 6: low background → limit = ½(zoning level + BG) + offset
-    // Day offset: +4.5 dB, Evening offset: +3 dB, Night offset: +3 dB
-    var bgDay2 = getVicBgLevel('day');
-    var bgEve2 = getVicBgLevel('evening');
-    var bgNight2 = getVicBgLevel('night');
-    if (Number.isFinite(bgDay2)) dayLevel = Math.round((dayLevel + bgDay2) / 2 + 4.5);
-    if (Number.isFinite(bgEve2)) eveLevel = Math.round((eveLevel + bgEve2) / 2 + 3);
-    if (Number.isFinite(bgNight2)) nightLevel = Math.round((nightLevel + bgNight2) / 2 + 3);
+  // Background classification — per-period, Clause 4 of Pub 1826.5
+  // Each period classified independently (day uses 6/12/13 dB thresholds, eve/night uses 3/9/10)
+  var bgDay = getVicBgLevel('day');
+  var bgEve = getVicBgLevel('evening');
+  var bgNight = getVicBgLevel('night');
+  var dayClass = getEffectiveBgClass('day', dayLevel);
+  var eveClass = getEffectiveBgClass('evening', eveLevel);
+  var nightClass = getEffectiveBgClass('night', nightLevel);
+
+  // Apply per-period background adjustments
+  if (dayClass === 'high' && Number.isFinite(bgDay)) {
+    dayLevel = Math.max(dayLevel, bgDay + 6);
+  } else if (dayClass === 'low' && Number.isFinite(bgDay)) {
+    dayLevel = Math.round((dayLevel + bgDay) / 2 + 4.5);
   }
-  // Neutral (Clause 5): no adjustment — limit = zoning level
+  if (eveClass === 'high' && Number.isFinite(bgEve)) {
+    eveLevel = Math.max(eveLevel, bgEve + 3);
+  } else if (eveClass === 'low' && Number.isFinite(bgEve)) {
+    eveLevel = Math.round((eveLevel + bgEve) / 2 + 3);
+  }
+  if (nightClass === 'high' && Number.isFinite(bgNight)) {
+    nightLevel = Math.max(nightLevel, bgNight + 3);
+  } else if (nightClass === 'low' && Number.isFinite(bgNight)) {
+    nightLevel = Math.round((nightLevel + bgNight) / 2 + 3);
+  }
 
   // Apply minimum limits (reg 118(2)(a))
   dayLevel = Math.max(dayLevel, VIC_MIN_LIMITS_URBAN.day);
@@ -3147,27 +3155,29 @@ function calcCriteriaVIC_Rural(srcVal, recVal) {
   eveLevel -= distAdj;
   nightLevel -= distAdj;
 
-  // Background classification — Clause 4 of Pub 1826.5
-  var bgClass = getVicBackgroundClass();
-  if (bgClass === 'high') {
-    // Clause 6: high background → limit = BG + 6 dB (day) or BG + 3 dB (eve/night)
-    var bgDay = getVicBgLevel('day');
-    var bgEve = getVicBgLevel('evening');
-    var bgNight = getVicBgLevel('night');
-    if (Number.isFinite(bgDay)) dayLevel = Math.max(dayLevel, bgDay + 6);
-    if (Number.isFinite(bgEve)) eveLevel = Math.max(eveLevel, bgEve + 3);
-    if (Number.isFinite(bgNight)) nightLevel = Math.max(nightLevel, bgNight + 3);
-  } else if (bgClass === 'low') {
-    // Clause 6: low background → limit = ½(zoning level + BG) + offset
-    // Day offset: +4.5 dB, Evening offset: +3 dB, Night offset: +3 dB
-    var bgDay2 = getVicBgLevel('day');
-    var bgEve2 = getVicBgLevel('evening');
-    var bgNight2 = getVicBgLevel('night');
-    if (Number.isFinite(bgDay2)) dayLevel = Math.round((dayLevel + bgDay2) / 2 + 4.5);
-    if (Number.isFinite(bgEve2)) eveLevel = Math.round((eveLevel + bgEve2) / 2 + 3);
-    if (Number.isFinite(bgNight2)) nightLevel = Math.round((nightLevel + bgNight2) / 2 + 3);
+  // Background classification — per-period, Clause 4 of Pub 1826.5
+  var bgDay = getVicBgLevel('day');
+  var bgEve = getVicBgLevel('evening');
+  var bgNight = getVicBgLevel('night');
+  var dayClass = getEffectiveBgClass('day', dayLevel);
+  var eveClass = getEffectiveBgClass('evening', eveLevel);
+  var nightClass = getEffectiveBgClass('night', nightLevel);
+
+  if (dayClass === 'high' && Number.isFinite(bgDay)) {
+    dayLevel = Math.max(dayLevel, bgDay + 6);
+  } else if (dayClass === 'low' && Number.isFinite(bgDay)) {
+    dayLevel = Math.round((dayLevel + bgDay) / 2 + 4.5);
   }
-  // Neutral (Clause 5): no adjustment — limit = zoning level
+  if (eveClass === 'high' && Number.isFinite(bgEve)) {
+    eveLevel = Math.max(eveLevel, bgEve + 3);
+  } else if (eveClass === 'low' && Number.isFinite(bgEve)) {
+    eveLevel = Math.round((eveLevel + bgEve) / 2 + 3);
+  }
+  if (nightClass === 'high' && Number.isFinite(bgNight)) {
+    nightLevel = Math.max(nightLevel, bgNight + 3);
+  } else if (nightClass === 'low' && Number.isFinite(bgNight)) {
+    nightLevel = Math.round((nightLevel + bgNight) / 2 + 3);
+  }
 
   // Apply rural minimum limits (Clause 17)
   dayLevel = Math.max(dayLevel, VIC_MIN_LIMITS_RURAL.day);
@@ -3183,7 +3193,7 @@ function calcCriteriaVIC_Rural(srcVal, recVal) {
 /* Helper functions for VIC background inputs */
 function getVicBackgroundClass() {
   var sel = document.getElementById('vicBgClass');
-  return sel ? sel.value : 'neutral';
+  return sel ? sel.value : 'auto';
 }
 
 function getVicBgLevel(period) {
@@ -3191,6 +3201,128 @@ function getVicBgLevel(period) {
   var el = document.getElementById(id);
   if (!el || !el.value) return NaN;
   return Number(el.value);
+}
+
+/** Auto-determine background classification for a period per Clause 4 of Pub 1826.5.
+ *  @param {number} bgLevel - measured background L_A90
+ *  @param {number} zoningLevel - applicable zoning level for this period
+ *  @param {string} period - 'day', 'evening', or 'night'
+ *  @returns {string} 'neutral', 'low', or 'high' */
+function autoClassifyBackground(bgLevel, zoningLevel, period) {
+  if (!Number.isFinite(bgLevel) || !Number.isFinite(zoningLevel)) return 'neutral';
+  var diff = zoningLevel - bgLevel; // how far BG is below zoning level
+  if (period === 'day') {
+    // Day: neutral = 6–12 dB below, high = BG+6 exceeds zoning (diff < 6), low = 13+ below
+    if (diff < 6) return 'high';    // BG + 6 > zoning level
+    if (diff >= 13) return 'low';   // BG is 13+ dB below
+    return 'neutral';               // BG is 6–12 dB below
+  } else {
+    // Evening/Night: neutral = 3–9 dB below, high = BG+3 exceeds zoning (diff < 3), low = 10+ below
+    if (diff < 3) return 'high';    // BG + 3 > zoning level
+    if (diff >= 10) return 'low';   // BG is 10+ dB below
+    return 'neutral';               // BG is 3–9 dB below
+  }
+}
+
+/** Get the effective background classification for a specific period.
+ *  Uses manual override if set, otherwise auto-classifies from BG levels.
+ *  @param {string} period - 'day', 'evening', or 'night'
+ *  @param {number} zoningLevel - applicable zoning level for this period
+ *  @returns {string} 'neutral', 'low', or 'high' */
+function getEffectiveBgClass(period, zoningLevel) {
+  var manualClass = getVicBackgroundClass();
+  if (manualClass !== 'auto') return manualClass;
+  var bgLevel = getVicBgLevel(period);
+  return autoClassifyBackground(bgLevel, zoningLevel, period);
+}
+
+/** Update the auto-classification display labels and render */
+function updateVicBgClassification() {
+  // Show/hide reset link
+  var sel = document.getElementById('vicBgClass');
+  var resetLink = document.getElementById('vicBgClassReset');
+  if (sel && resetLink) {
+    resetLink.style.display = (sel.value !== 'auto') ? 'inline' : 'none';
+  }
+
+  // Compute zoning levels for auto-classification display (use first available receiver)
+  var zoningLevels = getVicZoningLevelsForDisplay();
+
+  var CLASS_LABELS = {neutral: 'Neutral', low: 'Low', high: 'High'};
+  var CLASS_COLORS = {neutral: '#6b7280', low: '#2563eb', high: '#dc2626'};
+
+  ['day','evening','night'].forEach(function(period) {
+    var el = document.getElementById('vicBgAutoClass_' + period);
+    if (!el) return;
+    var bgLevel = getVicBgLevel(period);
+    var zLevel = zoningLevels ? zoningLevels[period] : NaN;
+    if (!Number.isFinite(bgLevel)) {
+      el.textContent = '';
+      return;
+    }
+    var autoClass = autoClassifyBackground(bgLevel, zLevel, period);
+    var manualClass = getVicBackgroundClass();
+    var effectiveClass = (manualClass !== 'auto') ? manualClass : autoClass;
+    var label = CLASS_LABELS[effectiveClass] || 'Neutral';
+    var col = CLASS_COLORS[effectiveClass] || '#6b7280';
+    var prefix = (manualClass !== 'auto') ? 'Override: ' : '';
+    var suffix = Number.isFinite(zLevel) ? ' (ZL=' + Math.round(zLevel) + ')' : '';
+    el.innerHTML = prefix + '<span style="font-weight:600;color:' + col + ';">' + label + '</span>' + suffix;
+  });
+
+  render();
+}
+
+/** Get zoning levels for display purposes (used by auto-classification labels) */
+function getVicZoningLevelsForDisplay() {
+  // Use first receiver that has an IF or zone selection
+  var srcVal = document.getElementById('src') ? document.getElementById('src').value : '';
+  var ifInput = document.getElementById('vicIF');
+  var IF = null;
+  if (ifInput && ifInput.value !== '') {
+    IF = Number(ifInput.value);
+  } else {
+    // Use first available receiver's auto-IF
+    for (var i = 0; i < 4; i++) {
+      var id = 'r' + (i + 1);
+      if (autoIFPerReceiver[id] !== null) { IF = autoIFPerReceiver[id]; break; }
+    }
+  }
+
+  if (vicAreaType === 'urban') {
+    if (IF === null) {
+      // Try from receiver zone type
+      var recVal = '';
+      ['r1','r2','r3','r4'].forEach(function(id) {
+        if (!recVal) {
+          var el = document.getElementById(id);
+          if (el && el.value) recVal = el.value;
+        }
+      });
+      if (recVal) {
+        var recType = getVicDropdownType(recVal);
+        IF = VIC_TYPE_TO_IF[recType] || 0;
+      } else {
+        IF = 0;
+      }
+    }
+    return getVicUrbanZoningLevel(IF);
+  } else {
+    // Rural: get from first available receiver zone pair
+    var recVal2 = '';
+    ['r1','r2','r3','r4'].forEach(function(id) {
+      if (!recVal2) {
+        var el = document.getElementById(id);
+        if (el && el.value) recVal2 = el.value;
+      }
+    });
+    if (srcVal && recVal2) {
+      var key = srcVal + ' | ' + recVal2;
+      var levels = VIC_RURAL_ZONE_LEVELS[key];
+      if (levels) return levels;
+    }
+    return null;
+  }
 }
 
 function loadPred(id) {
