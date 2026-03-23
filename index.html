@@ -611,12 +611,14 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div class="table-scroll">
         <table>
           <tr>
-            <th style="width:18%;">Location</th><th style="width:27%;" class="zone-col">Zone / Subzone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="center">Distance to receiver, m</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
+            <th style="width:18%;">Location</th><th style="width:27%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th class="vic-only vic-zone-col">Type</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="center">Distance to receiver, m</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
           </tr>
 
           <tr>
             <td><b>Subject site</b></td>
             <td class="zone-col"><select id="src"></select></td>
+            <td id="src_viczone" class="vic-only vic-zone-col"></td>
+            <td id="src_victype" class="vic-only vic-zone-col"></td>
             <td id="src_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"></td>
             <td class="left"></td>
@@ -629,6 +631,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"></td>
             <td class="zone-col"><select id="r1"></select></td>
+            <td id="r1_viczone" class="vic-only vic-zone-col"></td>
+            <td id="r1_victype" class="vic-only vic-zone-col"></td>
             <td id="r1_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r1_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r1" placeholder=""></td>
@@ -640,6 +644,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"></td>
             <td class="zone-col"><select id="r2"></select></td>
+            <td id="r2_viczone" class="vic-only vic-zone-col"></td>
+            <td id="r2_victype" class="vic-only vic-zone-col"></td>
             <td id="r2_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r2_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r2" placeholder=""></td>
@@ -651,6 +657,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"></td>
             <td class="zone-col"><select id="r3"></select></td>
+            <td id="r3_viczone" class="vic-only vic-zone-col"></td>
+            <td id="r3_victype" class="vic-only vic-zone-col"></td>
             <td id="r3_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r3_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r3" placeholder=""></td>
@@ -662,6 +670,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"></td>
             <td class="zone-col"><select id="r4"></select></td>
+            <td id="r4_viczone" class="vic-only vic-zone-col"></td>
+            <td id="r4_victype" class="vic-only vic-zone-col"></td>
             <td id="r4_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r4_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r4" placeholder=""></td>
@@ -3486,6 +3496,22 @@ function render() {
   if (srcDayEl) srcDayEl.textContent = (isVIC || isOTHER || isNSW) ? '' : fmt(src && src.inf_day);
   if (srcNightEl) srcNightEl.textContent = (isVIC || isOTHER || isNSW) ? '' : fmt(src && src.inf_night);
 
+  // Populate VIC zone/type columns for source
+  var srcVicZoneEl = document.getElementById('src_viczone');
+  var srcVicTypeEl = document.getElementById('src_victype');
+  if (srcVicZoneEl && srcVicTypeEl) {
+    if (isVIC && srcKey) {
+      var srcCode = srcKey.replace(/^VIC_(TYPE)?/, '');
+      var srcZoneCode = _lastDetectedZones && _lastDetectedZones['src'] ? _lastDetectedZones['src'] : srcCode;
+      var srcZoneType = srcKey.indexOf('VIC_TYPE') === 0 ? srcCode : getVicZoneType(srcCode);
+      srcVicZoneEl.textContent = srcZoneCode;
+      srcVicTypeEl.textContent = srcZoneType ? 'Type ' + srcZoneType : '';
+    } else {
+      srcVicZoneEl.textContent = '';
+      srcVicTypeEl.textContent = '';
+    }
+  }
+
   const ids = ["r1","r2","r3","r4"];
   const rKeys = ids.map(id => document.getElementById(id).value);
   const recs = rKeys.map(k => byKey.get(k));
@@ -3493,6 +3519,23 @@ function render() {
   ids.forEach((id, idx) => {
     const rec = recs[idx];
     document.getElementById(id+"_land").textContent = (isVIC || isOTHER || isNSW) ? '' : landDisplay(rec);
+
+    // Populate VIC zone/type columns for each receiver
+    var recvVicZoneEl = document.getElementById(id + '_viczone');
+    var recvVicTypeEl = document.getElementById(id + '_victype');
+    if (recvVicZoneEl && recvVicTypeEl) {
+      var rKey = rKeys[idx];
+      if (isVIC && rKey) {
+        var rCode = rKey.replace(/^VIC_(TYPE)?/, '');
+        var rZoneCode = _lastDetectedZones && _lastDetectedZones[id] ? _lastDetectedZones[id] : rCode;
+        var rZoneType = rKey.indexOf('VIC_TYPE') === 0 ? rCode : getVicZoneType(rCode);
+        recvVicZoneEl.textContent = rZoneCode;
+        recvVicTypeEl.textContent = rZoneType ? 'Type ' + rZoneType : '';
+      } else {
+        recvVicZoneEl.textContent = '';
+        recvVicTypeEl.textContent = '';
+      }
+    }
 
     const dayEl = document.getElementById(`${id}_daycrit`);
     const eveEl = document.getElementById(`${id}_evecrit`);
