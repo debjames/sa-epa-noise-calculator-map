@@ -2045,6 +2045,7 @@ function calcTotalISO9613(prefix, distM) {
 // State detection: 'SA' | 'VIC' | 'NSW' | 'OTHER' | null
 let currentState = null;
 let vicAreaType = 'urban'; // 'urban' | 'rural' (VIC only)
+var _lastDetectedZones = {}; // {src:'GRZ1', r1:'FZ', ...} — last detected raw zone codes for urban↔rural conversion
 let detectedStateName = ''; // e.g. 'NSW', 'QLD' — for badge display in OTHER mode
 let detectedAusState = null; // e.g. 'SA','VIC','NSW','QLD','WA','TAS','NT','ACT' — for parcel lookup
 
@@ -2077,6 +2078,7 @@ function fillSelect(id) {
 // VIC zone dropdown population (Type 1/2/3 for urban, zone codes for rural)
 function fillSelectVIC(id) {
   const sel = document.getElementById(id);
+  var prevVal = sel.value || '';
   sel.innerHTML = "";
   const blank = document.createElement('option');
   blank.value = ""; blank.textContent = "— Select —";
@@ -2135,6 +2137,29 @@ function fillSelectVIC(id) {
       o.value = z.key; o.textContent = z.label;
       sel.appendChild(o);
     });
+  }
+  // Restore previous value if it exists in the new option list
+  if (prevVal) {
+    var found = false;
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === prevVal) { sel.value = prevVal; found = true; break; }
+    }
+    // If switching urban↔rural, try to convert the value
+    if (!found && prevVal.indexOf('VIC_TYPE') === 0 && vicAreaType === 'rural') {
+      // Urban type → look up last detected zone code from marker data
+      var lastZone = _lastDetectedZones[id];
+      if (lastZone) {
+        var convertedVal = 'VIC_' + lastZone.replace(/[0-9]+$/, '');
+        for (var j = 0; j < sel.options.length; j++) {
+          if (sel.options[j].value === convertedVal) { sel.value = convertedVal; break; }
+        }
+      }
+    } else if (!found && prevVal.indexOf('VIC_') === 0 && prevVal.indexOf('VIC_TYPE') !== 0 && vicAreaType === 'urban') {
+      // Rural code → convert to urban type
+      var code = prevVal.replace(/^VIC_/, '');
+      var type = getVicZoneType(code);
+      if (type) sel.value = 'VIC_TYPE' + type;
+    }
   }
 }
 
@@ -6279,6 +6304,11 @@ initCollapse();
                 }
               }
             });
+          }
+
+          // Store raw detected zone code for urban↔rural conversion
+          if (zoneCode) {
+            _lastDetectedZones[selectId] = zoneCode;
           }
 
           // For VIC urban mode, set the Type 1/2/3 dropdown
