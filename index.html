@@ -3680,7 +3680,7 @@ function render() {
   // Rural distance adjustment footnote
   var distFnEl = document.getElementById('vicRuralDistFootnote');
   if (distFnEl) {
-    if (_vicRuralDistNotes && _vicRuralDistNotes.length > 0) {
+    if (isVIC && vicAreaType === 'rural' && _vicRuralDistNotes && _vicRuralDistNotes.length > 0) {
       var fnHtml = '<strong>*</strong> Criteria include distance adjustment (Clause 20: \u22121 dB per 100 m, max 9 dB): ';
       fnHtml += _vicRuralDistNotes.map(function(n) {
         return n.name + ' = ' + Math.round(n.dist) + ' m (\u2212' + n.adj + ' dB)';
