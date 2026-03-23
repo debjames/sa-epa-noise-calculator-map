@@ -798,7 +798,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="grid2" style="padding-top:0;">
       <div class="card span2">
         <h2>Propagation method</h2>
-        <div class="p" id="propMethodDesc">Select the sound propagation model. The <b>simple method</b> uses geometric spreading only (−20 log<sub>10</sub> d − 8 dB). <b>ISO 9613-2</b> adds frequency-dependent atmospheric absorption and ground attenuation per octave band.</div>
+        <div class="p" id="propMethodDesc">Select the sound propagation model. The <b>simple method</b> uses geometric spreading only (−20 log<sub>10</sub> d − 8 dB). <b>ISO 9613-2</b> adds frequency-dependent atmospheric absorption (ISO 9613-1) and ground attenuation per octave band (§7.3.1 detailed method with source, receiver, and middle region contributions).</div>
         <div class="penalty-group" id="propMethodGroup">
           <button class="penalty-btn active" data-val="simple">Simple (geometric spreading)</button>
           <button class="penalty-btn" data-val="iso9613">ISO 9613-2</button>
@@ -1764,11 +1764,83 @@ let iso_humidity = 70;        // % RH
 const OCT_FREQ = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
 
 // A-weighting corrections per octave band [63..8k Hz]
+// (Source spectra in the library are already A-weighted, so this is for reference only)
 const A_WEIGHT = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
 
 // Default atmospheric absorption coefficients (dB/km) at 10°C, 70% RH
 // from ISO 9613-1 Table 1
 const ALPHA_DEFAULT = [0.1, 0.4, 1.0, 1.9, 3.7, 9.7, 32.8, 117.0];
+
+/** Calculate frequency-dependent ground attenuation per octave band
+ *  using ISO 9613-2 Table 3 (detailed method, §7.3.1)
+ *  Agr = As + Ar + Am (source, receiver, and middle regions)
+ *  @param {number} hS - source height above ground (m)
+ *  @param {number} hR - receiver height above ground (m)
+ *  @param {number} dp - propagation distance (m), approximated as d for flat terrain
+ *  @param {number} G  - ground factor (0=hard reflective, 0.5=mixed, 1.0=soft porous)
+ *  @returns {number[]} Agr per octave band [63..8k Hz] */
+function calcAgrPerBand(hS, hR, dp, G) {
+  // ISO 9613-2 Table 3 helper functions for source/receiver region
+  function aPrime(h) {
+    return 1.5 + 3.0 * Math.exp(-0.12 * (h - 5) * (h - 5)) * (1 - Math.exp(-dp / 50))
+         + 5.7 * Math.exp(-0.09 * h * h) * (1 - Math.exp(-2.8e-6 * dp * dp));
+  }
+  function bPrime(h) {
+    return 1.5 + 8.6 * Math.exp(-0.09 * h * h) * (1 - Math.exp(-dp / 50));
+  }
+  function cPrime(h) {
+    return 1.5 + 14.0 * Math.exp(-0.46 * h * h) * (1 - Math.exp(-dp / 50));
+  }
+  function dPrime(h) {
+    return 1.5 + 5.0 * Math.exp(-0.9 * h * h) * (1 - Math.exp(-dp / 50));
+  }
+
+  // Source region As per band [63, 125, 250, 500, 1000, 2000, 4000, 8000]
+  var As = [
+    -1.5,                                    // 63 Hz: fixed
+    -1.5 + G * Math.max(aPrime(hS), 0),      // 125 Hz
+    -1.5 + G * Math.max(bPrime(hS), 0),      // 250 Hz
+    -1.5 + G * Math.max(cPrime(hS), 0),      // 500 Hz
+    -1.5 + G * Math.max(dPrime(hS), 0),      // 1000 Hz
+    -1.5 * (1 - G),                          // 2000 Hz
+    -1.5 * (1 - G),                          // 4000 Hz
+    -1.5 * (1 - G)                           // 8000 Hz
+  ];
+
+  // Receiver region Ar per band (same formulas with hR)
+  var Ar = [
+    -1.5,
+    -1.5 + G * Math.max(aPrime(hR), 0),
+    -1.5 + G * Math.max(bPrime(hR), 0),
+    -1.5 + G * Math.max(cPrime(hR), 0),
+    -1.5 + G * Math.max(dPrime(hR), 0),
+    -1.5 * (1 - G),
+    -1.5 * (1 - G),
+    -1.5 * (1 - G)
+  ];
+
+  // Middle region factor q (ISO 9613-2 §7.3.1)
+  var q = (dp <= 30 * (hS + hR)) ? 0 : (1 - 30 * (hS + hR) / dp);
+
+  // Middle region Am per band
+  var Am = [
+    -3 * q,                // 63 Hz
+    -3 * q * (1 - G),      // 125 Hz
+    -3 * q * (1 - G),      // 250 Hz
+    -3 * q * (1 - G),      // 500 Hz
+    -3 * q * (1 - G),      // 1000 Hz
+    -3 * q * (1 - G),      // 2000 Hz
+    -3 * q * (1 - G),      // 4000 Hz
+    -3 * q * (1 - G)       // 8000 Hz
+  ];
+
+  // Total Agr = As + Ar + Am per band
+  var Agr = [];
+  for (var i = 0; i < 8; i++) {
+    Agr.push(As[i] + Ar[i] + Am[i]);
+  }
+  return Agr;
+}
 
 /** Calculate atmospheric absorption coefficients (dB/km) per octave band
  *  using simplified ISO 9613-1 approximation for given T (°C) and h (% RH) */
@@ -1800,6 +1872,11 @@ function calcAlphaAtm(tempC, humPct) {
 }
 
 /** ISO 9613-2 prediction for a single source at a receiver distance
+ *  Uses per-octave-band calculation with:
+ *    Adiv  — geometric divergence (Eq 8)
+ *    Aatm  — atmospheric absorption per band (ISO 9613-1)
+ *    Agr   — frequency-dependent ground attenuation (Table 3, §7.3.1)
+ *  Ground reflection is handled within Agr (negative Agr = amplification).
  *  @param {number[]} spectrumA - A-weighted Lw per octave band [63..8k]
  *  @param {number} srcHeight - source height above ground (m)
  *  @param {number} distM - distance source to receiver (m)
@@ -1812,20 +1889,13 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB) {
   var hR = iso_receiverHeight;
   var alpha = calcAlphaAtm(iso_temperature, iso_humidity);
 
-  // Geometric divergence (ISO 9613-2 Formula 8)
+  // Geometric divergence (ISO 9613-2 Eq 8): point source, free field
   var Adiv = 20 * log10(d) + 11;
 
-  // Ground attenuation — simplified method (ISO 9613-2 Formula 14)
-  var hm = (hS + hR) / 2;
-  var Agr = 4.8 - (2 * hm / d) * (17 + 300 / d);
-  if (Agr < 0) Agr = 0;
-  // Scale by ground factor: G=0 (hard) → no ground atten, G=1 (soft) → full
-  Agr = Agr * iso_groundFactor;
-
-  // Directivity correction for ground reflection (simplified method, Formula 15)
-  var dp = d; // approximate dp ≈ d for screening tool
-  var Kgeo = (dp * dp + (hS - hR) * (hS - hR)) / (dp * dp + (hS + hR) * (hS + hR));
-  var Drefl = 10 * log10(1 + Kgeo);
+  // Frequency-dependent ground attenuation (ISO 9613-2 Table 3, §7.3.1)
+  // Includes source region, receiver region, and middle region contributions
+  // Negative values represent ground reflection amplification (e.g. hard ground)
+  var Agr = calcAgrPerBand(hS, hR, d, iso_groundFactor);
 
   // Sum across octave bands
   var sumLin = 0;
@@ -1840,11 +1910,12 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB) {
     // Atmospheric absorption for this band
     var Aatm_f = alpha[i] * d / 1000;
 
-    // Total attenuation for this band
-    var A_f = Adiv + Aatm_f + Agr;
+    // Total attenuation for this band (ISO 9613-2 Eq 5)
+    // Agr[i] can be negative (ground reflection gain on hard surfaces)
+    var A_f = Adiv + Aatm_f + Agr[i];
 
-    // Received level (including ground reflection directivity)
-    var Lp_f = Lw_adj + Drefl - A_f;
+    // Received level: Lp = Lw - A  (ISO 9613-2 Eq 5, with Dc = 0 for omnidirectional source)
+    var Lp_f = Lw_adj - A_f;
 
     sumLin += Math.pow(10, Lp_f / 10);
     anyBand = true;
