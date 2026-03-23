@@ -1071,7 +1071,13 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
     <div class="grid2">
       <div class="card span2">
-        <h2>Predicted noise levels</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+          <h2 style="margin:0;">Predicted noise levels</h2>
+          <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;font-weight:600;">
+            <input type="checkbox" id="facadeCorrectionCb" onchange="facadeCorrection=this.checked?2.5:0;render()">
+            +2.5 dB facade reflection (free-field to facade)
+          </label>
+        </div>
       <div class="table-scroll">
     <table>
       <tr>
@@ -2120,6 +2126,9 @@ function refreshAllSourceDropdowns() {
     renderSourceTable(pfx, tbodyId, totalId, 5);
   });
 }
+
+// Facade reflection correction (0 or 2.5 dB, free-field to facade)
+var facadeCorrection = 0;
 
 // Characteristic penalty state (dB added to predicted Leq before comparison)
 // Per-receiver characteristic penalties {r1:{day:0,eve:0,night:0}, r2:..., r3:..., r4:...}
@@ -4079,16 +4088,18 @@ function render() {
     if (nightTotal === 0 && predNight !== "" && predNight < 0) predNight = "";
     if (nightLmaxTotal === 0 && predLmax !== "" && predLmax < 0) predLmax = "";
 
-    // Apply per-receiver characteristic penalties to predicted Leq levels
+    // Apply per-receiver characteristic penalties and facade correction to predicted levels
     const rp = recvPenalties[`r${i+1}`] || {day:0,eve:0,night:0};
-    const predDayPenalised = (predDay !== "" && predDay !== null && predDay !== undefined) ? predDay + rp.day : predDay;
-    const predEvePenalised = (predEve !== "" && predEve !== null && predEve !== undefined) ? predEve + rp.eve : predEve;
-    const predNightPenalised = (predNight !== "" && predNight !== null && predNight !== undefined) ? predNight + rp.night : predNight;
+    const fc = facadeCorrection || 0;
+    const predDayPenalised = (predDay !== "" && predDay !== null && predDay !== undefined) ? predDay + rp.day + fc : predDay;
+    const predEvePenalised = (predEve !== "" && predEve !== null && predEve !== undefined) ? predEve + rp.eve + fc : predEve;
+    const predNightPenalised = (predNight !== "" && predNight !== null && predNight !== undefined) ? predNight + rp.night + fc : predNight;
+    const predLmaxAdj = (predLmax !== "" && predLmax !== null && predLmax !== undefined) ? predLmax + fc : predLmax;
 
     const day = compCell(predDayPenalised, dayCrit);
     const eve = compCell(predEvePenalised, eveCrit);
     const night = compCell(predNightPenalised, nightCrit);
-    const lmax = compCell(predLmax, lmaxCrit);
+    const lmax = compCell(predLmaxAdj, lmaxCrit);
 
     function okText(v) { return v === "" ? "" : (v ? "<span class='ok'>Yes</span>" : "<span class='bad'>No</span>"); }
     function cellClass(v) { return v === "" ? "" : (v ? "cell-ok" : "cell-bad"); }
@@ -4117,7 +4128,7 @@ function render() {
       td(night.delta === "" ? "" : String(night.delta), "num crit-night-col") +
       td(okText(night.ok), "center crit-night-col "+cellClass(night.ok)) +
 
-      `<td class="num crit-lmax-col"><span style="display:inline-block;min-width:48px;">${predLmax}</span></td>` +
+      `<td class="num crit-lmax-col"><span style="display:inline-block;min-width:48px;">${predLmaxAdj}</span></td>` +
       td(lmaxCrit === "" ? "" : fmt(lmaxCrit), "num crit-lmax-col") +
       td(lmax.delta === "" ? "" : String(lmax.delta), "num crit-lmax-col") +
       td(okText(lmax.ok), "center crit-lmax-col "+cellClass(lmax.ok));
@@ -4144,9 +4155,11 @@ function render() {
       if (nightTotal === 0 && predN !== "" && predN < 0) predN = "";
       if (nightLmaxTotal === 0 && predLmax !== "" && predLmax < 0) predLmax = "";
       var rpSleep = recvPenalties['r'+(i+1)] || {night:0};
-      var penN = (predN !== "" && predN !== null) ? predN + rpSleep.night : "";
+      var fcSleep = facadeCorrection || 0;
+      var penN = (predN !== "" && predN !== null) ? predN + rpSleep.night + fcSleep : "";
       var leqExceeds = penN !== "" && penN > sleepLeqThreshold;
-      var lmaxExceeds = predLmax !== "" && predLmax > sleepLmaxThreshold;
+      var predLmaxFC = (predLmax !== "" && predLmax !== null) ? predLmax + fcSleep : predLmax;
+      var lmaxExceeds = predLmaxFC !== "" && predLmaxFC > sleepLmaxThreshold;
       sleepResults.push({ leqExceeds: leqExceeds, lmaxExceeds: lmaxExceeds, hasData: penN !== "" || predLmax !== "" });
     });
 
@@ -5112,6 +5125,7 @@ initCollapse();
 
         // Characteristic penalties
         data.recvPenalties = JSON.parse(JSON.stringify(recvPenalties));
+        data.facadeCorrection = facadeCorrection;
 
         // Propagation method & ISO parameters
         data.propagation = {
@@ -5339,6 +5353,13 @@ initCollapse();
             }
           });
         });
+      }
+
+      // 8b. Facade correction
+      if (data.facadeCorrection !== undefined) {
+        facadeCorrection = data.facadeCorrection;
+        var fcCb = document.getElementById('facadeCorrectionCb');
+        if (fcCb) fcCb.checked = facadeCorrection > 0;
       }
 
       // 9. Propagation settings
