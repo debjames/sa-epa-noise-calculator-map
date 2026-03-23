@@ -852,6 +852,70 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       </div>
     </div>
 
+    <!-- ═══ Custom sources panel ═══ -->
+    <div class="grid2 grid-full" style="padding-top:0;">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 style="margin:0;">Custom sources</h2>
+          <button class="collapse-btn" style="font-size:11px;" onclick="var cb=document.getElementById('customSrcBody');if(cb){cb.classList.toggle('collapsed');this.innerHTML=cb.classList.contains('collapsed')?'&#x25BC;':'&#x25B2;';}">&#x25BC;</button>
+        </div>
+        <div id="customSrcBody" class="card-body collapsed">
+          <div class="p" style="margin:8px 0 10px;">Add custom noise sources with name, overall Lw, and octave band spectrum (A-weighted). Custom sources persist across sessions and appear in all source dropdowns.</div>
+
+          <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
+            <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
+              <div>
+                <label style="font-size:11px;font-weight:600;">Source name</label>
+                <input type="text" id="customSrcName" placeholder="e.g. Pump unit XYZ" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Overall Lw dB(A)</label>
+                <input type="number" id="customSrcLw" step="0.1" placeholder="85" style="width:80px;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;">
+              </div>
+            </div>
+            <div style="margin-top:8px;">
+              <label style="font-size:11px;font-weight:600;">Octave band spectrum, dB(A)  <span style="font-weight:400;color:var(--muted);">(leave blank to use flat spectrum)</span></label>
+              <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-top:4px;">
+                <div style="text-align:center;font-size:10px;font-weight:600;">63 Hz</div>
+                <div style="text-align:center;font-size:10px;font-weight:600;">125 Hz</div>
+                <div style="text-align:center;font-size:10px;font-weight:600;">250 Hz</div>
+                <div style="text-align:center;font-size:10px;font-weight:600;">500 Hz</div>
+                <div style="text-align:center;font-size:10px;font-weight:600;">1 kHz</div>
+                <div style="text-align:center;font-size:10px;font-weight:600;">2 kHz</div>
+                <div style="text-align:center;font-size:10px;font-weight:600;">4 kHz</div>
+                <div style="text-align:center;font-size:10px;font-weight:600;">8 kHz</div>
+                <input type="number" id="customSrcBand0" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;font-size:11px;padding:4px 2px;border:1px solid var(--border);border-radius:4px;">
+                <input type="number" id="customSrcBand1" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;font-size:11px;padding:4px 2px;border:1px solid var(--border);border-radius:4px;">
+                <input type="number" id="customSrcBand2" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;font-size:11px;padding:4px 2px;border:1px solid var(--border);border-radius:4px;">
+                <input type="number" id="customSrcBand3" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;font-size:11px;padding:4px 2px;border:1px solid var(--border);border-radius:4px;">
+                <input type="number" id="customSrcBand4" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;font-size:11px;padding:4px 2px;border:1px solid var(--border);border-radius:4px;">
+                <input type="number" id="customSrcBand5" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;font-size:11px;padding:4px 2px;border:1px solid var(--border);border-radius:4px;">
+                <input type="number" id="customSrcBand6" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;font-size:11px;padding:4px 2px;border:1px solid var(--border);border-radius:4px;">
+                <input type="number" id="customSrcBand7" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;font-size:11px;padding:4px 2px;border:1px solid var(--border);border-radius:4px;">
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:end;margin-top:8px;">
+              <div>
+                <label style="font-size:11px;font-weight:600;">Height (m)</label>
+                <input type="number" id="customSrcHeight" step="0.1" value="1.5" min="0" style="width:60px;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;">
+              </div>
+              <button type="button" class="pdf-btn" style="font-size:11px;padding:6px 14px;margin:0;" onclick="addCustomSource()">Add source</button>
+              <span id="customSrcError" style="font-size:11px;color:#dc2626;display:none;"></span>
+            </div>
+          </div>
+
+          <div id="customSrcList"></div>
+
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button type="button" class="pdf-btn" style="font-size:11px;padding:5px 12px;margin:0;" onclick="exportCustomSources()">Export library</button>
+            <button type="button" class="pdf-btn" style="font-size:11px;padding:5px 12px;margin:0;" onclick="document.getElementById('customSrcImportFile').click()">Import library</button>
+            <input type="file" id="customSrcImportFile" accept=".json,.csv" style="display:none;" onchange="importCustomSources(this)">
+          </div>
+          <div class="small" style="margin-top:6px;">Import accepts JSON (array of objects with <code>name</code>, <code>lw</code>, <code>spectrum</code>) or CSV with columns: name, lw, 63, 125, 250, 500, 1k, 2k, 4k, 8k, height.</div>
+        </div>
+      </div>
+    </div>
+
     <div class="grid2 grid-full crit-day-section" style="padding-top:0;">
       <div class="card">
         <h2>Day situation</h2>
@@ -1791,11 +1855,271 @@ function filterGrouped(grouped, predicate){
   return out;
 }
 
-const SOURCE_LIBRARY_ALL = flattenGrouped(SOURCE_LIBRARY_GROUPED);
-const SOURCE_LIBRARY = SOURCE_LIBRARY_ALL.filter(s => !/lmax/i.test(String(s.name)));
-const SOURCE_LIBRARY_LMAX = SOURCE_LIBRARY_ALL.filter(s => /lmax/i.test(String(s.name)));
-const SOURCE_LIBRARY_GROUPED_NON_LMAX = filterGrouped(SOURCE_LIBRARY_GROUPED, s => !/lmax/i.test(String(s.name)));
-const SOURCE_LIBRARY_GROUPED_LMAX = filterGrouped(SOURCE_LIBRARY_GROUPED, s => /lmax/i.test(String(s.name)));
+/* ── Custom source library (persists in localStorage) ── */
+var _customSources = [];
+try {
+  var _csRaw = localStorage.getItem('customSources');
+  if (_csRaw) _customSources = JSON.parse(_csRaw);
+  if (!Array.isArray(_customSources)) _customSources = [];
+} catch(e) { _customSources = []; }
+
+function _saveCustomSources() {
+  localStorage.setItem('customSources', JSON.stringify(_customSources));
+}
+
+/** Rebuild all library derivatives (call after custom sources change) */
+var SOURCE_LIBRARY_ALL, SOURCE_LIBRARY, SOURCE_LIBRARY_LMAX;
+var SOURCE_LIBRARY_GROUPED_NON_LMAX, SOURCE_LIBRARY_GROUPED_LMAX;
+
+function rebuildSourceLibraries() {
+  // Inject/update custom group
+  if (_customSources.length > 0) {
+    SOURCE_LIBRARY_GROUPED['Custom sources'] = _customSources.map(function(s) {
+      return {name: s.name, lw: s.lw, spectrum: s.spectrum, height: s.height || 1.5};
+    });
+  } else {
+    delete SOURCE_LIBRARY_GROUPED['Custom sources'];
+  }
+  SOURCE_LIBRARY_ALL = flattenGrouped(SOURCE_LIBRARY_GROUPED);
+  SOURCE_LIBRARY = SOURCE_LIBRARY_ALL.filter(s => !/lmax/i.test(String(s.name)));
+  SOURCE_LIBRARY_LMAX = SOURCE_LIBRARY_ALL.filter(s => /lmax/i.test(String(s.name)));
+  SOURCE_LIBRARY_GROUPED_NON_LMAX = filterGrouped(SOURCE_LIBRARY_GROUPED, s => !/lmax/i.test(String(s.name)));
+  SOURCE_LIBRARY_GROUPED_LMAX = filterGrouped(SOURCE_LIBRARY_GROUPED, s => /lmax/i.test(String(s.name)));
+}
+rebuildSourceLibraries();
+
+/* ── Custom source management functions ── */
+
+function addCustomSource() {
+  var nameEl = document.getElementById('customSrcName');
+  var lwEl = document.getElementById('customSrcLw');
+  var heightEl = document.getElementById('customSrcHeight');
+  var errEl = document.getElementById('customSrcError');
+
+  var name = nameEl ? nameEl.value.trim() : '';
+  var lw = lwEl ? Number(lwEl.value) : NaN;
+
+  if (!name) { showCustomSrcError('Enter a source name'); return; }
+  if (!Number.isFinite(lw)) { showCustomSrcError('Enter a valid Lw value'); return; }
+
+  // Check for duplicate name
+  if (_customSources.some(function(s) { return s.name === name; })) {
+    showCustomSrcError('A custom source with this name already exists'); return;
+  }
+
+  // Read spectrum bands
+  var spectrum = [];
+  var anyBand = false;
+  for (var i = 0; i < 8; i++) {
+    var bandEl = document.getElementById('customSrcBand' + i);
+    var bv = bandEl && bandEl.value !== '' ? Number(bandEl.value) : null;
+    if (bv !== null && !Number.isFinite(bv)) bv = null;
+    if (bv !== null) anyBand = true;
+    spectrum.push(bv);
+  }
+
+  // If no spectrum entered, derive flat spectrum from overall Lw
+  // Lw_per_band = Lw - 10*log10(8) ≈ Lw - 9.0 dB
+  if (!anyBand) {
+    var perBand = Math.round((lw - 10 * log10(8)) * 10) / 10;
+    spectrum = [perBand, perBand, perBand, perBand, perBand, perBand, perBand, perBand];
+  }
+
+  var height = heightEl ? Number(heightEl.value) : 1.5;
+  if (!Number.isFinite(height) || height < 0) height = 1.5;
+
+  // Append Lw to name for consistency with built-in sources
+  var displayName = name + ' \u2014 Lw ' + Math.round(lw) + ' dB(A)';
+
+  _customSources.push({
+    name: displayName,
+    lw: lw,
+    spectrum: spectrum,
+    height: height
+  });
+  _saveCustomSources();
+  rebuildSourceLibraries();
+  renderCustomSourceList();
+  refreshAllSourceDropdowns();
+
+  // Clear form
+  if (nameEl) nameEl.value = '';
+  if (lwEl) lwEl.value = '';
+  for (var j = 0; j < 8; j++) {
+    var be = document.getElementById('customSrcBand' + j);
+    if (be) be.value = '';
+  }
+  if (heightEl) heightEl.value = '1.5';
+  if (errEl) errEl.style.display = 'none';
+}
+
+function deleteCustomSource(idx) {
+  _customSources.splice(idx, 1);
+  _saveCustomSources();
+  rebuildSourceLibraries();
+  renderCustomSourceList();
+  refreshAllSourceDropdowns();
+}
+
+function showCustomSrcError(msg) {
+  var el = document.getElementById('customSrcError');
+  if (el) { el.textContent = msg; el.style.display = ''; }
+}
+
+function renderCustomSourceList() {
+  var list = document.getElementById('customSrcList');
+  if (!list) return;
+  if (_customSources.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0;">No custom sources added yet.</div>';
+    return;
+  }
+  var h = '<table style="width:100%;font-size:11px;"><tr><th style="text-align:left;">Name</th><th class="center">Lw</th><th class="center">Spectrum</th><th class="center">Height</th><th></th></tr>';
+  _customSources.forEach(function(s, i) {
+    var specStr = s.spectrum ? s.spectrum.map(function(v) { return v !== null ? Math.round(v) : '-'; }).join(', ') : '';
+    h += '<tr>';
+    h += '<td style="font-size:11px;">' + (s.name || '') + '</td>';
+    h += '<td class="center">' + (s.lw !== undefined ? Math.round(s.lw * 10) / 10 : '') + '</td>';
+    h += '<td class="center" style="font-size:10px;color:var(--muted);">' + specStr + '</td>';
+    h += '<td class="center">' + (s.height || 1.5) + '</td>';
+    h += '<td class="center"><a href="#" style="color:#dc2626;font-size:10px;text-decoration:none;" onclick="event.preventDefault();deleteCustomSource(' + i + ')">Delete</a></td>';
+    h += '</tr>';
+  });
+  h += '</table>';
+  list.innerHTML = h;
+}
+
+function exportCustomSources() {
+  if (_customSources.length === 0) { alert('No custom sources to export.'); return; }
+  var json = JSON.stringify(_customSources, null, 2);
+  var blob = new Blob([json], {type: 'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'Custom Source Library.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importCustomSources(fileInput) {
+  var file = fileInput.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var text = e.target.result;
+      var imported = [];
+
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        // Parse CSV: name, lw, 63, 125, 250, 500, 1k, 2k, 4k, 8k, height
+        var lines = text.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l; });
+        // Skip header if first line looks like a header
+        var start = 0;
+        if (lines.length > 0 && /name/i.test(lines[0])) start = 1;
+        for (var li = start; li < lines.length; li++) {
+          var cols = parseCSVLine(lines[li]);
+          if (cols.length < 2) continue;
+          var name = cols[0].trim();
+          var lw = Number(cols[1]);
+          if (!name || !Number.isFinite(lw)) continue;
+          var spec = [];
+          for (var bi = 0; bi < 8; bi++) {
+            var bv = cols.length > 2 + bi ? Number(cols[2 + bi]) : null;
+            spec.push(Number.isFinite(bv) ? bv : null);
+          }
+          var ht = cols.length > 10 ? Number(cols[10]) : 1.5;
+          if (!Number.isFinite(ht) || ht < 0) ht = 1.5;
+          // Derive flat spectrum if none provided
+          if (!spec.some(function(v) { return v !== null; })) {
+            var pb = Math.round((lw - 10 * log10(8)) * 10) / 10;
+            spec = [pb, pb, pb, pb, pb, pb, pb, pb];
+          }
+          // Append Lw to name
+          if (!/\bLw\b/i.test(name)) name += ' \u2014 Lw ' + Math.round(lw) + ' dB(A)';
+          imported.push({name: name, lw: lw, spectrum: spec, height: ht});
+        }
+      } else {
+        // Parse JSON
+        var data = JSON.parse(text);
+        if (!Array.isArray(data)) { alert('JSON must be an array of source objects.'); return; }
+        data.forEach(function(s) {
+          if (!s.name || !Number.isFinite(s.lw)) return;
+          var spec = s.spectrum || [];
+          if (!Array.isArray(spec) || spec.length < 8) {
+            var pb = Math.round((s.lw - 10 * log10(8)) * 10) / 10;
+            spec = [pb, pb, pb, pb, pb, pb, pb, pb];
+          }
+          var name = s.name;
+          if (!/\bLw\b/i.test(name)) name += ' \u2014 Lw ' + Math.round(s.lw) + ' dB(A)';
+          imported.push({name: name, lw: s.lw, spectrum: spec, height: s.height || 1.5});
+        });
+      }
+
+      if (imported.length === 0) { alert('No valid sources found in file.'); return; }
+
+      // Merge — skip duplicates by name
+      var existingNames = _customSources.map(function(s) { return s.name; });
+      var added = 0;
+      imported.forEach(function(s) {
+        if (existingNames.indexOf(s.name) === -1) {
+          _customSources.push(s);
+          existingNames.push(s.name);
+          added++;
+        }
+      });
+      _saveCustomSources();
+      rebuildSourceLibraries();
+      renderCustomSourceList();
+      refreshAllSourceDropdowns();
+      alert('Imported ' + added + ' source' + (added !== 1 ? 's' : '') + (imported.length - added > 0 ? ' (' + (imported.length - added) + ' duplicates skipped)' : '') + '.');
+    } catch(err) {
+      console.error('Import error:', err);
+      alert('Failed to import sources: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  fileInput.value = '';
+}
+
+/** Parse a single CSV line handling quoted fields */
+function parseCSVLine(line) {
+  var result = [];
+  var i = 0;
+  while (i < line.length) {
+    if (line[i] === '"') {
+      var j = i + 1;
+      var val = '';
+      while (j < line.length) {
+        if (line[j] === '"' && j + 1 < line.length && line[j + 1] === '"') {
+          val += '"'; j += 2;
+        } else if (line[j] === '"') {
+          j++; break;
+        } else {
+          val += line[j]; j++;
+        }
+      }
+      result.push(val);
+      if (j < line.length && line[j] === ',') j++;
+      i = j;
+    } else {
+      var comma = line.indexOf(',', i);
+      if (comma === -1) { result.push(line.substring(i)); break; }
+      result.push(line.substring(i, comma));
+      i = comma + 1;
+    }
+  }
+  return result;
+}
+
+/** Rebuild all source dropdowns in all period tables while preserving current selections */
+function refreshAllSourceDropdowns() {
+  ['day', 'eve', 'night', 'lmax'].forEach(function(pfx) {
+    var tbodyId = pfx + 'SrcRows';
+    var totalId = pfx + 'SrcTotal';
+    renderSourceTable(pfx, tbodyId, totalId, 5);
+  });
+}
 
 // Characteristic penalty state (dB added to predicted Leq before comparison)
 // Per-receiver characteristic penalties {r1:{day:0,eve:0,night:0}, r2:..., r3:..., r4:...}
@@ -4712,6 +5036,7 @@ initPropagationMethod();
 initPenaltyButtons();
 initPenaltyTable();
 renderContributions();
+renderCustomSourceList();
 initCollapse();
 </script>
 
@@ -4835,6 +5160,11 @@ initCollapse();
           var cb = document.getElementById(id);
           if (cb) data.other[id] = cb.checked;
         });
+
+        // Custom sources (include so assessment file is self-contained)
+        if (_customSources.length > 0) {
+          data.customSources = JSON.parse(JSON.stringify(_customSources));
+        }
 
         // Map marker positions
         data.markers = {};
@@ -5097,7 +5427,21 @@ initCollapse();
         if (typeof updateOtherCritSelection === 'function') updateOtherCritSelection();
       }
 
-      // 13. Place map markers (after a delay to ensure map is ready)
+      // 13. Custom sources (merge from assessment file)
+      if (data.customSources && Array.isArray(data.customSources)) {
+        var existingNames = _customSources.map(function(s) { return s.name; });
+        data.customSources.forEach(function(s) {
+          if (existingNames.indexOf(s.name) === -1) {
+            _customSources.push(s);
+            existingNames.push(s.name);
+          }
+        });
+        _saveCustomSources();
+        rebuildSourceLibraries();
+        if (typeof renderCustomSourceList === 'function') renderCustomSourceList();
+      }
+
+      // 14. Place map markers (after a delay to ensure map is ready)
       if (data.markers && window._placeMarker) {
         setTimeout(function() {
           var map = window._getMapRef ? window._getMapRef() : null;
