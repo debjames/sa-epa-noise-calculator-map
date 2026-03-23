@@ -423,9 +423,9 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <a href="#" id="vicIFReset" style="font-size:10px;display:none;color:#2563eb;" onclick="event.preventDefault();document.getElementById('vicIF').value='';handleIFInput();">Reset to auto</a>
             </div>
             <div class="small" style="margin-top:4px;">0 = fully Type 1 (residential), 1 = fully Type 3 (industrial). Per Figure 1 of Pub 1826.5, IF is derived from zones within 140 m / 400 m circles around each <b>noise sensitive area</b> (NSA). Leave blank to auto-derive per NSA, or enter a value to override all.</div>
-            <div id="vicDetectedZones" style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;display:none;"></div>
           </div>
         </div>
+        <div id="vicDetectedZones" style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;display:none;"></div>
         <div style="margin-top:12px;">
           <label class="h2" style="font-size:12px;">Background noise levels &amp; classification</label>
           <div class="small" style="margin-top:2px;margin-bottom:6px;">Enter measured background levels (L<sub>A90</sub>) to auto-determine classification per Clause 4 of Pub 1826.5. Classification can be overridden manually.</div>
