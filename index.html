@@ -3077,8 +3077,16 @@ function toggleRecvMapView(recvId) {
   _vicRecvMapVisible[recvId] = !_vicRecvMapVisible[recvId];
   if (typeof updateConcentricCircles === 'function') updateConcentricCircles();
   if (typeof updateRecvMapLegends === 'function') updateRecvMapLegends();
-  // Re-render the panel to update button text (Show/Hide)
-  try { renderDetectedZones(); } catch(e) { console.warn('renderDetectedZones error:', e); }
+  // Update button text and style directly
+  var RECV_COLORS = {r1: '#2563eb', r2: '#059669', r3: '#d97706', r4: '#7c3aed'};
+  var btn = document.getElementById('vicRecvToggle_' + recvId);
+  if (btn) {
+    var isVis = _vicRecvMapVisible[recvId];
+    var col = RECV_COLORS[recvId] || '#6b7280';
+    btn.textContent = isVis ? 'Hide on map' : 'Show on map';
+    btn.style.background = isVis ? col : 'transparent';
+    btn.style.color = isVis ? '#fff' : col;
+  }
 }
 
 /** Render the detected zones into the UI panel — shows per-receiver IF data */
@@ -3143,9 +3151,7 @@ function renderDetectedZones() {
            'style="width:42px;font-size:9px;padding:1px 2px;text-align:center;" ' +
            'oninput="updatePerNsaBg(\'' + id + '\',\'' + p + '\')" ' +
            'onchange="updatePerNsaBg(\'' + id + '\',\'' + p + '\')">';
-      if (hasValue) {
-        h += '<div style="font-size:8px;font-weight:600;color:' + classCol + ';margin-top:1px;">' + classLabel + '</div>';
-      }
+      h += '<div id="vicNsaBgLabel_' + id + '_' + p + '" style="font-size:8px;font-weight:600;color:' + classCol + ';margin-top:1px;' + (hasValue ? '' : 'display:none;') + '">' + classLabel + '</div>';
       h += '</div>';
     });
     var nsaClassVal = nsaBg.class || 'auto';
@@ -3404,6 +3410,7 @@ function updatePerNsaBg(recvId, period) {
     _vicPerNsaBg[recvId][period] = el.value ? Number(el.value) : NaN;
   }
   render();
+  _updateNsaBgClassLabels(recvId);
 }
 
 /** Update per-NSA classification override */
@@ -3413,6 +3420,31 @@ function updatePerNsaBgClass(recvId) {
     _vicPerNsaBg[recvId].class = el.value;
   }
   render();
+  _updateNsaBgClassLabels(recvId);
+}
+
+/** Update the classification labels for a specific NSA without rebuilding the panel */
+function _updateNsaBgClassLabels(recvId) {
+  var CLASS_COLORS = {neutral: '#6b7280', low: '#2563eb', high: '#dc2626'};
+  var CLASS_LABELS = {neutral: 'Neutral', low: 'Low', high: 'High'};
+  var nsaZoningLevels = {day: NaN, evening: NaN, night: NaN};
+  try { nsaZoningLevels = getVicBaseZoningLevels(recvId) || nsaZoningLevels; } catch(e) {}
+  ['day','evening','night'].forEach(function(p) {
+    var labelEl = document.getElementById('vicNsaBgLabel_' + recvId + '_' + p);
+    var bgLevel = getVicBgLevel(p, recvId);
+    if (!labelEl) return;
+    if (Number.isFinite(bgLevel)) {
+      var effClass = 'neutral';
+      try { effClass = getEffectiveBgClass(p, nsaZoningLevels[p], recvId); } catch(e2) {}
+      var label = CLASS_LABELS[effClass] || 'Neutral';
+      var col = CLASS_COLORS[effClass] || '#6b7280';
+      labelEl.textContent = label;
+      labelEl.style.color = col;
+      labelEl.style.display = 'block';
+    } else {
+      labelEl.style.display = 'none';
+    }
+  });
 }
 
 /** Update the auto-classification display labels and render */
