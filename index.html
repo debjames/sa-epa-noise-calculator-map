@@ -3110,7 +3110,7 @@ function renderDetectedZones() {
          'style="font-size:9px;padding:2px 8px;border-radius:4px;cursor:pointer;border:1.5px solid ' + col + ';' +
          'background:' + (isVis ? col : 'transparent') + ';color:' + (isVis ? '#fff' : col) + ';font-weight:600;" ' +
          'title="Show/hide zones on map">' +
-         (isVis ? '\u2713 On map' : 'Show on map') + '</button>';
+         (isVis ? 'Hide on map' : 'Show on map') + '</button>';
     h += '</div>';
     h += _buildZoneListHTML(data.zones140, data.fracs140, '140 m circle');
     h += _buildZoneListHTML(data.zones400, data.fracs400, '400 m circle');
