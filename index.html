@@ -5542,6 +5542,8 @@ initCollapse();
               /* Flash highlight on auto-selected dropdown */
               sel.classList.add('zone-detect-flash');
               setTimeout(function() { sel.classList.remove('zone-detect-flash'); }, 1600);
+              // Re-render criteria after zone detection sets dropdown value
+              if (typeof render === 'function') render();
             }
           }
 
@@ -6402,6 +6404,8 @@ initCollapse();
             sel.dispatchEvent(new Event('change', { bubbles: true }));
             sel.classList.add('zone-detect-flash');
             setTimeout(function() { sel.classList.remove('zone-detect-flash'); }, 1600);
+            // Re-render criteria after zone detection sets dropdown value
+            if (typeof render === 'function') render();
           }
 
           // Update marker popup
@@ -6714,8 +6718,15 @@ initCollapse();
 
     /** Update per-receiver map legends (zone analysis panels shown on the map).
      *  All NSA legends stack on the right side; urban boundary legend stays bottom-left. */
+    var _recvMapLegendContainer = null; // single Leaflet control for all NSA legends
+
     function updateRecvMapLegends() {
-      // Remove existing legends
+      // Remove existing combined legend container
+      if (_recvMapLegendContainer) {
+        map.removeControl(_recvMapLegendContainer);
+        _recvMapLegendContainer = null;
+      }
+      // Also remove any old per-receiver legends (backwards compat)
       ['r1','r2','r3','r4'].forEach(function(id) {
         if (_recvMapLegends[id]) {
           map.removeControl(_recvMapLegends[id]);
@@ -6736,36 +6747,42 @@ initCollapse();
       });
       if (visibleIds.length === 0) return;
 
-      // All NSA legends on the right side, stacked vertically
-      visibleIds.forEach(function(id) {
-        var data = window.autoIFDataPerReceiver[id];
-        var nameEl = document.getElementById('name_' + id);
-        var recvName = (nameEl && nameEl.value) ? nameEl.value : NSA_LABELS[id];
-        var col = RECV_CIRCLE_COLORS[id] || '#6b7280';
+      // Single control containing all NSA legends in a responsive grid
+      var ctrl = L.control({ position: 'bottomright' });
+      ctrl.onAdd = function() {
+        var wrapper = L.DomUtil.create('div', '');
+        // Use 2-column grid when 3+ legends, single column for 1-2
+        var cols = visibleIds.length >= 3 ? 2 : 1;
+        wrapper.style.cssText = 'display:grid;grid-template-columns:repeat(' + cols + ',1fr);gap:6px;max-height:calc(100vh - 120px);overflow-y:auto;pointer-events:auto;';
 
-        var ctrl = L.control({ position: 'bottomright' });
-        ctrl.onAdd = function() {
-          var div = L.DomUtil.create('div', 'zone-legend');
-          div.style.maxWidth = '260px';
-          div.style.minWidth = '180px';
-          div.style.borderLeft = '3px solid ' + col;
-          var html = '<div class="zone-legend-title" style="color:' + col + ';">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</div>';
-          html += '<div style="display:flex;gap:8px;margin-bottom:4px;font-size:9px;font-weight:600;">';
+        visibleIds.forEach(function(id) {
+          var data = window.autoIFDataPerReceiver[id];
+          var nameEl = document.getElementById('name_' + id);
+          var recvName = (nameEl && nameEl.value) ? nameEl.value : NSA_LABELS[id];
+          var col = RECV_CIRCLE_COLORS[id] || '#6b7280';
+
+          var card = document.createElement('div');
+          card.className = 'zone-legend';
+          card.style.cssText = 'max-width:240px;min-width:170px;margin:0;border-left:3px solid ' + col + ';';
+          var html = '<div class="zone-legend-title" style="color:' + col + ';font-size:11px;">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</div>';
+          html += '<div style="display:flex;gap:6px;margin-bottom:3px;font-size:8px;font-weight:600;">';
           html += '<span style="color:#059669;">\u25A0 T1 Res</span>';
           html += '<span style="color:#d97706;">\u25A0 T2 Com</span>';
           html += '<span style="color:#dc2626;">\u25A0 T3 Ind</span>';
           html += '</div>';
           html += _buildZoneListHTML(data.zones140, data.fracs140, '140 m circle');
           html += _buildZoneListHTML(data.zones400, data.fracs400, '400 m circle');
-          html += '<div style="font-size:10px;font-weight:600;color:#059669;margin-top:4px;">Computed IF = ' + data.IF.toFixed(2) + '</div>';
-          div.innerHTML = html;
-          L.DomEvent.disableClickPropagation(div);
-          L.DomEvent.disableScrollPropagation(div);
-          return div;
-        };
-        ctrl.addTo(map);
-        _recvMapLegends[id] = ctrl;
-      });
+          html += '<div style="font-size:10px;font-weight:600;color:#059669;margin-top:3px;">Computed IF = ' + data.IF.toFixed(2) + '</div>';
+          card.innerHTML = html;
+          wrapper.appendChild(card);
+        });
+
+        L.DomEvent.disableClickPropagation(wrapper);
+        L.DomEvent.disableScrollPropagation(wrapper);
+        return wrapper;
+      };
+      ctrl.addTo(map);
+      _recvMapLegendContainer = ctrl;
 
       // Auto-fit map to show all visible receivers with their 400m circles
       fitMapToVisibleReceivers(visibleIds);
