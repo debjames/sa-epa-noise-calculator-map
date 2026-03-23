@@ -3078,7 +3078,7 @@ function toggleRecvMapView(recvId) {
   if (typeof updateConcentricCircles === 'function') updateConcentricCircles();
   if (typeof updateRecvMapLegends === 'function') updateRecvMapLegends();
   // Re-render the panel to update button text (Show/Hide)
-  renderDetectedZones();
+  try { renderDetectedZones(); } catch(e) { console.warn('renderDetectedZones error:', e); }
 }
 
 /** Render the detected zones into the UI panel — shows per-receiver IF data */
@@ -3118,26 +3118,28 @@ function renderDetectedZones() {
     h += _buildZoneListHTML(data.zones140, data.fracs140, '140 m circle');
     h += _buildZoneListHTML(data.zones400, data.fracs400, '400 m circle');
     // Per-NSA background levels & classification
+    try {
     var nsaBg = _vicPerNsaBg[id] || {day:NaN, evening:NaN, night:NaN, class:'auto'};
     h += '<div style="margin-top:6px;padding-top:5px;border-top:1px solid #ddd;">';
     h += '<div style="font-size:9px;font-weight:600;color:var(--heading);margin-bottom:3px;">Background L<sub>A90</sub></div>';
     h += '<div style="display:flex;gap:6px;align-items:flex-start;">';
-    var CLASS_COLORS = {neutral: '#6b7280', low: '#2563eb', high: '#dc2626'};
-    var CLASS_LABELS = {neutral: 'Neutral', low: 'Low', high: 'High'};
-    var PERIOD_LABELS = {day: 'Day', evening: 'Evening', night: 'Night'};
-    // Get base zoning levels (before BG adjustment) for auto-classification display
-    var nsaZoningLevels = getVicBaseZoningLevels(id);
+    var CLASS_COLORS_BG = {neutral: '#6b7280', low: '#2563eb', high: '#dc2626'};
+    var CLASS_LABELS_BG = {neutral: 'Neutral', low: 'Low', high: 'High'};
+    var PERIOD_LABELS_BG = {day: 'Day', evening: 'Evening', night: 'Night'};
+    var nsaZoningLevels = {day: NaN, evening: NaN, night: NaN};
+    try { nsaZoningLevels = getVicBaseZoningLevels(id) || nsaZoningLevels; } catch(e2) {}
     ['day','evening','night'].forEach(function(p) {
       var val = Number.isFinite(nsaBg[p]) ? nsaBg[p] : '';
       var bgLevel = getVicBgLevel(p, id);
-      var effClass = getEffectiveBgClass(p, nsaZoningLevels[p], id);
-      var classLabel = CLASS_LABELS[effClass] || 'Neutral';
-      var classCol = CLASS_COLORS[effClass] || '#6b7280';
+      var effClass = 'neutral';
+      try { effClass = getEffectiveBgClass(p, nsaZoningLevels[p], id); } catch(e3) {}
+      var classLabel = CLASS_LABELS_BG[effClass] || 'Neutral';
+      var classCol = CLASS_COLORS_BG[effClass] || '#6b7280';
       var hasValue = Number.isFinite(bgLevel);
       h += '<div style="text-align:center;">';
-      h += '<div style="font-size:8px;font-weight:600;margin-bottom:1px;">' + PERIOD_LABELS[p] + '</div>';
+      h += '<div style="font-size:8px;font-weight:600;margin-bottom:1px;">' + PERIOD_LABELS_BG[p] + '</div>';
       h += '<input type="number" id="vicNsaBg_' + id + '_' + p + '" min="0" max="100" step="1" ' +
-           'value="' + val + '" placeholder="—" ' +
+           'value="' + val + '" placeholder="\u2014" ' +
            'style="width:42px;font-size:9px;padding:1px 2px;text-align:center;" ' +
            'oninput="updatePerNsaBg(\'' + id + '\',\'' + p + '\')" ' +
            'onchange="updatePerNsaBg(\'' + id + '\',\'' + p + '\')">';
@@ -3158,6 +3160,7 @@ function renderDetectedZones() {
     h += '</select>';
     h += '</div>';
     h += '</div></div>';
+    } catch(bgErr) { console.warn('BG section error for ' + id + ':', bgErr); }
     h += '</div>';
   });
   h += '</div>';
