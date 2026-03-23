@@ -3121,25 +3121,42 @@ function renderDetectedZones() {
     var nsaBg = _vicPerNsaBg[id] || {day:NaN, evening:NaN, night:NaN, class:'auto'};
     h += '<div style="margin-top:6px;padding-top:5px;border-top:1px solid #ddd;">';
     h += '<div style="font-size:9px;font-weight:600;color:var(--heading);margin-bottom:3px;">Background L<sub>A90</sub></div>';
-    h += '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">';
+    h += '<div style="display:flex;gap:6px;align-items:flex-start;">';
+    var CLASS_COLORS = {neutral: '#6b7280', low: '#2563eb', high: '#dc2626'};
+    var CLASS_LABELS = {neutral: 'Neutral', low: 'Low', high: 'High'};
+    var PERIOD_LABELS = {day: 'Day', evening: 'Evening', night: 'Night'};
+    // Get base zoning levels (before BG adjustment) for auto-classification display
+    var nsaZoningLevels = getVicBaseZoningLevels(id);
     ['day','evening','night'].forEach(function(p) {
-      var pLabel = p.charAt(0).toUpperCase() + p.slice(1,3);
       var val = Number.isFinite(nsaBg[p]) ? nsaBg[p] : '';
-      h += '<label style="font-size:8px;display:flex;align-items:center;gap:2px;">' + pLabel +
-           '<input type="number" id="vicNsaBg_' + id + '_' + p + '" min="0" max="100" step="1" ' +
+      var bgLevel = getVicBgLevel(p, id);
+      var effClass = getEffectiveBgClass(p, nsaZoningLevels[p], id);
+      var classLabel = CLASS_LABELS[effClass] || 'Neutral';
+      var classCol = CLASS_COLORS[effClass] || '#6b7280';
+      var hasValue = Number.isFinite(bgLevel);
+      h += '<div style="text-align:center;">';
+      h += '<div style="font-size:8px;font-weight:600;margin-bottom:1px;">' + PERIOD_LABELS[p] + '</div>';
+      h += '<input type="number" id="vicNsaBg_' + id + '_' + p + '" min="0" max="100" step="1" ' +
            'value="' + val + '" placeholder="—" ' +
-           'style="width:38px;font-size:9px;padding:1px 2px;" ' +
+           'style="width:42px;font-size:9px;padding:1px 2px;text-align:center;" ' +
            'oninput="updatePerNsaBg(\'' + id + '\',\'' + p + '\')" ' +
-           'onchange="updatePerNsaBg(\'' + id + '\',\'' + p + '\')"></label>';
+           'onchange="updatePerNsaBg(\'' + id + '\',\'' + p + '\')">';
+      if (hasValue) {
+        h += '<div style="font-size:8px;font-weight:600;color:' + classCol + ';margin-top:1px;">' + classLabel + '</div>';
+      }
+      h += '</div>';
     });
     var nsaClassVal = nsaBg.class || 'auto';
-    h += '<select id="vicNsaBgClass_' + id + '" style="font-size:8px;padding:1px;width:60px;" ' +
+    h += '<div style="text-align:center;">';
+    h += '<div style="font-size:8px;font-weight:600;margin-bottom:1px;">Override</div>';
+    h += '<select id="vicNsaBgClass_' + id + '" style="font-size:8px;padding:1px 2px;width:56px;" ' +
          'onchange="updatePerNsaBgClass(\'' + id + '\')">';
     h += '<option value="auto"' + (nsaClassVal === 'auto' ? ' selected' : '') + '>Auto</option>';
     h += '<option value="neutral"' + (nsaClassVal === 'neutral' ? ' selected' : '') + '>Neutral</option>';
     h += '<option value="low"' + (nsaClassVal === 'low' ? ' selected' : '') + '>Low</option>';
     h += '<option value="high"' + (nsaClassVal === 'high' ? ' selected' : '') + '>High</option>';
     h += '</select>';
+    h += '</div>';
     h += '</div></div>';
     h += '</div>';
   });
@@ -3481,6 +3498,46 @@ function getVicZoningLevelsForDisplay() {
       if (levels) return levels;
     }
     return null;
+  }
+}
+
+/** Get base (pre-background-adjustment) zoning levels for a specific NSA.
+ *  Used for auto-classification display in the NSA boxes. */
+function getVicBaseZoningLevels(recvId) {
+  var srcVal = document.getElementById('src') ? document.getElementById('src').value : '';
+  if (vicAreaType === 'urban') {
+    var ifInput = document.getElementById('vicIF');
+    var IF = null;
+    if (ifInput && ifInput.value !== '') {
+      IF = Number(ifInput.value);
+    } else if (recvId && autoIFPerReceiver[recvId] !== null) {
+      IF = autoIFPerReceiver[recvId];
+    }
+    if (IF === null) {
+      var recEl = document.getElementById(recvId);
+      if (recEl && recEl.value) {
+        var recType = getVicDropdownType(recEl.value);
+        IF = VIC_TYPE_TO_IF[recType] || 0;
+      } else {
+        IF = 0;
+      }
+    }
+    return getVicUrbanZoningLevel(IF);
+  } else {
+    var recEl2 = document.getElementById(recvId);
+    var recVal = recEl2 ? recEl2.value : '';
+    if (srcVal && recVal) {
+      var srcCode = srcVal.replace(/^VIC_/, '');
+      var recCode = recVal.replace(/^VIC_/, '');
+      var srcGrp = VIC_RURAL_GEN_GROUPS[srcCode];
+      var recGrp = VIC_RURAL_REC_GROUPS[recCode];
+      if (srcGrp && recGrp) {
+        var key = srcGrp + '_' + recGrp;
+        var levels = VIC_RURAL_ZONE_LEVELS[key];
+        if (levels) return levels;
+      }
+    }
+    return {day: NaN, evening: NaN, night: NaN};
   }
 }
 
