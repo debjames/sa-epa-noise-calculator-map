@@ -611,14 +611,13 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div class="table-scroll">
         <table>
           <tr>
-            <th style="width:18%;">Location</th><th style="width:27%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th class="vic-only vic-zone-col">Type</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="center">Distance to receiver, m</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
+            <th style="width:18%;">Location</th><th style="width:27%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="center">Distance to receiver, m</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
           </tr>
 
           <tr>
             <td><b>Subject site</b></td>
             <td class="zone-col"><select id="src"></select></td>
             <td id="src_viczone" class="vic-only vic-zone-col"></td>
-            <td id="src_victype" class="vic-only vic-zone-col"></td>
             <td id="src_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"></td>
             <td class="left"></td>
@@ -632,7 +631,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"></td>
             <td class="zone-col"><select id="r1"></select></td>
             <td id="r1_viczone" class="vic-only vic-zone-col"></td>
-            <td id="r1_victype" class="vic-only vic-zone-col"></td>
             <td id="r1_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r1_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r1" placeholder=""></td>
@@ -645,7 +643,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"></td>
             <td class="zone-col"><select id="r2"></select></td>
             <td id="r2_viczone" class="vic-only vic-zone-col"></td>
-            <td id="r2_victype" class="vic-only vic-zone-col"></td>
             <td id="r2_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r2_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r2" placeholder=""></td>
@@ -658,7 +655,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"></td>
             <td class="zone-col"><select id="r3"></select></td>
             <td id="r3_viczone" class="vic-only vic-zone-col"></td>
-            <td id="r3_victype" class="vic-only vic-zone-col"></td>
             <td id="r3_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r3_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r3" placeholder=""></td>
@@ -671,7 +667,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"></td>
             <td class="zone-col"><select id="r4"></select></td>
             <td id="r4_viczone" class="vic-only vic-zone-col"></td>
-            <td id="r4_victype" class="vic-only vic-zone-col"></td>
             <td id="r4_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r4_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
           <td class="center"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r4" placeholder=""></td>
@@ -2057,6 +2052,7 @@ function calcTotalISO9613(prefix, distM) {
 let currentState = null;
 let vicAreaType = 'urban'; // 'urban' | 'rural' (VIC only)
 var _lastDetectedZones = {}; // {src:'GRZ1', r1:'FZ', ...} — last detected raw zone codes for urban↔rural conversion
+var _lastDetectedZoneLabels = {}; // {src:'GRZ1 — GENERAL RESIDENTIAL ZONE', r1:'FZ — FARMING ZONE', ...}
 let detectedStateName = ''; // e.g. 'NSW', 'QLD' — for badge display in OTHER mode
 let detectedAusState = null; // e.g. 'SA','VIC','NSW','QLD','WA','TAS','NT','ACT' — for parcel lookup
 
@@ -3498,18 +3494,15 @@ function render() {
 
   // Populate VIC zone/type columns for source
   var srcVicZoneEl = document.getElementById('src_viczone');
-  var srcVicTypeEl = document.getElementById('src_victype');
-  if (srcVicZoneEl && srcVicTypeEl) {
+  if (srcVicZoneEl) {
     if (isVIC && srcKey) {
-      var srcSel = document.getElementById('src');
-      var srcZoneName = srcSel && srcSel.selectedIndex >= 0 ? srcSel.options[srcSel.selectedIndex].text : '';
+      var srcLabel = _lastDetectedZoneLabels['src'] || '';
       var srcCode = srcKey.replace(/^VIC_(TYPE)?/, '');
       var srcZoneType = srcKey.indexOf('VIC_TYPE') === 0 ? srcCode : getVicZoneType(srcCode);
-      srcVicZoneEl.textContent = srcZoneName;
-      srcVicTypeEl.textContent = srcZoneType ? 'Type ' + srcZoneType : '';
+      var srcDisplay = srcLabel || (document.getElementById('src').selectedIndex >= 0 ? document.getElementById('src').options[document.getElementById('src').selectedIndex].text : srcCode);
+      srcVicZoneEl.textContent = srcDisplay + (srcZoneType ? ' (Type ' + srcZoneType + ')' : '');
     } else {
       srcVicZoneEl.textContent = '';
-      srcVicTypeEl.textContent = '';
     }
   }
 
@@ -3523,19 +3516,17 @@ function render() {
 
     // Populate VIC zone/type columns for each receiver
     var recvVicZoneEl = document.getElementById(id + '_viczone');
-    var recvVicTypeEl = document.getElementById(id + '_victype');
-    if (recvVicZoneEl && recvVicTypeEl) {
+    if (recvVicZoneEl) {
       var rKey = rKeys[idx];
       if (isVIC && rKey) {
-        var rSel = document.getElementById(id);
-        var rZoneName = rSel && rSel.selectedIndex >= 0 ? rSel.options[rSel.selectedIndex].text : '';
+        var rLabel = _lastDetectedZoneLabels[id] || '';
         var rCode = rKey.replace(/^VIC_(TYPE)?/, '');
         var rZoneType = rKey.indexOf('VIC_TYPE') === 0 ? rCode : getVicZoneType(rCode);
-        recvVicZoneEl.textContent = rZoneName;
-        recvVicTypeEl.textContent = rZoneType ? 'Type ' + rZoneType : '';
+        var rSel = document.getElementById(id);
+        var rDisplay = rLabel || (rSel && rSel.selectedIndex >= 0 ? rSel.options[rSel.selectedIndex].text : rCode);
+        recvVicZoneEl.textContent = rDisplay + (rZoneType ? ' (Type ' + rZoneType + ')' : '');
       } else {
         recvVicZoneEl.textContent = '';
-        recvVicTypeEl.textContent = '';
       }
     }
 
@@ -6424,9 +6415,10 @@ initCollapse();
             });
           }
 
-          // Store raw detected zone code for urban↔rural conversion
+          // Store raw detected zone code and full label for urban↔rural conversion
           if (zoneCode) {
             _lastDetectedZones[selectId] = zoneCode;
+            _lastDetectedZoneLabels[selectId] = label;
           }
 
           // For VIC urban mode, set the Type 1/2/3 dropdown
