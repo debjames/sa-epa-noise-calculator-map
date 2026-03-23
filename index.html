@@ -1058,7 +1058,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       </div>
       <div id="spectrumChartBody" class="card-body collapsed">
         <div class="p" style="margin:8px 0 8px;">A-weighted sound power level per octave band (63 Hz – 8 kHz) for each selected source, with combined prediction at each receiver.</div>
-        <div style="position:relative;height:340px;"><canvas id="spectrumChart"></canvas></div>
+        <div><canvas id="spectrumChart"></canvas></div>
         <div id="spectrumChartEmpty" style="display:none;text-align:center;color:var(--muted);font-size:13px;padding:40px 0;">Select sources in the table above to view the octave band spectrum.</div>
       </div>
     </div>
@@ -4291,7 +4291,7 @@ function updateSpectrumChart() {
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: true,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
