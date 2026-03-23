@@ -2840,9 +2840,23 @@ function getVicDropdownZoneCode(selValue) {
 }
 
 /* VIC criteria — takes receiver dropdown ID directly */
+/** Check if an NSA has background data (levels or classification override) */
+function hasNsaBgData(recvId) {
+  if (!recvId || !_vicPerNsaBg[recvId]) return false;
+  var bg = _vicPerNsaBg[recvId];
+  // Has override classification set (not auto)
+  if (bg.class && bg.class !== 'auto') return true;
+  // Has at least one background level entered
+  if (Number.isFinite(bg.day) || Number.isFinite(bg.evening) || Number.isFinite(bg.night)) return true;
+  return false;
+}
+
 function calcCriteriaVICForReceiver(recSelectId) {
   var srcVal = document.getElementById('src') ? document.getElementById('src').value : '';
   var recVal = document.getElementById(recSelectId) ? document.getElementById(recSelectId).value : '';
+
+  // Don't show criteria until background data is provided for this NSA
+  if (!hasNsaBgData(recSelectId)) return {day:"", evening:"", night:"", lmax:""};
 
   if (vicAreaType === 'urban') {
     // In urban mode with auto-IF, dropdowns are optional — criteria can be derived from IF alone
