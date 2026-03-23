@@ -465,6 +465,10 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:6px;">
             <input type="checkbox" id="vicIsEarthResources" onchange="if(this.checked){document.getElementById('vicIsUtility').checked=false;}render()"> Source is earth resources (Clauses 33–36)
           </label>
+          <br>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:6px;">
+            <input type="checkbox" id="vicIsIntensiveFarming" onchange="render()"> Intensive farming activity (Clause 139 — +3 dB to zone levels when FZ is generating zone)
+          </label>
         </div>
       </div>
     </div>
@@ -1235,7 +1239,9 @@ const VIC_RURAL_GEN_GROUPS = {
   // Group F: Commercial/office 2-3
   'C2Z':'F','C3Z':'F',
   // Group D: Heavy industrial
-  'IN1Z':'D','IN2Z':'D','PZ':'D'
+  'IN1Z':'D','IN2Z':'D','PZ':'D',
+  // UGZ before incorporated precinct structure plan defaults to Group B (Table B.1)
+  'UGZ':'B'
 };
 /* Same groups apply to receiving zones */
 const VIC_RURAL_REC_GROUPS = {
@@ -1245,8 +1251,10 @@ const VIC_RURAL_REC_GROUPS = {
   'C1Z':'A','MUZ':'A','ACZ':'A','PUZ1':'A','PUZ3':'A','PUZ6':'A','PUZ7':'A',
   'TRZ1':'A','TRZ2':'A','TRZ3':'A','TRZ4':'A',
   'IN3Z':'C',
-  'C2Z':'F','C3Z':'F',
-  'IN1Z':'D','IN2Z':'D','PZ':'D'
+  'C2Z':'F','C3Z':'A',
+  'IN1Z':'D','IN2Z':'D','PZ':'D',
+  // UGZ before incorporated precinct structure plan defaults to Group B (Table B.1)
+  'UGZ':'B'
 };
 /* Table B.1 zone levels: genGroup → recGroup → {day,evening,night}
    Receiver columns: E (GWAZ/RCZ/RLZ), E2 (LDRZ/PCRZ/PPRZ/PUZ2/5/UFZ),
@@ -2109,6 +2117,7 @@ function fillSelectVIC(id) {
       {key:'VIC_TRZ3', label:'Transport Zone 3 (TRZ3)'},
       {key:'VIC_TRZ4', label:'Transport Zone 4 (TRZ4)'},
       {key:'VIC_SUZ', label:'Special Use Zone (SUZ)'},
+      {key:'VIC_UGZ', label:'Urban Growth Zone — before precinct plan (UGZ)'},
     ];
     ruralZones.forEach(z => {
       const o = document.createElement('option');
@@ -3141,6 +3150,14 @@ function calcCriteriaVIC_Rural(srcVal, recVal) {
   var dayLevel = levels.day;
   var eveLevel = levels.evening;
   var nightLevel = levels.night;
+
+  // Intensive farming adjustment: +3 dB when FZ is generating zone (Clause 139)
+  var isIntensive = document.getElementById('vicIsIntensiveFarming');
+  if (isIntensive && isIntensive.checked && srcCode === 'FZ') {
+    dayLevel += 3;
+    eveLevel += 3;
+    nightLevel += 3;
+  }
 
   // Distance adjustment: −1 dB per 100 m (Clause 20). Max 9 dB.
   var distAdj = 0;
