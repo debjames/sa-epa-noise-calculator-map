@@ -2150,9 +2150,17 @@ function fillSelectVIC(id) {
       // Urban type → look up last detected zone code from marker data
       var lastZone = _lastDetectedZones[id];
       if (lastZone) {
-        var convertedVal = 'VIC_' + lastZone.replace(/[0-9]+$/, '');
+        // Try exact match first (PUZ5, TRZ2, etc.), then prefix match (GRZ1→GRZ)
+        var exactConv = 'VIC_' + lastZone;
+        var prefixConv = 'VIC_' + lastZone.replace(/[0-9]+$/, '');
+        var matched = false;
         for (var j = 0; j < sel.options.length; j++) {
-          if (sel.options[j].value === convertedVal) { sel.value = convertedVal; break; }
+          if (sel.options[j].value === exactConv) { sel.value = exactConv; matched = true; break; }
+        }
+        if (!matched) {
+          for (var j2 = 0; j2 < sel.options.length; j2++) {
+            if (sel.options[j2].value === prefixConv) { sel.value = prefixConv; break; }
+          }
         }
       }
     } else if (!found && prevVal.indexOf('VIC_') === 0 && prevVal.indexOf('VIC_TYPE') !== 0 && vicAreaType === 'urban') {
@@ -6379,9 +6387,17 @@ initCollapse();
             if (vicAreaType === 'urban' && zoneType) {
               sel.value = 'VIC_TYPE' + zoneType;
             } else {
-              // Match zone code prefix for rural dropdowns (e.g. GRZ1 → VIC_GRZ)
-              var prefix = zoneCode.replace(/[0-9]+$/, '');
-              sel.value = 'VIC_' + prefix;
+              // Try exact match first (e.g. PUZ5 → VIC_PUZ5, TRZ2 → VIC_TRZ2),
+              // then strip trailing schedule numbers (e.g. GRZ1 → VIC_GRZ)
+              var exactVal = 'VIC_' + zoneCode;
+              var found = false;
+              for (var oi = 0; oi < sel.options.length; oi++) {
+                if (sel.options[oi].value === exactVal) { sel.value = exactVal; found = true; break; }
+              }
+              if (!found) {
+                var prefix = zoneCode.replace(/[0-9]+$/, '');
+                sel.value = 'VIC_' + prefix;
+              }
             }
             sel.dispatchEvent(new Event('change', { bubbles: true }));
             sel.classList.add('zone-detect-flash');
