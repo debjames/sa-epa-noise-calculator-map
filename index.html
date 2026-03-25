@@ -9926,58 +9926,32 @@ initCollapse();
     function renderNoiseCanvas(data) {
       if (_noiseCanvasLayer) map.removeLayer(_noiseCanvasLayer);
 
-      var NoiseLayer = L.GridLayer.extend({
-        createTile: function(coords) {
-          var tile = document.createElement('canvas');
-          var size = this.getTileSize();
-          tile.width = size.x;
-          tile.height = size.y;
-          var ctx = tile.getContext('2d');
+      // Render grid to an offscreen canvas, then overlay as image
+      var canvas = document.createElement('canvas');
+      canvas.width = data.cols;
+      canvas.height = data.rows;
+      var ctx = canvas.getContext('2d');
 
-          var tileBounds = this._tileCoordsToBounds(coords);
-          var tileN = tileBounds.getNorth(), tileS = tileBounds.getSouth();
-          var tileE = tileBounds.getEast(), tileW = tileBounds.getWest();
-
-          // Map grid cells to tile pixels
-          for (var r = 0; r < data.rows; r++) {
-            var cellLat = data.bounds.south + (r + 0.5) * data.dLat;
-            if (cellLat < tileS || cellLat > tileN) continue;
-            for (var c = 0; c < data.cols; c++) {
-              var cellLng = data.bounds.west + (c + 0.5) * data.dLng;
-              if (cellLng < tileW || cellLng > tileE) continue;
-
-              var dB = data.grid[r * data.cols + c];
-              var color = getNoiseColour(dB);
-              if (!color) continue;
-
-              // Convert cell bounds to pixel coords within this tile
-              var nw = L.latLng(cellLat + data.dLat / 2, cellLng - data.dLng / 2);
-              var se = L.latLng(cellLat - data.dLat / 2, cellLng + data.dLng / 2);
-
-              var pxNW = this._map.project(nw, coords.z);
-              var pxSE = this._map.project(se, coords.z);
-              var origin = this._getTilePos(coords);
-
-              var x = pxNW.x - origin.x;
-              var y = pxNW.y - origin.y;
-              var w = pxSE.x - pxNW.x;
-              var h = pxSE.y - pxNW.y;
-
-              ctx.fillStyle = color;
-              ctx.fillRect(x, y, Math.max(w, 1), Math.max(h, 1));
-            }
-          }
-          return tile;
-        },
-        _getTilePos: function(coords) {
-          var origin = this._map.getPixelOrigin();
-          var size = this.getTileSize();
-          return L.point(coords.x * size.x - origin.x, coords.y * size.y - origin.y);
+      for (var r = 0; r < data.rows; r++) {
+        for (var c = 0; c < data.cols; c++) {
+          var dB = data.grid[r * data.cols + c];
+          var color = getNoiseColour(dB);
+          if (!color) continue;
+          ctx.fillStyle = color;
+          // Row 0 = south, but canvas y=0 = top, so flip vertically
+          ctx.fillRect(c, data.rows - 1 - r, 1, 1);
         }
-      });
+      }
 
-      _noiseCanvasLayer = new NoiseLayer({ opacity: 1, updateWhenZooming: false });
-      _noiseCanvasLayer.addTo(map);
+      var imageUrl = canvas.toDataURL('image/png');
+      var bounds = L.latLngBounds(
+        [data.bounds.south, data.bounds.west],
+        [data.bounds.north, data.bounds.east]
+      );
+      _noiseCanvasLayer = L.imageOverlay(imageUrl, bounds, {
+        opacity: 0.8,
+        interactive: false
+      }).addTo(map);
     }
 
     function showNoiseLegend() {
