@@ -73,9 +73,25 @@ describe('getBuildingEdges', () => {
     expect(edges[2]).toEqual([[0.5, 1], [0, 0]]);
   });
 
-  it('returns 4 edges for a rectangle', () => {
+  it('returns 4 edges for a rectangle (closed polygon)', () => {
     var poly = [[0, 0], [0, 1], [1, 1], [1, 0]];
-    expect(getBuildingEdges(poly).length).toBe(4);
+    expect(getBuildingEdges(poly).length).toBe(4); // includes closing edge
+    expect(getBuildingEdges(poly, false).length).toBe(4); // explicit polygon
+  });
+
+  it('3-vertex polyline produces 2 edges (no closing edge)', () => {
+    var line = [[0, 0], [0, 1], [1, 1]];
+    var edges = getBuildingEdges(line, true); // isPolyline
+    expect(edges.length).toBe(2);
+    expect(edges[0]).toEqual([[0, 0], [0, 1]]);
+    expect(edges[1]).toEqual([[0, 1], [1, 1]]);
+    // No closing edge [1,1]→[0,0]
+  });
+
+  it('3-vertex polygon produces 3 edges (includes closing edge)', () => {
+    var poly = [[0, 0], [0, 1], [1, 1]];
+    expect(getBuildingEdges(poly, false).length).toBe(3);
+    expect(getBuildingEdges(poly).length).toBe(3); // default = polygon
   });
 });
 
@@ -319,8 +335,8 @@ describe('getDominantBarrier', () => {
       [-0.001, midLng],  // south end of barrier
       [ 0.001, midLng]   // north end of barrier
     ];
-    var edges = getBuildingEdges(polyline);
-    expect(edges.length).toBe(1); // single forward edge, no duplicate reverse
+    var edges = getBuildingEdges(polyline, true); // isPolyline = true
+    expect(edges.length).toBe(1); // single forward edge, no closing edge
     expect(edges[0][0]).toEqual(polyline[0]);
     expect(edges[0][1]).toEqual(polyline[1]);
   });

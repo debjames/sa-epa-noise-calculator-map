@@ -1,7 +1,7 @@
 /**
  * calc.js — ES module re-exports from shared-calc.js.
  * In browser: SharedCalc is loaded via <script src="shared-calc.js"> before this module.
- * In vitest: we dynamically import and eval shared-calc.js to populate the namespace.
+ * In vitest: we load and evaluate shared-calc.js via vm.runInThisContext (CSP-safe, no eval/new Function).
  *
  * NOTE: This file uses top-level await and must be loaded as an ES module
  * (e.g. <script type="module"> or import in vitest).
@@ -12,14 +12,16 @@ let SC;
 if (typeof SharedCalc !== 'undefined') {
   SC = SharedCalc;
 } else {
-  // vitest / Node environment — load shared-calc.js by evaluating it
-  const fs = await import('fs');
-  const path = await import('path');
-  const url = await import('url');
-  const __dirname = path.default.dirname(url.fileURLToPath(import.meta.url));
-  const code = fs.default.readFileSync(path.default.join(__dirname, 'shared-calc.js'), 'utf8');
-  const fn = new Function(code + '\nreturn SharedCalc;');
-  SC = fn();
+  // vitest / Node environment — load shared-calc.js without eval or new Function
+  const { readFileSync } = await import('fs');
+  const { dirname, join } = await import('path');
+  const { fileURLToPath } = await import('url');
+  const vm = await import('vm');
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const code = readFileSync(join(__dirname, 'shared-calc.js'), 'utf8');
+  const ctx = {};
+  vm.runInNewContext(code, ctx);
+  SC = ctx.SharedCalc;
 }
 
 export const attenuatePoint         = SC.attenuatePoint;

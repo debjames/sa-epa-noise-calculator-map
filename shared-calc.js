@@ -190,20 +190,23 @@ var SharedCalc = (function() {
     return null;
   }
 
-  /** Returns all edges of a building polygon (or barrier polyline) as segment pairs.
-   *  For 2-vertex polylines (drawn barriers), only emits the forward edge —
-   *  the closing edge would be a duplicate reverse of the same segment. */
-  function getBuildingEdges(polygon) {
+  /** Returns all edges of a building polygon or barrier polyline as segment pairs.
+   *  @param {Array} vertices - array of [lat, lng] coordinate pairs
+   *  @param {boolean} [isPolyline=false] - true for barrier polylines (no closing edge) */
+  function getBuildingEdges(vertices, isPolyline) {
     var edges = [];
-    var n = polygon.length;
-    // 2-vertex polyline: single segment, no closing edge
-    if (n === 2) {
-      edges.push([polygon[0], polygon[1]]);
-      return edges;
-    }
-    for (var i = 0; i < n; i++) {
-      var j = (i + 1) % n;
-      edges.push([polygon[i], polygon[j]]);
+    var n = vertices.length;
+    if (isPolyline) {
+      // Open polyline: emit only consecutive segments, no closing edge vN→v0
+      for (var i = 0; i < n - 1; i++) {
+        edges.push([vertices[i], vertices[i + 1]]);
+      }
+    } else {
+      // Closed polygon: include closing edge from last vertex back to first
+      for (var i = 0; i < n; i++) {
+        var j = (i + 1) % n;
+        edges.push([vertices[i], vertices[j]]);
+      }
     }
     return edges;
   }
@@ -236,7 +239,7 @@ var SharedCalc = (function() {
     var results = [];
     for (var bi = 0; bi < buildings.length; bi++) {
       var b = buildings[bi];
-      var edges = getBuildingEdges(b.polygon);
+      var edges = getBuildingEdges(b.polygon, !!b.isBarrier);
       for (var ei = 0; ei < edges.length; ei++) {
         var edge = edges[ei];
         var p3 = { lat: edge[0][0], lng: edge[0][1] };

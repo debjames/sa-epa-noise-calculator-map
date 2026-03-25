@@ -105,7 +105,10 @@ self.onmessage = function(e) {
           } else {
             lp = attenuatePoint(src.combinedLw, dist);
             if (barrierDelta > 0) {
-              var avgBarrier = 10 * Math.log10(3 + 20 * barrierDelta / 0.34);
+              // Approximate A-weighted barrier screening using 1kHz Maekawa
+              // TODO: for octave-band accuracy, use calcBarrierAttenuation per band instead
+              var WAVELENGTH_1KHZ_M = 0.343; // speed of sound ~343 m/s at 1kHz
+              var avgBarrier = 10 * Math.log10(3 + 20 * barrierDelta / WAVELENGTH_1KHZ_M);
               lp -= Math.min(avgBarrier, 20);
             }
           }

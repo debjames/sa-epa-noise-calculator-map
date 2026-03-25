@@ -2813,6 +2813,14 @@ function setVicAreaType(type) {
 // --- Noise source calculators (Day / Night) ---
 function log10(x){ return Math.log(x) / Math.LN10; }
 
+/** Escape a string for safe insertion into innerHTML. */
+function escapeHTML(str) {
+  if (!str) return '';
+  var d = document.createElement('div');
+  d.appendChild(document.createTextNode(String(str)));
+  return d.innerHTML;
+}
+
 /** Point-source attenuation — delegates to calc.js.
  *  Returns 0 during initial load race (module not yet loaded); recalc fires once ready. */
 function attenuatePoint(Lw, r) {
@@ -5902,10 +5910,13 @@ initCollapse();
         localStorage.setItem('iso_temp', String(iso_temperature));
         localStorage.setItem('iso_humidity', String(iso_humidity));
         // Update propagation UI buttons
-        document.querySelectorAll('[data-group="prop"]').forEach(function(b) {
-          b.classList.toggle('active', b.dataset.val === propagationMethod);
-        });
-        var paramsDiv = document.getElementById('isoParamsDiv');
+        var propGroup = document.getElementById('propMethodGroup');
+        if (propGroup) {
+          propGroup.querySelectorAll('[data-val]').forEach(function(b) {
+            b.classList.toggle('active', b.dataset.val === propagationMethod);
+          });
+        }
+        var paramsDiv = document.getElementById('iso9613Params');
         if (paramsDiv) paramsDiv.style.display = propagationMethod === 'iso9613' ? '' : 'none';
         var rhEl = document.getElementById('isoRecvHeight');
         if (rhEl) rhEl.value = iso_receiverHeight;
@@ -7008,7 +7019,7 @@ initCollapse();
             },
             onEachFeature: function(feature, lyr) {
               var props = feature.properties || {};
-              var tip = '<b>' + cfg.name + '</b>';
+              var tip = '<b>' + escapeHTML(cfg.name) + '</b>';
               if (props.name) tip += '<br>' + props.name;
               if (props.value) tip += '<br>' + props.value;
               lyr.bindTooltip(tip, { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
@@ -7068,7 +7079,7 @@ initCollapse();
           var layer = L.geoJSON(data, {
             style: styleOpts,
             onEachFeature: function(feature, lyr) {
-              lyr.bindTooltip('<b>' + rr.name + '</b>', { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
+              lyr.bindTooltip('<b>' + escapeHTML(rr.name) + '</b>', { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
             }
           });
           layer.addTo(map);
@@ -7089,7 +7100,7 @@ initCollapse();
           var layer = L.geoJSON(data, {
             style: { color: rr.color, weight: rr.lineWeight, opacity: 1, lineCap: 'round', lineJoin: 'round' },
             onEachFeature: function(feature, lyr) {
-              var tip = '<b>' + rr.name + '</b>';
+              var tip = '<b>' + escapeHTML(rr.name) + '</b>';
               lyr.bindTooltip(tip, { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
             }
           });
@@ -9232,7 +9243,7 @@ initCollapse();
       } else {
         htStr = 'Height: 3m \u26a0 estimated \u2014 no data';
       }
-      return (b.name ? '<b>' + b.name + '</b><br>' : '') + htStr;
+      return (b.name ? '<b>' + escapeHTML(b.name) + '</b><br>' : '') + htStr;
     }
 
     function buildingPopupHTML(b) {
@@ -9545,7 +9556,7 @@ initCollapse();
       userBarriers.forEach(function(ub) {
         var line = L.polyline(ub.vertices, BARRIER_STYLE);
         var htStr = ub.heightM ? ub.heightM.toFixed(1) + 'm' : '2.0m';
-        line.bindTooltip((ub.name ? '<b>' + ub.name + '</b><br>' : '') + 'Height: ' + htStr);
+        line.bindTooltip((ub.name ? '<b>' + escapeHTML(ub.name) + '</b><br>' : '') + 'Height: ' + htStr);
 
         // Click popup for edit/delete (only when not in placement or drawing mode)
         line.on('click', function(e) {
@@ -9553,7 +9564,7 @@ initCollapse();
           if (currentMode) return;
           L.DomEvent.stopPropagation(e);
           var html = '<div style="min-width:200px;font-size:13px;">';
-          html += '<b>' + (ub.name || 'Barrier') + '</b><br>';
+          html += '<b>' + escapeHTML(ub.name || 'Barrier') + '</b><br>';
           html += '<div style="margin:6px 0;">';
           html += 'Name: <input type="text" id="editBarName" value="' + (ub.name || '') + '" style="width:120px;padding:2px 4px;font-size:12px;"><br>';
           html += 'Height: <input type="number" id="editBarHeight" value="' + (ub.heightM || 2) + '" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;"> m';
@@ -9598,7 +9609,7 @@ initCollapse();
       customBuildings.forEach(function(cb) {
         var poly = L.polygon(cb.polygon, CUSTOM_STYLE);
         var htStr = cb.heightM ? cb.heightM.toFixed(0) + 'm' : '?';
-        poly.bindTooltip((cb.name ? '<b>' + cb.name + '</b><br>' : '') + 'Height: ' + htStr + ' (custom)');
+        poly.bindTooltip((cb.name ? '<b>' + escapeHTML(cb.name) + '</b><br>' : '') + 'Height: ' + htStr + ' (custom)');
 
         // Click popup for edit/delete (only when not placing markers)
         poly.on('click', function(e) {
@@ -9606,7 +9617,7 @@ initCollapse();
           if (currentMode) return;
           L.DomEvent.stopPropagation(e);
           var html = '<div style="min-width:200px;font-size:13px;">';
-          html += '<b>' + (cb.name || 'Custom building') + '</b><br>';
+          html += '<b>' + escapeHTML(cb.name || 'Custom building') + '</b><br>';
           html += '<div style="margin:6px 0;">';
           html += 'Name: <input type="text" id="cbName" value="' + (cb.name || '') + '" style="width:120px;padding:2px 4px;font-size:12px;"><br>';
           html += 'Height: <input type="number" id="cbHeight" value="' + (cb.heightM || 3) + '" step="0.5" min="0" style="width:60px;padding:2px 4px;font-size:12px;"> m';
