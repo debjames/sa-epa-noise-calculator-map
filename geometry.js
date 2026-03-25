@@ -24,6 +24,6 @@ if (typeof SharedCalc !== 'undefined') {
 export const segmentsIntersect    = SC.segmentsIntersect;
 export const getBuildingEdges     = SC.getBuildingEdges;
 export const flatDistM            = SC.flatDistM;
-export const pointInPolygon       = SC.pointInPolygon;
+export const pointInPolygonLatLng  = SC.pointInPolygonLatLng;
 export const getIntersectingEdges = SC.getIntersectingEdges;
 export const getDominantBarrier   = SC.getDominantBarrier;

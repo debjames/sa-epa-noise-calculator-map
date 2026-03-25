@@ -9,7 +9,7 @@ import {
   segmentsIntersect,
   getBuildingEdges,
   flatDistM,
-  pointInPolygon,
+  pointInPolygonLatLng,
   getIntersectingEdges,
   getDominantBarrier
 } from './geometry.js';
@@ -134,20 +134,20 @@ describe('getIntersectingEdges', () => {
   });
 });
 
-describe('pointInPolygon', () => {
+describe('pointInPolygonLatLng', () => {
   // Simple square: (0,0), (0,1), (1,1), (1,0)
   var square = [[0, 0], [0, 1], [1, 1], [1, 0]];
 
   it('point clearly inside convex polygon → true', () => {
-    expect(pointInPolygon({ lat: 0.5, lng: 0.5 }, square)).toBe(true);
+    expect(pointInPolygonLatLng({ lat: 0.5, lng: 0.5 }, square)).toBe(true);
   });
 
   it('point clearly outside → false', () => {
-    expect(pointInPolygon({ lat: 2, lng: 2 }, square)).toBe(false);
+    expect(pointInPolygonLatLng({ lat: 2, lng: 2 }, square)).toBe(false);
   });
 
   it('point just outside a corner → false', () => {
-    expect(pointInPolygon({ lat: -0.01, lng: -0.01 }, square)).toBe(false);
+    expect(pointInPolygonLatLng({ lat: -0.01, lng: -0.01 }, square)).toBe(false);
   });
 
   it('point on boundary edge — ray casting treats as outside (documented)', () => {
@@ -155,7 +155,7 @@ describe('pointInPolygon', () => {
     // Our implementation: point exactly on a horizontal edge may return
     // true or false depending on floating-point precision. We document
     // this and test that it does not crash.
-    var result = pointInPolygon({ lat: 0, lng: 0.5 }, square);
+    var result = pointInPolygonLatLng({ lat: 0, lng: 0.5 }, square);
     expect(typeof result).toBe('boolean'); // no crash, returns a boolean
   });
 
@@ -163,9 +163,9 @@ describe('pointInPolygon', () => {
     // L-shape: (0,0)→(0,2)→(1,2)→(1,1)→(2,1)→(2,0)
     var lShape = [[0, 0], [0, 2], [1, 2], [1, 1], [2, 1], [2, 0]];
     // Point in the bottom-right of the L
-    expect(pointInPolygon({ lat: 0.5, lng: 1.5 }, lShape)).toBe(true);
+    expect(pointInPolygonLatLng({ lat: 0.5, lng: 1.5 }, lShape)).toBe(true);
     // Point in the notch (outside the L)
-    expect(pointInPolygon({ lat: 1.5, lng: 1.5 }, lShape)).toBe(false);
+    expect(pointInPolygonLatLng({ lat: 1.5, lng: 1.5 }, lShape)).toBe(false);
   });
 });
 

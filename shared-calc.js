@@ -215,8 +215,10 @@ var SharedCalc = (function() {
     return Math.sqrt(dLat * dLat + dLng * dLng);
   }
 
-  /** Point-in-polygon test (ray casting). */
-  function pointInPolygon(point, polygon) {
+  /** Point-in-polygon test (ray casting).
+   *  WARNING: coordinate order is {lat, lng} (Leaflet) — do NOT use with GeoJSON [lng, lat] arrays.
+   *  Use pointInPolygonGeoJSON() in index.html for GeoJSON inputs. */
+  function pointInPolygonLatLng(point, polygon) {
     var x = point.lng, y = point.lat;
     var inside = false;
     for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -379,7 +381,7 @@ var SharedCalc = (function() {
     segmentsIntersect: segmentsIntersect,
     getBuildingEdges: getBuildingEdges,
     flatDistM: flatDistM,
-    pointInPolygon: pointInPolygon,
+    pointInPolygonLatLng: pointInPolygonLatLng,
     getIntersectingEdges: getIntersectingEdges,
     getDominantBarrier: getDominantBarrier
   };

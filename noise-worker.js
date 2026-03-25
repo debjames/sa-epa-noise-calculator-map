@@ -16,7 +16,7 @@ var attenuatePoint       = SharedCalc.attenuatePoint;
 var energySum            = SharedCalc.energySum;
 var sourceCombinedLw     = SharedCalc.sourceCombinedLw;
 var flatDistM            = SharedCalc.flatDistM;
-var pointInPolygon       = SharedCalc.pointInPolygon;
+var pointInPolygonLatLng = SharedCalc.pointInPolygonLatLng;
 var getDominantBarrier   = SharedCalc.getDominantBarrier;
 var calcAgrPerBand       = SharedCalc.calcAgrPerBand;
 var calcAlphaAtm         = SharedCalc.calcAlphaAtm;
@@ -76,7 +76,7 @@ self.onmessage = function(e) {
         var insideBuilding = false;
         for (var bi = 0; bi < buildings.length; bi++) {
           if (buildings[bi].isBarrier) continue; // barriers are polylines, not closed polygons
-          if (pointInPolygon(pt, buildings[bi].polygon)) {
+          if (pointInPolygonLatLng(pt, buildings[bi].polygon)) {
             insideBuilding = true;
             break;
           }
