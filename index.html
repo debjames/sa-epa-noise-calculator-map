@@ -3249,7 +3249,7 @@ function renderSourceCards() {
 
     // Row 1: colour dot, name input, place button, status, delete
     var row1 = document.createElement('div');
-    row1.style.cssText = 'display:flex;align-items:center;gap:8px;';
+    row1.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
 
     // Colour dot
     var dot = document.createElement('span');
@@ -3260,7 +3260,7 @@ function renderSourceCards() {
     var nameInp = document.createElement('input');
     nameInp.type = 'text';
     nameInp.value = src.name;
-    nameInp.style.cssText = 'border:1px solid #ddd;padding:3px 6px;font-size:13px;width:120px;border-radius:3px;';
+    nameInp.style.cssText = 'border:1px solid #ddd;padding:3px 6px;font-size:13px;flex:1;min-width:80px;max-width:180px;border-radius:3px;';
     nameInp.addEventListener('change', function() { sources[idx].name = this.value; });
     row1.appendChild(nameInp);
 
@@ -3269,7 +3269,7 @@ function renderSourceCards() {
     placeBtn.type = 'button';
     placeBtn.innerHTML = pinSVG(src.lat !== null ? colour : '#999', 14) + ' ' + (src.lat !== null ? 'Placed' : 'Place');
     placeBtn.className = 'pdf-btn';
-    placeBtn.style.cssText = 'font-size:11px;padding:3px 8px;display:inline-flex;align-items:center;gap:3px;';
+    placeBtn.style.cssText = 'font-size:11px;padding:3px 8px;display:inline-flex;align-items:center;gap:3px;flex-shrink:0;';
     placeBtn.addEventListener('click', function() {
       if (typeof window._setMode === 'function') {
         window._setMode('source_' + idx);
@@ -3292,7 +3292,7 @@ function renderSourceCards() {
     toggleBtn.type = 'button';
     toggleBtn.innerHTML = '&#x25BC;';
     toggleBtn.title = 'Show/hide equipment tables';
-    toggleBtn.style.cssText = 'font-size:12px;padding:2px 6px;border:1px solid #ddd;background:#fff;cursor:pointer;border-radius:3px;';
+    toggleBtn.style.cssText = 'font-size:12px;padding:2px 6px;border:1px solid #ddd;background:#fff;cursor:pointer;border-radius:3px;flex-shrink:0;';
     toggleBtn.addEventListener('click', function() {
       var sec = document.getElementById('srcEquipSection_' + idx);
       if (sec) {
