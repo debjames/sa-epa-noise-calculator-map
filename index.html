@@ -5499,12 +5499,8 @@ initCollapse();
           if (nameEl && nameEl.value) data.receiverNames['recvName' + ri] = nameEl.value;
         }
 
-        // Distances
-        data.distances = {};
-        for (var di = 1; di <= 4; di++) {
-          var distEl = document.getElementById('dist_r' + di);
-          if (distEl && distEl.value) data.distances['dist_r' + di] = distEl.value;
-        }
+        // Distances: no longer exported — computed from marker coordinates.
+        // v1 files may contain data.distances; ignored on load.
 
         // Predicted levels
         data.predictions = {};
@@ -5656,6 +5652,28 @@ initCollapse();
       });
     }
 
+    function showLoadBanner(msg) {
+      // Remove any previous banner
+      var old = document.getElementById('loadBanner');
+      if (old) old.remove();
+      var banner = document.createElement('div');
+      banner.id = 'loadBanner';
+      banner.style.cssText = 'background:#fef3cd;border:1px solid #ffc107;color:#856404;padding:10px 16px;margin:8px 0;border-radius:4px;display:flex;align-items:center;justify-content:space-between;font-size:13px;';
+      var span = document.createElement('span');
+      span.textContent = msg;
+      banner.appendChild(span);
+      var closeBtn = document.createElement('button');
+      closeBtn.textContent = '\u00d7';
+      closeBtn.style.cssText = 'background:none;border:none;font-size:18px;cursor:pointer;color:#856404;padding:0 4px;';
+      closeBtn.onclick = function() { banner.remove(); };
+      banner.appendChild(closeBtn);
+      // Insert at top of main content area
+      var target = document.querySelector('.grid2') || document.querySelector('.card') || document.body.firstElementChild;
+      if (target && target.parentNode) {
+        target.parentNode.insertBefore(banner, target);
+      }
+    }
+
     function loadAssessment(data) {
       // 1. Set state
       if (data.currentState && typeof switchToState === 'function') {
@@ -5679,6 +5697,7 @@ initCollapse();
       } else if (isV1) {
         // v1 file: single source, keep existing sources[0]
         console.log('Loading v1 assessment — single source only.');
+        showLoadBanner('This file was saved before multi-source support. Loaded as single source.');
       }
       // Re-render source cards (creates equipment tables for all sources)
       if (typeof renderSourceCards === 'function') renderSourceCards();
@@ -5710,16 +5729,8 @@ initCollapse();
         });
       }
 
-      // 5. Distances
-      if (data.distances) {
-        Object.keys(data.distances).forEach(function(k) {
-          var el = document.getElementById(k);
-          if (el) {
-            el.value = data.distances[k];
-            el.dispatchEvent(new Event('input', {bubbles:true}));
-          }
-        });
-      }
+      // 5. Distances: ignored — now computed from marker coordinates.
+      // v1 files may contain data.distances; safely skipped.
 
       // 6. Zone selections
       if (data.zones) {
