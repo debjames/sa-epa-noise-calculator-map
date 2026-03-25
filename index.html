@@ -9145,17 +9145,23 @@ initCollapse();
     var _buildingsFetching = false;
     var _lastBuildingBounds = null;
 
+    /** Parse building height from OSM tags.
+     *  Returns { value: metres, source: 'osm'|'levels'|null } */
     function parseHeight(tags) {
-      if (!tags) return null;
+      if (!tags) return { value: null, source: null };
       if (tags.height) {
         var h = parseFloat(tags.height);
-        if (Number.isFinite(h)) return h;
+        if (Number.isFinite(h)) return { value: h, source: 'osm' };
+      }
+      if (tags['building:height']) {
+        var bh = parseFloat(tags['building:height']);
+        if (Number.isFinite(bh)) return { value: bh, source: 'osm' };
       }
       if (tags['building:levels']) {
         var lvl = parseFloat(tags['building:levels']);
-        if (Number.isFinite(lvl)) return lvl * 3.0;
+        if (Number.isFinite(lvl)) return { value: lvl * 3.0, source: 'levels', levels: lvl };
       }
-      return null;
+      return { value: null, source: null };
     }
 
     function boundsMovedEnough(oldBounds, newBounds) {
@@ -9170,13 +9176,23 @@ initCollapse();
     function renderBuildings() {
       buildingLayer.clearLayers();
       buildings.forEach(function(b) {
+        var isEstimated = !b.heightSource;
         var poly = L.polygon(b.polygon, {
-          color: '#555',
-          fillColor: '#888',
+          color: isEstimated ? '#999' : '#555',
+          fillColor: isEstimated ? '#bbb' : '#888',
           fillOpacity: 0.35,
           weight: 1
         });
-        var tip = b.name || (b.heightM ? b.heightM.toFixed(0) + ' m' : 'Building');
+        // Build descriptive tooltip
+        var htStr;
+        if (b.heightSource === 'osm') {
+          htStr = 'Height: ' + b.heightM.toFixed(0) + 'm (OSM)';
+        } else if (b.heightSource === 'levels') {
+          htStr = 'Height: ' + b.heightM.toFixed(0) + 'm (' + b.heightLevels + ' floor' + (b.heightLevels > 1 ? 's' : '') + ' \u00d7 3m)';
+        } else {
+          htStr = 'Height: 3m \u26a0 estimated \u2014 no data';
+        }
+        var tip = (b.name ? '<b>' + b.name + '</b><br>' : '') + htStr;
         poly.bindTooltip(tip);
         buildingLayer.addLayer(poly);
       });
@@ -9208,15 +9224,29 @@ initCollapse();
         buildings.length = 0;
         (json.elements || []).forEach(function(el) {
           if (!el.geometry || el.geometry.length < 3) return;
+          var ht = parseHeight(el.tags);
           buildings.push({
             id: el.id,
             polygon: el.geometry.map(function(p) { return [p.lat, p.lon]; }),
-            heightM: parseHeight(el.tags),
+            heightM: ht.value,
+            heightSource: ht.source,
+            heightLevels: ht.levels || null,
             name: (el.tags && el.tags.name) ? el.tags.name : null
           });
         });
         window._buildings = buildings;
         _lastBuildingBounds = bbox;
+        // Log height breakdown
+        var cOsm = 0, cLevels = 0, cDefault = 0;
+        buildings.forEach(function(b) {
+          if (b.heightSource === 'osm') cOsm++;
+          else if (b.heightSource === 'levels') cLevels++;
+          else cDefault++;
+        });
+        console.log('Buildings loaded: ' + buildings.length +
+          ' | height from OSM: ' + cOsm +
+          ' | from levels: ' + cLevels +
+          ' | default 3m: ' + cDefault);
         if (_buildingsOn) renderBuildings();
       }).catch(function(err) {
         console.warn('Buildings fetch failed:', err);
