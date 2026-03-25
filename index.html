@@ -1156,6 +1156,10 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     Math.abs(calcISO9613single([37,43,48,53,56,54,51,43], 1.0, 50, 0) - 15.26) < 0.5,
     'Regression: ISO 9613 small exhaust fan at 50m should be ~15.3 dB(A)');
 
+  // Import geometry functions
+  import { segmentsIntersect, getBuildingEdges, flatDistM, getIntersectingEdges, getDominantBarrier } from './geometry.js';
+  window._geometry = { segmentsIntersect, getBuildingEdges, flatDistM, getIntersectingEdges, getDominantBarrier };
+
   // Module loaded after regular scripts — re-trigger calculation so initial zeros are replaced
   if (typeof recalcAll === 'function') recalcAll();
   if (typeof render === 'function') render();
@@ -8483,6 +8487,9 @@ initCollapse();
       });
       // Bring circles to front so they render on top of polygons
       concentricCircles.forEach(function(c) { c.bringToFront(); });
+
+      // Update ray-polygon debug lines
+      if (typeof updateRayLines === 'function') updateRayLines();
     }
 
     /** Update per-receiver map legends (zone analysis panels shown on the map).
@@ -9238,6 +9245,57 @@ initCollapse();
 
     // No initial fetch — buildings are off by default.
     // Fetch is triggered when user clicks the Buildings toggle.
+
+    /* ═══ Ray-polygon debug layer ═══ */
+    var rayLayer = L.layerGroup().addTo(map);
+
+    function updateRayLines() {
+      rayLayer.clearLayers();
+      if (!window._geometry || !window._buildings) return;
+      var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+      var recIds = ['r1', 'r2', 'r3', 'r4'];
+
+      // Collect all placed source positions
+      var srcPositions = [];
+      if (typeof sources !== 'undefined') {
+        sources.forEach(function(src) {
+          if (src.lat !== null && src.lng !== null) {
+            srcPositions.push({ lat: src.lat, lng: src.lng });
+          }
+        });
+      }
+      if (srcPositions.length === 0 && allLL.source) {
+        srcPositions.push({ lat: allLL.source.lat, lng: allLL.source.lng });
+      }
+
+      recIds.forEach(function(rid) {
+        var recLL = allLL[rid];
+        if (!recLL) return;
+        var rec = { lat: recLL.lat, lng: recLL.lng };
+
+        srcPositions.forEach(function(src) {
+          var edges = window._geometry.getIntersectingEdges(src, rec, window._buildings);
+          var colour = edges.length > 0 ? '#f59e0b' : '#22c55e'; // orange or green
+          var line = L.polyline([[src.lat, src.lng], [rec.lat, rec.lng]], {
+            color: colour,
+            weight: 2,
+            opacity: 0.7,
+            dashArray: edges.length > 0 ? '6 4' : null
+          });
+          var tip = edges.length > 0
+            ? edges.length + ' building edge' + (edges.length > 1 ? 's' : '') + ' intersected'
+            : 'Clear line of sight';
+          line.bindTooltip(tip);
+          rayLayer.addLayer(line);
+        });
+      });
+    }
+
+    // Update rays on marker move/place
+    map.on('moveend', function() { updateRayLines(); });
+    // Also hook into marker drag events
+    var origSetMode = window._setMode;
+    window._updateRayLines = updateRayLines;
 
   } /* end initMap */
 
