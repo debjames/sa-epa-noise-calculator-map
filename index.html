@@ -375,6 +375,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastre</button>
           <button class="tool-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
           <button class="tool-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 5v14M5 12h14"/></svg> Draw Building</button>
+          <button class="tool-btn" id="noiseMapBtn" title="Compute and display noise contour map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map</button>
           <button class="tool-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;font-size:11px;color:#666;padding:3px 8px;">Reset overrides</button>
           <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
           <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Major urban areas</button>
@@ -5776,6 +5777,7 @@ initCollapse();
 
         // Buildings layer toggle
         data.buildingsOn = window._getBuildingsOn ? window._getBuildingsOn() : true;
+        data.noiseMapOn = window._getNoiseMapOn ? window._getNoiseMapOn() : false;
 
         // Building height overrides (OSM buildings only — not custom)
         var overrides = [];
@@ -6186,6 +6188,10 @@ initCollapse();
       // 15. Buildings layer toggle + overrides
       if (data.buildingsOn !== undefined && window._setBuildingsOn) {
         window._setBuildingsOn(data.buildingsOn);
+      }
+      // Noise map toggle
+      if (data.noiseMapOn && window._setNoiseMapOn) {
+        setTimeout(function() { window._setNoiseMapOn(true); }, 1000); // delay to let sources load
       }
       // Apply building overrides (including demolished) after fetch completes
       if (data.buildingOverrides && data.buildingOverrides.length > 0) {
@@ -9861,6 +9867,229 @@ initCollapse();
     // Also hook into marker drag events
     var origSetMode = window._setMode;
     window._updateRayLines = updateRayLines;
+
+    /* ═══ Noise Contour Heatmap ═══ */
+    var _noiseMapOn = false;
+    var _noiseWorker = null;
+    var _noiseCanvasLayer = null;
+    var _noiseLegend = null;
+
+    var NOISE_COLOURS = [
+      { min: -Infinity, max: 35, color: null },       // transparent
+      { min: 35, max: 40, color: 'rgba(46,204,113,0.4)' },  // green
+      { min: 40, max: 45, color: 'rgba(241,196,15,0.4)' },  // yellow
+      { min: 45, max: 50, color: 'rgba(230,126,34,0.4)' },  // orange
+      { min: 50, max: 55, color: 'rgba(231,76,60,0.45)' },  // red
+      { min: 55, max: 60, color: 'rgba(192,57,43,0.5)' },   // dark red
+      { min: 60, max: Infinity, color: 'rgba(123,36,28,0.55)' } // very dark
+    ];
+
+    function getNoiseColour(dB) {
+      if (!isFinite(dB)) return null;
+      for (var i = 0; i < NOISE_COLOURS.length; i++) {
+        if (dB >= NOISE_COLOURS[i].min && dB < NOISE_COLOURS[i].max) return NOISE_COLOURS[i].color;
+      }
+      return NOISE_COLOURS[NOISE_COLOURS.length - 1].color;
+    }
+
+    function buildWorkerSources() {
+      var result = [];
+      if (typeof sources === 'undefined') return result;
+      sources.forEach(function(src, si) {
+        if (src.lat === null) return;
+        var equip = (typeof buildSourceEquipment === 'function') ? buildSourceEquipment('day', si) : [];
+        if (equip.length === 0) return;
+
+        // Get spectrum from first equipment item if available
+        var spec = null;
+        var specAdj = 0;
+        if (typeof SOURCE_LIBRARY !== 'undefined') {
+          var first = equip[0];
+          var lib = SOURCE_LIBRARY.find(function(s) { return s.name === first._name; });
+          if (lib && lib.spectrum) {
+            spec = lib.spectrum;
+            specAdj = (first.Lw || 0) - (lib.lw || 0);
+          }
+        }
+
+        result.push({
+          lat: src.lat, lng: src.lng,
+          heightM: src.heightM || 1.5,
+          equipment: equip,
+          spectrum: spec,
+          spectrumAdj: specAdj
+        });
+      });
+      return result;
+    }
+
+    function renderNoiseCanvas(data) {
+      if (_noiseCanvasLayer) map.removeLayer(_noiseCanvasLayer);
+
+      var NoiseLayer = L.GridLayer.extend({
+        createTile: function(coords) {
+          var tile = document.createElement('canvas');
+          var size = this.getTileSize();
+          tile.width = size.x;
+          tile.height = size.y;
+          var ctx = tile.getContext('2d');
+
+          var tileBounds = this._tileCoordsToBounds(coords);
+          var tileN = tileBounds.getNorth(), tileS = tileBounds.getSouth();
+          var tileE = tileBounds.getEast(), tileW = tileBounds.getWest();
+
+          // Map grid cells to tile pixels
+          for (var r = 0; r < data.rows; r++) {
+            var cellLat = data.bounds.south + (r + 0.5) * data.dLat;
+            if (cellLat < tileS || cellLat > tileN) continue;
+            for (var c = 0; c < data.cols; c++) {
+              var cellLng = data.bounds.west + (c + 0.5) * data.dLng;
+              if (cellLng < tileW || cellLng > tileE) continue;
+
+              var dB = data.grid[r * data.cols + c];
+              var color = getNoiseColour(dB);
+              if (!color) continue;
+
+              // Convert cell bounds to pixel coords within this tile
+              var nw = L.latLng(cellLat + data.dLat / 2, cellLng - data.dLng / 2);
+              var se = L.latLng(cellLat - data.dLat / 2, cellLng + data.dLng / 2);
+
+              var pxNW = this._map.project(nw, coords.z);
+              var pxSE = this._map.project(se, coords.z);
+              var origin = this._getTilePos(coords);
+
+              var x = pxNW.x - origin.x;
+              var y = pxNW.y - origin.y;
+              var w = pxSE.x - pxNW.x;
+              var h = pxSE.y - pxNW.y;
+
+              ctx.fillStyle = color;
+              ctx.fillRect(x, y, Math.max(w, 1), Math.max(h, 1));
+            }
+          }
+          return tile;
+        },
+        _getTilePos: function(coords) {
+          var origin = this._map.getPixelOrigin();
+          var size = this.getTileSize();
+          return L.point(coords.x * size.x - origin.x, coords.y * size.y - origin.y);
+        }
+      });
+
+      _noiseCanvasLayer = new NoiseLayer({ opacity: 1, updateWhenZooming: false });
+      _noiseCanvasLayer.addTo(map);
+    }
+
+    function showNoiseLegend() {
+      if (_noiseLegend) map.removeControl(_noiseLegend);
+      _noiseLegend = L.control({ position: 'bottomright' });
+      _noiseLegend.onAdd = function() {
+        var div = L.DomUtil.create('div', 'noise-legend');
+        div.style.cssText = 'background:rgba(255,255,255,0.92);padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
+        div.innerHTML = '<b>Noise Level dB(A)</b><br>' +
+          '<span style="display:inline-block;width:14px;height:10px;background:rgba(46,204,113,0.6);margin-right:4px;"></span> 35\u201340<br>' +
+          '<span style="display:inline-block;width:14px;height:10px;background:rgba(241,196,15,0.6);margin-right:4px;"></span> 40\u201345<br>' +
+          '<span style="display:inline-block;width:14px;height:10px;background:rgba(230,126,34,0.6);margin-right:4px;"></span> 45\u201350<br>' +
+          '<span style="display:inline-block;width:14px;height:10px;background:rgba(231,76,60,0.65);margin-right:4px;"></span> 50\u201355<br>' +
+          '<span style="display:inline-block;width:14px;height:10px;background:rgba(192,57,43,0.7);margin-right:4px;"></span> 55\u201360<br>' +
+          '<span style="display:inline-block;width:14px;height:10px;background:rgba(123,36,28,0.75);margin-right:4px;"></span> >60';
+        return div;
+      };
+      _noiseLegend.addTo(map);
+    }
+
+    function hideNoiseLegend() {
+      if (_noiseLegend) { map.removeControl(_noiseLegend); _noiseLegend = null; }
+    }
+
+    function computeNoiseMap() {
+      if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
+      if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); _noiseCanvasLayer = null; }
+
+      var workerSources = buildWorkerSources();
+      if (workerSources.length === 0) {
+        console.warn('Noise map: no placed sources with equipment');
+        return;
+      }
+
+      var mapBounds = map.getBounds();
+      var zoom = map.getZoom();
+      // Adaptive resolution: finer at higher zoom
+      var gridRes = zoom >= 18 ? 5 : zoom >= 16 ? 10 : zoom >= 14 ? 25 : 50;
+
+      var noiseMapBtn = document.getElementById('noiseMapBtn');
+      if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... 0%';
+
+      var screenable = (typeof getScreenableBuildings === 'function') ? getScreenableBuildings() : [];
+
+      _noiseWorker = new Worker('noise-worker.js');
+      _noiseWorker.onmessage = function(e) {
+        var msg = e.data;
+        if (msg.type === 'progress') {
+          if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... ' + msg.percent + '%';
+        } else if (msg.type === 'complete') {
+          if (noiseMapBtn) {
+            var svg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg>';
+            noiseMapBtn.innerHTML = svg + ' Noise Map';
+          }
+          renderNoiseCanvas(msg);
+          showNoiseLegend();
+          _noiseWorker = null;
+        } else if (msg.type === 'error') {
+          console.warn('Noise map error:', msg.message);
+          if (noiseMapBtn) {
+            noiseMapBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map';
+          }
+          _noiseWorker = null;
+        }
+      };
+
+      _noiseWorker.postMessage({
+        bounds: {
+          north: mapBounds.getNorth(),
+          south: mapBounds.getSouth(),
+          east: mapBounds.getEast(),
+          west: mapBounds.getWest()
+        },
+        gridResolutionM: gridRes,
+        sources: workerSources,
+        buildings: screenable.map(function(b) {
+          return { polygon: b.polygon, heightM: b.heightM };
+        }),
+        propagationMethod: propagationMethod || 'simple',
+        isoParams: {
+          receiverHeight: iso_receiverHeight || 1.5,
+          groundFactor: iso_groundFactor,
+          temperature: iso_temperature,
+          humidity: iso_humidity
+        }
+      });
+    }
+
+    // Toggle button
+    var noiseMapBtn = document.getElementById('noiseMapBtn');
+    if (noiseMapBtn) {
+      noiseMapBtn.addEventListener('click', function() {
+        _noiseMapOn = !_noiseMapOn;
+        noiseMapBtn.classList.toggle('active', _noiseMapOn);
+        if (_noiseMapOn) {
+          computeNoiseMap();
+        } else {
+          if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
+          if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); _noiseCanvasLayer = null; }
+          hideNoiseLegend();
+          noiseMapBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map';
+        }
+      });
+    }
+
+    // Save/load noise map state
+    window._getNoiseMapOn = function() { return _noiseMapOn; };
+    window._setNoiseMapOn = function(v) {
+      _noiseMapOn = !!v;
+      if (noiseMapBtn) noiseMapBtn.classList.toggle('active', _noiseMapOn);
+      if (_noiseMapOn) computeNoiseMap();
+    };
 
   } /* end initMap */
 
