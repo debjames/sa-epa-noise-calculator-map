@@ -920,7 +920,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <!-- ═══ Source management panel ═══ -->
     <div class="grid2 grid-full" style="padding-top:0;" id="sourcePanel">
       <div class="card">
-        <h2>Noise Sources</h2>
+        <h2>Noise sources & location</h2>
         <div id="sourceCardsBody">
           <button type="button" id="addSourceBtn" class="pdf-btn" style="font-size:12px;padding:5px 14px;margin-bottom:10px;">+ Add Source</button>
           <div id="sourceCards" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
@@ -5484,7 +5484,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Noise Sources', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
+    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
