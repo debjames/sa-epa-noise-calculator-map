@@ -376,6 +376,15 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
           <button class="tool-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 5v14M5 12h14"/></svg> Draw Building</button>
           <button class="tool-btn" id="noiseMapBtn" title="Compute and display noise contour map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map</button>
+          <span id="noiseMapControls" style="display:none;font-size:11px;align-items:center;gap:4px;">
+            <button class="tool-btn active" data-nmperiod="day" style="font-size:10px;padding:2px 6px;">Day</button>
+            <button class="tool-btn" data-nmperiod="eve" style="font-size:10px;padding:2px 6px;">Eve</button>
+            <button class="tool-btn" data-nmperiod="night" style="font-size:10px;padding:2px 6px;">Night</button>
+            <button class="tool-btn" data-nmperiod="lmax" style="font-size:10px;padding:2px 6px;">L<sub>max</sub></button>
+            <span style="color:#666;margin-left:4px;">ht:</span>
+            <input type="number" id="noiseMapHeight" value="1.5" min="0.1" max="50" step="0.5" style="width:45px;font-size:11px;padding:1px 3px;text-align:center;" title="Contour map receiver height (m)">
+            <span style="color:#666;">m</span>
+          </span>
           <button class="tool-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;font-size:11px;color:#666;padding:3px 8px;">Reset overrides</button>
           <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
           <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Major urban areas</button>
@@ -5778,6 +5787,8 @@ initCollapse();
         // Buildings layer toggle
         data.buildingsOn = window._getBuildingsOn ? window._getBuildingsOn() : true;
         data.noiseMapOn = window._getNoiseMapOn ? window._getNoiseMapOn() : false;
+        data.noiseMapPeriod = _noiseMapPeriod || 'day';
+        data.noiseMapHeight = _noiseMapHeight || 1.5;
 
         // Building height overrides (OSM buildings only — not custom)
         var overrides = [];
@@ -6189,9 +6200,20 @@ initCollapse();
       if (data.buildingsOn !== undefined && window._setBuildingsOn) {
         window._setBuildingsOn(data.buildingsOn);
       }
-      // Noise map toggle
+      // Noise map settings
+      if (data.noiseMapPeriod) {
+        _noiseMapPeriod = data.noiseMapPeriod;
+        document.querySelectorAll('[data-nmperiod]').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.nmperiod === _noiseMapPeriod);
+        });
+      }
+      if (data.noiseMapHeight) {
+        _noiseMapHeight = data.noiseMapHeight;
+        var nmhEl = document.getElementById('noiseMapHeight');
+        if (nmhEl) nmhEl.value = _noiseMapHeight;
+      }
       if (data.noiseMapOn && window._setNoiseMapOn) {
-        setTimeout(function() { window._setNoiseMapOn(true); }, 1000); // delay to let sources load
+        setTimeout(function() { window._setNoiseMapOn(true); }, 1000);
       }
       // Apply building overrides (including demolished) after fetch completes
       if (data.buildingOverrides && data.buildingOverrides.length > 0) {
@@ -9874,7 +9896,12 @@ initCollapse();
     var _noiseCanvasLayer = null;
     var _noiseContourLayer = null;
     var _noiseLegend = null;
+    var _noiseMapPeriod = 'day';
+    var _noiseMapHeight = 1.5;
+    var _noiseRecomputeTimer = null;
     var CONTOUR_THRESHOLDS = [25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
+
+    var PERIOD_LABELS = { day: 'Day L\u2091\u2091', eve: 'Evening L\u2091\u2091', night: 'Night L\u2091\u2091', lmax: 'Night L\u2098\u2090\u2093' };
 
     var NOISE_COLOURS = [
       { min: -Infinity, max: 25, color: null },
@@ -9898,12 +9925,13 @@ initCollapse();
       return NOISE_COLOURS[NOISE_COLOURS.length - 1].color;
     }
 
-    function buildWorkerSources() {
+    function buildWorkerSources(period) {
+      period = period || _noiseMapPeriod || 'day';
       var result = [];
       if (typeof sources === 'undefined') return result;
       sources.forEach(function(src, si) {
         if (src.lat === null) return;
-        var equip = (typeof buildSourceEquipment === 'function') ? buildSourceEquipment('day', si) : [];
+        var equip = (typeof buildSourceEquipment === 'function') ? buildSourceEquipment(period, si) : [];
         if (equip.length === 0) return;
 
         // Get spectrum from first equipment item if available
@@ -10132,7 +10160,9 @@ initCollapse();
       _noiseLegend.onAdd = function() {
         var div = L.DomUtil.create('div', 'noise-legend');
         div.style.cssText = 'background:rgba(255,255,255,0.92);padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
-        var s = '<b>Noise Level dB(A)</b><br>';
+        var periodLabel = PERIOD_LABELS[_noiseMapPeriod] || 'Day L\u2091\u2091';
+        var s = '<b>' + periodLabel + ' dB(A)</b><br>';
+        s += '<span style="color:#888;font-size:10px;">' + _noiseMapHeight.toFixed(1) + 'm height</span><br>';
         // Build legend from NOISE_COLOURS (skip transparent first entry)
         for (var li = 1; li < NOISE_COLOURS.length; li++) {
           var nc = NOISE_COLOURS[li];
@@ -10154,9 +10184,12 @@ initCollapse();
       if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); _noiseCanvasLayer = null; }
       if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); _noiseContourLayer = null; }
 
-      var workerSources = buildWorkerSources();
+      var workerSources = buildWorkerSources(_noiseMapPeriod);
       if (workerSources.length === 0) {
-        console.warn('Noise map: no placed sources with equipment');
+        console.warn('Noise map: no equipment for ' + (_noiseMapPeriod || 'day') + ' period');
+        // Show message on map
+        if (_noiseLegend) { map.removeControl(_noiseLegend); _noiseLegend = null; }
+        showNoiseLegend(); // will show "No equipment" via legend
         return;
       }
 
@@ -10206,7 +10239,7 @@ initCollapse();
         }),
         propagationMethod: propagationMethod || 'simple',
         isoParams: {
-          receiverHeight: iso_receiverHeight || 1.5,
+          receiverHeight: _noiseMapHeight || 1.5,
           groundFactor: iso_groundFactor,
           temperature: iso_temperature,
           humidity: iso_humidity
@@ -10214,12 +10247,26 @@ initCollapse();
       });
     }
 
+    function debouncedRecompute() {
+      if (_noiseRecomputeTimer) clearTimeout(_noiseRecomputeTimer);
+      _noiseRecomputeTimer = setTimeout(function() {
+        if (_noiseMapOn) computeNoiseMap();
+      }, 1000);
+    }
+
     // Toggle button
     var noiseMapBtn = document.getElementById('noiseMapBtn');
+    var noiseMapControls = document.getElementById('noiseMapControls');
+
+    function showNoiseControls(show) {
+      if (noiseMapControls) noiseMapControls.style.display = show ? 'inline-flex' : 'none';
+    }
+
     if (noiseMapBtn) {
       noiseMapBtn.addEventListener('click', function() {
         _noiseMapOn = !_noiseMapOn;
         noiseMapBtn.classList.toggle('active', _noiseMapOn);
+        showNoiseControls(_noiseMapOn);
         if (_noiseMapOn) {
           computeNoiseMap();
         } else {
@@ -10232,11 +10279,33 @@ initCollapse();
       });
     }
 
+    // Period selector pills
+    document.querySelectorAll('[data-nmperiod]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        _noiseMapPeriod = this.dataset.nmperiod;
+        document.querySelectorAll('[data-nmperiod]').forEach(function(b) { b.classList.remove('active'); });
+        this.classList.add('active');
+        debouncedRecompute();
+      });
+    });
+
+    // Map height input
+    var noiseMapHtInput = document.getElementById('noiseMapHeight');
+    if (noiseMapHtInput) {
+      noiseMapHtInput.addEventListener('change', function() {
+        var v = parseFloat(this.value);
+        if (Number.isFinite(v) && v >= 0.1) _noiseMapHeight = v;
+        else this.value = _noiseMapHeight;
+        debouncedRecompute();
+      });
+    }
+
     // Save/load noise map state
     window._getNoiseMapOn = function() { return _noiseMapOn; };
     window._setNoiseMapOn = function(v) {
       _noiseMapOn = !!v;
       if (noiseMapBtn) noiseMapBtn.classList.toggle('active', _noiseMapOn);
+      showNoiseControls(_noiseMapOn);
       if (_noiseMapOn) computeNoiseMap();
     };
 
