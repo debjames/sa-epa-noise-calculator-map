@@ -6221,7 +6221,7 @@ initCollapse();
   /* ---- colour / label config for each point type ---- */
   function recvLabel(n) { return (window._receiverTerm || 'Receiver') + ' ' + n; }
   var CFG = {
-    source: { color: '#dc2626', get label(){ return 'Noise Source'; }, initial: 'S', distId: null      },
+    source: { color: '#dc2626', get label(){ return 'Noise Source'; }, initial: 'S1', distId: null      },
     r1:     { color: '#2563eb', get label(){ return recvLabel(1); },   initial: '1', distId: 'dist_r1' },
     r2:     { color: '#16a34a', get label(){ return recvLabel(2); },   initial: '2', distId: 'dist_r2' },
     r3:     { color: '#d97706', get label(){ return recvLabel(3); },   initial: '3', distId: 'dist_r3' },
@@ -6236,7 +6236,7 @@ initCollapse();
       var idx = parseInt(m[1], 10);
       var colours = typeof SOURCE_COLOURS !== 'undefined' ? SOURCE_COLOURS : ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c'];
       var name = (typeof sources !== 'undefined' && sources[idx]) ? sources[idx].name : 'Source ' + (idx + 1);
-      return { color: colours[idx % colours.length], label: name, initial: String(idx + 1), distId: null };
+      return { color: colours[idx % colours.length], label: name, initial: 'S' + (idx + 1), distId: null };
     }
     return CFG.source; // fallback
   }
@@ -8189,7 +8189,7 @@ initCollapse();
           'border-radius:50% 50% 50% 0;' +
           'width:30px;height:30px;' +
           'display:flex;align-items:center;justify-content:center;' +
-          'font-size:12px;font-weight:700;' +
+          'font-size:' + (t.length > 1 ? '10' : '12') + 'px;font-weight:700;' +
           'box-shadow:0 2px 8px rgba(0,0,0,.3);' +
           'transform:rotate(-45deg);' +
         '">' +
