@@ -9395,6 +9395,7 @@ initCollapse();
 
         // Click popup for height override
         poly.on('click', function(e) {
+          L.DomEvent.stopPropagation(e);
           L.popup({ maxWidth: 280 })
             .setLatLng(e.latlng)
             .setContent(buildingPopupHTML(b))
@@ -9623,6 +9624,7 @@ initCollapse();
 
         // Click popup for edit/delete
         poly.on('click', function(e) {
+          L.DomEvent.stopPropagation(e);
           var html = '<div style="min-width:200px;font-size:13px;">';
           html += '<b>' + (cb.name || 'Custom building') + '</b><br>';
           html += '<div style="margin:6px 0;">';
