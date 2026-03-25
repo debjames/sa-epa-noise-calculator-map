@@ -9692,6 +9692,8 @@ initCollapse();
       customBuildings.forEach(function(cb) { combined.push(cb); });
       window._buildings = combined;
       if (typeof updateRayLines === 'function') updateRayLines();
+      // Recalculate all periods so day+night+eve+lmax results update together
+      if (typeof render === 'function') render();
     }
 
     function renderCustomBuildings() {
