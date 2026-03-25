@@ -375,6 +375,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastre</button>
           <button class="tool-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
           <button class="tool-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 5v14M5 12h14"/></svg> Draw Building</button>
+          <button class="tool-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h4l4-8 4 4h6"/></svg> Draw Barrier</button>
           <button class="tool-btn" id="noiseMapBtn" title="Compute and display noise contour map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map</button>
           <span id="noiseMapControls" style="display:none;font-size:11px;align-items:center;gap:4px;">
             <button class="tool-btn active" data-nmperiod="day" style="font-size:10px;padding:2px 6px;">Day</button>
@@ -844,8 +845,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
                 L<sub>Aeq</sub> = 10&thinsp;log<sub>10</sub>&thinsp;&Sigma;&thinsp;10<sup>L<sub>p</sub>(f)/10</sup> &nbsp;dB(A)<br>
                 Source spectra in the library are pre-A-weighted, so no additional A-weighting correction is applied.
               </p>
-              <p style="margin:4px 0;"><strong>Multi-source combination:</strong> Individual source predictions are combined energetically (Equation&nbsp;3). Each source&rsquo;s level is adjusted for quantity (10&thinsp;log<sub>10</sub>&thinsp;n), operational time fraction (10&thinsp;log<sub>10</sub>(t/T)), and barrier (&minus;5&nbsp;dB if selected).</p>
-              <p style="margin:4px 0;"><strong>Barrier attenuation:</strong> A simplified fixed &minus;5&nbsp;dB broadband reduction is applied when barrier is set to &ldquo;Yes&rdquo;. The standard&rsquo;s detailed barrier calculation (A<sub>bar</sub> via Fresnel number) is not implemented &mdash; actual barrier performance varies by frequency and geometry.</p>
+              <p style="margin:4px 0;"><strong>Multi-source combination:</strong> Individual source predictions are combined energetically (Equation&nbsp;3). Each source&rsquo;s level is adjusted for quantity (10&thinsp;log<sub>10</sub>&thinsp;n) and operational time fraction (10&thinsp;log<sub>10</sub>(t/T)).</p>
+              <p style="margin:4px 0;"><strong>Barrier attenuation:</strong> Barrier screening is calculated from drawn barriers and OSM building footprints using the Maekawa diffraction formula with path-length difference &delta;. Screening is applied per octave band for ISO&nbsp;9613-2, or as a broadband approximation for the simple method.</p>
               <p style="margin:4px 0;"><strong>Directivity (D<sub>c</sub>):</strong> All sources are treated as omnidirectional (D<sub>c</sub>&nbsp;=&nbsp;0). Source directivity is not modelled.</p>
               <p style="margin:4px 0;"><strong>Screening (A<sub>bar</sub>), miscellaneous (A<sub>misc</sub>):</strong> Not implemented. No terrain screening, industrial-site screening, or housing/vegetation attenuation is included. Terrain is assumed flat.</p>
               <p style="margin:4px 0;"><strong>Convergence with simple method:</strong> On hard ground (G=0) with no atmospheric absorption, A<sub>gr</sub>&nbsp;=&nbsp;&minus;3&nbsp;dB at all bands, so the ISO formula reduces to L<sub>w</sub>&nbsp;&minus;&nbsp;20&thinsp;log<sub>10</sub>(d)&nbsp;&minus;&nbsp;8, matching the simple hemispherical spreading method.</p>
@@ -940,19 +941,15 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <th style="width:52%;">Source</th>
             <th style="width:12%;" class="center">Quantity</th>
             <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
-            <th style="width:12%;" class="center">Include barrier</th>
             <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
           <tbody id="daySrcRows"></tbody>
           <tr>
-            <th colspan="4" class="num">TOTAL</th><th class="iso-ht-col"></th>
+            <th colspan="3" class="num">TOTAL</th><th class="iso-ht-col"></th>
             <th class="num" id="daySrcTotal">0</th>
           </tr>
         </table>
-        <div class="small" style="margin-top:8px;">
-          Barrier toggle applies a simple −5 dB adjustment to the item’s Total Lw when set to Yes.
-        </div>
       </div>
 
       <div class="card vic-only crit-eve-section">
@@ -963,19 +960,15 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <th style="width:52%;">Source</th>
             <th style="width:12%;" class="center">Quantity</th>
             <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
-            <th style="width:12%;" class="center">Include barrier</th>
             <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
           <tbody id="eveSrcRows"></tbody>
           <tr>
-            <th colspan="4" class="num">TOTAL</th><th class="iso-ht-col"></th>
+            <th colspan="3" class="num">TOTAL</th><th class="iso-ht-col"></th>
             <th class="num" id="eveSrcTotal">0</th>
           </tr>
         </table>
-        <div class="small" style="margin-top:8px;">
-          Barrier toggle applies a simple −5 dB adjustment to the item's Total Lw when set to Yes.
-        </div>
         <div style="margin-top:8px;">
           <button type="button" class="pdf-btn" style="font-size:11px;padding:4px 10px;" onclick="copySourcesFromDay('eve')">Copy from Day</button>
         </div>
@@ -989,31 +982,26 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <th style="width:52%;">Source</th>
             <th style="width:12%;" class="center">Quantity</th>
             <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
-            <th style="width:12%;" class="center">Include barrier</th>
             <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
           <tbody id="nightSrcRows"></tbody>
           <tr>
-            <th colspan="4" class="num">TOTAL</th><th class="iso-ht-col"></th>
+            <th colspan="3" class="num">TOTAL</th><th class="iso-ht-col"></th>
             <th class="num" id="nightSrcTotal">0</th>
           </tr>
         </table>
-        <div class="small" style="margin-top:8px;">
-          Barrier toggle applies a simple −5 dB adjustment to the item’s Total Lw when set to Yes.
-          </div>
         <div class="crit-lmax-col" style="margin-top:20px;"></div>
         <h3 class="crit-lmax-col" style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources – L<sub>max</sub></h3>
         <table id="nightLmaxTable" class="crit-lmax-col">
           <tr>
             <th style="width:54%;">Source</th>
             <th style="width:16%;" class="center">Quantity</th>
-            <th style="width:15%;" class="center">Include barrier</th>
             <th style="width:15%;" class="num">Total Lw</th>
           </tr>
           <tbody id="nightLmaxRows"></tbody>
           <tr>
-            <th colspan="3" class="num">TOTAL</th>
+            <th colspan="2" class="num">TOTAL</th>
             <th class="num" id="nightLmaxTotal">0</th>
           </tr>
         </table>
@@ -1025,7 +1013,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="grid2" style="padding-top:0;">
       <div class="card span2">
         <h2>Source contribution</h2>
-        <div class="p">Predicted sound pressure level at each receiver from individual sources, based on a point-source propagation model (−20 log<sub>10</sub> distance − 8 dB). Levels shown include any quantity, operational time, and barrier adjustments applied in the source tables above.</div>
+        <div class="p">Predicted sound pressure level at each receiver from individual sources, based on a point-source propagation model (−20 log<sub>10</sub> distance − 8 dB). Levels shown include any quantity and operational time adjustments applied in the source tables above.</div>
         <div class="contrib-section">
           <div class="contrib-sub-h">Day L<sub>eq</sub> contributions at receivers (dB(A))</div>
           <div class="table-scroll"><table id="contribDayTable"></table></div>
@@ -1138,8 +1126,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     It is intended to be used a simple screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.
     </div>
     <div class="h2">Barrier attenuation</div>
-    <div class="p">The barrier provides overall 5 dB attenuation. This is a conservative indication of the attenuation provided by a solid acoustic barrier which blocks line of sight between the noise source and receiver.
-    Actual acoustic barrier attenuation may vary in complex terrain or environments with hard reflective surfaces in proximity to the source and/or receiver.
+    <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. The tool uses the Maekawa diffraction formula based on path-length difference to determine insertion loss. For ISO 9613-2, attenuation is applied per octave band and capped at 20 dB. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.
     </div>
     <div class="h2">Operational time</div>
     <div class="p" style="margin-bottom:0;" id="opTimeNote">The calculation provides an option to input the expected operational time during a 15 minute assessment period.
@@ -2335,7 +2322,7 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, rec
     var Lw_f = spectrumA[i];
     if (Lw_f === null || Lw_f === undefined || !Number.isFinite(Lw_f)) continue;
 
-    // Apply quantity/opTime/barrier adjustment
+    // Apply quantity/opTime adjustment
     var Lw_adj = Lw_f + adjDB;
 
     // Atmospheric absorption for this band
@@ -2382,7 +2369,6 @@ function getSourceSpectrumAndHeight(sourceIdx, prefix, rowIdx) {
   // Quantity, opTime, barrier → adjDB
   var nEl = document.getElementById(sp + prefix + '_n_inp_' + rowIdx);
   var minEl = document.getElementById(sp + prefix + '_min_inp_' + rowIdx);
-  var barEl = tr.querySelectorAll('select')[1];
   var isSA = (currentState === 'SA' || currentState === null);
   var divisor = isSA ? 15 : 100;
   var defaultOp = isSA ? 15 : 100;
@@ -2391,9 +2377,7 @@ function getSourceSpectrumAndHeight(sourceIdx, prefix, rowIdx) {
   var opVal = minEl ? Number(minEl.value) : defaultOp;
   if (!Number.isFinite(opVal)) opVal = defaultOp;
   if (opVal <= 0) return null;
-  var barrier = barEl && barEl.value === 'Yes';
   var adjDB = 10 * log10(n) + 10 * log10(opVal / divisor);
-  if (barrier) adjDB -= 5;
 
   return {
     spectrumA: picked.spectrum || null,
@@ -3196,21 +3180,19 @@ function equipmentTableHTML(prefix, sourceIdx) {
   if (isLmax) {
     html += '<th style="width:54%;">Source</th>';
     html += '<th style="width:16%;" class="center">Quantity</th>';
-    html += '<th style="width:15%;" class="center">Include barrier</th>';
     html += '<th style="width:15%;" class="num">Total Lw</th>';
   } else {
     html += '<th style="width:52%;">Source</th>';
     html += '<th style="width:12%;" class="center">Quantity</th>';
     html += '<th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>';
-    html += '<th style="width:12%;" class="center">Include barrier</th>';
     html += '<th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>';
     html += '<th style="width:12%;" class="num">Total Lw</th>';
   }
   html += '</tr><tbody id="' + tbodyId + '"></tbody><tr>';
   if (isLmax) {
-    html += '<th colspan="3" class="num">TOTAL</th>';
+    html += '<th colspan="2" class="num">TOTAL</th>';
   } else {
-    html += '<th colspan="4" class="num">TOTAL</th><th class="iso-ht-col"></th>';
+    html += '<th colspan="3" class="num">TOTAL</th><th class="iso-ht-col"></th>';
   }
   html += '<th class="num" id="' + totalId + '">0</th></tr></table>';
   return html;
@@ -3237,7 +3219,7 @@ function createSourceEquipmentSection(sourceIdx) {
   dayDiv.className = 'crit-day-section';
   dayDiv.innerHTML = '<h3 style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources \u2013 L<sub>eq</sub> (Day)</h3>' +
     equipmentTableHTML('day', sourceIdx) +
-    '<div class="small" style="margin-top:4px;">Barrier toggle applies a simple \u22125 dB adjustment.</div>';
+    '';
   section.appendChild(dayDiv);
 
   // Evening
@@ -3476,18 +3458,15 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5, sourceIdx=0){
     const kSrc = `${sp}${prefix}_src_${i}`;
     const kN = `${sp}${prefix}_n_${i}`;
     const kMin = `${sp}${prefix}_min_${i}`;
-    const kBar = `${sp}${prefix}_bar_${i}`;
 
     const srcVal = loadLS(kSrc);
     const nVal = loadLS(kN);
     const minVal = loadLS(kMin); // blank => assume 15 mins
-    const barVal = loadLS(kBar) || "No";
 
     const tdSrc = document.createElement("td");
     const tdN = document.createElement("td"); tdN.className="center";
     const includeMinutes = (prefix === 'day' || prefix === 'eve' || prefix === 'night');
     const tdMin = document.createElement("td"); tdMin.className="center";
-    const tdBar = document.createElement("td"); tdBar.className="center";
     const tdLw = document.createElement("td"); tdLw.className="num"; tdLw.id = `${sp}${prefix}_lw_${i}`;
 
     const libFlat = (prefix === 'lmax') ? SOURCE_LIBRARY_LMAX : SOURCE_LIBRARY;
@@ -3512,8 +3491,6 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5, sourceIdx=0){
     if (!isSAMode && Number(storedMin) <= 15) storedMin = opDefault;
     inpMin.value = storedMin;
     inpMin.id = `${sp}${prefix}_min_inp_${i}`;
-
-    const bar = makeYesNoSelect(barVal);
 
     // Source height input for ISO 9613-2 (Leq tables only, not Lmax)
     const isLeqTable = (prefix !== 'lmax');
@@ -3552,8 +3529,6 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5, sourceIdx=0){
         else { minWarning.style.display = 'none'; }
       }
       let lw = rowTotalLw(base, n, minsVal);
-      // If barrier included, apply a simple -5 dB adjustment to this item's Total Lw
-      if (bar.value === 'Yes' && lw > 0) lw = lw - 5;
 
       tdLw.textContent = String(Math.round(lw));
 
@@ -3561,7 +3536,6 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5, sourceIdx=0){
       saveLS(kN, inp.value);
       if (includeMinutes) saveLS(kMin, inpMin.value);
       else saveLS(kMin, "");
-      saveLS(kBar, bar.value);
 
       recalcAll();
     }
@@ -3569,19 +3543,16 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5, sourceIdx=0){
     sel.addEventListener("change", recalcRow);
     inp.addEventListener("input", recalcRow);
     if (includeMinutes) inpMin.addEventListener("input", recalcRow);
-    bar.addEventListener("change", recalcRow);
 
     tdSrc.appendChild(sel);
     tdN.appendChild(inp);
     tdN.appendChild(nWarning);
     if (includeMinutes) { tdMin.appendChild(inpMin); tdMin.appendChild(minWarning); }
-    tdBar.appendChild(bar);
     tdHt.appendChild(inpHt);
 
     tr.appendChild(tdSrc);
     tr.appendChild(tdN);
     if (includeMinutes) tr.appendChild(tdMin);
-    tr.appendChild(tdBar);
     if (isLeqTable) tr.appendChild(tdHt);
     tr.appendChild(tdLw);
 
@@ -5067,16 +5038,13 @@ function getSpectrumData(prefix, sourceIdx) {
 
     var nEl = document.getElementById(sp + prefix + '_n_inp_' + i);
     var minEl = document.getElementById(sp + prefix + '_min_inp_' + i);
-    var barEl = tr.querySelectorAll('select')[1];
     var n = nEl ? Number(nEl.value) : 1;
     if (!Number.isFinite(n) || n <= 0) return;
     var opVal = minEl ? Number(minEl.value) : defaultOp;
     if (!Number.isFinite(opVal)) opVal = defaultOp;
     if (opVal <= 0) return;
-    var barrier = barEl && barEl.value === 'Yes';
 
     var adjDB = 10 * log10(n) + 10 * log10(opVal / divisor);
-    if (barrier) adjDB -= 5;
 
     // Build adjusted spectrum
     var spec = [];
@@ -5819,6 +5787,14 @@ initCollapse();
           });
         }
 
+        // User-drawn barriers
+        var barriers = window._getUserBarriers ? window._getUserBarriers() : [];
+        if (barriers.length > 0) {
+          data.userBarriers = barriers.map(function(ub) {
+            return { id: ub.id, vertices: ub.vertices, heightM: ub.heightM, name: ub.name };
+          });
+        }
+
         // Demolished OSM buildings (separate list for clarity)
         var demolished = [];
         if (window._buildings) {
@@ -6237,6 +6213,10 @@ initCollapse();
             name: cb.name, isCustom: true, userHeightOverride: true
           };
         }));
+      }
+      // Restore user-drawn barriers
+      if (data.userBarriers && data.userBarriers.length > 0 && window._setUserBarriers) {
+        window._setUserBarriers(data.userBarriers);
       }
 
       // 16. Re-render detected zones panel for VIC
@@ -9366,13 +9346,15 @@ initCollapse();
     /** Get buildings eligible for barrier screening (not excluded) */
     /** Get buildings eligible for barrier screening (combined OSM + custom, minus excluded/demolished) */
     function getScreenableBuildings() {
-      // After rebuildBuildingsIndex runs, window._buildings is the filtered set
-      // But before that (or if custom buildings not yet initialized), filter OSM directly
-      if (typeof customBuildings !== 'undefined') {
-        var osm = buildings.filter(function(b) { return !b.excluded && !b.demolished; });
-        return osm.concat(customBuildings);
+      var osm = buildings.filter(function(b) { return !b.excluded && !b.demolished; });
+      var result = (typeof customBuildings !== 'undefined') ? osm.concat(customBuildings) : osm;
+      // Include user-drawn barriers as pseudo-buildings
+      if (typeof userBarriers !== 'undefined') {
+        userBarriers.forEach(function(ub) {
+          result.push({ polygon: ub.vertices, heightM: ub.heightM, isBarrier: true });
+        });
       }
-      return buildings.filter(function(b) { return !b.excluded && !b.demolished; });
+      return result;
     }
     window._getScreenableBuildings = getScreenableBuildings;
 
@@ -9686,14 +9668,79 @@ initCollapse();
       weight: 1, dashArray: '6 3'
     };
 
-    /** Rebuild the combined window._buildings array from OSM + custom */
+    /* ═══ User-drawn Barriers ═══ */
+    var userBarriers = [];
+    var barrierLayer = L.layerGroup().addTo(map);
+    var BARRIER_STYLE = {
+      color: '#e67e22', weight: 3, dashArray: '8 4', opacity: 0.9
+    };
+
+    /** Rebuild the combined window._buildings array from OSM + custom + drawn barriers */
     function rebuildBuildingsIndex() {
       var combined = buildings.filter(function(b) { return !b.demolished && !b.excluded; });
       customBuildings.forEach(function(cb) { combined.push(cb); });
+      // Inject user-drawn barriers as pseudo-buildings (Option C: no shared-calc.js changes)
+      userBarriers.forEach(function(ub) {
+        combined.push({ polygon: ub.vertices, heightM: ub.heightM, isBarrier: true });
+      });
       window._buildings = combined;
       if (typeof updateRayLines === 'function') updateRayLines();
       // Recalculate all periods so day+night+eve+lmax results update together
       if (typeof render === 'function') render();
+    }
+
+    /** Render user-drawn barriers on the map */
+    function renderUserBarriers() {
+      barrierLayer.clearLayers();
+      userBarriers.forEach(function(ub) {
+        var line = L.polyline(ub.vertices, BARRIER_STYLE);
+        var htStr = ub.heightM ? ub.heightM.toFixed(1) + 'm' : '2.0m';
+        line.bindTooltip((ub.name ? '<b>' + ub.name + '</b><br>' : '') + 'Height: ' + htStr);
+
+        // Click popup for edit/delete (only when not in placement or drawing mode)
+        line.on('click', function(e) {
+          if (_drawingActive) return;
+          if (currentMode) return;
+          L.DomEvent.stopPropagation(e);
+          var html = '<div style="min-width:200px;font-size:13px;">';
+          html += '<b>' + (ub.name || 'Barrier') + '</b><br>';
+          html += '<div style="margin:6px 0;">';
+          html += 'Name: <input type="text" id="editBarName" value="' + (ub.name || '') + '" style="width:120px;padding:2px 4px;font-size:12px;"><br>';
+          html += 'Height: <input type="number" id="editBarHeight" value="' + (ub.heightM || 2) + '" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;"> m';
+          html += '</div>';
+          html += '<button id="editBarApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
+          html += '<button id="editBarDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#c0392b;">Delete</button>';
+          html += '</div>';
+
+          L.popup({ maxWidth: 280, closeOnClick: false })
+            .setLatLng(e.latlng)
+            .setContent(html)
+            .openOn(map);
+
+          setTimeout(function() {
+            var applyBtn = document.getElementById('editBarApply');
+            var deleteBtn = document.getElementById('editBarDelete');
+            if (applyBtn) applyBtn.addEventListener('click', function() {
+              var ht = parseFloat(document.getElementById('editBarHeight').value);
+              if (Number.isFinite(ht) && ht > 0) ub.heightM = ht;
+              ub.name = document.getElementById('editBarName').value || 'Barrier';
+              map.closePopup();
+              renderUserBarriers();
+              rebuildBuildingsIndex();
+            });
+            if (deleteBtn) deleteBtn.addEventListener('click', function() {
+              if (!confirm('Delete this barrier?')) return;
+              var idx = userBarriers.indexOf(ub);
+              if (idx !== -1) userBarriers.splice(idx, 1);
+              map.closePopup();
+              renderUserBarriers();
+              rebuildBuildingsIndex();
+            });
+          }, 50);
+        });
+
+        line.addTo(barrierLayer);
+      });
     }
 
     function renderCustomBuildings() {
@@ -9788,6 +9835,54 @@ initCollapse();
       });
 
       map.on(L.Draw.Event.CREATED, function(e) {
+        if (e.layerType === 'polyline') {
+          // Barrier polyline completed
+          if (_barrierDrawHandler) { _barrierDrawHandler = null; }
+          _drawingActive = false;
+          var drawBarrierBtnEl = document.getElementById('drawBarrierBtn');
+          if (drawBarrierBtnEl) drawBarrierBtnEl.classList.remove('active');
+
+          var latLngs = e.layer.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+          var center = e.layer.getBounds().getCenter();
+
+          var html = '<div style="min-width:200px;font-size:13px;">';
+          html += '<b>New barrier</b><br>';
+          html += '<div style="margin:6px 0;">';
+          html += 'Height: <input type="number" id="newBarHeight" value="2.0" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;" autofocus> m<br>';
+          html += 'Label: <input type="text" id="newBarName" placeholder="e.g. Acoustic fence" style="width:140px;padding:2px 4px;font-size:12px;">';
+          html += '</div>';
+          html += '<button id="newBarAdd" style="font-size:11px;padding:2px 8px;cursor:pointer;">Add Barrier</button> ';
+          html += '<button id="newBarCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button>';
+          html += '</div>';
+
+          L.popup({ maxWidth: 280, closeOnClick: false })
+            .setLatLng(center)
+            .setContent(html)
+            .openOn(map);
+
+          setTimeout(function() {
+            var addBtn = document.getElementById('newBarAdd');
+            var cancelBtn = document.getElementById('newBarCancel');
+            if (addBtn) addBtn.addEventListener('click', function() {
+              var ht = parseFloat(document.getElementById('newBarHeight').value);
+              var name = document.getElementById('newBarName').value || 'Barrier';
+              if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid height.'); return; }
+              userBarriers.push({
+                id: 'barrier_' + Date.now(),
+                vertices: latLngs,
+                heightM: ht,
+                name: name
+              });
+              map.closePopup();
+              renderUserBarriers();
+              rebuildBuildingsIndex();
+            });
+            if (cancelBtn) cancelBtn.addEventListener('click', function() {
+              map.closePopup();
+            });
+          }, 50);
+          return;
+        }
         if (e.layerType !== 'polygon') return;
         stopDrawing();
 
@@ -9839,6 +9934,45 @@ initCollapse();
         }, 50);
       });
     }
+
+    /* ═══ Draw Barrier handler ═══ */
+    var drawBarrierBtn = document.getElementById('drawBarrierBtn');
+    var _barrierDrawHandler = null;
+    if (drawBarrierBtn && typeof L.Draw !== 'undefined') {
+      drawBarrierBtn.addEventListener('click', function() {
+        if (_barrierDrawHandler) {
+          _barrierDrawHandler.disable();
+          _barrierDrawHandler = null;
+          _drawingActive = false;
+          drawBarrierBtn.classList.remove('active');
+          return;
+        }
+        // Cancel any building drawing in progress
+        if (_drawHandler) {
+          _drawHandler.disable();
+          stopDrawing();
+        }
+        _drawingActive = true;
+        document.querySelectorAll('.map-mode-btn').forEach(function(b) {
+          b.classList.remove('active');
+        });
+        _barrierDrawHandler = new L.Draw.Polyline(map, {
+          shapeOptions: BARRIER_STYLE,
+          showLength: true
+        });
+        _barrierDrawHandler.enable();
+        drawBarrierBtn.classList.add('active');
+      });
+    }
+
+    /* ═══ Save/load barrier API ═══ */
+    window._getUserBarriers = function() { return userBarriers; };
+    window._setUserBarriers = function(arr) {
+      userBarriers.length = 0;
+      arr.forEach(function(ub) { userBarriers.push(ub); });
+      renderUserBarriers();
+      rebuildBuildingsIndex();
+    };
 
     // Override renderBuildings to include demolished state and call rebuildBuildingsIndex
     var _origRenderBuildings = renderBuildings;

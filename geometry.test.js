@@ -310,4 +310,70 @@ describe('getDominantBarrier', () => {
     expect(result.pathLengthDiff).toBeGreaterThan(0);
     expect(result.pathLengthDiff).toBeCloseTo(0.45, 1);
   });
+
+  it('2-vertex polyline barrier: getBuildingEdges produces valid segments', () => {
+    // A drawn barrier is a polyline with just 2 vertices — no closing polygon
+    // getBuildingEdges should produce 2 edges: [v0→v1] and [v1→v0] (closing)
+    var midLng = 50 / 111320;
+    var polyline = [
+      [-0.001, midLng],  // south end of barrier
+      [ 0.001, midLng]   // north end of barrier
+    ];
+    var edges = getBuildingEdges(polyline);
+    expect(edges.length).toBe(2);
+    // First edge: v0 → v1
+    expect(edges[0][0]).toEqual(polyline[0]);
+    expect(edges[0][1]).toEqual(polyline[1]);
+    // Second edge: v1 → v0 (closing)
+    expect(edges[1][0]).toEqual(polyline[1]);
+    expect(edges[1][1]).toEqual(polyline[0]);
+  });
+
+  it('2-vertex polyline barrier produces correct screening via getDominantBarrier', () => {
+    // Model a barrier as a pseudo-building with 2-vertex polygon (polyline)
+    // Source at origin (0,0), height 1m
+    // Receiver 100m east, height 1.5m
+    // Barrier at 50m east, height 6m, running north-south
+    var midLng = 50 / 111320;
+    var recLng = 100 / 111320;
+    var barrier = {
+      id: 'barrier_test',
+      polygon: [
+        [-0.001, midLng],  // south end
+        [ 0.001, midLng]   // north end (~220m long, crosses the ray)
+      ],
+      heightM: 6,
+      name: 'Test barrier'
+    };
+    var result = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      1, 1.5, [barrier]
+    );
+    expect(result).not.toBeNull();
+    expect(result.barrierHeightM).toBe(6);
+    expect(result.pathLengthDiff).toBeGreaterThan(0);
+    // Should match the 4-vertex polygon case: δ ≈ 0.45m
+    expect(result.pathLengthDiff).toBeCloseTo(0.45, 1);
+  });
+
+  it('2-vertex polyline barrier shorter than LOS: no screening', () => {
+    // Source at 10m, receiver at 10m, barrier at 3m → LOS clears
+    var midLng = 50 / 111320;
+    var recLng = 100 / 111320;
+    var barrier = {
+      id: 'barrier_short',
+      polygon: [
+        [-0.001, midLng],
+        [ 0.001, midLng]
+      ],
+      heightM: 3,
+      name: null
+    };
+    var result = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      10, 10, [barrier]
+    );
+    expect(result).not.toBeNull();
+    expect(result.pathLengthDiff).toBe(0);
+  });
 });
