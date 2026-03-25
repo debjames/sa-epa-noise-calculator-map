@@ -578,7 +578,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div class="table-scroll">
         <table>
           <tr>
-            <th style="width:16%;">Location</th><th class="num" style="width:5%;" title="Receiver height above ground (m). Leave blank to use global ISO 9613-2 value.">Ht (m)</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="center" id="distColHeader" style="display:none;">Distance to receiver, m</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
+            <th style="width:16%;">Location</th><th class="num" style="width:6%;" title="Receiver height above ground (m). Leave blank to use global ISO 9613-2 value.">Height, m</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
           </tr>
 
           <tr>
@@ -588,7 +588,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td id="src_viczone" class="vic-only vic-zone-col"></td>
             <td id="src_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"></td>
-            <td class="left" style="display:none;"></td>
             <td class="num crit-day-col"></td>
             <td class="num vic-only crit-eve-col"></td>
             <td class="num crit-night-col"></td>
@@ -602,7 +601,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td id="r1_viczone" class="vic-only vic-zone-col"></td>
             <td id="r1_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r1_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
-          <td class="center" style="display:none;"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r1" placeholder=""></td>
           <td id="r1_daycrit" class="num crit-day-col"></td>
           <td id="r1_evecrit" class="num vic-only crit-eve-col"></td>
           <td id="r1_nightcrit" class="num crit-night-col"></td>
@@ -615,7 +613,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td id="r2_viczone" class="vic-only vic-zone-col"></td>
             <td id="r2_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r2_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
-          <td class="center" style="display:none;"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r2" placeholder=""></td>
           <td id="r2_daycrit" class="num crit-day-col"></td>
           <td id="r2_evecrit" class="num vic-only crit-eve-col"></td>
           <td id="r2_nightcrit" class="num crit-night-col"></td>
@@ -628,7 +625,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td id="r3_viczone" class="vic-only vic-zone-col"></td>
             <td id="r3_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r3_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
-          <td class="center" style="display:none;"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r3" placeholder=""></td>
           <td id="r3_daycrit" class="num crit-day-col"></td>
           <td id="r3_evecrit" class="num vic-only crit-eve-col"></td>
           <td id="r3_nightcrit" class="num crit-night-col"></td>
@@ -641,7 +637,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <td id="r4_viczone" class="vic-only vic-zone-col"></td>
             <td id="r4_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r4_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
-          <td class="center" style="display:none;"><input type="number" min="0" step="1" inputmode="decimal" id="dist_r4" placeholder=""></td>
           <td id="r4_daycrit" class="num crit-day-col"></td>
           <td id="r4_evecrit" class="num vic-only crit-eve-col"></td>
           <td id="r4_nightcrit" class="num crit-night-col"></td>
