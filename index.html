@@ -1195,13 +1195,13 @@ const VIC_ZONE_TYPE_MAP = {
    IF = 0.25 × (sum of Type 2 fractions for 140m+400m circles) + 0.5 × (sum of Type 3 fractions)
    Circles are centred on each RECEIVER (NSA), not the source.
    Zoning level is read from Figure 1: linear relationship from IF=0 to IF=1.
-   Day: 46 → 56 dB(A), Evening: 40 → 50 dB(A), Night: 36 → 46 dB(A) */
+   Day: 50 → 68 dB(A), Evening: 44 → 61 dB(A), Night: 39 → 56 dB(A) */
 function getVicUrbanZoningLevel(influencingFactor) {
   var IF = Math.max(0, Math.min(1, influencingFactor || 0));
   return {
-    day:    Math.round(46 + 10 * IF),
-    evening:Math.round(40 + 10 * IF),
-    night:  Math.round(36 + 10 * IF)
+    day:    Math.round(18 * IF + 50),
+    evening:Math.round(17 * IF + 44),
+    night:  Math.round(17 * IF + 39)
   };
 }
 /* Default IF values for Type designation (for simple screening) */
