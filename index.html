@@ -9929,78 +9929,148 @@ initCollapse();
       return result;
     }
 
-    /** Generate contour polylines at each threshold using simple edge detection */
+    /** Chaikin corner-cutting smoothing */
+    function chaikinSmooth(points, iterations) {
+      iterations = iterations || 4;
+      for (var iter = 0; iter < iterations; iter++) {
+        var smooth = [];
+        for (var j = 0; j < points.length - 1; j++) {
+          var p0 = points[j], p1 = points[j + 1];
+          smooth.push([0.75 * p0[0] + 0.25 * p1[0], 0.75 * p0[1] + 0.25 * p1[1]]);
+          smooth.push([0.25 * p0[0] + 0.75 * p1[0], 0.25 * p0[1] + 0.75 * p1[1]]);
+        }
+        if (smooth.length > 0) points = smooth;
+      }
+      return points;
+    }
+
+    /** Marching squares contour tracing + Chaikin smoothing */
     function generateContourLines(data) {
       if (_noiseContourLayer) map.removeLayer(_noiseContourLayer);
       _noiseContourLayer = L.layerGroup();
 
+      var rows = data.rows, cols = data.cols, grid = data.grid;
+
+      function val(r, c) {
+        if (r < 0 || r >= rows || c < 0 || c >= cols) return NaN;
+        return grid[r * cols + c];
+      }
+
+      // Interpolate crossing point between two grid cells
+      function interp(r1, c1, r2, c2, threshold) {
+        var v1 = val(r1, c1), v2 = val(r2, c2);
+        if (!isFinite(v1) || !isFinite(v2) || v1 === v2) return 0.5;
+        return (threshold - v1) / (v2 - v1);
+      }
+
       CONTOUR_THRESHOLDS.forEach(function(threshold) {
-        // Scan for horizontal edges where grid crosses threshold
-        for (var r = 0; r < data.rows - 1; r++) {
-          var segments = [];
-          var inSegment = false;
-          var segStart = -1;
+        // Collect line segments from marching squares
+        var segments = [];
 
-          for (var c = 0; c < data.cols; c++) {
-            var v1 = data.grid[r * data.cols + c];
-            var v2 = data.grid[(r + 1) * data.cols + c];
-            var crosses = isFinite(v1) && isFinite(v2) &&
-              ((v1 >= threshold && v2 < threshold) || (v1 < threshold && v2 >= threshold));
+        for (var r = 0; r < rows - 1; r++) {
+          for (var c = 0; c < cols - 1; c++) {
+            // Four corners of cell: TL, TR, BR, BL
+            var tl = val(r + 1, c), tr = val(r + 1, c + 1);
+            var br = val(r, c + 1), bl = val(r, c);
+            if (!isFinite(tl) || !isFinite(tr) || !isFinite(br) || !isFinite(bl)) continue;
 
-            if (crosses && !inSegment) {
-              segStart = c;
-              inSegment = true;
-            } else if (!crosses && inSegment) {
-              segments.push([segStart, c - 1]);
-              inSegment = false;
+            // Binary classification
+            var idx = 0;
+            if (tl >= threshold) idx |= 8;
+            if (tr >= threshold) idx |= 4;
+            if (br >= threshold) idx |= 2;
+            if (bl >= threshold) idx |= 1;
+
+            if (idx === 0 || idx === 15) continue; // all same side
+
+            // Edge midpoints (interpolated)
+            // Top edge: between TL and TR
+            var tFrac = interp(r + 1, c, r + 1, c + 1, threshold);
+            var top = [data.bounds.south + (r + 1) * data.dLat, data.bounds.west + (c + tFrac) * data.dLng];
+            // Right edge: between TR and BR
+            var rFrac = interp(r + 1, c + 1, r, c + 1, threshold);
+            var right = [data.bounds.south + (r + 1 - rFrac) * data.dLat, data.bounds.west + (c + 1) * data.dLng];
+            // Bottom edge: between BL and BR
+            var bFrac = interp(r, c, r, c + 1, threshold);
+            var bottom = [data.bounds.south + r * data.dLat, data.bounds.west + (c + bFrac) * data.dLng];
+            // Left edge: between TL and BL
+            var lFrac = interp(r + 1, c, r, c, threshold);
+            var left = [data.bounds.south + (r + 1 - lFrac) * data.dLat, data.bounds.west + c * data.dLng];
+
+            // Marching squares lookup — which edges to connect
+            switch (idx) {
+              case 1: case 14: segments.push([left, bottom]); break;
+              case 2: case 13: segments.push([bottom, right]); break;
+              case 3: case 12: segments.push([left, right]); break;
+              case 4: case 11: segments.push([top, right]); break;
+              case 5: segments.push([left, top]); segments.push([bottom, right]); break;
+              case 6: case 9:  segments.push([top, bottom]); break;
+              case 7: case 8:  segments.push([left, top]); break;
+              case 10: segments.push([left, bottom]); segments.push([top, right]); break;
             }
           }
-          if (inSegment) segments.push([segStart, data.cols - 1]);
-
-          // Draw segments
-          segments.forEach(function(seg) {
-            var lat = data.bounds.south + (r + 1) * data.dLat;
-            var lng1 = data.bounds.west + seg[0] * data.dLng;
-            var lng2 = data.bounds.west + (seg[1] + 1) * data.dLng;
-            _noiseContourLayer.addLayer(L.polyline(
-              [[lat, lng1], [lat, lng2]],
-              { color: '#333333', weight: 1, opacity: 0.6, interactive: false }
-            ));
-          });
         }
 
-        // Scan for vertical edges
-        for (var c2 = 0; c2 < data.cols - 1; c2++) {
-          var vSegments = [];
-          var vIn = false;
-          var vStart = -1;
+        // Chain segments into polylines
+        if (segments.length === 0) return;
 
-          for (var r2 = 0; r2 < data.rows; r2++) {
-            var va = data.grid[r2 * data.cols + c2];
-            var vb = data.grid[r2 * data.cols + c2 + 1];
-            var vCrosses = isFinite(va) && isFinite(vb) &&
-              ((va >= threshold && vb < threshold) || (va < threshold && vb >= threshold));
+        // Build adjacency: connect segments sharing endpoints
+        var EPS = (data.dLat + data.dLng) * 0.01;
+        function near(a, b) {
+          return Math.abs(a[0] - b[0]) < EPS && Math.abs(a[1] - b[1]) < EPS;
+        }
 
-            if (vCrosses && !vIn) {
-              vStart = r2;
-              vIn = true;
-            } else if (!vCrosses && vIn) {
-              vSegments.push([vStart, r2 - 1]);
-              vIn = false;
+        var used = new Array(segments.length);
+        var chains = [];
+
+        for (var si = 0; si < segments.length; si++) {
+          if (used[si]) continue;
+          used[si] = true;
+          var chain = [segments[si][0], segments[si][1]];
+
+          // Extend forward
+          var changed = true;
+          while (changed) {
+            changed = false;
+            var tail = chain[chain.length - 1];
+            for (var sj = 0; sj < segments.length; sj++) {
+              if (used[sj]) continue;
+              if (near(tail, segments[sj][0])) {
+                chain.push(segments[sj][1]); used[sj] = true; changed = true; break;
+              } else if (near(tail, segments[sj][1])) {
+                chain.push(segments[sj][0]); used[sj] = true; changed = true; break;
+              }
             }
           }
-          if (vIn) vSegments.push([vStart, data.rows - 1]);
+          // Extend backward
+          changed = true;
+          while (changed) {
+            changed = false;
+            var head = chain[0];
+            for (var sk = 0; sk < segments.length; sk++) {
+              if (used[sk]) continue;
+              if (near(head, segments[sk][1])) {
+                chain.unshift(segments[sk][0]); used[sk] = true; changed = true; break;
+              } else if (near(head, segments[sk][0])) {
+                chain.unshift(segments[sk][1]); used[sk] = true; changed = true; break;
+              }
+            }
+          }
 
-          vSegments.forEach(function(seg) {
-            var lng = data.bounds.west + (c2 + 1) * data.dLng;
-            var lat1 = data.bounds.south + seg[0] * data.dLat;
-            var lat2 = data.bounds.south + (seg[1] + 1) * data.dLat;
-            _noiseContourLayer.addLayer(L.polyline(
-              [[lat1, lng], [lat2, lng]],
-              { color: '#333333', weight: 1, opacity: 0.6, interactive: false }
-            ));
-          });
+          if (chain.length >= 2) chains.push(chain);
         }
+
+        // Smooth and draw each chain
+        chains.forEach(function(chain) {
+          // Check if closed contour
+          if (chain.length >= 4 && near(chain[0], chain[chain.length - 1])) {
+            chain.push(chain[0]); // close loop before smoothing
+          }
+          var smoothed = chain.length >= 3 ? chaikinSmooth(chain, 4) : chain;
+          _noiseContourLayer.addLayer(L.polyline(smoothed, {
+            color: '#333333', weight: 1, opacity: 0.6, interactive: false
+          }));
+        });
       });
 
       _noiseContourLayer.addTo(map);
