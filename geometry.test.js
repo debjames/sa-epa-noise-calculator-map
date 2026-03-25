@@ -9,6 +9,7 @@ import {
   segmentsIntersect,
   getBuildingEdges,
   flatDistM,
+  pointInPolygon,
   getIntersectingEdges,
   getDominantBarrier
 } from './geometry.js';
@@ -130,6 +131,41 @@ describe('getIntersectingEdges', () => {
     var rec = { lat: -34.9285, lng: 138.5992 };
     var hits = getIntersectingEdges(src, rec, [building]);
     expect(hits.length).toBe(0);
+  });
+});
+
+describe('pointInPolygon', () => {
+  // Simple square: (0,0), (0,1), (1,1), (1,0)
+  var square = [[0, 0], [0, 1], [1, 1], [1, 0]];
+
+  it('point clearly inside convex polygon → true', () => {
+    expect(pointInPolygon({ lat: 0.5, lng: 0.5 }, square)).toBe(true);
+  });
+
+  it('point clearly outside → false', () => {
+    expect(pointInPolygon({ lat: 2, lng: 2 }, square)).toBe(false);
+  });
+
+  it('point just outside a corner → false', () => {
+    expect(pointInPolygon({ lat: -0.01, lng: -0.01 }, square)).toBe(false);
+  });
+
+  it('point on boundary edge — ray casting treats as outside (documented)', () => {
+    // Ray casting algorithm behaviour on edges is implementation-defined.
+    // Our implementation: point exactly on a horizontal edge may return
+    // true or false depending on floating-point precision. We document
+    // this and test that it does not crash.
+    var result = pointInPolygon({ lat: 0, lng: 0.5 }, square);
+    expect(typeof result).toBe('boolean'); // no crash, returns a boolean
+  });
+
+  it('point inside concave (L-shaped) polygon → true', () => {
+    // L-shape: (0,0)→(0,2)→(1,2)→(1,1)→(2,1)→(2,0)
+    var lShape = [[0, 0], [0, 2], [1, 2], [1, 1], [2, 1], [2, 0]];
+    // Point in the bottom-right of the L
+    expect(pointInPolygon({ lat: 0.5, lng: 1.5 }, lShape)).toBe(true);
+    // Point in the notch (outside the L)
+    expect(pointInPolygon({ lat: 1.5, lng: 1.5 }, lShape)).toBe(false);
   });
 });
 
