@@ -9872,16 +9872,22 @@ initCollapse();
     var _noiseMapOn = false;
     var _noiseWorker = null;
     var _noiseCanvasLayer = null;
+    var _noiseContourLayer = null;
     var _noiseLegend = null;
+    var CONTOUR_THRESHOLDS = [25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
 
     var NOISE_COLOURS = [
-      { min: -Infinity, max: 35, color: null },       // transparent
-      { min: 35, max: 40, color: 'rgba(46,204,113,0.4)' },  // green
-      { min: 40, max: 45, color: 'rgba(241,196,15,0.4)' },  // yellow
-      { min: 45, max: 50, color: 'rgba(230,126,34,0.4)' },  // orange
-      { min: 50, max: 55, color: 'rgba(231,76,60,0.45)' },  // red
-      { min: 55, max: 60, color: 'rgba(192,57,43,0.5)' },   // dark red
-      { min: 60, max: Infinity, color: 'rgba(123,36,28,0.55)' } // very dark
+      { min: -Infinity, max: 25, color: null },
+      { min: 25, max: 30, color: 'rgba(213,245,227,0.5)' },  // very light green
+      { min: 30, max: 35, color: 'rgba(169,223,191,0.5)' },  // light green
+      { min: 35, max: 40, color: 'rgba(46,204,113,0.5)' },   // green
+      { min: 40, max: 45, color: 'rgba(241,196,15,0.5)' },   // yellow
+      { min: 45, max: 50, color: 'rgba(230,126,34,0.5)' },   // orange
+      { min: 50, max: 55, color: 'rgba(231,76,60,0.55)' },   // red
+      { min: 55, max: 60, color: 'rgba(192,57,43,0.6)' },    // dark red
+      { min: 60, max: 65, color: 'rgba(146,43,33,0.65)' },   // very dark red
+      { min: 65, max: 70, color: 'rgba(123,36,28,0.7)' },    // near black red
+      { min: 70, max: Infinity, color: 'rgba(74,14,14,0.75)' } // darkest
     ];
 
     function getNoiseColour(dB) {
@@ -9923,8 +9929,86 @@ initCollapse();
       return result;
     }
 
+    /** Generate contour polylines at each threshold using simple edge detection */
+    function generateContourLines(data) {
+      if (_noiseContourLayer) map.removeLayer(_noiseContourLayer);
+      _noiseContourLayer = L.layerGroup();
+
+      CONTOUR_THRESHOLDS.forEach(function(threshold) {
+        // Scan for horizontal edges where grid crosses threshold
+        for (var r = 0; r < data.rows - 1; r++) {
+          var segments = [];
+          var inSegment = false;
+          var segStart = -1;
+
+          for (var c = 0; c < data.cols; c++) {
+            var v1 = data.grid[r * data.cols + c];
+            var v2 = data.grid[(r + 1) * data.cols + c];
+            var crosses = isFinite(v1) && isFinite(v2) &&
+              ((v1 >= threshold && v2 < threshold) || (v1 < threshold && v2 >= threshold));
+
+            if (crosses && !inSegment) {
+              segStart = c;
+              inSegment = true;
+            } else if (!crosses && inSegment) {
+              segments.push([segStart, c - 1]);
+              inSegment = false;
+            }
+          }
+          if (inSegment) segments.push([segStart, data.cols - 1]);
+
+          // Draw segments
+          segments.forEach(function(seg) {
+            var lat = data.bounds.south + (r + 1) * data.dLat;
+            var lng1 = data.bounds.west + seg[0] * data.dLng;
+            var lng2 = data.bounds.west + (seg[1] + 1) * data.dLng;
+            _noiseContourLayer.addLayer(L.polyline(
+              [[lat, lng1], [lat, lng2]],
+              { color: '#333333', weight: 1, opacity: 0.6, interactive: false }
+            ));
+          });
+        }
+
+        // Scan for vertical edges
+        for (var c2 = 0; c2 < data.cols - 1; c2++) {
+          var vSegments = [];
+          var vIn = false;
+          var vStart = -1;
+
+          for (var r2 = 0; r2 < data.rows; r2++) {
+            var va = data.grid[r2 * data.cols + c2];
+            var vb = data.grid[r2 * data.cols + c2 + 1];
+            var vCrosses = isFinite(va) && isFinite(vb) &&
+              ((va >= threshold && vb < threshold) || (va < threshold && vb >= threshold));
+
+            if (vCrosses && !vIn) {
+              vStart = r2;
+              vIn = true;
+            } else if (!vCrosses && vIn) {
+              vSegments.push([vStart, r2 - 1]);
+              vIn = false;
+            }
+          }
+          if (vIn) vSegments.push([vStart, data.rows - 1]);
+
+          vSegments.forEach(function(seg) {
+            var lng = data.bounds.west + (c2 + 1) * data.dLng;
+            var lat1 = data.bounds.south + seg[0] * data.dLat;
+            var lat2 = data.bounds.south + (seg[1] + 1) * data.dLat;
+            _noiseContourLayer.addLayer(L.polyline(
+              [[lat1, lng], [lat2, lng]],
+              { color: '#333333', weight: 1, opacity: 0.6, interactive: false }
+            ));
+          });
+        }
+      });
+
+      _noiseContourLayer.addTo(map);
+    }
+
     function renderNoiseCanvas(data) {
       if (_noiseCanvasLayer) map.removeLayer(_noiseCanvasLayer);
+      if (_noiseContourLayer) map.removeLayer(_noiseContourLayer);
 
       // Render grid to an offscreen canvas, then overlay as image
       var canvas = document.createElement('canvas');
@@ -9952,6 +10036,9 @@ initCollapse();
         opacity: 0.8,
         interactive: false
       }).addTo(map);
+
+      // Draw contour lines on top
+      generateContourLines(data);
     }
 
     function showNoiseLegend() {
@@ -9960,13 +10047,14 @@ initCollapse();
       _noiseLegend.onAdd = function() {
         var div = L.DomUtil.create('div', 'noise-legend');
         div.style.cssText = 'background:rgba(255,255,255,0.92);padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
-        div.innerHTML = '<b>Noise Level dB(A)</b><br>' +
-          '<span style="display:inline-block;width:14px;height:10px;background:rgba(46,204,113,0.6);margin-right:4px;"></span> 35\u201340<br>' +
-          '<span style="display:inline-block;width:14px;height:10px;background:rgba(241,196,15,0.6);margin-right:4px;"></span> 40\u201345<br>' +
-          '<span style="display:inline-block;width:14px;height:10px;background:rgba(230,126,34,0.6);margin-right:4px;"></span> 45\u201350<br>' +
-          '<span style="display:inline-block;width:14px;height:10px;background:rgba(231,76,60,0.65);margin-right:4px;"></span> 50\u201355<br>' +
-          '<span style="display:inline-block;width:14px;height:10px;background:rgba(192,57,43,0.7);margin-right:4px;"></span> 55\u201360<br>' +
-          '<span style="display:inline-block;width:14px;height:10px;background:rgba(123,36,28,0.75);margin-right:4px;"></span> >60';
+        var s = '<b>Noise Level dB(A)</b><br>';
+        // Build legend from NOISE_COLOURS (skip transparent first entry)
+        for (var li = 1; li < NOISE_COLOURS.length; li++) {
+          var nc = NOISE_COLOURS[li];
+          var label = nc.max === Infinity ? '>' + nc.min : nc.min + '\u2013' + nc.max;
+          s += '<span style="display:inline-block;width:14px;height:10px;background:' + nc.color + ';margin-right:4px;border:1px solid rgba(0,0,0,0.1);"></span> ' + label + '<br>';
+        }
+        div.innerHTML = s;
         return div;
       };
       _noiseLegend.addTo(map);
@@ -9979,6 +10067,7 @@ initCollapse();
     function computeNoiseMap() {
       if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
       if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); _noiseCanvasLayer = null; }
+      if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); _noiseContourLayer = null; }
 
       var workerSources = buildWorkerSources();
       if (workerSources.length === 0) {
@@ -10051,6 +10140,7 @@ initCollapse();
         } else {
           if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
           if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); _noiseCanvasLayer = null; }
+          if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); _noiseContourLayer = null; }
           hideNoiseLegend();
           noiseMapBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map';
         }
