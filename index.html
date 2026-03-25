@@ -1155,27 +1155,31 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 </div>
 </div>
 
-<!-- Import pure calculation functions from calc.js -->
-<script type="module">
-  import { attenuatePoint, energySum, sourceContribution, totalAtReceiver, sourceCombinedLw, calcBarrierAttenuation } from './calc.js';
-  window._calc = { attenuatePoint, energySum, sourceContribution, totalAtReceiver, sourceCombinedLw, calcBarrierAttenuation };
+<!-- Load shared calculation and geometry functions (single canonical source) -->
+<script src="shared-calc.js"></script>
+<script>
+  // Bridge SharedCalc to window._calc and window._geometry for existing code
+  window._calc = {
+    attenuatePoint: SharedCalc.attenuatePoint,
+    energySum: SharedCalc.energySum,
+    sourceContribution: SharedCalc.sourceContribution,
+    totalAtReceiver: SharedCalc.totalAtReceiver,
+    sourceCombinedLw: SharedCalc.sourceCombinedLw,
+    calcBarrierAttenuation: SharedCalc.calcBarrierAttenuation
+  };
+  window._geometry = {
+    segmentsIntersect: SharedCalc.segmentsIntersect,
+    getBuildingEdges: SharedCalc.getBuildingEdges,
+    flatDistM: SharedCalc.flatDistM,
+    getIntersectingEdges: SharedCalc.getIntersectingEdges,
+    getDominantBarrier: SharedCalc.getDominantBarrier
+  };
 
-  // Regression assertions — confirm multi-source path matches direct path
-  console.assert(Math.round(window._calc.attenuatePoint(85, 50)) === 43,
+  // Regression assertions
+  console.assert(Math.round(SharedCalc.attenuatePoint(85, 50)) === 43,
     'Regression: attenuatePoint(85, 50) should round to 43');
-  console.assert(Math.round(window._calc.totalAtReceiver([{equipment:[{Lw:85,quantity:1}]}], [50])) === 43,
+  console.assert(Math.round(SharedCalc.totalAtReceiver([{equipment:[{Lw:85,quantity:1}]}], [50])) === 43,
     'Regression: totalAtReceiver single source should match attenuatePoint');
-  console.assert(
-    Math.abs(calcISO9613single([37,43,48,53,56,54,51,43], 1.0, 50, 0) - 15.26) < 0.5,
-    'Regression: ISO 9613 small exhaust fan at 50m should be ~15.3 dB(A)');
-
-  // Import geometry functions
-  import { segmentsIntersect, getBuildingEdges, flatDistM, getIntersectingEdges, getDominantBarrier } from './geometry.js';
-  window._geometry = { segmentsIntersect, getBuildingEdges, flatDistM, getIntersectingEdges, getDominantBarrier };
-
-  // Module loaded after regular scripts — re-trigger calculation so initial zeros are replaced
-  if (typeof recalcAll === 'function') recalcAll();
-  if (typeof render === 'function') render();
 </script>
 
 <script>

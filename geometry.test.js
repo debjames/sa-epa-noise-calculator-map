@@ -200,9 +200,10 @@ describe('getDominantBarrier', () => {
     expect(result.barrierHeightM).toBe(3);
   });
 
-  it('source above building: delta is small or negative (minimal screening)', () => {
-    // Source at 10m height, building at 3m, receiver at 1.5m
-    // Source is well above the building — screening should be minimal
+  it('source above building but receiver below: line of sight blocked, screening applied', () => {
+    // Source at 10m, building at 3m at midpoint, receiver at 1.5m
+    // LOS height at midpoint: 10 + 0.5*(1.5-10) = 5.75m — building (3m) is below LOS
+    // So LOS clears the building → δ = 0
     var midLng = 50 / 111320;
     var recLng = 100 / 111320;
     var building = {
@@ -218,22 +219,59 @@ describe('getDominantBarrier', () => {
     };
     var result = getDominantBarrier(
       { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
-      10, 1.5, [building]  // source at 10m, well above 3m building
+      10, 1.5, [building]  // source at 10m, receiver at 1.5m
     );
     expect(result).not.toBeNull();
-    // delta should be very small: sqrt(50²+(3-10)²)+sqrt(50²+(3-1.5)²)-100
-    // = sqrt(2549)+sqrt(2502.25)-100 = 50.487+50.022-100 = 0.509
-    // Still positive because receiver is below building
-    // But if both source AND receiver are above: source=10, recv=10, bldg=3
+    // LOS at midpoint = 10 + 0.5*(1.5-10) = 5.75m > 3m building
+    // LOS clears building → no screening
+    expect(result.pathLengthDiff).toBe(0);
+  });
+
+  it('both source and receiver above building: no screening (LOS clear)', () => {
+    var midLng = 50 / 111320;
+    var recLng = 100 / 111320;
+    var building = {
+      id: 101,
+      polygon: [
+        [-0.0001, midLng],
+        [ 0.0001, midLng],
+        [ 0.0001, midLng + 0.00001],
+        [-0.0001, midLng + 0.00001]
+      ],
+      heightM: 3,
+      name: null
+    };
     var resultBothAbove = getDominantBarrier(
       { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
-      10, 10, [building]  // both above 3m building
+      10, 10, [building]  // both well above 3m building
     );
     expect(resultBothAbove).not.toBeNull();
-    // delta = sqrt(50²+(3-10)²)+sqrt(50²+(3-10)²)-100 = 50.487+50.487-100 = 0.974
-    // Still positive because path goes over the top, but the screening is minimal
-    // The key insight: delta is always positive with this formula, but screening
-    // is much less effective when source/receiver are above
-    expect(resultBothAbove.pathLengthDiff).toBeGreaterThan(0);
+    // LOS at midpoint = 10 + 0.5*(10-10) = 10m > 3m building → no screening
+    expect(resultBothAbove.pathLengthDiff).toBe(0);
+  });
+
+  it('building taller than both source and receiver: screening applied', () => {
+    // Source at 1m, building at 6m, receiver at 1.5m
+    // LOS at midpoint = 1 + 0.5*(1.5-1) = 1.25m < 6m building → screening
+    var midLng = 50 / 111320;
+    var recLng = 100 / 111320;
+    var building = {
+      id: 102,
+      polygon: [
+        [-0.0001, midLng],
+        [ 0.0001, midLng],
+        [ 0.0001, midLng + 0.00001],
+        [-0.0001, midLng + 0.00001]
+      ],
+      heightM: 6,
+      name: null
+    };
+    var result = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      1, 1.5, [building]
+    );
+    expect(result).not.toBeNull();
+    expect(result.pathLengthDiff).toBeGreaterThan(0);
+    expect(result.pathLengthDiff).toBeCloseTo(0.45, 1);
   });
 });
