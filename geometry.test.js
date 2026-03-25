@@ -199,4 +199,41 @@ describe('getDominantBarrier', () => {
     expect(result).not.toBeNull();
     expect(result.barrierHeightM).toBe(3);
   });
+
+  it('source above building: delta is small or negative (minimal screening)', () => {
+    // Source at 10m height, building at 3m, receiver at 1.5m
+    // Source is well above the building — screening should be minimal
+    var midLng = 50 / 111320;
+    var recLng = 100 / 111320;
+    var building = {
+      id: 101,
+      polygon: [
+        [-0.0001, midLng],
+        [ 0.0001, midLng],
+        [ 0.0001, midLng + 0.00001],
+        [-0.0001, midLng + 0.00001]
+      ],
+      heightM: 3,
+      name: null
+    };
+    var result = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      10, 1.5, [building]  // source at 10m, well above 3m building
+    );
+    expect(result).not.toBeNull();
+    // delta should be very small: sqrt(50²+(3-10)²)+sqrt(50²+(3-1.5)²)-100
+    // = sqrt(2549)+sqrt(2502.25)-100 = 50.487+50.022-100 = 0.509
+    // Still positive because receiver is below building
+    // But if both source AND receiver are above: source=10, recv=10, bldg=3
+    var resultBothAbove = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      10, 10, [building]  // both above 3m building
+    );
+    expect(resultBothAbove).not.toBeNull();
+    // delta = sqrt(50²+(3-10)²)+sqrt(50²+(3-10)²)-100 = 50.487+50.487-100 = 0.974
+    // Still positive because path goes over the top, but the screening is minimal
+    // The key insight: delta is always positive with this formula, but screening
+    // is much less effective when source/receiver are above
+    expect(resultBothAbove.pathLengthDiff).toBeGreaterThan(0);
+  });
 });

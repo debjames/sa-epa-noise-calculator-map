@@ -2391,7 +2391,7 @@ function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
     var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
     var recLL = allLL['r' + (receiverIdx + 1)];
     if (recLL) {
-      var srcHeightM = 1.5; // default — Phase 3 can use per-row height
+      var srcHeightM = (sources[sourceIdx] && sources[sourceIdx].heightM) || 1.5;
       var recHeightM = iso_receiverHeight || 1.5;
       var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : window._buildings;
       var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeightM, recHeightM, screenable);
@@ -2457,7 +2457,7 @@ const SOURCE_COLOURS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc
 /** ID/key prefix for source-scoped elements. Source 0 = '' (backward compat), source 1+ = 's1_', 's2_', etc. */
 function srcPrefix(sourceIdx) { return 's' + sourceIdx + '_'; }
 var sources = [
-  { id: 1, name: 'Source 1', lat: null, lng: null, equipment: { day: [], eve: [], night: [], lmax: [] } }
+  { id: 1, name: 'Source 1', lat: null, lng: null, heightM: 1.5, equipment: { day: [], eve: [], night: [], lmax: [] } }
 ];
 // Distances matrix: sourceDistances[srcIdx][recvIdx] = metres (populated by updateAll)
 window._sourceDistances = [];
@@ -3289,6 +3289,31 @@ function renderSourceCards(expandIdx) {
     nameInp.addEventListener('change', function() { sources[idx].name = this.value; });
     row1.appendChild(nameInp);
 
+    // Source height input
+    var htLabel = document.createElement('span');
+    htLabel.style.cssText = 'font-size:11px;color:#666;flex-shrink:0;';
+    htLabel.textContent = '\u2195';
+    row1.appendChild(htLabel);
+    var htInp = document.createElement('input');
+    htInp.type = 'number';
+    htInp.value = src.heightM || 1.5;
+    htInp.min = '0.1';
+    htInp.max = '50';
+    htInp.step = '0.5';
+    htInp.title = 'Source height (m)';
+    htInp.style.cssText = 'border:1px solid #ddd;padding:3px 4px;font-size:12px;width:50px;border-radius:3px;flex-shrink:0;';
+    htInp.addEventListener('change', function() {
+      var v = parseFloat(this.value);
+      if (Number.isFinite(v) && v >= 0.1) sources[idx].heightM = v;
+      else this.value = sources[idx].heightM || 1.5;
+      if (typeof render === 'function') render();
+    });
+    row1.appendChild(htInp);
+    var htUnit = document.createElement('span');
+    htUnit.style.cssText = 'font-size:11px;color:#666;flex-shrink:0;';
+    htUnit.textContent = 'm';
+    row1.appendChild(htUnit);
+
     // Place on map button with SVG pin icon
     var placeBtn = document.createElement('button');
     placeBtn.type = 'button';
@@ -3382,7 +3407,7 @@ document.addEventListener('DOMContentLoaded', function() {
       sources.push({
         id: nextId,
         name: 'Source ' + nextId,
-        lat: null, lng: null,
+        lat: null, lng: null, heightM: 1.5,
         equipment: { day: [], eve: [], night: [], lmax: [] }
       });
       renderSourceCards(sources.length - 1); // expand the newly added source
@@ -5673,7 +5698,7 @@ initCollapse();
 
         // Sources array (multi-source state)
         data.sources = sources.map(function(src) {
-          return { id: src.id, name: src.name, lat: src.lat, lng: src.lng };
+          return { id: src.id, name: src.name, lat: src.lat, lng: src.lng, heightM: src.heightM || 1.5 };
         });
 
         // Map marker positions (all markers from map state)
@@ -5824,7 +5849,7 @@ initCollapse();
         sources.length = 0;
         data.sources.forEach(function(s) {
           sources.push({ id: s.id, name: s.name, lat: s.lat || null, lng: s.lng || null,
-                         equipment: { day: [], eve: [], night: [], lmax: [] } });
+                         heightM: s.heightM || 1.5, equipment: { day: [], eve: [], night: [], lmax: [] } });
         });
       } else if (isV1) {
         // v1 file: single source, keep existing sources[0]
@@ -9704,12 +9729,12 @@ initCollapse();
       if (typeof sources !== 'undefined') {
         sources.forEach(function(src) {
           if (src.lat !== null && src.lng !== null) {
-            srcPositions.push({ lat: src.lat, lng: src.lng });
+            srcPositions.push({ lat: src.lat, lng: src.lng, heightM: src.heightM || 1.5 });
           }
         });
       }
       if (srcPositions.length === 0 && allLL.source) {
-        srcPositions.push({ lat: allLL.source.lat, lng: allLL.source.lng });
+        srcPositions.push({ lat: allLL.source.lat, lng: allLL.source.lng, heightM: 1.5 });
       }
 
       recIds.forEach(function(rid) {
@@ -9721,7 +9746,7 @@ initCollapse();
           var screenable = getScreenableBuildings();
           var edges = window._geometry.getIntersectingEdges(src, rec, screenable);
           var barrier = edges.length > 0
-            ? window._geometry.getDominantBarrier(src, rec, 1.5, iso_receiverHeight || 1.5, screenable)
+            ? window._geometry.getDominantBarrier(src, rec, src.heightM || 1.5, iso_receiverHeight || 1.5, screenable)
             : null;
           var colour, tip, dashed;
           if (edges.length === 0) {
