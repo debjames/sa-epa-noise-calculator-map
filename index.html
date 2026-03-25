@@ -8980,11 +8980,14 @@ initCollapse();
       /* auto-advance: source modes advance to r1, receiver modes advance through ORDER */
       if (isSourceMode(mode)) {
         if (!latlngs['r1']) setMode('r1');
+        else setMode(null); // source placed, receivers already exist — browse mode
       } else {
         var idx = ORDER.indexOf(mode);
+        var advanced = false;
         for (var i = idx + 1; i < ORDER.length; i++) {
-          if (!latlngs[ORDER[i]]) { setMode(ORDER[i]); break; }
+          if (!latlngs[ORDER[i]]) { setMode(ORDER[i]); advanced = true; break; }
         }
+        if (!advanced) setMode(null); // all receivers placed — enter browse mode
       }
 
       /* Re-render source cards to update placement status */
@@ -9004,6 +9007,7 @@ initCollapse();
     /* ---- map click ---- */
     map.on('click', function (e) {
       if (_drawingActive) return; // don't place markers while drawing a building polygon
+      if (!currentMode) return;   // browse mode — no placement
       placeMarker(currentMode, e.latlng);
     });
 
@@ -9393,8 +9397,10 @@ initCollapse();
         var poly = L.polygon(b.polygon, style);
         poly.bindTooltip(getBuildingTooltip(b));
 
-        // Click popup for height override
+        // Click popup for height override (only when not placing markers)
         poly.on('click', function(e) {
+          if (_drawingActive) return; // drawing a custom building
+          if (currentMode) return; // in placement mode — let map click handler place the marker
           L.DomEvent.stopPropagation(e);
           L.popup({ maxWidth: 280 })
             .setLatLng(e.latlng)
@@ -9622,8 +9628,10 @@ initCollapse();
         var htStr = cb.heightM ? cb.heightM.toFixed(0) + 'm' : '?';
         poly.bindTooltip((cb.name ? '<b>' + cb.name + '</b><br>' : '') + 'Height: ' + htStr + ' (custom)');
 
-        // Click popup for edit/delete
+        // Click popup for edit/delete (only when not placing markers)
         poly.on('click', function(e) {
+          if (_drawingActive) return;
+          if (currentMode) return;
           L.DomEvent.stopPropagation(e);
           var html = '<div style="min-width:200px;font-size:13px;">';
           html += '<b>' + (cb.name || 'Custom building') + '</b><br>';
