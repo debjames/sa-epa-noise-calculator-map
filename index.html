@@ -10339,12 +10339,14 @@ initCollapse();
     // Map height input
     var noiseMapHtInput = document.getElementById('noiseMapHeight');
     if (noiseMapHtInput) {
-      noiseMapHtInput.addEventListener('change', function() {
-        var v = parseFloat(this.value);
+      function onHeightChange() {
+        var v = parseFloat(noiseMapHtInput.value);
         if (Number.isFinite(v) && v >= 0.1) _noiseMapHeight = v;
-        else this.value = _noiseMapHeight;
+        else noiseMapHtInput.value = _noiseMapHeight;
         debouncedRecompute();
-      });
+      }
+      noiseMapHtInput.addEventListener('input', onHeightChange);
+      noiseMapHtInput.addEventListener('change', onHeightChange);
     }
 
     // Save/load noise map state
