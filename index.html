@@ -384,6 +384,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
           <button class="tool-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide location pins on map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Pins</button>
           <button class="tool-btn parcel-toggle-btn active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Boundary</button>
+          <button class="tool-btn buildings-toggle-btn active" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
         </div>
 
         <!-- Status row -->
@@ -5652,6 +5653,9 @@ initCollapse();
           data.markers.source = data.markers.source_0;
         }
 
+        // Buildings layer toggle
+        data.buildingsOn = window._getBuildingsOn ? window._getBuildingsOn() : true;
+
         // Address bar text
         var searchInp = document.getElementById('mapSearchInput');
         if (searchInp && searchInp.value) data.addressText = searchInp.value;
@@ -6019,7 +6023,12 @@ initCollapse();
         if (searchInp) searchInp.value = data.addressText;
       }
 
-      // 15. Re-render detected zones panel for VIC
+      // 15. Buildings layer toggle
+      if (data.buildingsOn !== undefined && window._setBuildingsOn) {
+        window._setBuildingsOn(data.buildingsOn);
+      }
+
+      // 16. Re-render detected zones panel for VIC
       setTimeout(function() {
         if (typeof renderDetectedZones === 'function') renderDetectedZones();
         render();
@@ -9095,6 +9104,134 @@ initCollapse();
         setMode('source');
       });
     }
+    /* ═══ OSM Building Footprints ═══ */
+    var buildingLayer = L.layerGroup().addTo(map);
+    var buildings = [];
+    window._buildings = buildings;
+    var _buildingsOn = true;
+    var _buildingsFetching = false;
+    var _lastBuildingBounds = null;
+
+    function parseHeight(tags) {
+      if (!tags) return null;
+      if (tags.height) {
+        var h = parseFloat(tags.height);
+        if (Number.isFinite(h)) return h;
+      }
+      if (tags['building:levels']) {
+        var lvl = parseFloat(tags['building:levels']);
+        if (Number.isFinite(lvl)) return lvl * 3.0;
+      }
+      return null;
+    }
+
+    function boundsMovedEnough(oldBounds, newBounds) {
+      if (!oldBounds) return true;
+      var oldW = oldBounds.getEast() - oldBounds.getWest();
+      var oldH = oldBounds.getNorth() - oldBounds.getSouth();
+      var dLat = Math.abs(newBounds.getCenter().lat - oldBounds.getCenter().lat);
+      var dLng = Math.abs(newBounds.getCenter().lng - oldBounds.getCenter().lng);
+      return (dLat > oldH * 0.2) || (dLng > oldW * 0.2);
+    }
+
+    function renderBuildings() {
+      buildingLayer.clearLayers();
+      buildings.forEach(function(b) {
+        var poly = L.polygon(b.polygon, {
+          color: '#555',
+          fillColor: '#888',
+          fillOpacity: 0.35,
+          weight: 1
+        });
+        var tip = b.name || (b.heightM ? b.heightM.toFixed(0) + ' m' : 'Building');
+        poly.bindTooltip(tip);
+        buildingLayer.addLayer(poly);
+      });
+    }
+
+    function fetchBuildingsInView() {
+      if (!_buildingsOn || _buildingsFetching) return;
+      var zoom = map.getZoom();
+      if (zoom < 15) {
+        buildingLayer.clearLayers();
+        return;
+      }
+      var bbox = map.getBounds();
+      if (!boundsMovedEnough(_lastBuildingBounds, bbox)) return;
+
+      var buildBtn = document.getElementById('buildingsToggleBtn');
+      _buildingsFetching = true;
+      if (buildBtn) buildBtn.innerHTML = buildBtn.innerHTML.replace('Buildings', 'Loading\u2026');
+
+      var query = '[out:json][timeout:10];way["building"](' +
+        bbox.getSouth() + ',' + bbox.getWest() + ',' +
+        bbox.getNorth() + ',' + bbox.getEast() + ');out geom;';
+      var url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+
+      fetch(url).then(function(resp) {
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return resp.json();
+      }).then(function(json) {
+        buildings.length = 0;
+        (json.elements || []).forEach(function(el) {
+          if (!el.geometry || el.geometry.length < 3) return;
+          buildings.push({
+            id: el.id,
+            polygon: el.geometry.map(function(p) { return [p.lat, p.lon]; }),
+            heightM: parseHeight(el.tags),
+            name: (el.tags && el.tags.name) ? el.tags.name : null
+          });
+        });
+        window._buildings = buildings;
+        _lastBuildingBounds = bbox;
+        if (_buildingsOn) renderBuildings();
+      }).catch(function(err) {
+        console.warn('Buildings fetch failed:', err);
+      }).finally(function() {
+        _buildingsFetching = false;
+        if (buildBtn) {
+          var svg = buildBtn.querySelector('svg');
+          buildBtn.innerHTML = '';
+          if (svg) buildBtn.appendChild(svg);
+          buildBtn.appendChild(document.createTextNode(' Buildings'));
+        }
+      });
+    }
+
+    var buildingsToggleBtn = document.getElementById('buildingsToggleBtn');
+    if (buildingsToggleBtn) {
+      buildingsToggleBtn.addEventListener('click', function() {
+        _buildingsOn = !_buildingsOn;
+        buildingsToggleBtn.classList.toggle('active', _buildingsOn);
+        if (_buildingsOn) {
+          buildingLayer.addTo(map);
+          fetchBuildingsInView();
+        } else {
+          map.removeLayer(buildingLayer);
+        }
+      });
+    }
+
+    map.on('moveend', function() {
+      if (_buildingsOn) fetchBuildingsInView();
+    });
+
+    // Expose for save/load
+    window._getBuildingsOn = function() { return _buildingsOn; };
+    window._setBuildingsOn = function(v) {
+      _buildingsOn = !!v;
+      if (buildingsToggleBtn) buildingsToggleBtn.classList.toggle('active', _buildingsOn);
+      if (_buildingsOn) {
+        buildingLayer.addTo(map);
+        fetchBuildingsInView();
+      } else {
+        map.removeLayer(buildingLayer);
+      }
+    };
+
+    // Initial fetch (deferred until map settles)
+    setTimeout(function() { if (_buildingsOn) fetchBuildingsInView(); }, 500);
+
   } /* end initMap */
 
   if (document.readyState === 'loading') {
