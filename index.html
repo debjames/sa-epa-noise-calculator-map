@@ -927,7 +927,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       </div>
     </div>
 
-    <div class="grid2 grid-full crit-day-section" style="padding-top:0;">
+    <div class="grid2 grid-full crit-day-section" style="padding-top:0;display:none;" id="legacyDaySection">
       <div class="card">
         <h2>Day situation</h2>
         <h3 style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources – L<sub>eq</sub></h3>
@@ -2386,7 +2386,7 @@ function calcTotalISO9613(prefix, distM) {
 // --- Multi-source state ---
 const SOURCE_COLOURS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c'];
 /** ID/key prefix for source-scoped elements. Source 0 = '' (backward compat), source 1+ = 's1_', 's2_', etc. */
-function srcPrefix(sourceIdx) { return sourceIdx > 0 ? 's' + sourceIdx + '_' : ''; }
+function srcPrefix(sourceIdx) { return 's' + sourceIdx + '_'; }
 var sources = [
   { id: 1, name: 'Source 1', lat: null, lng: null, equipment: { day: [], eve: [], night: [], lmax: [] } }
 ];
@@ -2718,12 +2718,11 @@ function switchToState(state) {
   // Show/hide MBS 010 button (SA only)
   if (typeof window._updateMBS010Btn === 'function') window._updateMBS010Btn(state);
 
-  // Update operational time column headers and re-render source tables
+  // Update operational time column headers and re-render all source tables
   updateOpTimeHeaders();
-  renderSourceTable('day','daySrcRows','daySrcTotal',5);
-  renderSourceTable('eve','eveSrcRows','eveSrcTotal',5);
-  renderSourceTable('night','nightSrcRows','nightSrcTotal',5);
-  renderSourceTable('lmax','nightLmaxRows','nightLmaxTotal',1);
+  sources.forEach(function(src, idx) {
+    initSourceEquipmentTables(idx);
+  });
 
   // Clear/update concentric circles and auto-IF on state change (circles around receivers)
   if (typeof updateConcentricCircles === 'function') {
@@ -3264,26 +3263,16 @@ function renderSourceCards() {
 
     wrapper.appendChild(card);
 
-    if (idx === 0) {
-      // Source 0 note: equipment tables live in the Day/Eve/Night situation cards below
-      var note = document.createElement('div');
-      note.style.cssText = 'font-size:11px;color:#888;padding:4px 12px 0;border-left:4px solid ' + colour + ';';
-      note.innerHTML = 'Equipment tables below \u2193 <span style="color:#aaa;">(Day / Evening / Night situation)</span>';
-      wrapper.appendChild(note);
-    } else {
-      // Source 1+: source name label + equipment tables
-      var equipSection = createSourceEquipmentSection(idx);
-      wrapper.appendChild(equipSection);
-    }
+    // All sources get generated equipment tables
+    var equipSection = createSourceEquipmentSection(idx);
+    wrapper.appendChild(equipSection);
 
     container.appendChild(wrapper);
   });
 
-  // Initialise equipment tables for sources > 0 (Source 0 uses existing HTML tables)
+  // Initialise equipment tables for all sources
   sources.forEach(function(src, idx) {
-    if (idx > 0) {
-      initSourceEquipmentTables(idx);
-    }
+    initSourceEquipmentTables(idx);
   });
 }
 
@@ -4346,10 +4335,19 @@ function render() {
   const tbody = document.getElementById('rows');
   tbody.innerHTML = "";
 
-  const dayTotal = getSrcTotal('daySrcTotal');
-  const eveTotal = getSrcTotal('eveSrcTotal');
-  const nightTotal = getSrcTotal('nightSrcTotal');
-  const nightLmaxTotal = getSrcTotal('nightLmaxTotal');
+  // Sum equipment totals across all sources for each period
+  function sumAllSrcTotals(periodTotalId) {
+    var total = 0;
+    sources.forEach(function(src, si) {
+      var v = getSrcTotal(srcPrefix(si) + periodTotalId);
+      if (Number.isFinite(v)) total += v;
+    });
+    return total;
+  }
+  const dayTotal = sumAllSrcTotals('daySrcTotal');
+  const eveTotal = sumAllSrcTotals('eveSrcTotal');
+  const nightTotal = sumAllSrcTotals('nightSrcTotal');
+  const nightLmaxTotal = sumAllSrcTotals('nightLmaxTotal');
 
   // Build calc.js-compatible source objects from all sources in state
   // Source 0 reads from existing tables (no prefix); source 1+ reads from prefixed tables
@@ -5432,12 +5430,9 @@ function initCollapse() {
 }
 
 render();
-renderSourceTable('day','daySrcRows','daySrcTotal',5);
-renderSourceTable('eve','eveSrcRows','eveSrcTotal',5);
+// Legacy Source 0 table init removed — now handled by renderSourceCards() → initSourceEquipmentTables(0)
 initReceiverDistances();
 initReceiverNames();
-renderSourceTable('night','nightSrcRows','nightSrcTotal',5);
-renderSourceTable('lmax','nightLmaxRows','nightLmaxTotal',1);
 initPropagationMethod();
 initPenaltyButtons();
 initPenaltyTable();
