@@ -1144,8 +1144,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
 <!-- Import pure calculation functions from calc.js -->
 <script type="module">
-  import { attenuatePoint, energySum, sourceContribution, totalAtReceiver, sourceCombinedLw } from './calc.js';
-  window._calc = { attenuatePoint, energySum, sourceContribution, totalAtReceiver, sourceCombinedLw };
+  import { attenuatePoint, energySum, sourceContribution, totalAtReceiver, sourceCombinedLw, calcBarrierAttenuation } from './calc.js';
+  window._calc = { attenuatePoint, energySum, sourceContribution, totalAtReceiver, sourceCombinedLw, calcBarrierAttenuation };
 
   // Regression assertions — confirm multi-source path matches direct path
   console.assert(Math.round(window._calc.attenuatePoint(85, 50)) === 43,
@@ -2271,7 +2271,7 @@ function calcAlphaAtm(tempC, humPct) {
  *  @param {number} distM - distance source to receiver (m)
  *  @param {number} adjDB - adjustment to apply to each band (quantity + opTime + barrier, in dB)
  *  @returns {number} predicted LAeq at receiver */
-function calcISO9613single(spectrumA, srcHeight, distM, adjDB) {
+function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta) {
   if (!spectrumA || distM <= 0) return NaN;
   var d = Math.max(distM, 1); // clamp minimum 1m
   var hS = Math.max(srcHeight, 0.01); // avoid zero height
@@ -2282,9 +2282,13 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB) {
   var Adiv = 20 * log10(d) + 11;
 
   // Frequency-dependent ground attenuation (ISO 9613-2 Table 3, §7.3.1)
-  // Includes source region, receiver region, and middle region contributions
-  // Negative values represent ground reflection amplification (e.g. hard ground)
   var Agr = calcAgrPerBand(hS, hR, d, iso_groundFactor);
+
+  // Barrier attenuation (ISO 9613-2 Section 8)
+  var FREQUENCIES = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+  var Abar = (window._calc && window._calc.calcBarrierAttenuation && barrierDelta > 0)
+    ? window._calc.calcBarrierAttenuation(barrierDelta, FREQUENCIES)
+    : [0, 0, 0, 0, 0, 0, 0, 0];
 
   // Sum across octave bands
   var sumLin = 0;
@@ -2299,11 +2303,10 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB) {
     // Atmospheric absorption for this band
     var Aatm_f = alpha[i] * d / 1000;
 
-    // Total attenuation for this band (ISO 9613-2 Eq 5)
-    // Agr[i] can be negative (ground reflection gain on hard surfaces)
-    var A_f = Adiv + Aatm_f + Agr[i];
+    // Total attenuation for this band (ISO 9613-2 Eq 5 + barrier)
+    var A_f = Adiv + Aatm_f + Agr[i] + Abar[i];
 
-    // Received level: Lp = Lw - A  (ISO 9613-2 Eq 5, with Dc = 0 for omnidirectional source)
+    // Received level: Lp = Lw - A
     var Lp_f = Lw_adj - A_f;
 
     sumLin += Math.pow(10, Lp_f / 10);
@@ -2369,12 +2372,28 @@ function getSourceSpectrumAndHeight(sourceIdx, prefix, rowIdx) {
  *  @param {string} prefix - 'day', 'eve', or 'night'
  *  @param {number} distM - distance to receiver (m)
  *  @returns {number} predicted LAeq (unrounded) or NaN */
-function calcISO9613forSource(sourceIdx, prefix, distM) {
+function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
   if (!Number.isFinite(distM) || distM <= 0) return NaN;
   var sp = srcPrefix(sourceIdx);
   var tbodyEl = document.getElementById(sp + prefix + 'SrcRows');
   if (!tbodyEl) return NaN;
   var numRows = tbodyEl.querySelectorAll('tr').length;
+
+  // Compute barrier delta for this source-receiver pair
+  var barrierDelta = 0;
+  if (window._geometry && window._buildings && window._buildings.length > 0 &&
+      typeof sources !== 'undefined' && sources[sourceIdx] &&
+      sources[sourceIdx].lat !== null && receiverIdx !== undefined) {
+    var srcLL = { lat: sources[sourceIdx].lat, lng: sources[sourceIdx].lng };
+    var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+    var recLL = allLL['r' + (receiverIdx + 1)];
+    if (recLL) {
+      var srcHeightM = 1.5; // default — Phase 3 can use per-row height
+      var recHeightM = iso_receiverHeight || 1.5;
+      var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeightM, recHeightM, window._buildings);
+      if (barrier) barrierDelta = barrier.pathLengthDiff;
+    }
+  }
 
   var totalLin = 0;
   var anySrc = false;
@@ -2384,8 +2403,8 @@ function calcISO9613forSource(sourceIdx, prefix, distM) {
     if (!info) continue;
 
     if (info.spectrumA) {
-      // Full octave-band ISO 9613-2
-      var pred = calcISO9613single(info.spectrumA, info.srcHeight, distM, info.adjDB);
+      // Full octave-band ISO 9613-2 with barrier
+      var pred = calcISO9613single(info.spectrumA, info.srcHeight, distM, info.adjDB, barrierDelta);
       if (Number.isFinite(pred)) {
         totalLin += Math.pow(10, pred / 10);
         anySrc = true;
@@ -2418,7 +2437,7 @@ function calcTotalISO9613(prefix, receiverIdx) {
     var d = getDistanceForSourceReceiver(si, receiverIdx);
     if (!Number.isFinite(d) || d <= 0) return;
 
-    var srcPred = calcISO9613forSource(si, prefix, d);
+    var srcPred = calcISO9613forSource(si, prefix, d, receiverIdx);
     if (Number.isFinite(srcPred)) {
       totalLin += Math.pow(10, srcPred / 10);
       anySrc = true;
@@ -9275,16 +9294,25 @@ initCollapse();
 
         srcPositions.forEach(function(src) {
           var edges = window._geometry.getIntersectingEdges(src, rec, window._buildings);
-          var colour = edges.length > 0 ? '#f59e0b' : '#22c55e'; // orange or green
+          var barrier = edges.length > 0
+            ? window._geometry.getDominantBarrier(src, rec, 1.5, iso_receiverHeight || 1.5, window._buildings)
+            : null;
+          var colour, tip, dashed;
+          if (edges.length === 0) {
+            colour = '#22c55e'; dashed = null; tip = 'Clear line of sight';
+          } else if (barrier && barrier.pathLengthDiff > 0) {
+            colour = '#f59e0b'; dashed = '6 4';
+            tip = edges.length + ' edge' + (edges.length > 1 ? 's' : '') + ' — screening \u03b4=' + barrier.pathLengthDiff.toFixed(2) + 'm';
+          } else {
+            colour = '#ef4444'; dashed = '6 4';
+            tip = 'Building intersected but no net screening (\u03b4 \u2264 0)';
+          }
           var line = L.polyline([[src.lat, src.lng], [rec.lat, rec.lng]], {
             color: colour,
             weight: 2,
             opacity: 0.7,
-            dashArray: edges.length > 0 ? '6 4' : null
+            dashArray: dashed
           });
-          var tip = edges.length > 0
-            ? edges.length + ' building edge' + (edges.length > 1 ? 's' : '') + ' intersected'
-            : 'Clear line of sight';
           line.bindTooltip(tip);
           rayLayer.addLayer(line);
         });

@@ -57,6 +57,22 @@ export function sourceContribution(source, distance) {
 }
 
 /**
+ * ISO 9613-2 Section 8 barrier attenuation.
+ * @param {number} delta - Path length difference in metres (from getDominantBarrier)
+ * @param {number[]} frequencies - Octave band centre frequencies [63..8000]
+ * @returns {number[]} Attenuation per band [dB], capped at 20 dB
+ */
+export function calcBarrierAttenuation(delta, frequencies) {
+  if (delta <= 0) return frequencies.map(() => 0);
+  return frequencies.map(f => {
+    const lambda = 340 / f; // wavelength at 20°C
+    const Kmet = 1;          // meteorological correction (1.0 = no wind)
+    const raw = 10 * Math.log10(3 + (20 * Kmet * delta) / lambda);
+    return Math.max(0, Math.min(raw, 20)); // cap at 20 dB per ISO
+  });
+}
+
+/**
  * Total sound pressure level at a receiver from all sources.
  * @param {Array<{ equipment: Array<{Lw: number, quantity: number}> }>} sources
  * @param {number[]} distances - distance from each source to this receiver (m)

@@ -14,6 +14,7 @@ import {
   sourceCombinedLw,
   sourceContribution,
   totalAtReceiver,
+  calcBarrierAttenuation,
 } from './calc.js';
 
 // ---------------------------------------------------------------------------
@@ -185,5 +186,45 @@ describe('Edge cases', () => {
   it('all sources empty: totalAtReceiver returns -Infinity', () => {
     const sources = [{ equipment: [] }, { equipment: [] }];
     expect(totalAtReceiver(sources, [10, 10])).toBe(-Infinity);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ISO 9613-2 barrier attenuation
+// ---------------------------------------------------------------------------
+const FREQS = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+
+describe('calcBarrierAttenuation', () => {
+  it('delta = 0: returns all zeros', () => {
+    const result = calcBarrierAttenuation(0, FREQS);
+    result.forEach(v => expect(v).toBe(0));
+  });
+
+  it('delta < 0: returns all zeros', () => {
+    const result = calcBarrierAttenuation(-0.1, FREQS);
+    result.forEach(v => expect(v).toBe(0));
+  });
+
+  it('delta = 0.45m, 1kHz band: ~14.7 dB', () => {
+    // lambda at 1kHz = 340/1000 = 0.34m
+    // Abar = 10*log10(3 + 20*0.45/0.34) = 10*log10(29.47) = 14.69 dB
+    const result = calcBarrierAttenuation(0.45, FREQS);
+    expect(result[4]).toBeCloseTo(14.7, 1); // index 4 = 1000Hz
+  });
+
+  it('delta = 0.45m, 63Hz band: ~6.7 dB (less screening at low freq)', () => {
+    // lambda at 63Hz = 340/63 = 5.40m
+    // Abar = 10*log10(3 + 20*0.45/5.40) = 10*log10(4.67) = 6.69 dB
+    const result = calcBarrierAttenuation(0.45, FREQS);
+    expect(result[0]).toBeCloseTo(6.7, 1); // index 0 = 63Hz
+  });
+
+  it('large delta: all values capped at 20 dB', () => {
+    const result = calcBarrierAttenuation(10, FREQS);
+    result.forEach(v => expect(v).toBeLessThanOrEqual(20));
+  });
+
+  it('returns 8 values for 8 frequency bands', () => {
+    expect(calcBarrierAttenuation(0.5, FREQS).length).toBe(8);
   });
 });
