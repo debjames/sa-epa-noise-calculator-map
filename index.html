@@ -2821,6 +2821,47 @@ function escapeHTML(str) {
   return d.innerHTML;
 }
 
+/* ─── Stale results indicator ─── */
+var _resultsAreStale = false;
+var _hasRunCalculation = false;
+var _recalcDebounceTimer = null;
+
+function markResultsStale() {
+  if (!_hasRunCalculation) return; // no stale indicator before first calc
+  _resultsAreStale = true;
+  var existing = document.getElementById('staleResultsBanner');
+  if (!existing) {
+    var predCard = document.querySelector('#predicted_table');
+    if (predCard) {
+      var banner = document.createElement('div');
+      banner.id = 'staleResultsBanner';
+      banner.style.cssText = 'background:#fef3cd;color:#856404;padding:6px 12px;font-size:12px;border:1px solid #ffc107;border-radius:4px;margin-bottom:8px;';
+      banner.textContent = '\u26A0 Geometry changed \u2014 results may be outdated';
+      predCard.parentNode.insertBefore(banner, predCard);
+    }
+  }
+}
+
+function clearStaleIndicator() {
+  _resultsAreStale = false;
+  var banner = document.getElementById('staleResultsBanner');
+  if (banner) banner.remove();
+}
+
+function triggerRecalculation() {
+  if (_recalcDebounceTimer) clearTimeout(_recalcDebounceTimer);
+  _recalcDebounceTimer = setTimeout(function() {
+    // Only recalculate if sources and receivers exist
+    var hasSource = typeof sources !== 'undefined' && sources.some(function(s) { return s.lat !== null; });
+    var hasReceiver = false;
+    var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+    ['r1','r2','r3','r4'].forEach(function(k) { if (allLL[k]) hasReceiver = true; });
+    if (!hasSource || !hasReceiver) return;
+    if (typeof render === 'function') render();
+    clearStaleIndicator();
+  }, 300);
+}
+
 /** Point-source attenuation — delegates to calc.js.
  *  Returns 0 during initial load race (module not yet loaded); recalc fires once ready. */
 function attenuatePoint(Lw, r) {
@@ -4230,6 +4271,8 @@ function getManualCrit(cellId) {
 }
 
 function render() {
+  _hasRunCalculation = true;
+  clearStaleIndicator();
   const srcKey = document.getElementById('src').value;
   const src = byKey.get(srcKey);
   const isVIC = currentState === 'VIC';
@@ -9532,6 +9575,7 @@ initCollapse();
     /* ═══ User-drawn Barriers ═══ */
     var userBarriers = [];
     var barrierLayer = L.layerGroup().addTo(map);
+    var _selectedBarrier = null; // currently selected barrier for keyboard Delete
     var BARRIER_STYLE = {
       color: '#e67e22', weight: 3, dashArray: '8 4', opacity: 0.9
     };
@@ -9546,8 +9590,9 @@ initCollapse();
       });
       window._buildings = combined;
       if (typeof updateRayLines === 'function') updateRayLines();
-      // Recalculate all periods so day+night+eve+lmax results update together
-      if (typeof render === 'function') render();
+      // Mark results stale and trigger debounced recalculation
+      if (typeof markResultsStale === 'function') markResultsStale();
+      if (typeof triggerRecalculation === 'function') triggerRecalculation();
     }
 
     /** Render user-drawn barriers on the map */
@@ -9570,6 +9615,7 @@ initCollapse();
           html += 'Height: <input type="number" id="editBarHeight" value="' + (ub.heightM || 2) + '" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;"> m';
           html += '</div>';
           html += '<button id="editBarApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
+          html += '<button id="editBarShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#2980b9;">Edit shape</button> ';
           html += '<button id="editBarDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#c0392b;">Delete</button>';
           html += '</div>';
 
@@ -9594,10 +9640,41 @@ initCollapse();
               var idx = userBarriers.indexOf(ub);
               if (idx !== -1) userBarriers.splice(idx, 1);
               map.closePopup();
+              _selectedBarrier = null;
               renderUserBarriers();
               rebuildBuildingsIndex();
             });
+            var shapeBtn = document.getElementById('editBarShape');
+            if (shapeBtn) shapeBtn.addEventListener('click', function() {
+              map.closePopup();
+              // Enter edit mode using Leaflet.draw edit on this polyline
+              if (!line.editing) return;
+              _drawingActive = true;
+              line.editing.enable();
+              var editBarrierBtn = document.getElementById('drawBarrierBtn');
+              if (editBarrierBtn) editBarrierBtn.classList.add('active');
+              // Listen for edit completion
+              line.on('edit', function() {
+                ub.vertices = line.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+                _drawingActive = false;
+                if (editBarrierBtn) editBarrierBtn.classList.remove('active');
+                renderUserBarriers();
+                rebuildBuildingsIndex();
+              });
+              // Finish on map click or Escape
+              map.once('click', function() {
+                if (line.editing) line.editing.disable();
+                _drawingActive = false;
+                if (editBarrierBtn) editBarrierBtn.classList.remove('active');
+                ub.vertices = line.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+                renderUserBarriers();
+                rebuildBuildingsIndex();
+              });
+            });
           }, 50);
+
+          // Track selected barrier for keyboard Delete
+          _selectedBarrier = ub;
         });
 
         line.addTo(barrierLayer);
@@ -9825,6 +9902,22 @@ initCollapse();
         drawBarrierBtn.classList.add('active');
       });
     }
+
+    /* ═══ Keyboard Delete for selected barrier ═══ */
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Delete' && _selectedBarrier && !_drawingActive) {
+        if (!confirm('Delete this barrier?')) return;
+        var idx = userBarriers.indexOf(_selectedBarrier);
+        if (idx !== -1) userBarriers.splice(idx, 1);
+        _selectedBarrier = null;
+        map.closePopup();
+        renderUserBarriers();
+        rebuildBuildingsIndex();
+      }
+    });
+
+    // Clear selection when popup closes
+    map.on('popupclose', function() { _selectedBarrier = null; });
 
     /* ═══ Save/load barrier API ═══ */
     window._getUserBarriers = function() { return userBarriers; };
