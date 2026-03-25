@@ -5454,23 +5454,27 @@ initCollapse();
       try {
         var data = {};
         data._format = 'resonate-noise-tool';
-        data._version = 1;
+        data._version = 2;
         data._exportedAt = new Date().toISOString();
 
         // State
         data.currentState = currentState;
         data.vicAreaType = vicAreaType;
 
-        // Source table data (all periods)
+        // Source table data (all periods, all sources)
         var srcData = {};
-        ['day','eve','night','lmax'].forEach(function(pfx) {
-          for (var i = 1; i <= 5; i++) {
-            ['src','n','min','bar'].forEach(function(field) {
-              var key = pfx + '_' + field + '_' + i;
-              var v = loadLS(key);
-              if (v) srcData[key] = v;
-            });
-          }
+        sources.forEach(function(src, si) {
+          var sp = srcPrefix(si);
+          ['day','eve','night','lmax'].forEach(function(pfx) {
+            var numRows = (pfx === 'lmax') ? 1 : 5;
+            for (var i = 1; i <= numRows; i++) {
+              ['src','n','min','bar'].forEach(function(field) {
+                var key = sp + pfx + '_' + field + '_' + i;
+                var v = loadLS(key);
+                if (v) srcData[key] = v;
+              });
+            }
+          });
         });
         data.sourceTable = srcData;
 
@@ -5568,13 +5572,20 @@ initCollapse();
           data.customSources = JSON.parse(JSON.stringify(_customSources));
         }
 
-        // Map marker positions
+        // Sources array (multi-source state)
+        data.sources = sources.map(function(src) {
+          return { id: src.id, name: src.name, lat: src.lat, lng: src.lng };
+        });
+
+        // Map marker positions (all markers from map state)
         data.markers = {};
-        var srcLL = window.getSourceLatLng ? window.getSourceLatLng() : null;
-        if (srcLL) data.markers.source = {lat: srcLL.lat, lng: srcLL.lng};
-        for (var mi = 1; mi <= 4; mi++) {
-          var rLL = window.getReceiverLatLng ? window.getReceiverLatLng('r' + mi) : null;
-          if (rLL) data.markers['r' + mi] = {lat: rLL.lat, lng: rLL.lng};
+        var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+        Object.keys(allLL).forEach(function(k) {
+          if (allLL[k]) data.markers[k] = {lat: allLL[k].lat, lng: allLL[k].lng};
+        });
+        // Legacy compat: ensure markers.source exists for v1 readers
+        if (!data.markers.source && data.markers.source_0) {
+          data.markers.source = data.markers.source_0;
         }
 
         // Address bar text
@@ -5656,13 +5667,35 @@ initCollapse();
         setVicAreaType(data.vicAreaType);
       }
 
+      // 2b. Restore sources array (multi-source state)
+      var isV1 = !data._version || data._version < 2;
+      if (data.sources && Array.isArray(data.sources) && data.sources.length > 0) {
+        // Replace sources array with saved state
+        sources.length = 0;
+        data.sources.forEach(function(s) {
+          sources.push({ id: s.id, name: s.name, lat: s.lat || null, lng: s.lng || null,
+                         equipment: { day: [], eve: [], night: [], lmax: [] } });
+        });
+      } else if (isV1) {
+        // v1 file: single source, keep existing sources[0]
+        console.log('Loading v1 assessment — single source only.');
+      }
+      // Re-render source cards (creates equipment tables for all sources)
+      if (typeof renderSourceCards === 'function') renderSourceCards();
+
       // 3. Source table data — write to localStorage then re-render tables
       if (data.sourceTable) {
         Object.keys(data.sourceTable).forEach(function(k) {
-          saveLS(k, data.sourceTable[k]);
+          var storeKey = k;
+          // v1 compat: unprefixed keys → add s0_ prefix
+          if (isV1 && !k.match(/^s\d+_/)) {
+            storeKey = 's0_' + k;
+          }
+          saveLS(storeKey, data.sourceTable[k]);
         });
-        ['day','eve','night','lmax'].forEach(function(pfx) {
-          renderSourceTable(pfx, pfx + 'SrcRows', pfx + 'SrcTotal', 5);
+        // Re-render equipment tables for all sources
+        sources.forEach(function(src, si) {
+          initSourceEquipmentTables(si);
         });
       }
 
@@ -5868,10 +5901,18 @@ initCollapse();
       if (data.markers && window._placeMarker) {
         setTimeout(function() {
           var map = window._getMapRef ? window._getMapRef() : null;
-          // Place source first
+          // Place all source markers
           if (data.markers.source) {
             window._placeMarker('source', data.markers.source);
           }
+          // Place source_1, source_2, etc.
+          sources.forEach(function(src, si) {
+            if (si === 0) return; // source_0 handled by 'source' above
+            var key = 'source_' + si;
+            if (data.markers[key]) {
+              window._placeMarker(key, data.markers[key]);
+            }
+          });
           // Place receivers
           for (var mi = 1; mi <= 4; mi++) {
             var key = 'r' + mi;
