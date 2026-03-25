@@ -3260,7 +3260,7 @@ function renderSourceCards() {
     var nameInp = document.createElement('input');
     nameInp.type = 'text';
     nameInp.value = src.name;
-    nameInp.style.cssText = 'border:1px solid #ddd;padding:3px 6px;font-size:13px;flex:1;min-width:80px;max-width:180px;border-radius:3px;';
+    nameInp.style.cssText = 'border:1px solid #ddd;padding:3px 6px;font-size:13px;width:120px;border-radius:3px;flex-shrink:0;';
     nameInp.addEventListener('change', function() { sources[idx].name = this.value; });
     row1.appendChild(nameInp);
 
