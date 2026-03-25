@@ -578,11 +578,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div class="table-scroll">
         <table>
           <tr>
-            <th style="width:18%;">Location</th><th style="width:27%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="center" id="distColHeader" style="display:none;">Distance to receiver, m</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
+            <th style="width:16%;">Location</th><th class="num" style="width:5%;" title="Receiver height above ground (m). Leave blank to use global ISO 9613-2 value.">Ht (m)</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="center" id="distColHeader" style="display:none;">Distance to receiver, m</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
           </tr>
 
           <tr>
             <td><b>Subject site</b></td>
+            <td class="num"></td>
             <td class="zone-col"><select id="src"></select></td>
             <td id="src_viczone" class="vic-only vic-zone-col"></td>
             <td id="src_land" class="left landuse-col"></td>
@@ -596,6 +597,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"></td>
+            <td class="num"><input type="number" id="recvHt1" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
             <td class="zone-col"><select id="r1"></select></td>
             <td id="r1_viczone" class="vic-only vic-zone-col"></td>
             <td id="r1_land" class="left landuse-col"></td>
@@ -608,6 +610,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"></td>
+            <td class="num"><input type="number" id="recvHt2" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
             <td class="zone-col"><select id="r2"></select></td>
             <td id="r2_viczone" class="vic-only vic-zone-col"></td>
             <td id="r2_land" class="left landuse-col"></td>
@@ -620,6 +623,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"></td>
+            <td class="num"><input type="number" id="recvHt3" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
             <td class="zone-col"><select id="r3"></select></td>
             <td id="r3_viczone" class="vic-only vic-zone-col"></td>
             <td id="r3_land" class="left landuse-col"></td>
@@ -632,6 +636,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"></td>
+            <td class="num"><input type="number" id="recvHt4" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
             <td class="zone-col"><select id="r4"></select></td>
             <td id="r4_viczone" class="vic-only vic-zone-col"></td>
             <td id="r4_land" class="left landuse-col"></td>
@@ -2152,6 +2157,16 @@ let iso_groundFactor = 0.5;   // G: 0=hard, 0.5=mixed, 1.0=soft/porous
 let iso_temperature = 10;     // °C
 let iso_humidity = 70;        // % RH
 
+// Per-receiver height overrides (null = inherit global iso_receiverHeight)
+var recvHeights = { r1: null, r2: null, r3: null, r4: null };
+
+/** Get effective receiver height for a specific receiver (0-based index) */
+function getReceiverHeight(receiverIdx) {
+  var key = 'r' + (receiverIdx + 1);
+  var h = recvHeights[key];
+  return (h !== null && h !== undefined && Number.isFinite(h)) ? h : iso_receiverHeight;
+}
+
 // Octave band centre frequencies (Hz)
 const OCT_FREQ = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
 
@@ -2274,11 +2289,11 @@ function calcAlphaAtm(tempC, humPct) {
  *  @param {number} distM - distance source to receiver (m)
  *  @param {number} adjDB - adjustment to apply to each band (quantity + opTime + barrier, in dB)
  *  @returns {number} predicted LAeq at receiver */
-function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta) {
+function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recvHeight) {
   if (!spectrumA || distM <= 0) return NaN;
   var d = Math.max(distM, 1); // clamp minimum 1m
   var hS = Math.max(srcHeight, 0.01); // avoid zero height
-  var hR = iso_receiverHeight;
+  var hR = (recvHeight !== undefined && Number.isFinite(recvHeight)) ? recvHeight : iso_receiverHeight;
   var alpha = calcAlphaAtm(iso_temperature, iso_humidity);
 
   // Geometric divergence (ISO 9613-2 Eq 8): point source, free field
@@ -2392,7 +2407,7 @@ function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
     var recLL = allLL['r' + (receiverIdx + 1)];
     if (recLL) {
       var srcHeightM = (sources[sourceIdx] && sources[sourceIdx].heightM) || 1.5;
-      var recHeightM = iso_receiverHeight || 1.5;
+      var recHeightM = getReceiverHeight(receiverIdx);
       var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : window._buildings;
       var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeightM, recHeightM, screenable);
       if (barrier) barrierDelta = barrier.pathLengthDiff;
@@ -2408,7 +2423,7 @@ function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
 
     if (info.spectrumA) {
       // Full octave-band ISO 9613-2 with barrier
-      var pred = calcISO9613single(info.spectrumA, info.srcHeight, distM, info.adjDB, barrierDelta);
+      var pred = calcISO9613single(info.spectrumA, info.srcHeight, distM, info.adjDB, barrierDelta, recHeightM);
       if (Number.isFinite(pred)) {
         totalLin += Math.pow(10, pred / 10);
         anySrc = true;
@@ -4837,6 +4852,47 @@ function initPropagationMethod() {
     });
   });
 
+  // Per-receiver height inputs
+  for (var ri = 1; ri <= 4; ri++) {
+    (function(idx) {
+      var el = document.getElementById('recvHt' + idx);
+      if (!el) return;
+      el.placeholder = iso_receiverHeight;
+      el.addEventListener('change', function() {
+        var v = this.value.trim();
+        if (v === '') {
+          recvHeights['r' + idx] = null;
+          this.style.color = '';
+        } else {
+          var num = parseFloat(v);
+          if (Number.isFinite(num) && num >= 0.1) {
+            recvHeights['r' + idx] = num;
+            this.style.color = '#2563eb'; // blue for override
+          }
+        }
+        render();
+      });
+      // Restore saved state
+      var saved = recvHeights['r' + idx];
+      if (saved !== null && Number.isFinite(saved)) {
+        el.value = saved;
+        el.style.color = '#2563eb';
+      }
+    })(ri);
+  }
+
+  // Update placeholders when global changes
+  var _origIsoChange = recvHEl ? recvHEl.onchange : null;
+  if (recvHEl) {
+    var origHandler = recvHEl.onchange;
+    recvHEl.addEventListener('change', function() {
+      for (var i = 1; i <= 4; i++) {
+        var el = document.getElementById('recvHt' + i);
+        if (el) el.placeholder = iso_receiverHeight;
+      }
+    });
+  }
+
   // Initial toggle of height columns
   toggleSourceHeightColumns();
 }
@@ -5038,7 +5094,7 @@ function getSpectrumData(prefix, sourceIdx) {
           if (propagationMethod === 'iso9613') {
             var d = Math.max(dist, 1);
             var hS = Math.max(src.height, 0.01);
-            var hR = iso_receiverHeight;
+            var hR = getReceiverHeight(ri - 1);
             var alpha = calcAlphaAtm(iso_temperature, iso_humidity);
             var Adiv = 20 * log10(d) + 11;
             var Agr = calcAgrPerBand(hS, hR, d, iso_groundFactor);
@@ -5643,6 +5699,17 @@ initCollapse();
         data.recvPenalties = JSON.parse(JSON.stringify(recvPenalties));
         data.facadeCorrection = facadeCorrection;
 
+        // Per-receiver heights (only save non-null overrides)
+        var rh = {};
+        var anyRh = false;
+        ['r1','r2','r3','r4'].forEach(function(k) {
+          if (recvHeights[k] !== null && Number.isFinite(recvHeights[k])) {
+            rh[k] = recvHeights[k];
+            anyRh = true;
+          }
+        });
+        if (anyRh) data.recvHeights = rh;
+
         // Propagation method & ISO parameters
         data.propagation = {
           method: propagationMethod,
@@ -5955,6 +6022,19 @@ initCollapse();
               inp.value = data.recvPenalties[rid][per] || 0;
             }
           });
+        });
+      }
+
+      // 8a2. Per-receiver heights
+      if (data.recvHeights) {
+        ['r1','r2','r3','r4'].forEach(function(k) {
+          recvHeights[k] = (data.recvHeights[k] !== undefined) ? data.recvHeights[k] : null;
+          var idx = parseInt(k.charAt(1));
+          var el = document.getElementById('recvHt' + idx);
+          if (el && recvHeights[k] !== null) {
+            el.value = recvHeights[k];
+            el.style.color = '#2563eb';
+          }
         });
       }
 
@@ -9737,16 +9817,17 @@ initCollapse();
         srcPositions.push({ lat: allLL.source.lat, lng: allLL.source.lng, heightM: 1.5 });
       }
 
-      recIds.forEach(function(rid) {
+      recIds.forEach(function(rid, ri) {
         var recLL = allLL[rid];
         if (!recLL) return;
         var rec = { lat: recLL.lat, lng: recLL.lng };
+        var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : (iso_receiverHeight || 1.5);
 
         srcPositions.forEach(function(src) {
           var screenable = getScreenableBuildings();
           var edges = window._geometry.getIntersectingEdges(src, rec, screenable);
           var barrier = edges.length > 0
-            ? window._geometry.getDominantBarrier(src, rec, src.heightM || 1.5, iso_receiverHeight || 1.5, screenable)
+            ? window._geometry.getDominantBarrier(src, rec, src.heightM || 1.5, recHt, screenable)
             : null;
           var colour, tip, dashed;
           if (edges.length === 0) {
