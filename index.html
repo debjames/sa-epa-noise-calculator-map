@@ -3224,11 +3224,18 @@ function initSourceEquipmentTables(sourceIdx) {
   renderSourceTable('lmax', 'nightLmaxRows', 'nightLmaxTotal', 1, sourceIdx);
 }
 
-function renderSourceCards() {
+function renderSourceCards(expandIdx) {
   var container = document.getElementById('sourceCards');
   if (!container) return;
+
+  // Preserve collapse state of existing equipment sections before clearing
+  var _collapseState = {};
+  document.querySelectorAll('[id^="srcEquipSection_"]').forEach(function(el) {
+    var idx = parseInt(el.id.replace('srcEquipSection_', ''), 10);
+    _collapseState[idx] = el.style.display === 'none';
+  });
+
   container.innerHTML = '';
-  // Remove old equipment sections
   document.querySelectorAll('[id^="srcEquipSection_"]').forEach(function(el) { el.remove(); });
 
   // SVG pin icon (reusable)
@@ -3325,9 +3332,19 @@ function renderSourceCards() {
     card.appendChild(row1);
     wrapper.appendChild(card);
 
-    // All sources get generated equipment tables (collapsed by default for Source 1+)
+    // All sources get generated equipment tables
     var equipSection = createSourceEquipmentSection(idx);
-    if (idx > 0) equipSection.style.display = 'none';
+    // Restore previous collapse state, or default collapsed unless this is the expandIdx
+    var shouldCollapse;
+    if (idx === expandIdx) {
+      shouldCollapse = false; // newly added source: expand
+    } else if (_collapseState.hasOwnProperty(idx)) {
+      shouldCollapse = _collapseState[idx]; // restore previous state
+    } else {
+      shouldCollapse = true; // new source not explicitly expanded: collapse
+    }
+    if (shouldCollapse) equipSection.style.display = 'none';
+    toggleBtn.innerHTML = shouldCollapse ? '&#x25BC;' : '&#x25B2;';
     wrapper.appendChild(equipSection);
 
     container.appendChild(wrapper);
@@ -3351,11 +3368,11 @@ document.addEventListener('DOMContentLoaded', function() {
         lat: null, lng: null,
         equipment: { day: [], eve: [], night: [], lmax: [] }
       });
-      renderSourceCards();
+      renderSourceCards(sources.length - 1); // expand the newly added source
     });
   }
-  // Initial render of source cards
-  renderSourceCards();
+  // Initial render of source cards (expand Source 0 on first load)
+  renderSourceCards(0);
 });
 
 function renderSourceTable(prefix, tbodyId, totalId, rows=5, sourceIdx=0){
