@@ -1161,6 +1161,9 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     'Regression: attenuatePoint(85, 50) should round to 43');
   console.assert(Math.round(window._calc.totalAtReceiver([{equipment:[{Lw:85,quantity:1}]}], [50])) === 43,
     'Regression: totalAtReceiver single source should match attenuatePoint');
+  console.assert(
+    Math.abs(calcISO9613single([37,43,48,53,56,54,51,43], 1.0, 50, 0) - 15.26) < 0.5,
+    'Regression: ISO 9613 small exhaust fan at 50m should be ~15.3 dB(A)');
 
   // Module loaded after regular scripts — re-trigger calculation so initial zeros are replaced
   if (typeof recalcAll === 'function') recalcAll();
@@ -2315,67 +2318,115 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB) {
   return 10 * log10(sumLin);
 }
 
-/** ISO 9613-2 prediction for total Leq from all sources in a period
- *  @param {string} prefix - 'day', 'eve', or 'night'
- *  @param {number} distM - distance to receiver (m)
- *  @returns {number|string} predicted LAeq or "" if invalid */
-function calcTotalISO9613(prefix, distM) {
-  if (!Number.isFinite(distM) || distM <= 0) return "";
-  var tbodyEl = document.getElementById(prefix + 'SrcRows');
-  if (!tbodyEl) return "";
-  var trs = tbodyEl.querySelectorAll('tr');
-  var libFlat = SOURCE_LIBRARY;
-  var totalLin = 0;
-  var anySrc = false;
+/** Read spectrum, height, and adjDB for one equipment row from source-scoped DOM IDs.
+ *  @param {number} sourceIdx - source index (0-based)
+ *  @param {string} prefix - 'day', 'eve', or 'night' (NOT 'lmax' — excluded by ISO guard)
+ *  @param {number} rowIdx - 1-based row index
+ *  @returns {object|null} { spectrumA, srcHeight, adjDB, baseLw, name } or null */
+function getSourceSpectrumAndHeight(sourceIdx, prefix, rowIdx) {
+  var sp = srcPrefix(sourceIdx);
+  var tbodyEl = document.getElementById(sp + prefix + 'SrcRows');
+  if (!tbodyEl) return null;
+  var tr = tbodyEl.querySelectorAll('tr')[rowIdx - 1];
+  if (!tr) return null;
 
+  var sel = tr.querySelector('select');
+  var name = sel ? sel.value : '';
+  if (!name) return null;
+
+  var libFlat = SOURCE_LIBRARY;
+  var picked = libFlat.find(function(s) { return s.name === name; });
+  if (!picked) return null;
+
+  // Height: from DOM input or library default
+  var htEl = document.getElementById(sp + prefix + '_ht_inp_' + rowIdx);
+  var srcHeight = htEl ? Number(htEl.value) : (picked.height !== undefined ? picked.height : 1.5);
+  if (!Number.isFinite(srcHeight)) srcHeight = 1.5;
+
+  // Quantity, opTime, barrier → adjDB
+  var nEl = document.getElementById(sp + prefix + '_n_inp_' + rowIdx);
+  var minEl = document.getElementById(sp + prefix + '_min_inp_' + rowIdx);
+  var barEl = tr.querySelectorAll('select')[1];
   var isSA = (currentState === 'SA' || currentState === null);
   var divisor = isSA ? 15 : 100;
   var defaultOp = isSA ? 15 : 100;
+  var n = nEl ? Number(nEl.value) : 1;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  var opVal = minEl ? Number(minEl.value) : defaultOp;
+  if (!Number.isFinite(opVal)) opVal = defaultOp;
+  if (opVal <= 0) return null;
+  var barrier = barEl && barEl.value === 'Yes';
+  var adjDB = 10 * log10(n) + 10 * log10(opVal / divisor);
+  if (barrier) adjDB -= 5;
 
-  trs.forEach(function(tr, idx) {
-    var i = idx + 1;
-    var sel = tr.querySelector('select');
-    var srcName = sel ? sel.value : '';
-    if (!srcName) return;
+  return {
+    spectrumA: picked.spectrum || null,
+    srcHeight: srcHeight,
+    adjDB: adjDB,
+    baseLw: picked.lw,
+    name: name
+  };
+}
 
-    var picked = libFlat.find(function(s) { return s.name === srcName; });
-    if (!picked) return;
+/** ISO 9613-2 prediction for a single source at a given distance.
+ *  Loops over equipment rows for sources[sourceIdx], calls calcISO9613single per row.
+ *  @param {number} sourceIdx - source index (0-based)
+ *  @param {string} prefix - 'day', 'eve', or 'night'
+ *  @param {number} distM - distance to receiver (m)
+ *  @returns {number} predicted LAeq (unrounded) or NaN */
+function calcISO9613forSource(sourceIdx, prefix, distM) {
+  if (!Number.isFinite(distM) || distM <= 0) return NaN;
+  var sp = srcPrefix(sourceIdx);
+  var tbodyEl = document.getElementById(sp + prefix + 'SrcRows');
+  if (!tbodyEl) return NaN;
+  var numRows = tbodyEl.querySelectorAll('tr').length;
 
-    // Get row parameters
-    var nEl = document.getElementById(prefix + '_n_inp_' + i);
-    var minEl = document.getElementById(prefix + '_min_inp_' + i);
-    var barEl = tr.querySelectorAll('select')[1]; // barrier select is 2nd select in row
-    var n = nEl ? Number(nEl.value) : 1;
-    if (!Number.isFinite(n) || n <= 0) return;
-    var opVal = minEl ? Number(minEl.value) : defaultOp;
-    if (!Number.isFinite(opVal)) opVal = defaultOp;
-    if (opVal <= 0) return;
-    var barrier = barEl && barEl.value === 'Yes';
+  var totalLin = 0;
+  var anySrc = false;
 
-    // Calculate adjustment in dB (quantity + opTime + barrier)
-    var adjDB = 10 * log10(n) + 10 * log10(opVal / divisor);
-    if (barrier) adjDB -= 5;
+  for (var i = 1; i <= numRows; i++) {
+    var info = getSourceSpectrumAndHeight(sourceIdx, prefix, i);
+    if (!info) continue;
 
-    // Get source height (use override if present, else library default)
-    var htEl = document.getElementById(prefix + '_ht_inp_' + i);
-    var srcHeight = htEl ? Number(htEl.value) : (picked.height !== undefined ? picked.height : 1.5);
-    if (!Number.isFinite(srcHeight)) srcHeight = 1.5;
-
-    // Use ISO 9613-2 if spectrum available, else fall back to simple
-    if (picked.spectrum) {
-      var pred = calcISO9613single(picked.spectrum, srcHeight, distM, adjDB);
+    if (info.spectrumA) {
+      // Full octave-band ISO 9613-2
+      var pred = calcISO9613single(info.spectrumA, info.srcHeight, distM, info.adjDB);
       if (Number.isFinite(pred)) {
         totalLin += Math.pow(10, pred / 10);
         anySrc = true;
       }
     } else {
-      // Fallback: simple method
-      var lw = picked.lw + adjDB;
+      // Flat spectrum fallback (source has no per-band data in library)
+      var lw = info.baseLw + info.adjDB;
       if (Number.isFinite(lw) && lw > 0) {
         var predSimple = attenuatePoint(lw, distM);
         totalLin += Math.pow(10, predSimple / 10);
         anySrc = true;
       }
+    }
+  }
+
+  if (!anySrc) return NaN;
+  return 10 * log10(totalLin);
+}
+
+/** ISO 9613-2 prediction for total Leq from all sources at a receiver.
+ *  Loops over sources[], calls calcISO9613forSource per source with per-source distance.
+ *  @param {string} prefix - 'day', 'eve', or 'night'
+ *  @param {number} receiverIdx - 0-based receiver index
+ *  @returns {number|string} predicted LAeq (rounded) or "" if invalid */
+function calcTotalISO9613(prefix, receiverIdx) {
+  var totalLin = 0;
+  var anySrc = false;
+
+  sources.forEach(function(src, si) {
+    var d = getDistanceForSourceReceiver(si, receiverIdx);
+    if (!Number.isFinite(d) || d <= 0) return;
+
+    var srcPred = calcISO9613forSource(si, prefix, d);
+    if (Number.isFinite(srcPred)) {
+      totalLin += Math.pow(10, srcPred / 10);
+      anySrc = true;
     }
   });
 
@@ -2975,17 +3026,9 @@ function buildSourceEquipment(prefix, sourceIdx) {
 function calcPredAtReceiver(prefix, sourcesForPeriod, receiverIdx, fallbackDistanceM) {
   if (!sourcesForPeriod || sourcesForPeriod.length === 0) return "";
 
-  // ISO 9613-2 multi-source: not yet implemented, fall back to simple
+  // ISO 9613-2: multi-source supported — loops all sources internally
   if (propagationMethod === 'iso9613' && prefix && prefix !== 'lmax') {
-    if (sourcesForPeriod.length > 1) {
-      console.warn('ISO 9613-2 multi-source not yet implemented — falling back to simple method');
-    } else {
-      // Single source — use legacy ISO path if distance available
-      var d0 = getDistanceForSourceReceiver(sourcesForPeriod[0]._sourceIdx, receiverIdx);
-      if (!Number.isFinite(d0)) d0 = fallbackDistanceM;
-      if (Number.isFinite(d0) && d0 > 0) return calcTotalISO9613(prefix, d0);
-      return "";
-    }
+    return calcTotalISO9613(prefix, receiverIdx);
   }
 
   // Build per-source distances, excluding sources with no position
@@ -5150,51 +5193,54 @@ function updateOtherCritSelection() {
   render();
 }));
 
-function renderContribTable(tableId, prefix, numRows, sourceIdx) {
-  var sp = srcPrefix(sourceIdx || 0);
+function renderContribTable(tableId, prefix, numRows) {
   const table = document.getElementById(tableId);
   if (!table) return;
 
-  // Collect active receivers (need a valid distance; zone selection not required for contribution calc)
+  // Collect active receivers (with per-source distance support)
   const receivers = [];
   for (let r = 1; r <= 4; r++) {
-    const distEl = document.getElementById('dist_r' + r);
-    const dist   = distEl ? Number(distEl.value) : NaN;
+    // Use Source 0 distance as fallback display distance
+    var d0 = getDistanceForSourceReceiver(0, r - 1);
+    var distEl = document.getElementById('dist_r' + r);
+    var dist = Number.isFinite(d0) ? d0 : (distEl ? Number(distEl.value) : NaN);
     if (Number.isFinite(dist) && dist > 0) {
-      receivers.push({ r, dist });
+      receivers.push({ r: r, dist: dist });
     }
   }
 
-  // Collect source rows with a name and a valid Lw
+  // Collect source rows from ALL sources
   const srcRows = [];
   const isISO = (propagationMethod === 'iso9613' && prefix !== 'lmax');
   const libFlat = (prefix === 'lmax') ? SOURCE_LIBRARY_LMAX : SOURCE_LIBRARY;
-  const tbodyEl = prefix === 'lmax'
-    ? document.getElementById(sp + 'nightLmaxRows')
-    : document.getElementById(sp + prefix + 'SrcRows');
 
-  if (tbodyEl) {
-    const trs = tbodyEl.querySelectorAll('tr');
+  sources.forEach(function(src, si) {
+    var sp = srcPrefix(si);
+    var tbodyEl = prefix === 'lmax'
+      ? document.getElementById(sp + 'nightLmaxRows')
+      : document.getElementById(sp + prefix + 'SrcRows');
+    if (!tbodyEl) return;
+
+    var trs = tbodyEl.querySelectorAll('tr');
     trs.forEach(function(tr, idx) {
-      const i    = idx + 1;
-      const sel  = tr.querySelector('select');
-      const lwEl = document.getElementById(sp + prefix + '_lw_' + i);
-      const name = sel ? sel.value : '';
-      const lw   = lwEl ? Number(lwEl.textContent) : NaN;
+      var i = idx + 1;
+      var sel = tr.querySelector('select');
+      var lwEl = document.getElementById(sp + prefix + '_lw_' + i);
+      var name = sel ? sel.value : '';
+      var lw = lwEl ? Number(lwEl.textContent) : NaN;
       if (name && Number.isFinite(lw) && lw > 0) {
-        const row = { name, lw };
+        var row = { name: name, lw: lw, _sourceIdx: si };
         if (isISO) {
-          const picked = libFlat.find(function(s) { return s.name === name; });
+          var picked = libFlat.find(function(s) { return s.name === name; });
           row.spectrum = picked ? picked.spectrum : null;
           row.height = picked && picked.height !== undefined ? picked.height : 1.5;
-          // Get adjustment (lw already includes qty/opTime/barrier; base lw is picked.lw)
           row.adjDB = picked ? (lw - picked.lw) : 0;
           row.baseLw = picked ? picked.lw : lw;
         }
         srcRows.push(row);
       }
     });
-  }
+  });
 
   // Build table HTML
   table.innerHTML = '';
@@ -5236,13 +5282,16 @@ function renderContribTable(tableId, prefix, numRows, sourceIdx) {
     tdLw.textContent = Math.round(s.lw);
     tr.appendChild(tdLw);
     receivers.forEach(function(rv, ri) {
+      // Per-source distance from distance matrix
+      var dist = getDistanceForSourceReceiver(s._sourceIdx, rv.r - 1);
+      if (!Number.isFinite(dist) || dist <= 0) dist = rv.dist; // fallback
       var predRaw, predDisplay;
       if (isISO && s.spectrum) {
-        predRaw = calcISO9613single(s.spectrum, s.height, rv.dist, s.adjDB);
-        if (!Number.isFinite(predRaw)) predRaw = attenuatePoint(s.lw, rv.dist);
+        predRaw = calcISO9613single(s.spectrum, s.height, dist, s.adjDB);
+        if (!Number.isFinite(predRaw)) predRaw = attenuatePoint(s.lw, dist);
         predDisplay = Math.round(predRaw);
       } else {
-        predRaw = attenuatePoint(s.lw, rv.dist);
+        predRaw = attenuatePoint(s.lw, dist);
         predDisplay = Math.round(predRaw);
       }
       recvTotals[ri] += Math.pow(10, predRaw / 10);
