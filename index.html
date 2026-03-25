@@ -373,6 +373,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial</button>
           <button class="tool-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastre</button>
           <button class="tool-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
+          <button class="tool-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;font-size:11px;color:#666;padding:3px 8px;">Reset overrides</button>
           <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
           <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Major urban areas</button>
         </div>
@@ -2390,7 +2391,8 @@ function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
     if (recLL) {
       var srcHeightM = 1.5; // default — Phase 3 can use per-row height
       var recHeightM = iso_receiverHeight || 1.5;
-      var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeightM, recHeightM, window._buildings);
+      var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : window._buildings;
+      var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeightM, recHeightM, screenable);
       if (barrier) barrierDelta = barrier.pathLengthDiff;
     }
   }
@@ -5686,6 +5688,17 @@ initCollapse();
         // Buildings layer toggle
         data.buildingsOn = window._getBuildingsOn ? window._getBuildingsOn() : true;
 
+        // Building height overrides
+        var overrides = [];
+        if (window._buildings) {
+          window._buildings.forEach(function(b) {
+            if (b.userHeightOverride || b.excluded) {
+              overrides.push({ osmId: b.id, heightM: b.heightM, excluded: !!b.excluded });
+            }
+          });
+        }
+        if (overrides.length > 0) data.buildingOverrides = overrides;
+
         // Address bar text
         var searchInp = document.getElementById('mapSearchInput');
         if (searchInp && searchInp.value) data.addressText = searchInp.value;
@@ -6053,9 +6066,13 @@ initCollapse();
         if (searchInp) searchInp.value = data.addressText;
       }
 
-      // 15. Buildings layer toggle
+      // 15. Buildings layer toggle + overrides
       if (data.buildingsOn !== undefined && window._setBuildingsOn) {
         window._setBuildingsOn(data.buildingsOn);
+      }
+      // Apply building overrides after fetch completes
+      if (data.buildingOverrides && data.buildingOverrides.length > 0) {
+        window._pendingBuildingOverrides = data.buildingOverrides;
       }
 
       // 16. Re-render detected zones panel for VIC
@@ -9173,29 +9190,124 @@ initCollapse();
       return (dLat > oldH * 0.2) || (dLng > oldW * 0.2);
     }
 
+    /** Get buildings eligible for barrier screening (not excluded) */
+    function getScreenableBuildings() {
+      return buildings.filter(function(b) { return !b.excluded; });
+    }
+    window._getScreenableBuildings = getScreenableBuildings;
+
+    function getBuildingStyle(b) {
+      if (b.excluded) return { color: '#aaa', fillColor: '#ccc', fillOpacity: 0.20, weight: 1 };
+      if (b.userHeightOverride) return { color: '#2563eb', fillColor: '#4a90d9', fillOpacity: 0.45, weight: 1 };
+      if (!b.heightSource) return { color: '#999', fillColor: '#bbb', fillOpacity: 0.35, weight: 1 };
+      return { color: '#555', fillColor: '#888', fillOpacity: 0.35, weight: 1 };
+    }
+
+    function getBuildingTooltip(b) {
+      var htStr;
+      var effectiveH = (b.heightM != null) ? b.heightM : 3;
+      if (b.excluded) {
+        htStr = 'Excluded from screening';
+      } else if (b.userHeightOverride) {
+        htStr = 'Height: ' + effectiveH.toFixed(0) + 'm (user override)';
+      } else if (b.heightSource === 'osm') {
+        htStr = 'Height: ' + effectiveH.toFixed(0) + 'm (OSM)';
+      } else if (b.heightSource === 'levels') {
+        htStr = 'Height: ' + effectiveH.toFixed(0) + 'm (' + b.heightLevels + ' floor' + (b.heightLevels > 1 ? 's' : '') + ' \u00d7 3m)';
+      } else {
+        htStr = 'Height: 3m \u26a0 estimated \u2014 no data';
+      }
+      return (b.name ? '<b>' + b.name + '</b><br>' : '') + htStr;
+    }
+
+    function buildingPopupHTML(b) {
+      var label = b.name || ('Building ' + b.id);
+      var effectiveH = (b.heightM != null) ? b.heightM : 3;
+      var sourceLabel;
+      if (b.userHeightOverride) sourceLabel = 'User override';
+      else if (b.heightSource === 'osm') sourceLabel = 'OSM tag';
+      else if (b.heightSource === 'levels') sourceLabel = 'Levels calc (' + b.heightLevels + ' \u00d7 3m)';
+      else sourceLabel = 'Estimated (3m default)';
+
+      var html = '<div style="min-width:200px;font-size:13px;">';
+      html += '<b>' + label + '</b><br>';
+      html += '<span style="color:#666;">Height source: ' + sourceLabel + '</span><br>';
+      html += '<span>Current height: <b>' + effectiveH.toFixed(1) + ' m</b></span><br>';
+      html += '<div style="margin:6px 0;display:flex;align-items:center;gap:4px;">';
+      html += 'Override: <input type="number" id="bldgHtOverride" value="' + effectiveH.toFixed(1) + '" step="0.5" min="0" style="width:60px;padding:2px 4px;font-size:12px;"> m ';
+      html += '<button id="bldgHtApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button>';
+      if (b.userHeightOverride) {
+        html += ' <button id="bldgHtReset" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Reset to OSM</button>';
+      }
+      html += '</div>';
+      html += '<label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="bldgScreenCb" ' + (b.excluded ? '' : 'checked') + '> Include in barrier screening</label>';
+      html += '</div>';
+      return html;
+    }
+
     function renderBuildings() {
       buildingLayer.clearLayers();
-      buildings.forEach(function(b) {
-        var isEstimated = !b.heightSource;
-        var poly = L.polygon(b.polygon, {
-          color: isEstimated ? '#999' : '#555',
-          fillColor: isEstimated ? '#bbb' : '#888',
-          fillOpacity: 0.35,
-          weight: 1
+      buildings.forEach(function(b, bi) {
+        var style = getBuildingStyle(b);
+        var poly = L.polygon(b.polygon, style);
+        poly.bindTooltip(getBuildingTooltip(b));
+
+        // Click popup for height override
+        poly.on('click', function(e) {
+          L.popup({ maxWidth: 280 })
+            .setLatLng(e.latlng)
+            .setContent(buildingPopupHTML(b))
+            .openOn(map);
+
+          // Wire up popup buttons after DOM insertion
+          setTimeout(function() {
+            var applyBtn = document.getElementById('bldgHtApply');
+            var resetBtn = document.getElementById('bldgHtReset');
+            var screenCb = document.getElementById('bldgScreenCb');
+            var htInput = document.getElementById('bldgHtOverride');
+
+            if (applyBtn) applyBtn.addEventListener('click', function() {
+              var val = parseFloat(htInput.value);
+              if (Number.isFinite(val) && val > 0) {
+                b.heightM = val;
+                b.userHeightOverride = true;
+                b._originalHeightM = b._originalHeightM !== undefined ? b._originalHeightM : b.heightM;
+                map.closePopup();
+                renderBuildings();
+                if (typeof updateAll === 'function') updateAll();
+                if (typeof render === 'function') render();
+              }
+            });
+
+            if (resetBtn) resetBtn.addEventListener('click', function() {
+              if (b._originalHeightM !== undefined) b.heightM = b._originalHeightM;
+              else b.heightM = null;
+              b.userHeightOverride = false;
+              map.closePopup();
+              renderBuildings();
+              if (typeof updateAll === 'function') updateAll();
+              if (typeof render === 'function') render();
+            });
+
+            if (screenCb) screenCb.addEventListener('change', function() {
+              b.excluded = !this.checked;
+              map.closePopup();
+              renderBuildings();
+              if (typeof updateAll === 'function') updateAll();
+              if (typeof render === 'function') render();
+            });
+          }, 50);
         });
-        // Build descriptive tooltip
-        var htStr;
-        if (b.heightSource === 'osm') {
-          htStr = 'Height: ' + b.heightM.toFixed(0) + 'm (OSM)';
-        } else if (b.heightSource === 'levels') {
-          htStr = 'Height: ' + b.heightM.toFixed(0) + 'm (' + b.heightLevels + ' floor' + (b.heightLevels > 1 ? 's' : '') + ' \u00d7 3m)';
-        } else {
-          htStr = 'Height: 3m \u26a0 estimated \u2014 no data';
-        }
-        var tip = (b.name ? '<b>' + b.name + '</b><br>' : '') + htStr;
-        poly.bindTooltip(tip);
+
         buildingLayer.addLayer(poly);
       });
+
+      // Show/hide bulk reset button
+      var resetAllBtn = document.getElementById('buildingsResetAllBtn');
+      if (resetAllBtn) {
+        var hasOverrides = buildings.some(function(b) { return b.userHeightOverride || b.excluded; });
+        resetAllBtn.style.display = hasOverrides ? '' : 'none';
+      }
     }
 
     function fetchBuildingsInView() {
@@ -9229,9 +9341,12 @@ initCollapse();
             id: el.id,
             polygon: el.geometry.map(function(p) { return [p.lat, p.lon]; }),
             heightM: ht.value,
+            _originalHeightM: ht.value,
             heightSource: ht.source,
             heightLevels: ht.levels || null,
-            name: (el.tags && el.tags.name) ? el.tags.name : null
+            name: (el.tags && el.tags.name) ? el.tags.name : null,
+            userHeightOverride: false,
+            excluded: false
           });
         });
         window._buildings = buildings;
@@ -9247,6 +9362,22 @@ initCollapse();
           ' | height from OSM: ' + cOsm +
           ' | from levels: ' + cLevels +
           ' | default 3m: ' + cDefault);
+        // Apply any pending overrides from save/load
+        if (window._pendingBuildingOverrides) {
+          var overrides = window._pendingBuildingOverrides;
+          delete window._pendingBuildingOverrides;
+          overrides.forEach(function(ov) {
+            var b = buildings.find(function(bb) { return bb.id === ov.osmId; });
+            if (b) {
+              if (ov.heightM !== null && ov.heightM !== undefined) {
+                b.heightM = ov.heightM;
+                b.userHeightOverride = true;
+              }
+              if (ov.excluded) b.excluded = true;
+            }
+          });
+          console.log('Applied ' + overrides.length + ' building override(s) from saved assessment');
+        }
         if (_buildingsOn) renderBuildings();
       }).catch(function(err) {
         console.warn('Buildings fetch failed:', err);
@@ -9272,6 +9403,21 @@ initCollapse();
         } else {
           map.removeLayer(buildingLayer);
         }
+      });
+    }
+
+    // Bulk reset all building overrides
+    var resetAllBtn = document.getElementById('buildingsResetAllBtn');
+    if (resetAllBtn) {
+      resetAllBtn.addEventListener('click', function() {
+        buildings.forEach(function(b) {
+          if (b._originalHeightM !== undefined) b.heightM = b._originalHeightM;
+          b.userHeightOverride = false;
+          b.excluded = false;
+        });
+        renderBuildings();
+        if (typeof updateAll === 'function') updateAll();
+        if (typeof render === 'function') render();
       });
     }
 
@@ -9323,9 +9469,10 @@ initCollapse();
         var rec = { lat: recLL.lat, lng: recLL.lng };
 
         srcPositions.forEach(function(src) {
-          var edges = window._geometry.getIntersectingEdges(src, rec, window._buildings);
+          var screenable = getScreenableBuildings();
+          var edges = window._geometry.getIntersectingEdges(src, rec, screenable);
           var barrier = edges.length > 0
-            ? window._geometry.getDominantBarrier(src, rec, 1.5, iso_receiverHeight || 1.5, window._buildings)
+            ? window._geometry.getDominantBarrier(src, rec, 1.5, iso_receiverHeight || 1.5, screenable)
             : null;
           var colour, tip, dashed;
           if (edges.length === 0) {
