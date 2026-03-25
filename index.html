@@ -316,6 +316,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 .state-badge-other { background:#fef3c7; color:#92400e; }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" crossorigin="anonymous"/>
 </head>
 <body>
 
@@ -373,6 +374,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial</button>
           <button class="tool-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastre</button>
           <button class="tool-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
+          <button class="tool-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 5v14M5 12h14"/></svg> Draw Building</button>
           <button class="tool-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;font-size:11px;color:#666;padding:3px 8px;">Reset overrides</button>
           <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
           <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Major urban areas</button>
@@ -5688,16 +5690,31 @@ initCollapse();
         // Buildings layer toggle
         data.buildingsOn = window._getBuildingsOn ? window._getBuildingsOn() : true;
 
-        // Building height overrides
+        // Building height overrides (OSM buildings only — not custom)
         var overrides = [];
         if (window._buildings) {
           window._buildings.forEach(function(b) {
-            if (b.userHeightOverride || b.excluded) {
-              overrides.push({ osmId: b.id, heightM: b.heightM, excluded: !!b.excluded });
+            if (!b.isCustom && (b.userHeightOverride || b.excluded || b.demolished)) {
+              overrides.push({ osmId: b.id, heightM: b.heightM, excluded: !!b.excluded, demolished: !!b.demolished });
             }
           });
         }
         if (overrides.length > 0) data.buildingOverrides = overrides;
+
+        // Custom buildings (drawn by user)
+        var customs = window._getCustomBuildings ? window._getCustomBuildings() : [];
+        if (customs.length > 0) {
+          data.customBuildings = customs.map(function(cb) {
+            return { id: cb.id, polygon: cb.polygon, heightM: cb.heightM, name: cb.name };
+          });
+        }
+
+        // Demolished OSM buildings (separate list for clarity)
+        var demolished = [];
+        if (window._buildings) {
+          // Check all OSM buildings (not just screenable ones)
+        }
+        // Already captured in overrides with demolished flag
 
         // Address bar text
         var searchInp = document.getElementById('mapSearchInput');
@@ -6070,9 +6087,18 @@ initCollapse();
       if (data.buildingsOn !== undefined && window._setBuildingsOn) {
         window._setBuildingsOn(data.buildingsOn);
       }
-      // Apply building overrides after fetch completes
+      // Apply building overrides (including demolished) after fetch completes
       if (data.buildingOverrides && data.buildingOverrides.length > 0) {
         window._pendingBuildingOverrides = data.buildingOverrides;
+      }
+      // Restore custom buildings
+      if (data.customBuildings && data.customBuildings.length > 0 && window._setCustomBuildings) {
+        window._setCustomBuildings(data.customBuildings.map(function(cb) {
+          return {
+            id: cb.id, polygon: cb.polygon, heightM: cb.heightM,
+            name: cb.name, isCustom: true, userHeightOverride: true
+          };
+        }));
       }
 
       // 16. Re-render detected zones panel for VIC
@@ -6378,6 +6404,7 @@ initCollapse();
 
 <!-- ===== LEAFLET MAP ===== -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js" crossorigin="anonymous"></script>
 <script>
@@ -9191,12 +9218,20 @@ initCollapse();
     }
 
     /** Get buildings eligible for barrier screening (not excluded) */
+    /** Get buildings eligible for barrier screening (combined OSM + custom, minus excluded/demolished) */
     function getScreenableBuildings() {
-      return buildings.filter(function(b) { return !b.excluded; });
+      // After rebuildBuildingsIndex runs, window._buildings is the filtered set
+      // But before that (or if custom buildings not yet initialized), filter OSM directly
+      if (typeof customBuildings !== 'undefined') {
+        var osm = buildings.filter(function(b) { return !b.excluded && !b.demolished; });
+        return osm.concat(customBuildings);
+      }
+      return buildings.filter(function(b) { return !b.excluded && !b.demolished; });
     }
     window._getScreenableBuildings = getScreenableBuildings;
 
     function getBuildingStyle(b) {
+      if (b.demolished) return { color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 0.15, weight: 1, dashArray: '6 3' };
       if (b.excluded) return { color: '#aaa', fillColor: '#ccc', fillOpacity: 0.20, weight: 1 };
       if (b.userHeightOverride) return { color: '#2563eb', fillColor: '#4a90d9', fillOpacity: 0.45, weight: 1 };
       if (!b.heightSource) return { color: '#999', fillColor: '#bbb', fillOpacity: 0.35, weight: 1 };
@@ -9206,7 +9241,9 @@ initCollapse();
     function getBuildingTooltip(b) {
       var htStr;
       var effectiveH = (b.heightM != null) ? b.heightM : 3;
-      if (b.excluded) {
+      if (b.demolished) {
+        htStr = 'Demolished \u2014 excluded from all calculations';
+      } else if (b.excluded) {
         htStr = 'Excluded from screening';
       } else if (b.userHeightOverride) {
         htStr = 'Height: ' + effectiveH.toFixed(0) + 'm (user override)';
@@ -9296,6 +9333,16 @@ initCollapse();
               if (typeof updateAll === 'function') updateAll();
               if (typeof render === 'function') render();
             });
+
+            var demolishedCb = document.getElementById('bldgDemolishedCb');
+            if (demolishedCb) demolishedCb.addEventListener('change', function() {
+              b.demolished = this.checked;
+              if (b.demolished) b.excluded = true; // demolished implies excluded
+              map.closePopup();
+              renderBuildings();
+              if (typeof updateAll === 'function') updateAll();
+              if (typeof render === 'function') render();
+            });
           }, 50);
         });
 
@@ -9374,6 +9421,7 @@ initCollapse();
                 b.userHeightOverride = true;
               }
               if (ov.excluded) b.excluded = true;
+              if (ov.demolished) { b.demolished = true; b.excluded = true; }
             }
           });
           console.log('Applied ' + overrides.length + ' building override(s) from saved assessment');
@@ -9440,6 +9488,186 @@ initCollapse();
 
     // No initial fetch — buildings are off by default.
     // Fetch is triggered when user clicks the Buildings toggle.
+
+    /* ═══ Custom Buildings (drawn by user) ═══ */
+    var customBuildings = [];
+    var customBuildingLayer = L.layerGroup().addTo(map);
+
+    var CUSTOM_STYLE = {
+      color: '#922b21', fillColor: '#c0392b', fillOpacity: 0.45,
+      weight: 2, dashArray: '4 2'
+    };
+    var DEMOLISHED_STYLE = {
+      color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 0.15,
+      weight: 1, dashArray: '6 3'
+    };
+
+    /** Rebuild the combined window._buildings array from OSM + custom */
+    function rebuildBuildingsIndex() {
+      var combined = buildings.filter(function(b) { return !b.demolished && !b.excluded; });
+      customBuildings.forEach(function(cb) { combined.push(cb); });
+      window._buildings = combined;
+      if (typeof updateRayLines === 'function') updateRayLines();
+    }
+
+    function renderCustomBuildings() {
+      customBuildingLayer.clearLayers();
+      customBuildings.forEach(function(cb) {
+        var poly = L.polygon(cb.polygon, CUSTOM_STYLE);
+        var htStr = cb.heightM ? cb.heightM.toFixed(0) + 'm' : '?';
+        poly.bindTooltip((cb.name ? '<b>' + cb.name + '</b><br>' : '') + 'Height: ' + htStr + ' (custom)');
+
+        // Click popup for edit/delete
+        poly.on('click', function(e) {
+          var html = '<div style="min-width:200px;font-size:13px;">';
+          html += '<b>' + (cb.name || 'Custom building') + '</b><br>';
+          html += '<div style="margin:6px 0;">';
+          html += 'Name: <input type="text" id="cbName" value="' + (cb.name || '') + '" style="width:120px;padding:2px 4px;font-size:12px;"><br>';
+          html += 'Height: <input type="number" id="cbHeight" value="' + (cb.heightM || 3) + '" step="0.5" min="0" style="width:60px;padding:2px 4px;font-size:12px;"> m';
+          html += '</div>';
+          html += '<button id="cbApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
+          html += '<button id="cbDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#dc2626;">Delete</button>';
+          html += '</div>';
+
+          L.popup({ maxWidth: 280 }).setLatLng(e.latlng).setContent(html).openOn(map);
+
+          setTimeout(function() {
+            var applyBtn = document.getElementById('cbApply');
+            var deleteBtn = document.getElementById('cbDelete');
+
+            if (applyBtn) applyBtn.addEventListener('click', function() {
+              var nameVal = document.getElementById('cbName').value;
+              var htVal = parseFloat(document.getElementById('cbHeight').value);
+              if (nameVal) cb.name = nameVal;
+              if (Number.isFinite(htVal) && htVal > 0) cb.heightM = htVal;
+              map.closePopup();
+              renderCustomBuildings();
+              rebuildBuildingsIndex();
+              if (typeof render === 'function') render();
+            });
+
+            if (deleteBtn) deleteBtn.addEventListener('click', function() {
+              var idx = customBuildings.indexOf(cb);
+              if (idx !== -1) customBuildings.splice(idx, 1);
+              map.closePopup();
+              renderCustomBuildings();
+              rebuildBuildingsIndex();
+              if (typeof render === 'function') render();
+            });
+          }, 50);
+        });
+
+        customBuildingLayer.addLayer(poly);
+      });
+    }
+
+    // Draw Building button
+    var drawBuildingBtn = document.getElementById('drawBuildingBtn');
+    var _drawHandler = null;
+    if (drawBuildingBtn && typeof L.Draw !== 'undefined') {
+      drawBuildingBtn.addEventListener('click', function() {
+        if (_drawHandler) {
+          _drawHandler.disable();
+          _drawHandler = null;
+          drawBuildingBtn.classList.remove('active');
+          return;
+        }
+        _drawHandler = new L.Draw.Polygon(map, {
+          shapeOptions: CUSTOM_STYLE,
+          showArea: false
+        });
+        _drawHandler.enable();
+        drawBuildingBtn.classList.add('active');
+      });
+
+      map.on(L.Draw.Event.CREATED, function(e) {
+        if (e.layerType !== 'polygon') return;
+        drawBuildingBtn.classList.remove('active');
+        _drawHandler = null;
+
+        var latLngs = e.layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+        var center = e.layer.getBounds().getCenter();
+
+        // Show popup for height/name input
+        var html = '<div style="min-width:200px;font-size:13px;">';
+        html += '<b>New building</b><br>';
+        html += '<div style="margin:6px 0;">';
+        html += 'Height: <input type="number" id="newCbHeight" value="6" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;" autofocus> m (required)<br>';
+        html += 'Name: <input type="text" id="newCbName" placeholder="e.g. Proposed office" style="width:140px;padding:2px 4px;font-size:12px;">';
+        html += '</div>';
+        html += '<button id="newCbAdd" style="font-size:11px;padding:2px 8px;cursor:pointer;">Add Building</button> ';
+        html += '<button id="newCbCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button>';
+        html += '</div>';
+
+        L.popup({ maxWidth: 280, closeOnClick: false })
+          .setLatLng(center)
+          .setContent(html)
+          .openOn(map);
+
+        setTimeout(function() {
+          var addBtn = document.getElementById('newCbAdd');
+          var cancelBtn = document.getElementById('newCbCancel');
+
+          if (addBtn) addBtn.addEventListener('click', function() {
+            var ht = parseFloat(document.getElementById('newCbHeight').value);
+            var name = document.getElementById('newCbName').value || 'Custom building';
+            if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid height.'); return; }
+
+            customBuildings.push({
+              id: 'custom_' + Date.now(),
+              polygon: latLngs,
+              heightM: ht,
+              name: name,
+              isCustom: true,
+              userHeightOverride: true
+            });
+            map.closePopup();
+            renderCustomBuildings();
+            rebuildBuildingsIndex();
+            if (typeof render === 'function') render();
+          });
+
+          if (cancelBtn) cancelBtn.addEventListener('click', function() {
+            map.closePopup();
+          });
+        }, 50);
+      });
+    }
+
+    // Override renderBuildings to include demolished state and call rebuildBuildingsIndex
+    var _origRenderBuildings = renderBuildings;
+    renderBuildings = function() {
+      _origRenderBuildings();
+
+      // Re-style demolished buildings
+      buildingLayer.eachLayer(function(layer) {
+        // Find matching building data
+        // We need to check if any building in the layer is demolished
+      });
+
+      rebuildBuildingsIndex();
+    };
+
+    // Add "Demolished" option to OSM building popup
+    var _origBuildingPopupHTML = buildingPopupHTML;
+    buildingPopupHTML = function(b) {
+      var html = _origBuildingPopupHTML(b);
+      // Insert demolished checkbox before closing div
+      var demolishedCb = '<label style="font-size:12px;cursor:pointer;display:block;margin-top:4px;">' +
+        '<input type="checkbox" id="bldgDemolishedCb" ' + (b.demolished ? 'checked' : '') + '> ' +
+        'Demolished \u2014 exclude and show as removed</label>';
+      html = html.replace('</div>', demolishedCb + '</div>');
+      return html;
+    };
+
+    // Expose for save/load
+    window._getCustomBuildings = function() { return customBuildings; };
+    window._setCustomBuildings = function(arr) {
+      customBuildings.length = 0;
+      arr.forEach(function(cb) { customBuildings.push(cb); });
+      renderCustomBuildings();
+      rebuildBuildingsIndex();
+    };
 
     /* ═══ Ray-polygon debug layer ═══ */
     var rayLayer = L.layerGroup().addTo(map);
