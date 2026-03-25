@@ -9911,7 +9911,7 @@ initCollapse();
         var specAdj = 0;
         if (typeof SOURCE_LIBRARY !== 'undefined') {
           var first = equip[0];
-          var lib = SOURCE_LIBRARY.find(function(s) { return s.name === first._name; });
+          var lib = SOURCE_LIBRARY.find(function(s) { return s.name === first.name; });
           if (lib && lib.spectrum) {
             spec = lib.spectrum;
             specAdj = (first.Lw || 0) - (lib.lw || 0);
@@ -10011,62 +10011,77 @@ initCollapse();
           }
         }
 
-        // Chain segments into polylines
+        // Chain segments into polylines using hash-based endpoint matching
         if (segments.length === 0) return;
 
-        // Build adjacency: connect segments sharing endpoints
-        var EPS = (data.dLat + data.dLng) * 0.01;
-        function near(a, b) {
-          return Math.abs(a[0] - b[0]) < EPS && Math.abs(a[1] - b[1]) < EPS;
+        var PREC = 8; // decimal places for hash key
+        function ptKey(p) { return p[0].toFixed(PREC) + ',' + p[1].toFixed(PREC); }
+
+        // Build endpoint → segment index map
+        var endMap = {}; // key → [{ segIdx, endIdx (0 or 1) }]
+        for (var si2 = 0; si2 < segments.length; si2++) {
+          for (var ei = 0; ei < 2; ei++) {
+            var k = ptKey(segments[si2][ei]);
+            if (!endMap[k]) endMap[k] = [];
+            endMap[k].push({ seg: si2, end: ei });
+          }
         }
 
         var used = new Array(segments.length);
         var chains = [];
 
-        for (var si = 0; si < segments.length; si++) {
-          if (used[si]) continue;
-          used[si] = true;
-          var chain = [segments[si][0], segments[si][1]];
+        for (var si3 = 0; si3 < segments.length; si3++) {
+          if (used[si3]) continue;
+          used[si3] = true;
+          var chain = [segments[si3][0], segments[si3][1]];
 
           // Extend forward
-          var changed = true;
-          while (changed) {
-            changed = false;
-            var tail = chain[chain.length - 1];
-            for (var sj = 0; sj < segments.length; sj++) {
-              if (used[sj]) continue;
-              if (near(tail, segments[sj][0])) {
-                chain.push(segments[sj][1]); used[sj] = true; changed = true; break;
-              } else if (near(tail, segments[sj][1])) {
-                chain.push(segments[sj][0]); used[sj] = true; changed = true; break;
+          var extending = true;
+          while (extending) {
+            extending = false;
+            var tailKey = ptKey(chain[chain.length - 1]);
+            var candidates = endMap[tailKey];
+            if (candidates) {
+              for (var ci = 0; ci < candidates.length; ci++) {
+                var cand = candidates[ci];
+                if (used[cand.seg]) continue;
+                used[cand.seg] = true;
+                chain.push(segments[cand.seg][1 - cand.end]); // add the other end
+                extending = true;
+                break;
               }
             }
           }
           // Extend backward
-          changed = true;
-          while (changed) {
-            changed = false;
-            var head = chain[0];
-            for (var sk = 0; sk < segments.length; sk++) {
-              if (used[sk]) continue;
-              if (near(head, segments[sk][1])) {
-                chain.unshift(segments[sk][0]); used[sk] = true; changed = true; break;
-              } else if (near(head, segments[sk][0])) {
-                chain.unshift(segments[sk][1]); used[sk] = true; changed = true; break;
+          extending = true;
+          while (extending) {
+            extending = false;
+            var headKey = ptKey(chain[0]);
+            var candidates2 = endMap[headKey];
+            if (candidates2) {
+              for (var ci2 = 0; ci2 < candidates2.length; ci2++) {
+                var cand2 = candidates2[ci2];
+                if (used[cand2.seg]) continue;
+                used[cand2.seg] = true;
+                chain.unshift(segments[cand2.seg][1 - cand2.end]);
+                extending = true;
+                break;
               }
             }
           }
 
-          if (chain.length >= 2) chains.push(chain);
+          if (chain.length >= 3) chains.push(chain); // skip tiny fragments
         }
 
         // Smooth and draw each chain
+        var EPS2 = (data.dLat + data.dLng) * 0.01;
         chains.forEach(function(chain) {
           // Check if closed contour
-          if (chain.length >= 4 && near(chain[0], chain[chain.length - 1])) {
-            chain.push(chain[0]); // close loop before smoothing
-          }
-          var smoothed = chain.length >= 3 ? chaikinSmooth(chain, 4) : chain;
+          var isClosed = chain.length >= 4 &&
+            Math.abs(chain[0][0] - chain[chain.length-1][0]) < EPS2 &&
+            Math.abs(chain[0][1] - chain[chain.length-1][1]) < EPS2;
+          if (isClosed) chain.push(chain[0]);
+          var smoothed = chaikinSmooth(chain, 3);
           _noiseContourLayer.addLayer(L.polyline(smoothed, {
             color: '#333333', weight: 1, opacity: 0.6, interactive: false
           }));
