@@ -2,6 +2,10 @@
  * calc.js — ES module re-exports from shared-calc.js.
  * In browser: SharedCalc is loaded via <script src="shared-calc.js"> before this module.
  * In vitest: we dynamically import and eval shared-calc.js to populate the namespace.
+ *
+ * NOTE: This file uses top-level await and must be loaded as an ES module
+ * (e.g. <script type="module"> or import in vitest).
+ * Do not load via a classic <script> tag.
  */
 
 let SC;

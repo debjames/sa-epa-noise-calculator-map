@@ -9671,7 +9671,7 @@ initCollapse();
           html += '<button id="editBarDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#c0392b;">Delete</button>';
           html += '</div>';
 
-          L.popup({ maxWidth: 280, closeOnClick: false })
+          L.popup({ maxWidth: 280 })
             .setLatLng(e.latlng)
             .setContent(html)
             .openOn(map);

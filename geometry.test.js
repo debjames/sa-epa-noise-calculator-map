@@ -311,22 +311,18 @@ describe('getDominantBarrier', () => {
     expect(result.pathLengthDiff).toBeCloseTo(0.45, 1);
   });
 
-  it('2-vertex polyline barrier: getBuildingEdges produces valid segments', () => {
-    // A drawn barrier is a polyline with just 2 vertices — no closing polygon
-    // getBuildingEdges should produce 2 edges: [v0→v1] and [v1→v0] (closing)
+  it('2-vertex polyline barrier: getBuildingEdges produces single forward edge', () => {
+    // A drawn barrier is a polyline with just 2 vertices
+    // getBuildingEdges emits only the forward edge — no duplicate reverse
     var midLng = 50 / 111320;
     var polyline = [
       [-0.001, midLng],  // south end of barrier
       [ 0.001, midLng]   // north end of barrier
     ];
     var edges = getBuildingEdges(polyline);
-    expect(edges.length).toBe(2);
-    // First edge: v0 → v1
+    expect(edges.length).toBe(1); // single forward edge, no duplicate reverse
     expect(edges[0][0]).toEqual(polyline[0]);
     expect(edges[0][1]).toEqual(polyline[1]);
-    // Second edge: v1 → v0 (closing)
-    expect(edges[1][0]).toEqual(polyline[1]);
-    expect(edges[1][1]).toEqual(polyline[0]);
   });
 
   it('2-vertex polyline barrier produces correct screening via getDominantBarrier', () => {
@@ -375,5 +371,71 @@ describe('getDominantBarrier', () => {
     );
     expect(result).not.toBeNull();
     expect(result.pathLengthDiff).toBe(0);
+  });
+
+  it('parallel barrier: no intersection, returns null', () => {
+    // Barrier runs east-west, parallel to the source-receiver ray (also east-west)
+    // No segment crosses the ray → no screening
+    var recLng = 100 / 111320;
+    var barrier = {
+      id: 'barrier_parallel',
+      polygon: [
+        [0, 0.0001],           // point east of source, on the ray line
+        [0, 0.0002]            // further east, still on the ray
+      ],
+      heightM: 6,
+      name: null
+    };
+    var result = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      1, 1.5, [barrier]
+    );
+    // Parallel segments do not cross — segmentsIntersect returns null
+    expect(result).toBeNull();
+  });
+
+  it('3-vertex polyline barrier: middle segment crosses ray, screening applied', () => {
+    // Source at origin, receiver 100m east
+    // 3-vertex barrier: south → mid (crosses ray) → north
+    var midLng = 50 / 111320;
+    var recLng = 100 / 111320;
+    var barrier = {
+      id: 'barrier_3v',
+      polygon: [
+        [-0.001, midLng - 0.00001],  // south-west
+        [ 0,     midLng],             // crosses the east-west ray at midpoint
+        [ 0.001, midLng + 0.00001]   // north-east
+      ],
+      heightM: 6,
+      name: null
+    };
+    var result = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      1, 1.5, [barrier]
+    );
+    expect(result).not.toBeNull();
+    expect(result.barrierHeightM).toBe(6);
+    expect(result.pathLengthDiff).toBeGreaterThan(0);
+  });
+
+  it('barrier too short to cross ray: no intersection, returns null', () => {
+    // Both barrier endpoints are south of the source-receiver ray
+    // The barrier segment does not cross the ray
+    var recLng = 100 / 111320;
+    var midLng = 50 / 111320;
+    var barrier = {
+      id: 'barrier_miss',
+      polygon: [
+        [-0.001, midLng],   // south of ray
+        [-0.002, midLng]    // even further south
+      ],
+      heightM: 6,
+      name: null
+    };
+    var result = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      1, 1.5, [barrier]
+    );
+    expect(result).toBeNull();
   });
 });

@@ -190,11 +190,19 @@ var SharedCalc = (function() {
     return null;
   }
 
-  /** Returns all edges of a building polygon as segment pairs. */
+  /** Returns all edges of a building polygon (or barrier polyline) as segment pairs.
+   *  For 2-vertex polylines (drawn barriers), only emits the forward edge —
+   *  the closing edge would be a duplicate reverse of the same segment. */
   function getBuildingEdges(polygon) {
     var edges = [];
-    for (var i = 0; i < polygon.length; i++) {
-      var j = (i + 1) % polygon.length;
+    var n = polygon.length;
+    // 2-vertex polyline: single segment, no closing edge
+    if (n === 2) {
+      edges.push([polygon[0], polygon[1]]);
+      return edges;
+    }
+    for (var i = 0; i < n; i++) {
+      var j = (i + 1) % n;
       edges.push([polygon[i], polygon[j]]);
     }
     return edges;
@@ -251,6 +259,10 @@ var SharedCalc = (function() {
    * Includes line-of-sight check: if barrier height is below
    * the direct line from source to receiver at the barrier position,
    * δ is forced to 0 (no screening).
+   *
+   * NOTE: selects edge closest to path midpoint, not max δ —
+   * may under/overestimate in multi-barrier scenarios.
+   * This is a deliberate performance trade-off.
    */
   function getDominantBarrier(srcLL, recLL, srcHeightM, recHeightM, buildings) {
     var edges = getIntersectingEdges(srcLL, recLL, buildings);
