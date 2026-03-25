@@ -15,6 +15,7 @@ import {
   sourceContribution,
   totalAtReceiver,
   calcBarrierAttenuation,
+  calcISOatPoint,
 } from './calc.js';
 
 // ---------------------------------------------------------------------------
@@ -226,5 +227,54 @@ describe('calcBarrierAttenuation', () => {
 
   it('returns 8 values for 8 frequency bands', () => {
     expect(calcBarrierAttenuation(0.5, FREQS).length).toBe(8);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calcISOatPoint — shared ISO 9613-2 prediction
+// ---------------------------------------------------------------------------
+const ISO_SPECTRUM = [37, 43, 48, 53, 56, 54, 51, 43]; // small exhaust fan reference
+
+describe('calcISOatPoint', () => {
+  it('returns a finite number for valid inputs', () => {
+    const result = calcISOatPoint(ISO_SPECTRUM, 1.5, 50, 0, 0, 1.5, {
+      temperature: 10, humidity: 70, groundFactor: 0.5
+    });
+    expect(Number.isFinite(result)).toBe(true);
+  });
+
+  it('regression: small exhaust fan at 50m ≈ 15.3 dB(A)', () => {
+    const result = calcISOatPoint(ISO_SPECTRUM, 1.0, 50, 0, 0, 1.5, {
+      temperature: 10, humidity: 70, groundFactor: 0.5
+    });
+    expect(Math.abs(result - 15.26)).toBeLessThan(0.5);
+  });
+
+  it('returns NaN for null spectrum', () => {
+    expect(calcISOatPoint(null, 1.5, 50, 0, 0, 1.5, {})).toBeNaN();
+  });
+
+  it('returns NaN for zero distance', () => {
+    expect(calcISOatPoint(ISO_SPECTRUM, 1.5, 0, 0, 0, 1.5, {})).toBeNaN();
+  });
+
+  it('barrier delta > 0 reduces result vs no barrier', () => {
+    const noBarrier = calcISOatPoint(ISO_SPECTRUM, 1.5, 50, 0, 0, 1.5, {
+      temperature: 10, humidity: 70, groundFactor: 0.5
+    });
+    const withBarrier = calcISOatPoint(ISO_SPECTRUM, 1.5, 50, 0, 0.45, 1.5, {
+      temperature: 10, humidity: 70, groundFactor: 0.5
+    });
+    expect(withBarrier).toBeLessThan(noBarrier);
+  });
+
+  it('adjDB shifts the result by the expected amount', () => {
+    const base = calcISOatPoint(ISO_SPECTRUM, 1.5, 50, 0, 0, 1.5, {
+      temperature: 10, humidity: 70, groundFactor: 0.5
+    });
+    const plus3 = calcISOatPoint(ISO_SPECTRUM, 1.5, 50, 3, 0, 1.5, {
+      temperature: 10, humidity: 70, groundFactor: 0.5
+    });
+    expect(plus3 - base).toBeCloseTo(3, 0);
   });
 });

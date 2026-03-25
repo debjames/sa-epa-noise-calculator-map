@@ -21,32 +21,8 @@ var getDominantBarrier   = SharedCalc.getDominantBarrier;
 var calcAgrPerBand       = SharedCalc.calcAgrPerBand;
 var calcAlphaAtm         = SharedCalc.calcAlphaAtm;
 var calcBarrierAttenuation = SharedCalc.calcBarrierAttenuation;
+var calcISOatPoint        = SharedCalc.calcISOatPoint;
 var ISO_FREQS            = SharedCalc.OCT_FREQ;
-
-/* ─── ISO 9613-2 at a grid point ─── */
-
-function calcISOatPoint(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams) {
-  if (!spectrum || distM <= 0) return NaN;
-  var d = Math.max(distM, 1);
-  var hS = Math.max(srcHeight, 0.01);
-  var hR = recvHeight || 1.5;
-  var alpha = calcAlphaAtm(isoParams.temperature || 10, isoParams.humidity || 70);
-  var Adiv = 20 * Math.log10(d) + 11;
-  var Agr = calcAgrPerBand(hS, hR, d, isoParams.groundFactor || 0.5);
-  var Abar = calcBarrierAttenuation(barrierDelta || 0, ISO_FREQS);
-
-  var sumLin = 0;
-  var anyBand = false;
-  for (var i = 0; i < 8; i++) {
-    var Lw_f = spectrum[i];
-    if (Lw_f === null || Lw_f === undefined || !isFinite(Lw_f)) continue;
-    var A_f = Adiv + alpha[i] * d / 1000 + Agr[i] + Abar[i];
-    sumLin += Math.pow(10, (Lw_f + (adjDB || 0) - A_f) / 10);
-    anyBand = true;
-  }
-  if (!anyBand) return NaN;
-  return 10 * Math.log10(sumLin);
-}
 
 /* ─── Main grid computation ─── */
 
@@ -99,6 +75,7 @@ self.onmessage = function(e) {
 
         var insideBuilding = false;
         for (var bi = 0; bi < buildings.length; bi++) {
+          if (buildings[bi].isBarrier) continue; // barriers are polylines, not closed polygons
           if (pointInPolygon(pt, buildings[bi].polygon)) {
             insideBuilding = true;
             break;

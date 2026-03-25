@@ -306,6 +306,46 @@ var SharedCalc = (function() {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //  ISO 9613-2 — Single point prediction (shared between main + worker)
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * ISO 9613-2 prediction for a single source at a receiver point.
+   * All parameters are explicit — no global state dependencies.
+   * @param {number[]} spectrum - A-weighted Lw per octave band [63..8k]
+   * @param {number} srcHeight - source height above ground (m)
+   * @param {number} distM - distance source to receiver (m)
+   * @param {number} adjDB - adjustment (quantity + opTime) in dB
+   * @param {number} barrierDelta - path length difference for barrier (m), 0 if none
+   * @param {number} recvHeight - receiver height above ground (m)
+   * @param {object} isoParams - { temperature, humidity, groundFactor }
+   * @returns {number} predicted LAeq at receiver, or NaN
+   */
+  function calcISOatPoint(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams) {
+    if (!spectrum || distM <= 0) return NaN;
+    var d = Math.max(distM, 1);
+    var hS = Math.max(srcHeight, 0.01);
+    var hR = recvHeight || 1.5;
+    var params = isoParams || {};
+    var alpha = calcAlphaAtm(params.temperature || 10, params.humidity || 70);
+    var Adiv = 20 * Math.log10(d) + 11;
+    var Agr = calcAgrPerBand(hS, hR, d, params.groundFactor != null ? params.groundFactor : 0.5);
+    var Abar = calcBarrierAttenuation(barrierDelta || 0, OCT_FREQ);
+
+    var sumLin = 0;
+    var anyBand = false;
+    for (var i = 0; i < 8; i++) {
+      var Lw_f = spectrum[i];
+      if (Lw_f === null || Lw_f === undefined || !isFinite(Lw_f)) continue;
+      var A_f = Adiv + alpha[i] * d / 1000 + Agr[i] + Abar[i];
+      sumLin += Math.pow(10, (Lw_f + (adjDB || 0) - A_f) / 10);
+      anyBand = true;
+    }
+    if (!anyBand) return NaN;
+    return 10 * Math.log10(sumLin);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //  Public API
   // ═══════════════════════════════════════════════════════════════
 
@@ -322,6 +362,7 @@ var SharedCalc = (function() {
     calcAgrPerBand: calcAgrPerBand,
     calcAlphaAtm: calcAlphaAtm,
     calcBarrierAttenuation: calcBarrierAttenuation,
+    calcISOatPoint: calcISOatPoint,
     // Geometry
     segmentsIntersect: segmentsIntersect,
     getBuildingEdges: getBuildingEdges,

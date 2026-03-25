@@ -2297,48 +2297,12 @@ function calcAlphaAtm(tempC, humPct) {
  *  @param {number} adjDB - adjustment to apply to each band (quantity + opTime + barrier, in dB)
  *  @returns {number} predicted LAeq at receiver */
 function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recvHeight) {
-  if (!spectrumA || distM <= 0) return NaN;
-  var d = Math.max(distM, 1); // clamp minimum 1m
-  var hS = Math.max(srcHeight, 0.01); // avoid zero height
   var hR = (recvHeight !== undefined && Number.isFinite(recvHeight)) ? recvHeight : iso_receiverHeight;
-  var alpha = calcAlphaAtm(iso_temperature, iso_humidity);
-
-  // Geometric divergence (ISO 9613-2 Eq 8): point source, free field
-  var Adiv = 20 * log10(d) + 11;
-
-  // Frequency-dependent ground attenuation (ISO 9613-2 Table 3, §7.3.1)
-  var Agr = calcAgrPerBand(hS, hR, d, iso_groundFactor);
-
-  // Barrier attenuation (ISO 9613-2 Section 8)
-  var FREQUENCIES = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
-  var Abar = (barrierDelta > 0)
-    ? window._calc.calcBarrierAttenuation(barrierDelta, FREQUENCIES)
-    : [0, 0, 0, 0, 0, 0, 0, 0];
-
-  // Sum across octave bands
-  var sumLin = 0;
-  var anyBand = false;
-  for (var i = 0; i < 8; i++) {
-    var Lw_f = spectrumA[i];
-    if (Lw_f === null || Lw_f === undefined || !Number.isFinite(Lw_f)) continue;
-
-    // Apply quantity/opTime adjustment
-    var Lw_adj = Lw_f + adjDB;
-
-    // Atmospheric absorption for this band
-    var Aatm_f = alpha[i] * d / 1000;
-
-    // Total attenuation for this band (ISO 9613-2 Eq 5 + barrier)
-    var A_f = Adiv + Aatm_f + Agr[i] + Abar[i];
-
-    // Received level: Lp = Lw - A
-    var Lp_f = Lw_adj - A_f;
-
-    sumLin += Math.pow(10, Lp_f / 10);
-    anyBand = true;
-  }
-  if (!anyBand) return NaN;
-  return 10 * log10(sumLin);
+  return SharedCalc.calcISOatPoint(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
+    temperature: iso_temperature,
+    humidity: iso_humidity,
+    groundFactor: iso_groundFactor
+  });
 }
 
 /** Read spectrum, height, and adjDB for one equipment row from source-scoped DOM IDs.
@@ -3128,17 +3092,7 @@ function makeSourceSelect(value="", library=SOURCE_LIBRARY_GROUPED_NON_LMAX){
 }
 
 
-function makeYesNoSelect(value="No"){
-  const sel = document.createElement("select");
-  ["No","Yes"].forEach(v=>{
-    const o = document.createElement("option");
-    o.value = v;
-    o.textContent = v;
-    sel.appendChild(o);
-  });
-  sel.value = value || "No";
-  return sel;
-}
+
 
 function loadLS(key){ const v = localStorage.getItem(key); return v === null ? "" : v; }
 function saveLS(key, val){ localStorage.setItem(key, String(val)); }
@@ -3412,6 +3366,13 @@ function renderSourceCards(expandIdx) {
 
 // "+ Add Source" button handler
 document.addEventListener('DOMContentLoaded', function() {
+  // One-time cleanup: remove orphaned barrier localStorage keys from pre-refactor sessions
+  try {
+    Object.keys(localStorage)
+      .filter(function(k) { return k.includes('_bar_'); })
+      .forEach(function(k) { localStorage.removeItem(k); });
+  } catch(e) { /* localStorage may be unavailable */ }
+
   var addBtn = document.getElementById('addSourceBtn');
   if (addBtn) {
     addBtn.addEventListener('click', function() {
@@ -4336,11 +4297,9 @@ function copySourcesFromDay(targetPrefix) {
     const srcVal = loadLS(`day_src_${i}`);
     const nVal = loadLS(`day_n_${i}`);
     const minVal = loadLS(`day_min_${i}`);
-    const barVal = loadLS(`day_bar_${i}`);
     if (srcVal) saveLS(`${targetPrefix}_src_${i}`, srcVal);
     if (nVal) saveLS(`${targetPrefix}_n_${i}`, nVal);
     if (minVal) saveLS(`${targetPrefix}_min_${i}`, minVal);
-    if (barVal) saveLS(`${targetPrefix}_bar_${i}`, barVal);
   }
   renderSourceTable(targetPrefix, `${targetPrefix}SrcRows`, `${targetPrefix}SrcTotal`, 5);
 }
@@ -10416,7 +10375,7 @@ initCollapse();
         gridResolutionM: gridRes,
         sources: workerSources,
         buildings: screenable.map(function(b) {
-          return { polygon: b.polygon, heightM: b.heightM };
+          return { polygon: b.polygon, heightM: b.heightM, isBarrier: !!b.isBarrier };
         }),
         propagationMethod: propagationMethod || 'simple',
         isoParams: {

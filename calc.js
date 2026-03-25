@@ -24,3 +24,4 @@ export const sourceCombinedLw       = SC.sourceCombinedLw;
 export const sourceContribution     = SC.sourceContribution;
 export const totalAtReceiver        = SC.totalAtReceiver;
 export const calcBarrierAttenuation = SC.calcBarrierAttenuation;
+export const calcISOatPoint         = SC.calcISOatPoint;
