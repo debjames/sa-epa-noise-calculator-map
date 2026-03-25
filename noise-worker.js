@@ -9,7 +9,15 @@
  *           { type: 'error', message }
  */
 
-/* ─── Inlined acoustic formulas (no module imports in workers) ─── */
+/* ─── Load shared ISO 9613-2 functions ─── */
+importScripts('noise-calc-core.js');
+
+var calcAgrPerBand = NoiseCalcCore.calcAgrPerBand;
+var calcAlphaAtm = NoiseCalcCore.calcAlphaAtm;
+var calcBarrierAttenuation = NoiseCalcCore.calcBarrierAttenuation;
+var ISO_FREQS = NoiseCalcCore.OCT_FREQ;
+
+/* ─── Inlined acoustic formulas (simple method — no module imports in workers) ─── */
 
 function attenuatePoint(Lw, r) {
   if (r <= 0) r = 0.1;
@@ -102,64 +110,16 @@ function getDominantBarrier(srcLL, recLL, srcHeightM, recHeightM, buildings) {
   return { barrierHeightM: barrierH, pathLengthDiff: delta };
 }
 
-/* ─── ISO 9613-2 (simplified for grid — no per-band detail needed) ─── */
-
-var ISO_FREQS = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
-
-// Atmospheric absorption coefficients at 10°C, 70% RH (default)
-function calcAlphaAtm(temp, humidity) {
-  // Simplified — use standard values for each band
-  var T = temp || 10;
-  var H = humidity || 70;
-  var f = ISO_FREQS;
-  var alpha = [];
-  for (var i = 0; i < 8; i++) {
-    var fr = f[i];
-    // ISO 9613-1 simplified formula
-    var fro = (24 + 4.04e4 * H * (0.02 + H) / (0.391 + H));
-    var frn = Math.pow(T / 293.15, -0.5) * (9 + 280 * H * Math.exp(-4.17 * (Math.pow(T / 293.15, -1/3) - 1)));
-    var a = 8.686 * fr * fr * (
-      1.84e-11 * Math.pow(293.15 / T, 0.5) +
-      Math.pow(T / 293.15, -2.5) * (
-        0.01275 * Math.exp(-2239.1 / T) / (fro + fr * fr / fro) +
-        0.1068 * Math.exp(-3352.0 / T) / (frn + fr * fr / frn)
-      )
-    );
-    alpha.push(a);
-  }
-  return alpha;
-}
-
-function calcAgrSimple(hS, hR, d, G) {
-  // Simplified ground attenuation per ISO 9613-2
-  var agr = [];
-  for (var i = 0; i < 8; i++) {
-    var f = ISO_FREQS[i];
-    if (f <= 125) agr.push(-1.5 + G * (-1.5));
-    else if (f === 250) agr.push(-1.5 + G * (-1.5 + 3 * Math.exp(-0.12 * (hS - 5) * (hS - 5)) * (1 - Math.exp(-d / 50))));
-    else if (f >= 500) agr.push(-1.5 * (1 - G));
-    else agr.push(0);
-  }
-  return agr;
-}
-
-function calcBarrierAttenuation(delta, frequencies) {
-  if (delta <= 0) return frequencies.map(function() { return 0; });
-  return frequencies.map(function(f) {
-    var lambda = 340 / f;
-    var raw = 10 * Math.log10(3 + (20 * delta) / lambda);
-    return Math.max(0, Math.min(raw, 20));
-  });
-}
+/* ─── ISO 9613-2 at a grid point (uses shared calcAgrPerBand + calcAlphaAtm) ─── */
 
 function calcISOatPoint(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams) {
   if (!spectrum || distM <= 0) return NaN;
   var d = Math.max(distM, 1);
   var hS = Math.max(srcHeight, 0.01);
   var hR = recvHeight || 1.5;
-  var alpha = calcAlphaAtm(isoParams.temperature, isoParams.humidity);
+  var alpha = calcAlphaAtm(isoParams.temperature || 10, isoParams.humidity || 70);
   var Adiv = 20 * Math.log10(d) + 11;
-  var Agr = calcAgrSimple(hS, hR, d, isoParams.groundFactor || 0.5);
+  var Agr = calcAgrPerBand(hS, hR, d, isoParams.groundFactor || 0.5);
   var Abar = calcBarrierAttenuation(barrierDelta || 0, ISO_FREQS);
 
   var sumLin = 0;
