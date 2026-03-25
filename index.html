@@ -6538,6 +6538,7 @@ initCollapse();
     var latlngs = {};   /* key -> {lat,lng} */
     var lines   = {};   /* key -> L.polyline */
     var currentMode = 'source';
+    var _drawingActive = false; // true while Leaflet.draw polygon is being drawn
 
     /* Expose source and receiver positions for functions outside the IIFE */
     window.getSourceLatLng = function(idx) {
@@ -8901,7 +8902,10 @@ initCollapse();
     }
 
     /* ---- map click ---- */
-    map.on('click', function (e) { placeMarker(currentMode, e.latlng); });
+    map.on('click', function (e) {
+      if (_drawingActive) return; // don't place markers while drawing a building polygon
+      placeMarker(currentMode, e.latlng);
+    });
 
     /* ---- mode buttons (click to select mode, click again to remove placed marker) ---- */
     function removeMarker(mode) {
@@ -9565,13 +9569,26 @@ initCollapse();
     var drawBuildingBtn = document.getElementById('drawBuildingBtn');
     var _drawHandler = null;
     if (drawBuildingBtn && typeof L.Draw !== 'undefined') {
+      function stopDrawing() {
+        _drawingActive = false;
+        _drawHandler = null;
+        drawBuildingBtn.classList.remove('active');
+        // Restore previous placement mode button visual
+        var prevBtn = document.getElementById('mapMode-' + currentMode);
+        if (prevBtn) prevBtn.classList.add('active');
+      }
+
       drawBuildingBtn.addEventListener('click', function() {
         if (_drawHandler) {
           _drawHandler.disable();
-          _drawHandler = null;
-          drawBuildingBtn.classList.remove('active');
+          stopDrawing();
           return;
         }
+        // Deactivate all placement mode buttons
+        _drawingActive = true;
+        document.querySelectorAll('.map-mode-btn').forEach(function(b) {
+          b.classList.remove('active');
+        });
         _drawHandler = new L.Draw.Polygon(map, {
           shapeOptions: CUSTOM_STYLE,
           showArea: false
@@ -9580,10 +9597,14 @@ initCollapse();
         drawBuildingBtn.classList.add('active');
       });
 
+      // Handle Escape / cancel (Leaflet.draw fires this)
+      map.on('draw:drawstop', function() {
+        if (_drawingActive && !_drawHandler) stopDrawing();
+      });
+
       map.on(L.Draw.Event.CREATED, function(e) {
         if (e.layerType !== 'polygon') return;
-        drawBuildingBtn.classList.remove('active');
-        _drawHandler = null;
+        stopDrawing();
 
         var latLngs = e.layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
         var center = e.layer.getBounds().getCenter();
