@@ -2829,16 +2829,14 @@ var _recalcDebounceTimer = null;
 function markResultsStale() {
   if (!_hasRunCalculation) return; // no stale indicator before first calc
   _resultsAreStale = true;
+  // Show fixed-position toast so user sees it regardless of scroll position
   var existing = document.getElementById('staleResultsBanner');
   if (!existing) {
-    var predCard = document.querySelector('#predicted_table');
-    if (predCard) {
-      var banner = document.createElement('div');
-      banner.id = 'staleResultsBanner';
-      banner.style.cssText = 'background:#fef3cd;color:#856404;padding:6px 12px;font-size:12px;border:1px solid #ffc107;border-radius:4px;margin-bottom:8px;';
-      banner.textContent = '\u26A0 Geometry changed \u2014 results may be outdated';
-      predCard.parentNode.insertBefore(banner, predCard);
-    }
+    var banner = document.createElement('div');
+    banner.id = 'staleResultsBanner';
+    banner.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:99999;background:#fef3cd;color:#856404;padding:8px 16px;font-size:13px;border:1px solid #ffc107;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);';
+    banner.textContent = '\u26A0 Geometry changed \u2014 recalculating\u2026';
+    document.body.appendChild(banner);
   }
 }
 
@@ -2856,8 +2854,10 @@ function triggerRecalculation() {
     var hasReceiver = false;
     var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
     ['r1','r2','r3','r4'].forEach(function(k) { if (allLL[k]) hasReceiver = true; });
-    if (!hasSource || !hasReceiver) return;
+    if (!hasSource || !hasReceiver) { clearStaleIndicator(); return; }
     if (typeof render === 'function') render();
+    // Also recompute noise map if active
+    if (window._recomputeNoiseMap) window._recomputeNoiseMap();
     clearStaleIndicator();
   }, 300);
 }
@@ -10439,6 +10439,7 @@ initCollapse();
 
     // Save/load noise map state
     window._getNoiseMapOn = function() { return _noiseMapOn; };
+    window._recomputeNoiseMap = function() { if (_noiseMapOn) computeNoiseMap(); };
     window._setNoiseMapOn = function(v) {
       _noiseMapOn = !!v;
       if (noiseMapBtn) noiseMapBtn.classList.toggle('active', _noiseMapOn);
