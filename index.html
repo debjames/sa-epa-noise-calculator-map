@@ -127,10 +127,7 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.tool-btn:hover { background: #f9f9f9; }
-
 /* ===== Distance map ===== */
-.map-mode-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
 #noise-map { position: relative; z-index: 1; }
 .map-status-row { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:8px; font-size:12px; font-weight:600; }
 
@@ -147,23 +144,13 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .contrib-sub-h { font-size:12px; font-weight:700; margin:0 0 6px; }
 .contrib-section + .contrib-section { margin-top:16px; }
 
-/* ===== Zone / map toggle buttons ===== */
-.zone-toggle-btn { border-color: #059669; color: #059669; }
-.zone-toggle-btn:hover { background: #f0fdf4; }
-.zone-toggle-btn.active { background: #a7f3d0; border-color: #34d399; color: #064e3b; font-weight: 700; }
-.aerial-toggle-btn { border-color: #2563eb; color: #2563eb; }
-.aerial-toggle-btn:hover { background: #eff6ff; }
-.aerial-toggle-btn.active { background: #dbeafe; border-color: #93c5fd; color: #1e40af; font-weight: 700; }
-.cadastre-toggle-btn { border-color: #6b7280; color: #6b7280; }
-.cadastre-toggle-btn:hover { background: #f3f4f6; }
-.cadastre-toggle-btn.active { background: #e5e7eb; border-color: #9ca3af; color: #374151; font-weight: 700; }
-.pins-toggle-btn:hover { background: #f0f5fa; }
-.pins-toggle-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
-.parcel-toggle-btn:hover { background: #f0f5fa; }
-.parcel-toggle-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
-.urban-boundary-toggle-btn { border-color: #6b7280; color: #6b7280; }
-.urban-boundary-toggle-btn:hover { background: #f3f4f6; }
-.urban-boundary-toggle-btn.active { background: #e5e7eb; border-color: #9ca3af; color: #374151; font-weight: 700; }
+/* ===== Unified toggle button styles ===== */
+/* All toolbar toggles share the same base, hover, and active states */
+.tool-btn:hover { background: #f0f5fa; }
+.tool-btn.active { background: #dbe8f4; border-color: #90b4d2; font-weight: 700; }
+/* Clear All keeps distinct warning style */
+#mapClearBtn { color: #dc2626; border-color: #dc2626; margin-left: auto; }
+#mapClearBtn:hover { background: #fef2f2; }
 .zone-detect-flash {
   animation: zoneFlash 1.5s ease-out;
 }
@@ -368,12 +355,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
         <!-- Row 1: Sources/receivers + Clear All -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;align-items:center;">
-          <button class="tool-btn map-mode-btn" id="mapClearBtn" title="Remove all markers and clear distances" style="color:#dc2626;border-color:#dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg> Clear All</button>
           <button class="tool-btn map-mode-btn active" id="mapMode-source" title="Click map to place noise source" style="border-left:3px solid #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise Source</button>
           <button class="tool-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1</button>
           <button class="tool-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
           <button class="tool-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
           <button class="tool-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4</button>
+          <button class="tool-btn map-mode-btn" id="mapClearBtn" title="Remove all markers and clear distances"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg> Clear All</button>
         </div>
         <!-- Row 2: View modes -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;align-items:center;">
