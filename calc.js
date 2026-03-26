@@ -32,6 +32,7 @@ export const totalAtReceiver        = SC.totalAtReceiver;
 export const calcBarrierAttenuation = SC.calcBarrierAttenuation;
 export const calcBarrierWithEndDiffraction = SC.calcBarrierWithEndDiffraction;
 export const calcISOatPoint         = SC.calcISOatPoint;
+export const calcISOatPointDetailed = SC.calcISOatPointDetailed;
 export const calcAgrPerBand         = SC.calcAgrPerBand;
 export const calcAlphaAtm           = SC.calcAlphaAtm;
 export const OCT_FREQ               = SC.OCT_FREQ;

@@ -179,3 +179,22 @@ describe('ISO/TR 17534-3 T04: Spatially varying G (Gs=0.2, Gm=0.5, Gr=0.9)', () 
     expect(result).toBeLessThan(44.5);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// T08/T09/T11 DEFERRED — barrier geometry pending
+// ═══════════════════════════════════════════════════════════════
+// Issue: computed Dz values are consistently higher than ISO/TR 17534-3 reference.
+// Root cause hypothesis: current implementation uses absolute barrier height.
+// ISO 9613-2 Section 7 uses effective height above the source-receiver line of sight.
+// For a 6m barrier where LOS at that position is 3.63m, effective height = 2.37m.
+// This changes z = d_ss + d_sr - d and all downstream Dz values.
+// Requires dedicated re-read of ISO 9613-2 §7.3 and §7.4 before fixing.
+// Commit: 5beb828. To be addressed in a separate pass.
+//
+// When returning to this, start by reading ISO 9613-2 §7.3 (path length
+// difference z for single diffraction). The key question is whether d_ss
+// and d_sr in Formula (16) are measured to the physical top of the barrier,
+// or to the point where the ray grazes the barrier top above the line of
+// sight. The ISO/TR 17534-3 step-by-step intermediate values in Tables
+// 20–21 and 26–27 provide the ground truth — work backwards from those
+// reference values to understand what geometry the standard expects.

@@ -484,6 +484,71 @@ var SharedCalc = (function() {
     return 10 * Math.log10(sumLin);
   }
 
+  /**
+   * Detailed ISO 9613-2 prediction returning per-band intermediate values.
+   * Same calculation as calcISOatPoint but returns full breakdown for §5.2.2 compliance.
+   * @returns {object} { total, bands: [{ freq, Lw, Adiv, Aatm, Agr, Abar, AgrBar, Lp, LA }] }
+   */
+  function calcISOatPointDetailed(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight) {
+    if (!spectrum || distM <= 0) return null;
+    var d = Math.max(distM, 1);
+    var hS = Math.max(srcHeight, 0.01);
+    var hR = recvHeight || 1.5;
+    var params = isoParams || {};
+    var alpha = calcAlphaAtm(params.temperature || 10, params.humidity || 70);
+    var Adiv = 20 * Math.log10(d) + 11;
+    var Agr = calcAgrPerBand(hS, hR, d, params.groundFactor != null ? params.groundFactor : 0.5);
+
+    var Abar;
+    if ((endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0) {
+      Abar = calcBarrierWithEndDiffraction(barrierDelta || 0, endDeltaLeft || 0, endDeltaRight || 0, OCT_FREQ);
+    } else {
+      Abar = calcBarrierAttenuation(barrierDelta || 0, OCT_FREQ);
+    }
+
+    var hasBarrier = (barrierDelta || 0) > 0 || (endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0;
+    var bands = [];
+    var sumLin = 0;
+
+    for (var i = 0; i < 8; i++) {
+      var Lw_f = spectrum[i];
+      if (Lw_f === null || Lw_f === undefined || !isFinite(Lw_f)) {
+        bands.push({ freq: OCT_FREQ[i], Lw: NaN, Adiv: Adiv, Aatm: 0, Agr: Agr[i], Abar: Abar[i], AgrBar: 0, Lp: NaN });
+        continue;
+      }
+      var Aatm_f = alpha[i] * d;
+      var AgrBar_f;
+      if (hasBarrier && Abar[i] > 0) {
+        var AgrClamped = Math.max(Agr[i], 0);
+        AgrBar_f = Math.max(Abar[i], AgrClamped);
+      } else {
+        AgrBar_f = Agr[i];
+      }
+      var A_f = Adiv + Aatm_f + AgrBar_f;
+      var Lp_f = Lw_f + (adjDB || 0) - A_f;
+      sumLin += Math.pow(10, Lp_f / 10);
+      bands.push({
+        freq: OCT_FREQ[i],
+        Lw: Lw_f + (adjDB || 0),
+        Adiv: Adiv,
+        Aatm: Aatm_f,
+        Agr: Agr[i],
+        Abar: Abar[i],
+        AgrBar: AgrBar_f,
+        Lp: Lp_f
+      });
+    }
+
+    return {
+      total: sumLin > 0 ? 10 * Math.log10(sumLin) : NaN,
+      distance: d,
+      srcHeight: hS,
+      recvHeight: hR,
+      Adiv: Adiv,
+      bands: bands
+    };
+  }
+
   // ═══════════════════════════════════════════════════════════════
   //  Public API
   // ═══════════════════════════════════════════════════════════════
@@ -502,6 +567,7 @@ var SharedCalc = (function() {
     calcAlphaAtm: calcAlphaAtm,
     calcBarrierAttenuation: calcBarrierAttenuation,
     calcISOatPoint: calcISOatPoint,
+    calcISOatPointDetailed: calcISOatPointDetailed,
     calcBarrierWithEndDiffraction: calcBarrierWithEndDiffraction,
     // Geometry
     segmentsIntersect: segmentsIntersect,
