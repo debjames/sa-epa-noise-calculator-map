@@ -1133,6 +1133,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <th style="text-align:right;padding:3px 6px;">A<sub>atm</sub></th>
               <th style="text-align:right;padding:3px 6px;">A<sub>gr</sub></th>
               <th style="text-align:right;padding:3px 6px;">A<sub>bar</sub></th>
+              <th style="text-align:right;padding:3px 6px;">A<sub>terr</sub></th>
               <th style="text-align:right;padding:3px 6px;">A<sub>gr/bar</sub></th>
               <th style="text-align:right;padding:3px 6px;font-weight:700;">L<sub>p</sub></th>
             </tr>
@@ -1224,7 +1225,9 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="h2" style="font-size:13px;">Noise map</div>
     <div class="p">The noise map generates a predicted sound level grid across the map extent using the selected propagation method. Grid resolution is adaptive (5&ndash;50&thinsp;m based on zoom level). Contour lines are interpolated from the grid and represent equal noise level lines in dB(A). The noise map uses the same source inputs, propagation method, and receiver height as the receiver predictions. Contour accuracy degrades at the edges of the grid and at large distances from sources.</div>
     <div class="h2" style="font-size:13px;">Zone detection</div>
-    <div class="p" style="margin-bottom:0;">Receiver zones are detected automatically by querying the SA Planning portal (SAPPA) based on the receiver map location. Zone detection requires an internet connection and relies on the SAPPA API returning current data. Users should verify zone classifications independently, as the API may not reflect recent planning amendments. Zone information is used to apply the applicable EPA noise criteria for that receiver.</div>
+    <div class="p">Receiver zones are detected automatically by querying the SA Planning portal (SAPPA) based on the receiver map location. Zone detection requires an internet connection and relies on the SAPPA API returning current data. Users should verify zone classifications independently, as the API may not reflect recent planning amendments. Zone information is used to apply the applicable EPA noise criteria for that receiver.</div>
+    <div class="h2" style="font-size:13px;">Terrain screening</div>
+    <div class="p" style="margin-bottom:0;">Where ground elevation data is available, the terrain profile between each source and receiver is sampled using the Open-Elevation API. The dominant intervening ridgeline is identified and diffraction loss calculated using the Maekawa formula (identical to the building barrier method). Only the single dominant path is assessed; multiple diffraction is not modelled. Where terrain and building barriers coincide, the greater insertion loss is applied.</div>
   </div>
 </div>
 </div>
@@ -1639,9 +1642,106 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     }
   }
 
+  /**
+   * Detect the dominant ridgeline from a terrain profile.
+   * @param {Array} profile - from getTerrainProfile
+   * @param {number} srcHeightAboveGround - source height above its ground (m)
+   * @param {number} recHeightAboveGround - receiver height above its ground (m)
+   * @returns {object|null} { index, lat, lng, distance_m, elevation_m, protrusion_m, delta_m }
+   *   or null if no point protrudes above the direct line of sight.
+   */
+  function detectDominantRidge(profile, srcHeightAboveGround, recHeightAboveGround) {
+    if (!profile || profile.length < 3) return null;
+    var srcElev = profile[0].elevation_m;
+    var recElev = profile[profile.length - 1].elevation_m;
+    if (srcElev === null || recElev === null) return null;
+
+    var srcTip = srcElev + srcHeightAboveGround;
+    var recTip = recElev + recHeightAboveGround;
+    var totalDist = profile[profile.length - 1].distanceFromSource_m;
+    if (totalDist <= 0) return null;
+
+    var bestIdx = -1;
+    var bestProtrusion = 0;
+    for (var i = 1; i < profile.length - 1; i++) {
+      var p = profile[i];
+      if (p.elevation_m === null) continue;
+      var t = p.distanceFromSource_m / totalDist;
+      var losElev = srcTip + t * (recTip - srcTip);
+      var protrusion = p.elevation_m - losElev;
+      if (protrusion > bestProtrusion) {
+        bestProtrusion = protrusion;
+        bestIdx = i;
+      }
+    }
+
+    if (bestIdx < 0) return null; // no obstruction
+
+    var ridge = profile[bestIdx];
+    // Compute path-length difference δ (3D distances using ASL heights)
+    var d1_horiz = ridge.distanceFromSource_m;
+    var d2_horiz = totalDist - d1_horiz;
+    var dh1 = ridge.elevation_m - srcTip;
+    var dh2 = ridge.elevation_m - recTip;
+    var d1_3d = Math.sqrt(d1_horiz * d1_horiz + dh1 * dh1);
+    var d2_3d = Math.sqrt(d2_horiz * d2_horiz + dh2 * dh2);
+    var dDirect = Math.sqrt(totalDist * totalDist + (recTip - srcTip) * (recTip - srcTip));
+
+    // Use Fresnel zone δ (consistent with building barrier implementation)
+    var a_perp = bestProtrusion; // perpendicular distance above LOS
+    var delta = (d1_3d + d2_3d > 0) ? 2 * a_perp * a_perp / (d1_3d + d2_3d) : 0;
+
+    return {
+      index: bestIdx,
+      lat: ridge.lat,
+      lng: ridge.lng,
+      distance_m: ridge.distanceFromSource_m,
+      elevation_m: ridge.elevation_m,
+      protrusion_m: bestProtrusion,
+      delta_m: delta
+    };
+  }
+
+  /**
+   * Compute terrain diffraction insertion loss for a source-receiver pair.
+   * Uses the existing Maekawa/ISO 9613-2 barrier formula.
+   * @param {Array} profile - from getTerrainProfile
+   * @param {number} srcH - source height above ground (m)
+   * @param {number} recH - receiver height above ground (m)
+   * @returns {object} { delta_m, insertionLoss_dB, ridge, perBand: number[8] }
+   *   insertionLoss_dB is the broadband (1kHz) IL. perBand is per octave band.
+   *   All zero if no ridge detected. perBand is null if SharedCalc not available.
+   */
+  function calcTerrainDiffraction(profile, srcH, recH) {
+    var result = { delta_m: 0, insertionLoss_dB: 0, ridge: null, perBand: null };
+    var ridge = detectDominantRidge(profile, srcH, recH);
+    if (!ridge || ridge.delta_m <= 0) return result;
+
+    result.ridge = ridge;
+    result.delta_m = ridge.delta_m;
+
+    // Use SharedCalc barrier formula (same as buildings)
+    if (typeof SharedCalc !== 'undefined') {
+      var freqs = SharedCalc.OCT_FREQ || [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+      var abar = SharedCalc.calcBarrierAttenuation(ridge.delta_m, freqs, true);
+      result.perBand = abar;
+      // Broadband IL ≈ 1kHz band value
+      result.insertionLoss_dB = abar[4]; // 1kHz band
+    } else {
+      // Fallback: simple Maekawa at 1kHz
+      var lambda = 0.343;
+      result.insertionLoss_dB = Math.max(0, Math.min(20,
+        10 * Math.log10(3 + 20 * ridge.delta_m / lambda)));
+    }
+
+    return result;
+  }
+
   // Public API
   window.getTerrainProfile = getTerrainProfile;
   window.renderTerrainProfileSVG = renderTerrainProfileSVG;
+  window.detectDominantRidge = detectDominantRidge;
+  window.calcTerrainDiffraction = calcTerrainDiffraction;
 })();
 </script>
 
@@ -2808,6 +2908,40 @@ var sources = [
 // Distances matrix: sourceDistances[srcIdx][recvIdx] = metres (populated by updateAll)
 window._sourceDistances = [];
 
+// Terrain diffraction cache: _terrainIL[srcIdx][recvIdx] = { delta_m, perBand: number[8] } | null
+// Populated asynchronously when pins are placed. Used synchronously in calcPredAtReceiver.
+var _terrainIL = [];
+
+/** Compute and cache terrain diffraction for a source-receiver pair. Async — call after pin placement. */
+function updateTerrainIL(srcIdx, recvIdx) {
+  if (!window.getTerrainProfile || !window.calcTerrainDiffraction) return;
+  var src = (typeof sources !== 'undefined' && sources[srcIdx]) ? sources[srcIdx] : null;
+  if (!src || src.lat === null) return;
+  var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+  var recLL = allLL['r' + (recvIdx + 1)];
+  if (!recLL) return;
+
+  var srcH = src.heightM || 1.5;
+  var recH = (typeof getReceiverHeight === 'function') ? getReceiverHeight(recvIdx) : 1.5;
+
+  getTerrainProfile(src.lat, src.lng, recLL.lat, recLL.lng, 25).then(function(profile) {
+    var result = calcTerrainDiffraction(profile, srcH, recH);
+    if (!_terrainIL[srcIdx]) _terrainIL[srcIdx] = [];
+    _terrainIL[srcIdx][recvIdx] = (result.delta_m > 0) ? result : null;
+  });
+}
+
+/** Refresh terrain IL for all source-receiver pairs. Call after any pin movement. */
+function refreshAllTerrainIL() {
+  if (typeof sources === 'undefined') return;
+  sources.forEach(function(src, si) {
+    if (src.lat === null) return;
+    for (var ri = 0; ri < 4; ri++) {
+      updateTerrainIL(si, ri);
+    }
+  });
+}
+
 // State detection: 'SA' | 'VIC' | 'NSW' | 'OTHER' | null
 let currentState = null;
 let vicAreaType = 'urban'; // 'urban' | 'rural' (VIC only)
@@ -3472,9 +3606,15 @@ function calcPredAtReceiver(prefix, sourcesForPeriod, receiverIdx, fallbackDista
     var lp = window._calc.sourceContribution(validSources[vi], validDistances[vi]);
     if (!isFinite(lp)) continue;
 
-    // Barrier screening if buildings/barriers present
+    // Barrier and terrain screening
+    // Apply the GREATER of building barrier IL and terrain IL — do not add both.
+    // This prevents double-counting when a ridgeline coincides with a building.
+    var buildingIL = 0;
+    var terrainIL = 0;
+    var si = validSources[vi]._sourceIdx || 0;
+
+    // Building/barrier screening
     if (screenable.length > 0 && recLL) {
-      var si = validSources[vi]._sourceIdx || 0;
       var srcLat = (typeof sources !== 'undefined' && sources[si]) ? sources[si].lat : null;
       var srcLng = (typeof sources !== 'undefined' && sources[si]) ? sources[si].lng : null;
       if (srcLat !== null && srcLng !== null) {
@@ -3486,10 +3626,19 @@ function calcPredAtReceiver(prefix, sourcesForPeriod, receiverIdx, fallbackDista
           var Abar = SharedCalc.calcBarrierWithEndDiffraction(
             barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
           );
-          lp -= Math.min(Abar[0], 20);
+          buildingIL = Math.min(Abar[0], 20);
         }
       }
     }
+
+    // Terrain diffraction (from pre-computed cache)
+    if (_terrainIL[si] && _terrainIL[si][receiverIdx]) {
+      var til = _terrainIL[si][receiverIdx];
+      terrainIL = til.insertionLoss_dB || 0;
+    }
+
+    // Apply the greater of building IL and terrain IL
+    lp -= Math.max(buildingIL, terrainIL);
     contributions.push(lp);
   }
 
@@ -4894,10 +5043,15 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
 
   if (!detail) { panel.style.display = 'none'; return; }
 
+  // Get terrain IL for this pair (from pre-computed cache)
+  var terrainData = (_terrainIL[sourceIdx] && _terrainIL[sourceIdx][receiverIdx]) ? _terrainIL[sourceIdx][receiverIdx] : null;
+  var terrainPerBand = (terrainData && terrainData.perBand) ? terrainData.perBand : null;
+
   // Render table
   var html = '';
   for (var i = 0; i < detail.bands.length; i++) {
     var b = detail.bands[i];
+    var aterr = (terrainPerBand && terrainPerBand[i] > 0) ? terrainPerBand[i] : 0;
     html += '<tr style="border-bottom:1px solid #eee;">';
     html += '<td style="padding:3px 6px;font-weight:600;">' + b.freq + '</td>';
     html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(b.Lw) ? b.Lw.toFixed(1) : '—') + '</td>';
@@ -4905,6 +5059,7 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
     html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(b.Aatm) ? b.Aatm.toFixed(1) : '—') + '</td>';
     html += '<td style="text-align:right;padding:3px 6px;">' + b.Agr.toFixed(1) + '</td>';
     html += '<td style="text-align:right;padding:3px 6px;">' + (b.Abar > 0 ? b.Abar.toFixed(1) : '—') + '</td>';
+    html += '<td style="text-align:right;padding:3px 6px;">' + (aterr > 0 ? aterr.toFixed(1) : '—') + '</td>';
     html += '<td style="text-align:right;padding:3px 6px;">' + b.AgrBar.toFixed(1) + '</td>';
     html += '<td style="text-align:right;padding:3px 6px;font-weight:700;">' + (isFinite(b.Lp) ? b.Lp.toFixed(1) : '—') + '</td>';
     html += '</tr>';
@@ -4912,7 +5067,7 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
   // Total row
   html += '<tr style="border-top:2px solid #333;font-weight:700;background:#f8f9fa;">';
   html += '<td style="padding:3px 6px;">Total</td>';
-  html += '<td colspan="6"></td>';
+  html += '<td colspan="7"></td>';
   html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(detail.total) ? detail.total.toFixed(1) : '—') + ' dB</td>';
   html += '</tr>';
 
@@ -9512,6 +9667,9 @@ initCollapse();
         });
       }
       window._sourceDistances = sd;
+
+      // Refresh terrain IL cache (async — will update on next render)
+      if (typeof refreshAllTerrainIL === 'function') refreshAllTerrainIL();
 
       // Primary source for legacy distance inputs (Source 0)
       var src = latlngs['source_0'] || latlngs['source'];
