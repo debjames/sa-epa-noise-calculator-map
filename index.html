@@ -1180,22 +1180,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   </div>
   </div>
 
-  <!-- Methodology panel -->
-  <div class="card" style="margin-top:14px;">
-    <h2>Methodology</h2>
-    <div class="h2" style="font-size:13px;">Sound pressure level prediction</div>
-    <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Two propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), and ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity). It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
-    <div class="h2" style="font-size:13px;">Barrier attenuation</div>
-    <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. The tool uses the Maekawa diffraction formula based on path-length difference to determine insertion loss. For ISO 9613-2, attenuation is applied per octave band and capped at 20 dB. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.</div>
-    <div class="h2" style="font-size:13px;">Operational time</div>
-    <div class="p" id="opTimeNote">The calculation provides an option to input the expected operational time during a 15 minute assessment period. This will provide a 10&middot;log time weighting to the source level to account for the contribution during the assessment period.</div>
-    <div class="h2" style="font-size:13px;">Multiple sources &mdash; energy summation</div>
-    <div class="p">Where more than one noise source is present, contributions at each receiver are combined by energy summation: L<sub>total</sub> = 10&middot;log<sub>10</sub>(&Sigma; 10<sup>L<sub>i</sub>/10</sup>). The combined level will always be higher than the loudest individual source, but by no more than 3 dB when two equal sources are present.</div>
-    <div class="h2" style="font-size:13px;">Noise map</div>
-    <div class="p">The noise map generates a predicted sound level grid across the map extent using the selected propagation method. Grid resolution is adaptive (5&ndash;50&thinsp;m based on zoom level). Contour lines are interpolated from the grid and represent equal noise level lines in dB(A). The noise map uses the same source inputs, propagation method, and receiver height as the receiver predictions. Contour accuracy degrades at the edges of the grid and at large distances from sources.</div>
-    <div class="h2" style="font-size:13px;">Zone detection</div>
-    <div class="p" style="margin-bottom:0;">Receiver zones are detected automatically by querying the SA Planning portal (SAPPA) based on the receiver map location. Zone detection requires an internet connection and relies on the SAPPA API returning current data. Users should verify zone classifications independently, as the API may not reflect recent planning amendments. Zone information is used to apply the applicable EPA noise criteria for that receiver.</div>
-  </div>
   <div style="margin-top:14px;"></div>
   <button class="pdf-btn" id="pdfBtn" type="button" style="display:none;">Export PDF</button>
   <button class="pdf-btn" id="pdfCriteriaBtn" type="button" style="display:none;">PDF Criteria</button>
@@ -1217,6 +1201,23 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       <b>KML</b> — use with Google Earth or Google Maps.<br>
       <b>CSV</b> — receivers only, for Excel or data joins.
     </div>
+  </div>
+
+  <!-- Methodology panel -->
+  <div class="card" style="margin-top:14px;">
+    <h2>Methodology</h2>
+    <div class="h2" style="font-size:13px;">Sound pressure level prediction</div>
+    <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Two propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), and ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity). It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
+    <div class="h2" style="font-size:13px;">Barrier attenuation</div>
+    <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. The tool uses the Maekawa diffraction formula based on path-length difference to determine insertion loss. For ISO 9613-2, attenuation is applied per octave band and capped at 20 dB. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.</div>
+    <div class="h2" style="font-size:13px;">Operational time</div>
+    <div class="p" id="opTimeNote">The calculation provides an option to input the expected operational time during a 15 minute assessment period. This will provide a 10&middot;log time weighting to the source level to account for the contribution during the assessment period.</div>
+    <div class="h2" style="font-size:13px;">Multiple sources &mdash; energy summation</div>
+    <div class="p">Where more than one noise source is present, contributions at each receiver are combined by energy summation: L<sub>total</sub> = 10&middot;log<sub>10</sub>(&Sigma; 10<sup>L<sub>i</sub>/10</sup>). The combined level will always be higher than the loudest individual source, but by no more than 3 dB when two equal sources are present.</div>
+    <div class="h2" style="font-size:13px;">Noise map</div>
+    <div class="p">The noise map generates a predicted sound level grid across the map extent using the selected propagation method. Grid resolution is adaptive (5&ndash;50&thinsp;m based on zoom level). Contour lines are interpolated from the grid and represent equal noise level lines in dB(A). The noise map uses the same source inputs, propagation method, and receiver height as the receiver predictions. Contour accuracy degrades at the edges of the grid and at large distances from sources.</div>
+    <div class="h2" style="font-size:13px;">Zone detection</div>
+    <div class="p" style="margin-bottom:0;">Receiver zones are detected automatically by querying the SA Planning portal (SAPPA) based on the receiver map location. Zone detection requires an internet connection and relies on the SAPPA API returning current data. Users should verify zone classifications independently, as the API may not reflect recent planning amendments. Zone information is used to apply the applicable EPA noise criteria for that receiver.</div>
   </div>
 </div>
 </div>
