@@ -58,21 +58,21 @@ self.onmessage = function(e) {
     }
 
     // Terrain diffraction: check if ridgeline obstructs source→receiver ray
-    // Samples 10 points along the ray using the DEM tile
+    // Returns { delta, perBand: number[8], broadband: number } or null
     function terrainILForRay(srcLL, srcH, recLL, recH) {
-      if (!demTile) return 0;
+      if (!demTile) return null;
       var srcElev = demElevAt(srcLL.lat, srcLL.lng);
       var recElev = demElevAt(recLL.lat, recLL.lng);
-      if (srcElev === null || recElev === null) return 0;
+      if (srcElev === null || recElev === null) return null;
 
       var srcTip = srcElev + srcH;
       var recTip = recElev + recH;
       var totalDist = flatDistM(srcLL, recLL);
-      if (totalDist < 1) return 0;
+      if (totalDist < 1) return null;
 
       var bestProtrusion = 0;
       var bestD1 = 0, bestD2 = 0;
-      var N_SAMPLES = 10;
+      var N_SAMPLES = 20;
       for (var i = 1; i < N_SAMPLES; i++) {
         var t = i / N_SAMPLES;
         var sLat = srcLL.lat + t * (recLL.lat - srcLL.lat);
@@ -88,17 +88,17 @@ self.onmessage = function(e) {
         }
       }
 
-      if (bestProtrusion <= 0) return 0;
+      if (bestProtrusion <= 0) return null;
 
       // Fresnel zone delta (same as building barriers)
       var d1_3d = Math.sqrt(bestD1 * bestD1 + bestProtrusion * bestProtrusion);
       var d2_3d = Math.sqrt(bestD2 * bestD2 + bestProtrusion * bestProtrusion);
       var delta = (d1_3d + d2_3d > 0) ? 2 * bestProtrusion * bestProtrusion / (d1_3d + d2_3d) : 0;
-      if (delta <= 0) return 0;
+      if (delta <= 0) return null;
 
-      // Broadband IL at 1kHz
-      var lambda = 0.343;
-      return Math.max(0, Math.min(20, 10 * Math.log10(3 + 20 * delta / lambda)));
+      // Per-band Maekawa IL using SharedCalc (same formula as building barriers)
+      var perBand = calcBarrierAttenuation(delta, ISO_FREQS, true);
+      return { delta: delta, perBand: perBand, broadband: perBand[4] }; // [4] = 1kHz
     }
 
     var midLat = (bounds.north + bounds.south) / 2;
@@ -169,28 +169,40 @@ self.onmessage = function(e) {
             }
           }
 
-          // Compute building barrier IL
+          // Compute building barrier IL (broadband at 1kHz for simple method)
           var buildingIL_broadband = 0;
           if (barrierDelta > 0 || endDeltaLeft > 0 || endDeltaRight > 0) {
             var Abar_bb = calcBarrierWithEndDiffraction(barrierDelta, endDeltaLeft, endDeltaRight, [1000]);
             buildingIL_broadband = Math.min(Abar_bb[0], 20);
           }
 
-          // Compute terrain IL
-          var terrIL = terrainILForRay(srcLL, src.heightM, pt, recvHeight);
-
-          // Apply max(building, terrain) — do not add both (prevents double-counting)
-          var effectiveIL = Math.max(buildingIL_broadband, terrIL);
+          // Compute terrain IL (per-band)
+          var terrResult = terrainILForRay(srcLL, src.heightM, pt, recvHeight);
+          var terrIL_broadband = terrResult ? terrResult.broadband : 0;
 
           var lp;
           if (method === 'iso9613' && src.spectrum) {
-            // For ISO: apply building barrier per-band, terrain as broadband adjustment
+            // ISO: apply per-band terrain IL where it exceeds building barrier
+            // Building barrier is already applied per-band inside calcISOatPoint
             lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight);
-            // If terrain IL exceeds building IL, apply the additional terrain contribution
-            if (terrIL > buildingIL_broadband && isFinite(lp)) {
-              lp -= (terrIL - buildingIL_broadband);
+            if (terrResult && terrIL_broadband > buildingIL_broadband && isFinite(lp)) {
+              // Terrain exceeds building — apply the per-band excess
+              var bldgPerBand = (barrierDelta > 0 || endDeltaLeft > 0 || endDeltaRight > 0)
+                ? calcBarrierWithEndDiffraction(barrierDelta, endDeltaLeft, endDeltaRight, ISO_FREQS)
+                : ISO_FREQS.map(function() { return 0; });
+              // Recompute with terrain IL replacing building IL where terrain is larger
+              var terrPerBand = terrResult.perBand;
+              var excessSum = 0;
+              for (var bi = 0; bi < 8; bi++) {
+                var excess = Math.max(0, terrPerBand[bi] - bldgPerBand[bi]);
+                excessSum += excess;
+              }
+              // Apply average per-band excess as broadband adjustment
+              if (excessSum > 0) lp -= (excessSum / 8);
             }
           } else {
+            // Simple method: apply max(building, terrain) broadband
+            var effectiveIL = Math.max(buildingIL_broadband, terrIL_broadband);
             lp = attenuatePoint(src.combinedLw, dist);
             lp -= effectiveIL;
           }

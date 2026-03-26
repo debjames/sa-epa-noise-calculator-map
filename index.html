@@ -881,7 +881,9 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <p style="margin:4px 0;"><strong>Barrier attenuation:</strong> Barrier screening is calculated from drawn barriers and OSM building footprints using the Maekawa diffraction formula with path-length difference &delta;. Screening is applied per octave band for ISO&nbsp;9613-2, or as a broadband approximation for the simple method. Three diffraction paths are computed (over top + two lateral ends) per ISO/TR&nbsp;17534-3 &sect;5.2. The 20&thinsp;dB cap applies to over-top D<sub>z</sub> only (&sect;5.3); lateral values are uncapped.</p>
               <p style="margin:4px 0;"><strong>Barrier D<sub>z</sub> geometry:</strong> Uses the Fresnel zone path-length difference (z&nbsp;=&nbsp;2a&sup2;/(d<sub>ss</sub>+d<sub>sr</sub>)) where a is the perpendicular distance from the diffraction edge to the source&ndash;receiver line. ISO/TR&nbsp;17534-3 barrier test cases T08 and T09 validated within &plusmn;1.0&thinsp;dB.</p>
               <p style="margin:4px 0;"><strong>Directivity (D<sub>c</sub>):</strong> All sources are treated as omnidirectional (D<sub>c</sub>&nbsp;=&nbsp;0). Source directivity is not modelled.</p>
-              <p style="margin:4px 0;"><strong>Screening (A<sub>bar</sub>), miscellaneous (A<sub>misc</sub>):</strong> Not implemented. No terrain screening, industrial-site screening, or housing/vegetation attenuation is included. Terrain is assumed flat.</p>
+              <p style="margin:4px 0;"><strong>Barrier screening (A<sub>bar</sub>):</strong> Building and barrier screening uses the Maekawa diffraction formula with Fresnel zone path-length difference, computed per octave band. Three diffraction paths (over top + two lateral ends) are energy-summed per ISO/TR 17534-3 &sect;5.2. The 20&nbsp;dB (single) / 25&nbsp;dB (double diffraction) cap applies to the over-top path only &mdash; lateral paths are uncapped.</p>
+              <p style="margin:4px 0;"><strong>Terrain screening:</strong> Per-band Maekawa diffraction applied to the single dominant ridgeline detected from DEM (Open-Elevation API). Uses the same Fresnel zone &delta; formula as building barriers. Where both building and terrain screening exist, the greater per-band insertion loss is applied (no double-counting).</p>
+              <p style="margin:4px 0;"><strong>Miscellaneous (A<sub>misc</sub>):</strong> Not implemented. No industrial-site screening or housing/vegetation attenuation is included.</p>
               <p style="margin:4px 0;"><strong>Convergence with simple method:</strong> On hard ground (G=0) with no atmospheric absorption, A<sub>gr</sub>&nbsp;=&nbsp;&minus;3&nbsp;dB at all bands, so the ISO formula reduces to L<sub>w</sub>&nbsp;&minus;&nbsp;20&thinsp;log<sub>10</sub>(d)&nbsp;&minus;&nbsp;8, matching the simple hemispherical spreading method.</p>
               <p style="margin:4px 0;"><strong>Contour map:</strong> The noise contour map uses an adaptive grid (5&ndash;50&thinsp;m resolution based on zoom level) with Chaikin curve smoothing applied to contour boundaries. Grid point results may differ slightly from discrete receiver calculations due to interpolation.</p>
               <p style="margin:4px 0;"><strong>Ground factor:</strong> A single ground factor G is applied uniformly to source, receiver, and middle regions. The calculation engine supports per-region factors (G<sub>s</sub>,&nbsp;G<sub>r</sub>,&nbsp;G<sub>m</sub>) but the UI currently exposes only a single value.</p>
@@ -2768,13 +2770,34 @@ function getReceiverHeight(receiverIdx) {
  *  @param {number} distM - distance source to receiver (m)
  *  @param {number} adjDB - adjustment to apply to each band (quantity + opTime + barrier, in dB)
  *  @returns {number} predicted LAeq at receiver */
-function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recvHeight, endDeltaLeft, endDeltaRight) {
+function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recvHeight, endDeltaLeft, endDeltaRight, terrainPerBand) {
   var hR = (recvHeight !== undefined && Number.isFinite(recvHeight)) ? recvHeight : iso_receiverHeight;
-  return SharedCalc.calcISOatPoint(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
+  var result = SharedCalc.calcISOatPoint(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
     temperature: iso_temperature,
     humidity: iso_humidity,
     groundFactor: iso_groundFactor
   }, endDeltaLeft || 0, endDeltaRight || 0);
+
+  // Apply per-band terrain IL where it exceeds building barrier IL
+  if (terrainPerBand && Number.isFinite(result)) {
+    var detailed = SharedCalc.calcISOatPointDetailed(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
+      temperature: iso_temperature, humidity: iso_humidity, groundFactor: iso_groundFactor
+    }, endDeltaLeft || 0, endDeltaRight || 0);
+    if (detailed && detailed.bands) {
+      var correctedLin = 0;
+      for (var bi = 0; bi < 8; bi++) {
+        var bandLp = detailed.bands[bi].Lp;
+        if (!Number.isFinite(bandLp)) continue;
+        var bldgAbar = detailed.bands[bi].Abar || 0;
+        var terrAbar = terrainPerBand[bi] || 0;
+        // Apply excess terrain attenuation beyond what building already provides
+        var excess = Math.max(0, terrAbar - bldgAbar);
+        correctedLin += Math.pow(10, (bandLp - excess) / 10);
+      }
+      if (correctedLin > 0) result = 10 * Math.log10(correctedLin);
+    }
+  }
+  return result;
 }
 
 /** Read spectrum, height, and adjDB for one equipment row from source-scoped DOM IDs.
@@ -2860,6 +2883,14 @@ function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
 
   var endDeltaL = endDeltaL || 0;
   var endDeltaR = endDeltaR || 0;
+
+  // Per-band terrain IL (applied where it exceeds building barrier)
+  var terrainPerBand = null;
+  if (_terrainEnabled && _terrainIL[sourceIdx] && _terrainIL[sourceIdx][receiverIdx]) {
+    var til = _terrainIL[sourceIdx][receiverIdx];
+    if (til.perBand && til.insertionLoss_dB > 0) terrainPerBand = til.perBand;
+  }
+
   var totalLin = 0;
   var anySrc = false;
 
@@ -2869,7 +2900,7 @@ function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
 
     if (info.spectrumA) {
       // Full octave-band ISO 9613-2 with barrier + end diffraction
-      var pred = calcISO9613single(info.spectrumA, info.srcHeight, distM, info.adjDB, barrierDelta, recHeightM, endDeltaL, endDeltaR);
+      var pred = calcISO9613single(info.spectrumA, info.srcHeight, distM, info.adjDB, barrierDelta, recHeightM, endDeltaL, endDeltaR, terrainPerBand);
       if (Number.isFinite(pred)) {
         totalLin += Math.pow(10, pred / 10);
         anySrc = true;
@@ -3652,8 +3683,8 @@ function calcPredAtReceiver(prefix, sourcesForPeriod, receiverIdx, fallbackDista
       }
     }
 
-    // Terrain diffraction (from pre-computed cache)
-    if (_terrainIL[si] && _terrainIL[si][receiverIdx]) {
+    // Terrain diffraction (from pre-computed cache — only when terrain toggle is enabled)
+    if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][receiverIdx]) {
       var til = _terrainIL[si][receiverIdx];
       terrainIL = til.insertionLoss_dB || 0;
     }
@@ -5072,7 +5103,12 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
   var html = '';
   for (var i = 0; i < detail.bands.length; i++) {
     var b = detail.bands[i];
-    var aterr = (terrainPerBand && terrainPerBand[i] > 0) ? terrainPerBand[i] : 0;
+    // Show per-band terrain IL (excess over building barrier where terrain is larger)
+    var aterr = 0;
+    if (_terrainEnabled && terrainPerBand && terrainPerBand[i] > 0) {
+      aterr = Math.max(0, terrainPerBand[i] - (b.Abar || 0)); // excess over building
+      if (terrainPerBand[i] > 0 && b.Abar <= 0) aterr = terrainPerBand[i]; // no building → full terrain
+    }
     html += '<tr style="border-bottom:1px solid #eee;">';
     html += '<td style="padding:3px 6px;font-weight:600;">' + b.freq + '</td>';
     html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(b.Lw) ? b.Lw.toFixed(1) : '—') + '</td>';
