@@ -11772,10 +11772,10 @@ initCollapse();
 
       var screenable = (typeof getScreenableBuildings === 'function') ? getScreenableBuildings() : [];
 
-      // Fetch DEM tile for terrain screening in the noise grid
+      // Fetch DEM tile for terrain screening in the noise grid (only if terrain enabled)
       var demSpacing = gridRes / 111320; // convert metres to approx degrees
       var demPromise;
-      if (window.DEMCache) {
+      if (_terrainEnabled && window.DEMCache) {
         demPromise = DEMCache.getTileForBounds(
           mapBounds.getNorth(), mapBounds.getSouth(),
           mapBounds.getEast(), mapBounds.getWest(),
