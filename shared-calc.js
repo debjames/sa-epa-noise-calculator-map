@@ -306,11 +306,32 @@ var SharedCalc = (function() {
       };
     }
 
-    // Path length difference δ (Maekawa)
+    // Path length difference δ (Maekawa) — over the top
     var delta =
       Math.sqrt(d1 * d1 + (barrierH - srcHeightM) * (barrierH - srcHeightM)) +
       Math.sqrt(d2 * d2 + (barrierH - recHeightM) * (barrierH - recHeightM)) -
       dDirect;
+
+    // Horizontal end diffraction — around each endpoint of the barrier edge
+    var endDeltaLeft = 0;
+    var endDeltaRight = 0;
+
+    // Left end = edgeStart, Right end = edgeEnd
+    var ends = [best.edgeStart, best.edgeEnd];
+    var endDeltas = [];
+    for (var ei = 0; ei < 2; ei++) {
+      var endPt = ends[ei];
+      // Check if receiver is in the horizontal shadow zone of this end:
+      // The receiver must be on the opposite side of the barrier line from the source
+      // relative to this endpoint. We check by seeing if the direct source→receiver
+      // ray is blocked by the barrier near this end.
+      var dSrcEnd = flatDistM(srcLL, endPt);
+      var dEndRec = flatDistM(endPt, recLL);
+      var horizontalDelta = dSrcEnd + dEndRec - dDirect;
+      // Only apply end diffraction if δ_end > 0 (receiver is in shadow zone of that end)
+      // and if the horizontal detour is meaningful (> 0.01m to avoid noise)
+      endDeltas.push(horizontalDelta > 0.01 ? horizontalDelta : 0);
+    }
 
     return {
       building: best.building,
@@ -318,8 +339,44 @@ var SharedCalc = (function() {
       edgeEnd: best.edgeEnd,
       intersection: best.intersection,
       barrierHeightM: barrierH,
-      pathLengthDiff: delta
+      pathLengthDiff: delta,
+      endDeltaLeft: endDeltas[0],
+      endDeltaRight: endDeltas[1]
     };
+  }
+
+  /**
+   * Compute combined barrier attenuation including over-top and end diffraction.
+   * Returns per-band attenuation array (for ISO) or single broadband value (for simple).
+   * Energy-sums the over-top screened level with end-diffraction contributions.
+   * @param {number} topDelta - path length difference over barrier top (m)
+   * @param {number} leftDelta - horizontal δ around left end (m), 0 if no shadow
+   * @param {number} rightDelta - horizontal δ around right end (m), 0 if no shadow
+   * @param {number[]} frequencies - octave band frequencies for per-band calc
+   * @returns {number[]} effective insertion loss per band (dB), always >= 0
+   */
+  function calcBarrierWithEndDiffraction(topDelta, leftDelta, rightDelta, frequencies) {
+    if (topDelta <= 0 && leftDelta <= 0 && rightDelta <= 0) {
+      return frequencies.map(function() { return 0; });
+    }
+    // Compute insertion loss for each path
+    var topIL = calcBarrierAttenuation(topDelta, frequencies);
+    var leftIL = (leftDelta > 0) ? calcBarrierAttenuation(leftDelta, frequencies) : null;
+    var rightIL = (rightDelta > 0) ? calcBarrierAttenuation(rightDelta, frequencies) : null;
+
+    // Energy-sum: the received level behind a barrier is the sum of energy
+    // arriving via each diffraction path. Each path reduces the source level
+    // by its insertion loss. The effective combined IL is:
+    // IL_eff = -10*log10(10^(-IL_top/10) + 10^(-IL_left/10) + 10^(-IL_right/10))
+    return frequencies.map(function(f, i) {
+      var linSum = 0;
+      if (topDelta > 0) linSum += Math.pow(10, -topIL[i] / 10);
+      if (leftIL) linSum += Math.pow(10, -leftIL[i] / 10);
+      if (rightIL) linSum += Math.pow(10, -rightIL[i] / 10);
+      if (linSum <= 0) return 0;
+      var effIL = -10 * Math.log10(linSum);
+      return Math.max(0, effIL); // effective IL is always >= 0
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -338,7 +395,12 @@ var SharedCalc = (function() {
    * @param {object} isoParams - { temperature, humidity, groundFactor }
    * @returns {number} predicted LAeq at receiver, or NaN
    */
-  function calcISOatPoint(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams) {
+  /**
+   * @param {number} barrierDelta - over-top path length difference (m)
+   * @param {number} [endDeltaLeft=0] - horizontal δ around left end (m)
+   * @param {number} [endDeltaRight=0] - horizontal δ around right end (m)
+   */
+  function calcISOatPoint(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight) {
     if (!spectrum || distM <= 0) return NaN;
     var d = Math.max(distM, 1);
     var hS = Math.max(srcHeight, 0.01);
@@ -347,7 +409,14 @@ var SharedCalc = (function() {
     var alpha = calcAlphaAtm(params.temperature || 10, params.humidity || 70);
     var Adiv = 20 * Math.log10(d) + 11;
     var Agr = calcAgrPerBand(hS, hR, d, params.groundFactor != null ? params.groundFactor : 0.5);
-    var Abar = calcBarrierAttenuation(barrierDelta || 0, OCT_FREQ);
+
+    // Use combined barrier attenuation (over-top + end diffraction) if end deltas provided
+    var Abar;
+    if ((endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0) {
+      Abar = calcBarrierWithEndDiffraction(barrierDelta || 0, endDeltaLeft || 0, endDeltaRight || 0, OCT_FREQ);
+    } else {
+      Abar = calcBarrierAttenuation(barrierDelta || 0, OCT_FREQ);
+    }
 
     var sumLin = 0;
     var anyBand = false;
@@ -380,6 +449,7 @@ var SharedCalc = (function() {
     calcAlphaAtm: calcAlphaAtm,
     calcBarrierAttenuation: calcBarrierAttenuation,
     calcISOatPoint: calcISOatPoint,
+    calcBarrierWithEndDiffraction: calcBarrierWithEndDiffraction,
     // Geometry
     segmentsIntersect: segmentsIntersect,
     getBuildingEdges: getBuildingEdges,

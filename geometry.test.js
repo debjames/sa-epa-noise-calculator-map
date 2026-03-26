@@ -454,4 +454,58 @@ describe('getDominantBarrier', () => {
     );
     expect(result).toBeNull();
   });
+
+  it('returns endDeltaLeft and endDeltaRight for horizontal diffraction', () => {
+    // Barrier at midpoint crossing the ray — end points are north and south
+    var midLng = 50 / 111320;
+    var recLng = 100 / 111320;
+    var barrier = {
+      id: 'end_test',
+      polygon: [
+        [-0.001, midLng],   // south end
+        [ 0.001, midLng]    // north end (~220m barrier)
+      ],
+      heightM: 6,
+      name: null
+    };
+    var result = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      1, 1.5, [barrier]
+    );
+    expect(result).not.toBeNull();
+    expect(result.endDeltaLeft).toBeDefined();
+    expect(result.endDeltaRight).toBeDefined();
+    // End deltas should be positive (receiver in shadow zone)
+    expect(result.endDeltaLeft).toBeGreaterThan(0);
+    expect(result.endDeltaRight).toBeGreaterThan(0);
+    // End deltas should be symmetric for a symmetric barrier
+    expect(result.endDeltaLeft).toBeCloseTo(result.endDeltaRight, 1);
+  });
+
+  it('short barrier produces smaller end deltas than long barrier', () => {
+    var midLng = 50 / 111320;
+    var recLng = 100 / 111320;
+    // Short barrier (20m)
+    var shortBarrier = {
+      id: 'short', heightM: 6,
+      polygon: [[-0.0001, midLng], [0.0001, midLng]]
+    };
+    // Long barrier (200m)
+    var longBarrier = {
+      id: 'long', heightM: 6,
+      polygon: [[-0.001, midLng], [0.001, midLng]]
+    };
+    var shortResult = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      1, 1.5, [shortBarrier]
+    );
+    var longResult = getDominantBarrier(
+      { lat: 0, lng: 0 }, { lat: 0, lng: recLng },
+      1, 1.5, [longBarrier]
+    );
+    expect(shortResult).not.toBeNull();
+    expect(longResult).not.toBeNull();
+    // Shorter barrier → endpoints closer to ray → smaller end delta → more wrapping
+    expect(shortResult.endDeltaLeft).toBeLessThan(longResult.endDeltaLeft);
+  });
 });

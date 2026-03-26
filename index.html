@@ -2195,13 +2195,13 @@ function getReceiverHeight(receiverIdx) {
  *  @param {number} distM - distance source to receiver (m)
  *  @param {number} adjDB - adjustment to apply to each band (quantity + opTime + barrier, in dB)
  *  @returns {number} predicted LAeq at receiver */
-function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recvHeight) {
+function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recvHeight, endDeltaLeft, endDeltaRight) {
   var hR = (recvHeight !== undefined && Number.isFinite(recvHeight)) ? recvHeight : iso_receiverHeight;
   return SharedCalc.calcISOatPoint(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
     temperature: iso_temperature,
     humidity: iso_humidity,
     groundFactor: iso_groundFactor
-  });
+  }, endDeltaLeft || 0, endDeltaRight || 0);
 }
 
 /** Read spectrum, height, and adjDB for one equipment row from source-scoped DOM IDs.
@@ -2277,10 +2277,16 @@ function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
       var recHeightM = getReceiverHeight(receiverIdx);
       var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : window._buildings;
       var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeightM, recHeightM, screenable);
-      if (barrier) barrierDelta = barrier.pathLengthDiff;
+      if (barrier) {
+        barrierDelta = barrier.pathLengthDiff;
+        endDeltaL = barrier.endDeltaLeft || 0;
+        endDeltaR = barrier.endDeltaRight || 0;
+      }
     }
   }
 
+  var endDeltaL = endDeltaL || 0;
+  var endDeltaR = endDeltaR || 0;
   var totalLin = 0;
   var anySrc = false;
 
@@ -2289,8 +2295,8 @@ function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
     if (!info) continue;
 
     if (info.spectrumA) {
-      // Full octave-band ISO 9613-2 with barrier
-      var pred = calcISO9613single(info.spectrumA, info.srcHeight, distM, info.adjDB, barrierDelta, recHeightM);
+      // Full octave-band ISO 9613-2 with barrier + end diffraction
+      var pred = calcISO9613single(info.spectrumA, info.srcHeight, distM, info.adjDB, barrierDelta, recHeightM, endDeltaL, endDeltaR);
       if (Number.isFinite(pred)) {
         totalLin += Math.pow(10, pred / 10);
         anySrc = true;

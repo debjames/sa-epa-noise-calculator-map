@@ -15,6 +15,7 @@ import {
   sourceContribution,
   totalAtReceiver,
   calcBarrierAttenuation,
+  calcBarrierWithEndDiffraction,
   calcISOatPoint,
 } from './calc.js';
 
@@ -276,5 +277,55 @@ describe('calcISOatPoint', () => {
       temperature: 10, humidity: 70, groundFactor: 0.5
     });
     expect(plus3 - base).toBeCloseTo(3, 0);
+  });
+
+  it('end diffraction reduces effective barrier attenuation', () => {
+    // With end diffraction paths, more sound arrives at receiver → lower effective IL
+    const noEnd = calcISOatPoint(ISO_SPECTRUM, 1.5, 50, 0, 0.45, 1.5, {
+      temperature: 10, humidity: 70, groundFactor: 0.5
+    }, 0, 0);
+    const withEnd = calcISOatPoint(ISO_SPECTRUM, 1.5, 50, 0, 0.45, 1.5, {
+      temperature: 10, humidity: 70, groundFactor: 0.5
+    }, 0.3, 0.3);
+    // End diffraction adds energy → higher level behind barrier
+    expect(withEnd).toBeGreaterThan(noEnd);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calcBarrierWithEndDiffraction — combined over-top + end diffraction
+// ---------------------------------------------------------------------------
+describe('calcBarrierWithEndDiffraction', () => {
+  it('no deltas → all zero insertion loss', () => {
+    const result = calcBarrierWithEndDiffraction(0, 0, 0, FREQS);
+    result.forEach(v => expect(v).toBe(0));
+  });
+
+  it('top-only (no end diffraction) matches calcBarrierAttenuation', () => {
+    const topOnly = calcBarrierWithEndDiffraction(0.45, 0, 0, FREQS);
+    const direct = calcBarrierAttenuation(0.45, FREQS);
+    topOnly.forEach((v, i) => expect(v).toBeCloseTo(direct[i], 2));
+  });
+
+  it('adding end diffraction reduces effective IL vs top-only', () => {
+    const topOnly = calcBarrierWithEndDiffraction(0.45, 0, 0, FREQS);
+    const withEnds = calcBarrierWithEndDiffraction(0.45, 0.3, 0.3, FREQS);
+    // More paths → more energy → lower effective IL
+    withEnds.forEach((v, i) => expect(v).toBeLessThanOrEqual(topOnly[i]));
+  });
+
+  it('effective IL is always >= 0', () => {
+    const result = calcBarrierWithEndDiffraction(0.1, 0.05, 0.05, FREQS);
+    result.forEach(v => expect(v).toBeGreaterThanOrEqual(0));
+  });
+
+  it('large end deltas still bounded by top delta IL', () => {
+    // When end deltas are much larger than top delta, end paths contribute less
+    const smallEnd = calcBarrierWithEndDiffraction(0.45, 5.0, 5.0, FREQS);
+    const topOnly = calcBarrierWithEndDiffraction(0.45, 0, 0, FREQS);
+    // With very large end deltas, their IL is high → small contribution → near top-only
+    smallEnd.forEach((v, i) => {
+      expect(v).toBeGreaterThan(topOnly[i] * 0.7); // within 30% of top-only
+    });
   });
 });

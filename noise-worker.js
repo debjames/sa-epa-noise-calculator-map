@@ -21,6 +21,7 @@ var getDominantBarrier   = SharedCalc.getDominantBarrier;
 var calcAgrPerBand       = SharedCalc.calcAgrPerBand;
 var calcAlphaAtm         = SharedCalc.calcAlphaAtm;
 var calcBarrierAttenuation = SharedCalc.calcBarrierAttenuation;
+var calcBarrierWithEndDiffraction = SharedCalc.calcBarrierWithEndDiffraction;
 var calcISOatPoint        = SharedCalc.calcISOatPoint;
 var ISO_FREQS            = SharedCalc.OCT_FREQ;
 
@@ -94,22 +95,27 @@ self.onmessage = function(e) {
           if (dist < 0.1) dist = 0.1;
 
           var barrierDelta = 0;
+          var endDeltaLeft = 0;
+          var endDeltaRight = 0;
           if (buildings.length > 0) {
             var barrier = getDominantBarrier(srcLL, pt, src.heightM, recvHeight, buildings);
-            if (barrier) barrierDelta = barrier.pathLengthDiff;
+            if (barrier) {
+              barrierDelta = barrier.pathLengthDiff;
+              endDeltaLeft = barrier.endDeltaLeft || 0;
+              endDeltaRight = barrier.endDeltaRight || 0;
+            }
           }
 
           var lp;
           if (method === 'iso9613' && src.spectrum) {
-            lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj, barrierDelta, recvHeight, isoParams);
+            lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight);
           } else {
             lp = attenuatePoint(src.combinedLw, dist);
-            if (barrierDelta > 0) {
-              // Approximate A-weighted barrier screening using 1kHz Maekawa
-              // TODO: for octave-band accuracy, use calcBarrierAttenuation per band instead
-              var WAVELENGTH_1KHZ_M = 0.343; // speed of sound ~343 m/s at 1kHz
-              var avgBarrier = 10 * Math.log10(3 + 20 * barrierDelta / WAVELENGTH_1KHZ_M);
-              lp -= Math.min(avgBarrier, 20);
+            if (barrierDelta > 0 || endDeltaLeft > 0 || endDeltaRight > 0) {
+              // Combined barrier screening using end diffraction
+              var WAVELENGTH_1KHZ_M = 0.343;
+              var Abar = calcBarrierWithEndDiffraction(barrierDelta, endDeltaLeft, endDeltaRight, [1000]);
+              lp -= Math.min(Abar[0], 20);
             }
           }
 
