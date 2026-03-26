@@ -6001,11 +6001,12 @@ initCollapse();
         // Buildings layer toggle
         data.buildingsOn = window._getBuildingsOn ? window._getBuildingsOn() : true;
         data.noiseMapOn = window._getNoiseMapOn ? window._getNoiseMapOn() : false;
-        data.noiseMapPeriod = _noiseMapPeriod || 'day';
-        data.noiseMapHeight = _noiseMapHeight || 1.5;
-        data.legendMin = _legendMin;
-        data.legendMax = _legendMax;
-        data.legendInterval = _legendInterval;
+        data.noiseMapPeriod = window._getNoiseMapPeriod ? window._getNoiseMapPeriod() : 'day';
+        data.noiseMapHeight = window._getNoiseMapHeight ? window._getNoiseMapHeight() : 1.5;
+        var legendSettings = window._getLegendSettings ? window._getLegendSettings() : { min: 25, max: 70, interval: 5 };
+        data.legendMin = legendSettings.min;
+        data.legendMax = legendSettings.max;
+        data.legendInterval = legendSettings.interval;
 
         // Building height overrides (OSM buildings only — not custom)
         var overrides = [];
@@ -6209,9 +6210,10 @@ initCollapse();
     function buildContourFeatures() {
       // TODO: extract vector contours from canvas grid for non-polyline layers
       var features = [];
-      if (!_noiseContourLayer) return features;
-      var period = _noiseMapPeriod || 'day';
-      _noiseContourLayer.eachLayer(function(layer) {
+      var contourLayer = window._getNoiseContourLayer ? window._getNoiseContourLayer() : null;
+      if (!contourLayer) return features;
+      var period = window._getNoiseMapPeriod ? window._getNoiseMapPeriod() : 'day';
+      contourLayer.eachLayer(function(layer) {
         if (!layer.getLatLngs) return;
         var lls = layer.getLatLngs();
         var coords = lls.map(function(p) { return [p.lng, p.lat]; });
@@ -6257,7 +6259,7 @@ initCollapse();
     // ── GeoJSON export ──
     var geoJsonBtn = document.getElementById('exportGeoJsonBtn');
     if (geoJsonBtn) geoJsonBtn.addEventListener('click', function() {
-      var noContours = !_noiseContourLayer;
+      var noContours = !(window._getNoiseContourLayer && window._getNoiseContourLayer());
       var fc = {
         type: 'FeatureCollection',
         metadata: buildGISMetadata(),
@@ -6318,7 +6320,7 @@ initCollapse();
       // Contours folder
       var contours = buildContourFeatures();
       if (contours.length > 0) {
-        kml += '<Folder><name>Contours (' + (_noiseMapPeriod || 'day') + ')</name>\n';
+        kml += '<Folder><name>Contours (' + (window._getNoiseMapPeriod ? window._getNoiseMapPeriod() : 'day') + ')</name>\n';
         contours.forEach(function(f) {
           kml += '<Placemark><name>' + (f.properties.level_dba || '?') + ' dB(A)</name>\n';
           kml += '<LineString><coordinates>' + f.geometry.coordinates.map(function(c) { return c[0] + ',' + c[1] + ',0'; }).join(' ') + '</coordinates></LineString>\n';
@@ -6709,29 +6711,27 @@ initCollapse();
         window._setBuildingsOn(data.buildingsOn);
       }
       // Noise map settings
-      if (data.noiseMapPeriod) {
-        _noiseMapPeriod = data.noiseMapPeriod;
+      if (data.noiseMapPeriod && window._setNoiseMapPeriod) {
+        window._setNoiseMapPeriod(data.noiseMapPeriod);
         document.querySelectorAll('[data-nmperiod]').forEach(function(b) {
-          b.classList.toggle('active', b.dataset.nmperiod === _noiseMapPeriod);
+          b.classList.toggle('active', b.dataset.nmperiod === data.noiseMapPeriod);
         });
       }
-      if (data.noiseMapHeight) {
-        _noiseMapHeight = data.noiseMapHeight;
+      if (data.noiseMapHeight && window._setNoiseMapHeight) {
+        window._setNoiseMapHeight(data.noiseMapHeight);
         var nmhEl = document.getElementById('noiseMapHeight');
-        if (nmhEl) nmhEl.value = _noiseMapHeight;
+        if (nmhEl) nmhEl.value = data.noiseMapHeight;
       }
       // Legend scale settings
-      if (data.legendMin !== undefined) {
-        _legendMin = data.legendMin;
-        _legendMax = data.legendMax || _legendMaxDefault;
-        _legendInterval = data.legendInterval || _legendIntervalDefault;
+      if (data.legendMin !== undefined && window._setLegendSettings) {
+        window._setLegendSettings(data.legendMin, data.legendMax || 70, data.legendInterval || 5);
         var lMinEl = document.getElementById('legendMin');
         var lMaxEl = document.getElementById('legendMax');
         var lIntEl = document.getElementById('legendInterval');
-        if (lMinEl) lMinEl.value = _legendMin;
-        if (lMaxEl) lMaxEl.value = _legendMax;
-        if (lIntEl) lIntEl.value = _legendInterval;
-        rebuildNoiseScale();
+        if (lMinEl) lMinEl.value = data.legendMin;
+        if (lMaxEl) lMaxEl.value = data.legendMax || 70;
+        if (lIntEl) lIntEl.value = data.legendInterval || 5;
+        if (window._rebuildNoiseScale) window._rebuildNoiseScale();
       }
       if (data.noiseMapOn && window._setNoiseMapOn) {
         setTimeout(function() { window._setNoiseMapOn(true); }, 1000);
@@ -11168,6 +11168,16 @@ initCollapse();
 
     // Save/load noise map state
     window._getNoiseMapOn = function() { return _noiseMapOn; };
+    window._getNoiseMapPeriod = function() { return _noiseMapPeriod; };
+    window._getNoiseMapHeight = function() { return _noiseMapHeight; };
+    window._getLegendSettings = function() { return { min: _legendMin, max: _legendMax, interval: _legendInterval }; };
+    window._getNoiseContourLayer = function() { return _noiseContourLayer; };
+    window._setNoiseMapPeriod = function(v) { _noiseMapPeriod = v; };
+    window._setNoiseMapHeight = function(v) { _noiseMapHeight = v; };
+    window._setLegendSettings = function(min, max, interval) {
+      _legendMin = min; _legendMax = max; _legendInterval = interval;
+    };
+    window._rebuildNoiseScale = function() { rebuildNoiseScale(); };
     window._recomputeNoiseMap = function() { if (_noiseMapOn) computeNoiseMap(); };
     window._clearNoiseData = function() { _lastNoiseData = null; };
     window._setNoiseMapOn = function(v) {
