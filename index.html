@@ -348,7 +348,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">3</span><div><b>Enter equipment details</b><br>For each source, add equipment items with their sound power level (L<sub>w</sub>, dB(A)) and quantity. Use manufacturer data sheets or measured values. If operational time is less than 15 minutes per assessment period, enter the expected duration to apply a time weighting.</div></div>
       <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">4</span><div><b>Place receivers</b><br>Click the receiver button (R1&ndash;R4) on the toolbar, then click the map. Up to four receivers can be assessed simultaneously. Assign a name to each receiver for reporting purposes.</div></div>
       <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">5</span><div><b>Set zones and receiver types</b><br>Use the zone dropdown for each receiver to set the applicable noise zone, or rely on auto-detection from SAPPA (SA), NSW Planning Portal, or VIC zone data. Select the receiver type (e.g. residential, commercial) to apply the correct criteria.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">6</span><div><b>Review results</b><br>The results table shows predicted levels for day, evening, and night periods against the applicable criteria. Cells highlighted in red indicate an exceedance. Click any receiver row to see a per-band ISO 9613-2 calculation breakdown.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">6</span><div><b>Review results</b><br>The results table shows predicted levels for day, evening, and night periods against the applicable criteria. Cells highlighted in red indicate an exceedance. Click any receiver row to see a per-band ISO 9613-2 calculation breakdown. Where terrain screening is enabled and elevation data is available, terrain diffraction loss is automatically applied &mdash; a mountain icon (&#x26F0;) will appear next to predicted levels. Use the terrain profile view in each receiver card to inspect the propagation path.</div></div>
       <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">7</span><div><b>Enable the noise map (optional)</b><br>Toggle the Noise Map button to display predicted contours across the site. Select the period (day/evening/night) and receiver height. Contours are calculated using the same method as the receiver predictions.</div></div>
       <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">8</span><div><b>Load planning overlays (optional)</b><br>Use the toolbar to add contextual layers including SA Planning zones, ANEF aircraft noise contours, and EPA licensed air emission points.</div></div>
       <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">9</span><div><b>Export</b><br><b>Save session:</b> downloads a JSON file to reload this assessment later.<br><b>GIS Export:</b> exports sources, receivers, and contours as GeoJSON, KML, or CSV for use in QGIS, ArcGIS, or Google Earth.<br><b>Screenshot:</b> capture the map for use as a figure in reports.</div></div>
@@ -840,6 +840,13 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <div style="display:flex;align-items:center;gap:6px;">
               <label class="small" style="font-weight:600;white-space:nowrap;">Humidity (%RH)</label>
               <input type="number" id="isoHumidity" value="70" min="10" max="100" step="5" style="width:80px;">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                <input type="checkbox" id="terrainScreeningCb" checked style="margin:0;">
+                Terrain screening
+              </label>
+              <span class="small" style="color:var(--muted);" title="Fetches ground elevation data from Open-Elevation API to detect ridgelines between source and receiver">(requires internet)</span>
             </div>
           </div>
           <div class="small" style="margin-top:10px;color:var(--muted);">
@@ -2920,9 +2927,13 @@ window._sourceDistances = [];
 // Populated asynchronously when pins are placed. Used synchronously in calcPredAtReceiver.
 var _terrainIL = [];
 window._terrainIL = _terrainIL; // expose for console debugging
+var _terrainEnabled = true; // controlled by #terrainScreeningCb checkbox
+
+function isTerrainEnabled() { return _terrainEnabled; }
 
 /** Compute and cache terrain diffraction for a source-receiver pair. Async — call after pin placement. */
 function updateTerrainIL(srcIdx, recvIdx) {
+  if (!_terrainEnabled) return;
   if (!window.getTerrainProfile || !window.calcTerrainDiffraction) return;
   var src = (typeof sources !== 'undefined' && sources[srcIdx]) ? sources[srcIdx] : null;
   if (!src || src.lat === null) return;
@@ -5374,6 +5385,16 @@ function render() {
     const predDayId = `${rowId}_day`;
     const predEveId = `${rowId}_eve`;
     const predNightId = `${rowId}_night`;
+    // Terrain indicator: check if any source has terrain screening active for this receiver
+    var terrainActive = false;
+    if (_terrainEnabled && _terrainIL) {
+      for (var tsi = 0; tsi < _terrainIL.length; tsi++) {
+        if (_terrainIL[tsi] && _terrainIL[tsi][i] && _terrainIL[tsi][i].insertionLoss_dB > 0) {
+          terrainActive = true; break;
+        }
+      }
+    }
+    var terrainBadge = terrainActive ? '<span title="Terrain screening applied" style="font-size:10px;color:#6b7280;margin-left:2px;">&#x26F0;</span>' : '';
     // Predictions: multi-source via calc.js with per-source distances from matrix
     const dist = getReceiverDistance(i+1); // legacy fallback for Source 0
     let predDay = calcPredAtReceiver('day', daySources, i, dist);
@@ -5438,14 +5459,14 @@ function render() {
 
       perSourceCells +
 
-      `<td class="num crit-day-col"><span id="${predDayId}" style="display:inline-block;min-width:48px;">${predDayPenalised}</span></td>` +
+      `<td class="num crit-day-col"><span id="${predDayId}" style="display:inline-block;min-width:48px;">${predDayPenalised}</span>${terrainBadge}</td>` +
       td(fmt(dayCrit), "num crit-day-col") +
       td(day.delta === "" ? "" : String(day.delta), "num crit-day-col") +
       td(okText(day.ok), "center crit-day-col "+cellClass(day.ok)) +
 
       eveCells +
 
-      `<td class="num crit-night-col"><span id="${predNightId}" style="display:inline-block;min-width:48px;">${predNightPenalised}</span></td>` +
+      `<td class="num crit-night-col"><span id="${predNightId}" style="display:inline-block;min-width:48px;">${predNightPenalised}</span>${terrainBadge}</td>` +
       td(fmt(nightCrit), "num crit-night-col") +
       td(night.delta === "" ? "" : String(night.delta), "num crit-night-col") +
       td(okText(night.ok), "center crit-night-col "+cellClass(night.ok)) +
@@ -5665,6 +5686,27 @@ function initPropagationMethod() {
       render();
     });
   });
+
+  // Terrain screening toggle
+  var terrCb = document.getElementById('terrainScreeningCb');
+  if (terrCb) {
+    var savedTerrain = localStorage.getItem('terrain_enabled');
+    if (savedTerrain !== null) {
+      _terrainEnabled = savedTerrain !== 'false';
+      terrCb.checked = _terrainEnabled;
+    }
+    terrCb.addEventListener('change', function() {
+      _terrainEnabled = terrCb.checked;
+      localStorage.setItem('terrain_enabled', String(_terrainEnabled));
+      if (_terrainEnabled) {
+        refreshAllTerrainIL();
+      } else {
+        _terrainIL = [];
+        window._terrainIL = _terrainIL;
+      }
+      render();
+    });
+  }
 
   // Per-receiver height inputs
   for (var ri = 1; ri <= 4; ri++) {
@@ -6600,6 +6642,27 @@ initCollapse();
         data.legendMax = legendSettings.max;
         data.legendInterval = legendSettings.interval;
 
+        // Terrain screening state
+        data.terrain = {
+          enabled: _terrainEnabled,
+          sourceElevations: {},
+          receiverElevations: {}
+        };
+        if (typeof sources !== 'undefined') {
+          sources.forEach(function(src, si) {
+            if (src.groundElevation_m !== null && src.groundElevation_m !== undefined) {
+              var slug = (src.name || 'source-' + (si + 1)).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+              data.terrain.sourceElevations[slug] = src.groundElevation_m;
+            }
+          });
+        }
+        for (var ti = 1; ti <= 4; ti++) {
+          var rKey = 'r' + ti;
+          if (typeof recvElevations !== 'undefined' && recvElevations[rKey] !== null && recvElevations[rKey] !== undefined) {
+            data.terrain.receiverElevations['receiver-' + ti] = recvElevations[rKey];
+          }
+        }
+
         // Building height overrides (OSM buildings only — not custom)
         var overrides = [];
         if (window._buildings) {
@@ -6750,6 +6813,8 @@ initCollapse();
             name: src.name || 'Source ' + (si + 1),
             combined_lw_dba: null,
             source_height_m: src.heightM || 1.5,
+            groundElevation_m: src.groundElevation_m || null,
+            effectiveHeight_ASL: (src.groundElevation_m != null) ? src.groundElevation_m + (src.heightM || 1.5) : null,
             equipment_list: equip,
             period: 'all'
           }
@@ -6792,7 +6857,10 @@ initCollapse();
             criteria_night: null,
             exceedance_day: null,
             exceedance_eve: null,
-            exceedance_night: null
+            exceedance_night: null,
+            groundElevation_m: (typeof recvElevations !== 'undefined' && recvElevations['r' + (i + 1)]) || null,
+            effectiveHeight_ASL: (typeof recvElevations !== 'undefined' && recvElevations['r' + (i + 1)] != null) ? recvElevations['r' + (i + 1)] + (typeof getReceiverHeight === 'function' ? getReceiverHeight(i) : 1.5) : null,
+            terrainInsertionLoss_dB: (_terrainIL[0] && _terrainIL[0][i] && _terrainIL[0][i].insertionLoss_dB > 0) ? _terrainIL[0][i].insertionLoss_dB : null
           }
         });
       });
@@ -7299,7 +7367,30 @@ initCollapse();
         if (searchInp) searchInp.value = data.addressText;
       }
 
-      // 15. Buildings layer toggle + overrides
+      // 15a. Terrain screening state
+      if (data.terrain) {
+        _terrainEnabled = data.terrain.enabled !== false;
+        var tcb = document.getElementById('terrainScreeningCb');
+        if (tcb) tcb.checked = _terrainEnabled;
+        // Restore elevations without re-fetching
+        if (data.terrain.sourceElevations && typeof sources !== 'undefined') {
+          sources.forEach(function(src, si) {
+            var slug = (src.name || 'source-' + (si + 1)).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            if (data.terrain.sourceElevations[slug] !== undefined) {
+              src.groundElevation_m = data.terrain.sourceElevations[slug];
+            }
+          });
+        }
+        if (data.terrain.receiverElevations) {
+          if (typeof recvElevations === 'undefined') window.recvElevations = {};
+          for (var rk = 1; rk <= 4; rk++) {
+            var elev = data.terrain.receiverElevations['receiver-' + rk];
+            if (elev !== undefined) recvElevations['r' + rk] = elev;
+          }
+        }
+      }
+
+      // 15b. Buildings layer toggle + overrides
       if (data.buildingsOn !== undefined && window._setBuildingsOn) {
         window._setBuildingsOn(data.buildingsOn);
       }
