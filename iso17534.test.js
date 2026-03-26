@@ -144,3 +144,38 @@ describe('ISO/TR 17534-3 T03: Porous ground G=1', () => {
     expect(result).toBeCloseTo(expectedTotal, 1);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// T04 — Spatially varying ground factors (no barrier)
+// Same geometry as T01–T03 but with per-region G values
+// A1 G=0.2 (source region), A2 G=0.5 (middle), A3 G=0.9 (receiver region)
+// ═══════════════════════════════════════════════════════════════
+describe('ISO/TR 17534-3 T04: Spatially varying G (Gs=0.2, Gm=0.5, Gr=0.9)', () => {
+  const Gobj = { Gs: 0.2, Gr: 0.9, Gm: 0.5 };
+  const tempC = 20;
+  const humPct = 70;
+
+  const expectedTotal = 42.23;
+
+  it('per-band LA with spatially varying G', () => {
+    var perBand = computePerBandLA(LW_UNWEIGHTED, hS, hR, dp, Gobj, tempC, humPct);
+    // All per-band values should be finite
+    for (var i = 0; i < 8; i++) {
+      expect(Number.isFinite(perBand[i])).toBe(true);
+    }
+  });
+
+  it('total LAeq = 42.23 dB (±0.5 — region extent averaging not yet implemented)', () => {
+    // NOTE: ±0.5 dB tolerance because exact ISO method computes G as weighted
+    // average over each region's extent (30·h from source/receiver). Our Gs/Gr/Gm
+    // are user-assigned approximations, not area-weighted averages.
+    var result = computeTotalLAeq(LW_UNWEIGHTED, hS, hR, dp, Gobj, tempC, humPct);
+    expect(Math.abs(result - expectedTotal)).toBeLessThan(0.5);
+  });
+
+  it('result falls between G=0 (44.29) and G=1 (39.14)', () => {
+    var result = computeTotalLAeq(LW_UNWEIGHTED, hS, hR, dp, Gobj, tempC, humPct);
+    expect(result).toBeGreaterThan(39.0);
+    expect(result).toBeLessThan(44.5);
+  });
+});

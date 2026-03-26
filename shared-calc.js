@@ -68,9 +68,25 @@ var SharedCalc = (function() {
 
   /**
    * ISO 9613-2 Table 3 ground attenuation (detailed method, §7.3.1).
-   * Agr = As + Ar + Am (source, receiver, and middle regions)
+   * Agr = As + Ar + Am (source, receiver, and middle regions).
+   * @param {number} hS - source height (m)
+   * @param {number} hR - receiver height (m)
+   * @param {number} dp - propagation distance (m)
+   * @param {number|object} G - ground factor: single value for all regions,
+   *   or {Gs, Gr, Gm} for per-region ISO 9613-2 compliance.
+   *   When a single number is passed, Gs = Gr = Gm = G.
    */
   function calcAgrPerBand(hS, hR, dp, G) {
+    // Support spatially varying ground factors per ISO 9613-2
+    var Gs, Gr, Gm;
+    if (typeof G === 'object' && G !== null) {
+      Gs = (G.Gs != null) ? G.Gs : 0.5;
+      Gr = (G.Gr != null) ? G.Gr : 0.5;
+      Gm = (G.Gm != null) ? G.Gm : 0.5;
+    } else {
+      Gs = Gr = Gm = (G != null) ? G : 0.5;
+    }
+
     function aPrime(h) {
       return 1.5 + 3.0 * Math.exp(-0.12 * (h - 5) * (h - 5)) * (1 - Math.exp(-dp / 50))
            + 5.7 * Math.exp(-0.09 * h * h) * (1 - Math.exp(-2.8e-6 * dp * dp));
@@ -85,39 +101,42 @@ var SharedCalc = (function() {
       return 1.5 + 5.0 * Math.exp(-0.9 * h * h) * (1 - Math.exp(-dp / 50));
     }
 
+    // Source region As — uses Gs
     var As = [
       -1.5,
-      -1.5 + G * Math.max(aPrime(hS), 0),
-      -1.5 + G * Math.max(bPrime(hS), 0),
-      -1.5 + G * Math.max(cPrime(hS), 0),
-      -1.5 + G * Math.max(dPrime(hS), 0),
-      -1.5 * (1 - G),
-      -1.5 * (1 - G),
-      -1.5 * (1 - G)
+      -1.5 + Gs * Math.max(aPrime(hS), 0),
+      -1.5 + Gs * Math.max(bPrime(hS), 0),
+      -1.5 + Gs * Math.max(cPrime(hS), 0),
+      -1.5 + Gs * Math.max(dPrime(hS), 0),
+      -1.5 * (1 - Gs),
+      -1.5 * (1 - Gs),
+      -1.5 * (1 - Gs)
     ];
 
+    // Receiver region Ar — uses Gr
     var Ar = [
       -1.5,
-      -1.5 + G * Math.max(aPrime(hR), 0),
-      -1.5 + G * Math.max(bPrime(hR), 0),
-      -1.5 + G * Math.max(cPrime(hR), 0),
-      -1.5 + G * Math.max(dPrime(hR), 0),
-      -1.5 * (1 - G),
-      -1.5 * (1 - G),
-      -1.5 * (1 - G)
+      -1.5 + Gr * Math.max(aPrime(hR), 0),
+      -1.5 + Gr * Math.max(bPrime(hR), 0),
+      -1.5 + Gr * Math.max(cPrime(hR), 0),
+      -1.5 + Gr * Math.max(dPrime(hR), 0),
+      -1.5 * (1 - Gr),
+      -1.5 * (1 - Gr),
+      -1.5 * (1 - Gr)
     ];
 
+    // Middle region Am — uses Gm
     var q = (dp <= 30 * (hS + hR)) ? 0 : (1 - 30 * (hS + hR) / dp);
 
     var Am = [
       -3 * q,
-      -3 * q * (1 - G),
-      -3 * q * (1 - G),
-      -3 * q * (1 - G),
-      -3 * q * (1 - G),
-      -3 * q * (1 - G),
-      -3 * q * (1 - G),
-      -3 * q * (1 - G)
+      -3 * q * (1 - Gm),
+      -3 * q * (1 - Gm),
+      -3 * q * (1 - Gm),
+      -3 * q * (1 - Gm),
+      -3 * q * (1 - Gm),
+      -3 * q * (1 - Gm),
+      -3 * q * (1 - Gm)
     ];
 
     var Agr = [];

@@ -324,7 +324,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
 <div class="container">
   <a href="https://resonate-consultants.com/" target="_blank" rel="noopener"><img src="resonate-logo.png" alt="Resonate" class="logo"></a>
-  <div class="h1">Environmental noise screening tool <span class="state-badge" id="stateBadge" style="display:none;"></span></div>
+  <div class="h1">Environmental noise screening tool <span class="state-badge" id="stateBadge" style="display:none;"></span> <span style="font-size:10px;font-weight:400;color:#888;vertical-align:middle;">v2.0 — March 2026</span></div>
   <div class="sheet1">
   <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:600;color:#856404;text-align:left;">This tool is currently under construction. Features and data may be incomplete or subject to change.</div>
 
@@ -858,6 +858,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <p style="margin:4px 0;"><strong>Directivity (D<sub>c</sub>):</strong> All sources are treated as omnidirectional (D<sub>c</sub>&nbsp;=&nbsp;0). Source directivity is not modelled.</p>
               <p style="margin:4px 0;"><strong>Screening (A<sub>bar</sub>), miscellaneous (A<sub>misc</sub>):</strong> Not implemented. No terrain screening, industrial-site screening, or housing/vegetation attenuation is included. Terrain is assumed flat.</p>
               <p style="margin:4px 0;"><strong>Convergence with simple method:</strong> On hard ground (G=0) with no atmospheric absorption, A<sub>gr</sub>&nbsp;=&nbsp;&minus;3&nbsp;dB at all bands, so the ISO formula reduces to L<sub>w</sub>&nbsp;&minus;&nbsp;20&thinsp;log<sub>10</sub>(d)&nbsp;&minus;&nbsp;8, matching the simple hemispherical spreading method.</p>
+              <p style="margin:4px 0;"><strong>Contour map:</strong> The noise contour map uses an adaptive grid (5&ndash;50&thinsp;m resolution based on zoom level) with Chaikin curve smoothing applied to contour boundaries. Grid point results may differ slightly from discrete receiver calculations due to interpolation.</p>
+              <p style="margin:4px 0;"><strong>Ground factor:</strong> A single ground factor G is applied uniformly to source, receiver, and middle regions. The calculation engine supports per-region factors (G<sub>s</sub>,&nbsp;G<sub>r</sub>,&nbsp;G<sub>m</sub>) but the UI currently exposes only a single value.</p>
               <p style="margin:4px 0;"><strong>Limitations:</strong> This is a screening-level implementation. For detailed assessment, use dedicated acoustic modelling software (e.g. SoundPLAN, CadnaA, iNoise) with site-specific terrain, barriers, building reflections, and meteorological corrections (C<sub>met</sub>).</p>
             </div>
           </details>
