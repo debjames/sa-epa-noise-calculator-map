@@ -179,22 +179,39 @@ var SharedCalc = (function() {
    *  @param {boolean} [capped=true] - apply 20 dB single-diffraction cap.
    *    Per ISO/TR 17534-3 §5.3, the cap applies only to over-top diffraction.
    *    Lateral (side) paths must NOT be capped — pass capped=false for those. */
-  function calcBarrierAttenuation(delta, frequencies, capped) {
+  /**
+   * ISO 9613-2 Section 8 barrier attenuation per octave band.
+   * @param {number} delta - path length difference (m)
+   * @param {number[]} frequencies - octave band centre frequencies
+   * @param {boolean} [capped=true] - apply Dz cap (20 dB single, 25 dB double).
+   *    Per ISO/TR 17534-3 §5.3, cap applies only to over-top diffraction.
+   * @param {number} [barrierThickness=0] - barrier/building thickness e (m).
+   *    When e > 0, uses double diffraction with frequency-dependent C₃ and 25 dB cap.
+   */
+  function calcBarrierAttenuation(delta, frequencies, capped, barrierThickness) {
     if (capped === undefined) capped = true;
     if (delta <= 0) return frequencies.map(function() { return 0; });
     var C2 = 20;  // single diffraction constant
-    var C3 = 1;   // ISO 9613-2 Table 7: C3 = 1 for single diffraction
     var Kmet = 1;  // meteorological correction (no wind)
+    var e = barrierThickness || 0;
+    var maxDz = (e > 0) ? 25 : 20; // double diffraction cap = 25 dB per ISO 9613-2
+
     return frequencies.map(function(f) {
       var lambda = 340 / f;
+      // C3: frequency-dependent for double diffraction (e > 0)
+      // ISO 9613-2: C3 = (1 + (5λ/e)²) / (1/3 + (5λ/e)²) for double diffraction
+      // C3 = 1 for single diffraction (e = 0)
+      var C3 = 1;
+      if (e > 0) {
+        var r = 5 * lambda / e;
+        C3 = (1 + r * r) / (1/3 + r * r);
+      }
       // ISO/TR 17534-3 §5.4: two-step Dz with floor at zero
-      // Step a: z_min = -(C2/C3)² · λ / Kmet
       var z_min = -Math.pow(C2 / C3, 2) * lambda / Kmet;
-      // Step b: Dz = 10·lg(3 + C2·C3·z/λ·Kmet) for z > z_min, else 0
       if (delta <= z_min) return 0;
       var Dz = 10 * Math.log10(3 + C2 * C3 * delta / lambda * Kmet);
-      Dz = Math.max(0, Dz); // floor at zero
-      return capped ? Math.min(Dz, 20) : Dz;
+      Dz = Math.max(0, Dz);
+      return capped ? Math.min(Dz, maxDz) : Dz;
     });
   }
 

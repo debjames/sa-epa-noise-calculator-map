@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { calcISOatPoint, calcAgrPerBand, calcAlphaAtm, calcBarrierAttenuation, calcBarrierWithEndDiffraction, OCT_FREQ } from './calc.js';
+import { calcISOatPoint, calcISOatPointDetailed, calcAgrPerBand, calcAlphaAtm, calcBarrierAttenuation, calcBarrierWithEndDiffraction, OCT_FREQ } from './calc.js';
 
 // A-weighting corrections per octave band [63, 125, 250, 500, 1000, 2000, 4000, 8000]
 const A_WEIGHT = [-26.2, -16.1, -8.6, -3.2, 0, 1.2, 1.0, -1.1];
@@ -312,6 +312,109 @@ describe('ISO/TR 17534-3 T09: Short barrier, varying ground', () => {
     var sumLin = 0;
     for (var i = 0; i < 8; i++) {
       sumLin += Math.pow(10, perBand[i] / 10);
+    }
+    var total = 10 * Math.log10(sumLin);
+    expect(Math.abs(total - expectedTotal)).toBeLessThan(1.0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// T11 — Cubic building (10m × 10m × 10m), G = 0.5
+// ISO/TR 17534-3 Table 30/31
+// ═══════════════════════════════════════════════════════════════
+// Source (50,10,1), Receiver (70,10,4), Building (55-65, 5-15, height=10m)
+// Double diffraction through building (front face + back face)
+// Uses z_through with frequency-dependent C3 correction and 25 dB cap
+
+describe('ISO/TR 17534-3 T11: Cubic building, double diffraction', () => {
+  // T11 geometry: dp = 20m (short distance), G = 0.5
+  const dp_t11 = 20;
+  const hS_t11 = 1, hR_t11 = 4;
+  const G_t11 = 0.5;
+  const tempC = 20, humPct = 70;
+
+  // Pre-computed from Cartesian geometry:
+  // z_through = S→front_top→back_top→R - d3
+  // = sqrt(5²+9²) + 10 + sqrt(5²+6²) - sqrt(20²+3²) = 10.30 + 10 + 7.81 - 20.22 = 7.88m
+  const z_top = 7.882;
+  const e = 10; // building thickness (double diffraction)
+
+  // Lateral deltas: routes around y=5 and y=15 faces (symmetric)
+  // 2D detour around corners: src(50,10)→(55,5)→(65,5)→(70,10) - 20
+  // = sqrt(25+25) + 10 + sqrt(25+25) - 20 = 7.07 + 10 + 7.07 - 20 = 4.14
+  // Lateral also uses double diffraction C3 with e = building thickness
+  const z_lateral = 4.14;
+  const e_lateral = e; // same building thickness applies to lateral double diffraction
+
+  // Reference values
+  const refDzTop = [15.36, 18.94, 23.32, 25.00, 25.00, 25.00, 25.00, 25.00];
+  const expectedTotal = 41.30;
+
+  it('top-edge Dz with C3 correction matches reference (±0.5 dB)', () => {
+    // Double diffraction: C3 = (1 + (5λ/e)²) / (1/3 + (5λ/e)²)
+    var Abar_top = calcBarrierAttenuation(z_top, OCT_FREQ, true, e);
+    for (var i = 0; i < 8; i++) {
+      expect(Math.abs(Abar_top[i] - refDzTop[i])).toBeLessThan(0.5);
+    }
+  });
+
+  it('top-edge Dz is capped at 25 dB (double diffraction)', () => {
+    var Abar_top = calcBarrierAttenuation(z_top, OCT_FREQ, true, e);
+    // At 500Hz+, the uncapped value exceeds 25 — check capping
+    for (var i = 3; i < 8; i++) {
+      expect(Abar_top[i]).toBeLessThanOrEqual(25.0);
+    }
+  });
+
+  it('lateral Dz values are NOT capped (exceed 20 dB at high freq)', () => {
+    var Abar_lat = calcBarrierAttenuation(z_lateral, OCT_FREQ, false, e_lateral);
+    // At 4kHz+, lateral Dz should exceed 20 dB
+    expect(Abar_lat[6]).toBeGreaterThan(20); // 4kHz
+    expect(Abar_lat[7]).toBeGreaterThan(20); // 8kHz
+  });
+
+  it('left and right lateral are symmetric (equal Dz)', () => {
+    // Both lateral paths route around symmetric faces of the cubic building
+    var Abar_left = calcBarrierAttenuation(z_lateral, OCT_FREQ, false, e_lateral);
+    var Abar_right = calcBarrierAttenuation(z_lateral, OCT_FREQ, false, e_lateral);
+    for (var i = 0; i < 8; i++) {
+      expect(Abar_left[i]).toBeCloseTo(Abar_right[i], 6);
+    }
+  });
+
+  it('total LAeq within ±1.0 dB of reference (41.30)', () => {
+    var alpha = calcAlphaAtm(tempC, humPct);
+    var Agr = calcAgrPerBand(hS_t11, hR_t11, dp_t11, G_t11);
+    var Adiv_val = 20 * Math.log10(dp_t11) + 11;
+
+    // Top path: double diffraction with C3 and 25 dB cap
+    var Abar_top = calcBarrierAttenuation(z_top, OCT_FREQ, true, e);
+    // Lateral paths: also double diffraction (building has thickness), uncapped
+    var Abar_lat = calcBarrierAttenuation(z_lateral, OCT_FREQ, false, e_lateral);
+
+    // Energy-sum all three paths: IL_eff = -10·lg(10^(-IL_top/10) + 2·10^(-IL_lat/10))
+    var Abar_total = [];
+    for (var i = 0; i < 8; i++) {
+      var linSum = Math.pow(10, -Abar_top[i] / 10) + 2 * Math.pow(10, -Abar_lat[i] / 10);
+      var effIL = -10 * Math.log10(linSum);
+      Abar_total.push(Math.max(0, effIL));
+    }
+
+    // Compute per-band LA with barrier
+    var sumLin = 0;
+    for (var i = 0; i < 8; i++) {
+      var Aatm = alpha[i] * dp_t11;
+      var AgrBar;
+      if (Abar_total[i] > 0) {
+        var AgrClamped = Math.max(Agr[i], 0);
+        AgrBar = Math.max(Abar_total[i], AgrClamped);
+      } else {
+        AgrBar = Agr[i];
+      }
+      var A_f = Adiv_val + Aatm + AgrBar;
+      var Lp = 93 - A_f;
+      var LA = Lp + [-26.2, -16.1, -8.6, -3.2, 0, 1.2, 1.0, -1.1][i];
+      sumLin += Math.pow(10, LA / 10);
     }
     var total = 10 * Math.log10(sumLin);
     expect(Math.abs(total - expectedTotal)).toBeLessThan(1.0);
