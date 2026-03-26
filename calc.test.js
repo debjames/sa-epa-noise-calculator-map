@@ -244,7 +244,7 @@ describe('calcISOatPoint', () => {
     expect(Number.isFinite(result)).toBe(true);
   });
 
-  it('regression: small exhaust fan at 50m ≈ 15.3 dB(A)', () => {
+  it('regression: small exhaust fan at 50m ≈ 15.3 dB', () => {
     const result = calcISOatPoint(ISO_SPECTRUM, 1.0, 50, 0, 0, 1.5, {
       temperature: 10, humidity: 70, groundFactor: 0.5
     });

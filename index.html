@@ -381,14 +381,14 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <button class="tool-btn active" data-nmperiod="day" style="font-size:10px;padding:2px 6px;">Day</button>
             <button class="tool-btn" data-nmperiod="eve" style="font-size:10px;padding:2px 6px;">Eve</button>
             <button class="tool-btn" data-nmperiod="night" style="font-size:10px;padding:2px 6px;">Night</button>
-            <button class="tool-btn" data-nmperiod="lmax" style="font-size:10px;padding:2px 6px;">L<sub>max</sub></button>
+            <button class="tool-btn" data-nmperiod="lmax" style="font-size:10px;padding:2px 6px;">L<sub>Amax</sub></button>
             <span style="color:#666;margin-left:4px;">ht:</span>
             <input type="number" id="noiseMapHeight" value="1.5" min="0.1" max="50" step="0.5" style="width:45px;font-size:11px;padding:1px 3px;text-align:center;" title="Contour map receiver height (m)">
             <span style="color:#666;">m</span>
             <span style="color:#666;margin-left:6px;border-left:1px solid #ccc;padding-left:6px;">Scale:</span>
-            <input type="number" id="legendMin" value="25" min="0" max="119" step="1" style="width:35px;font-size:11px;padding:1px 2px;text-align:center;" title="Legend minimum dB(A)">
+            <input type="number" id="legendMin" value="25" min="0" max="119" step="1" style="width:35px;font-size:11px;padding:1px 2px;text-align:center;" title="Legend minimum dB">
             <span style="color:#666;">–</span>
-            <input type="number" id="legendMax" value="70" min="1" max="120" step="1" style="width:35px;font-size:11px;padding:1px 2px;text-align:center;" title="Legend maximum dB(A)">
+            <input type="number" id="legendMax" value="70" min="1" max="120" step="1" style="width:35px;font-size:11px;padding:1px 2px;text-align:center;" title="Legend maximum dB">
             <span style="color:#666;">dB</span>
             <span style="color:#666;margin-left:2px;">every</span>
             <input type="number" id="legendInterval" value="5" min="1" max="20" step="1" style="width:30px;font-size:11px;padding:1px 2px;text-align:center;" title="Contour interval dB">
@@ -589,7 +589,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <input type="checkbox" id="otherCritNight" checked onchange="updateOtherCritSelection()"> <span>Night L<sub>eq</sub></span>
             </label>
             <label style="font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;">
-              <input type="checkbox" id="otherCritLmax" checked onchange="updateOtherCritSelection()"> <span>Night L<sub>max</sub></span>
+              <input type="checkbox" id="otherCritLmax" checked onchange="updateOtherCritSelection()"> <span>Night L<sub>Amax</sub></span>
             </label>
           </div>
         </div>
@@ -850,7 +850,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               </p>
               <p style="margin:4px 0;"><strong>Ground factor G:</strong> G=0 for hard reflective surfaces (concrete, asphalt, water); G=0.5 for mixed; G=1 for soft porous ground (grass, soil, rural land). A single G value is used for all three regions in this tool.</p>
               <p style="margin:4px 0;"><strong>Band summation:</strong> The overall A-weighted predicted level is the energetic sum across all octave bands:<br>
-                L<sub>Aeq</sub> = 10&thinsp;log<sub>10</sub>&thinsp;&Sigma;&thinsp;10<sup>L<sub>p</sub>(f)/10</sup> &nbsp;dB(A)<br>
+                L<sub>Aeq</sub> = 10&thinsp;log<sub>10</sub>&thinsp;&Sigma;&thinsp;10<sup>L<sub>p</sub>(f)/10</sup> &nbsp;dB<br>
                 Source spectra in the library are pre-A-weighted, so no additional A-weighting correction is applied.
               </p>
               <p style="margin:4px 0;"><strong>Multi-source combination:</strong> Individual source predictions are combined energetically (Equation&nbsp;3). Each source&rsquo;s level is adjusted for quantity (10&thinsp;log<sub>10</sub>&thinsp;n) and operational time fraction (10&thinsp;log<sub>10</sub>(t/T)).</p>
@@ -1023,15 +1023,15 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <h2>Source contribution</h2>
         <div class="p">Predicted sound pressure level at each receiver from individual sources, based on a point-source propagation model (−20 log<sub>10</sub> distance − 8 dB). Levels shown include any quantity and operational time adjustments applied in the source tables above.</div>
         <div class="contrib-section">
-          <div class="contrib-sub-h">Day L<sub>eq</sub> contributions at receivers (dB(A))</div>
+          <div class="contrib-sub-h">Day L<sub>Aeq</sub> contributions at receivers (dB)</div>
           <div class="table-scroll"><table id="contribDayTable"></table></div>
         </div>
         <div class="contrib-section vic-only">
-          <div class="contrib-sub-h">Evening L<sub>eq</sub> contributions at receivers (dB(A))</div>
+          <div class="contrib-sub-h">Evening L<sub>Aeq</sub> contributions at receivers (dB)</div>
           <div class="table-scroll"><table id="contribEveTable"></table></div>
         </div>
         <div class="contrib-section">
-          <div class="contrib-sub-h">Night L<sub>eq</sub> contributions at receivers (dB(A))</div>
+          <div class="contrib-sub-h">Night L<sub>Aeq</sub> contributions at receivers (dB)</div>
           <div class="table-scroll"><table id="contribNightTable"></table></div>
         </div>
       </div>
@@ -1099,7 +1099,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div style="padding:12px 14px;">
       <span class="badge">Δ = Predicted − Criterion (≤ 0 is compliant)</span>
       <span class="badge sa-only">Residential/Rural Living caps: L<sub>eq</sub>52 day, L<sub>eq</sub>45 night, L<sub>max</sub> 60 night</span>
-      <span class="badge vic-only vic-settings-only">Night cap: 55 dB(A). Min limits: 45/40/35 (urban) or 45/37/32 (rural). L<sub>max</sub> 65 night.</span>
+      <span class="badge vic-only vic-settings-only">Night cap: 55 dB. Min limits: 45/40/35 (urban) or 45/37/32 (rural). L<sub>Amax</sub> 65 night.</span>
     </div>
 
     <!-- ═══ Octave band spectrum chart (hidden — not ready for release) ═══ -->
@@ -4592,7 +4592,7 @@ function render() {
 
     // Add sleep disturbance screening summary row
     var sleepHtml = '<td colspan="5" style="font-size:12px;"><b>Sleep disturbance screening (Section 2.5)</b><br>' +
-      '<span style="font-size:11px;">Thresholds: L<sub>Aeq,15min</sub> ' + Math.round(sleepLeqThreshold) + ' dB(A) | L<sub>AFmax</sub> ' + Math.round(sleepLmaxThreshold) + ' dB(A)</span></td>';
+      '<span style="font-size:11px;">Thresholds: L<sub>Aeq,15min</sub> ' + Math.round(sleepLeqThreshold) + ' dB | L<sub>AFmax</sub> ' + Math.round(sleepLmaxThreshold) + ' dB</span></td>';
     // Evening columns (4 cells)
     sleepHtml += '<td class="vic-only crit-eve-col" colspan="4"></td>';
     // Night result
@@ -5103,7 +5103,7 @@ function updateSpectrumChart() {
             label: function(ctx) {
               var v = ctx.parsed.y;
               if (v === null || v === undefined) return '';
-              return ctx.dataset.label + ': ' + v.toFixed(1) + ' dB(A)';
+              return ctx.dataset.label + ': ' + v.toFixed(1) + ' dB';
             }
           }
         }
@@ -5114,7 +5114,7 @@ function updateSpectrumChart() {
           grid: { display: false }
         },
         y: {
-          title: { display: true, text: 'Sound level, dB(A)', font: { size: 12 } },
+          title: { display: true, text: 'Sound level, dB', font: { size: 12 } },
           beginAtZero: false,
           grid: { color: 'rgba(0,0,0,0.06)' }
         }
@@ -5179,8 +5179,8 @@ function renderNSWDerivTable() {
       var sleepLeq = Math.max(40, c._rblNight + 5);
       var sleepLmax = Math.max(52, c._rblNight + 15);
       html += '<tr><td colspan="4" style="border-top:2px solid var(--border);font-weight:600;font-size:11px;padding-top:6px;">Sleep disturbance screening</td></tr>';
-      html += '<tr><td>Night L<sub>eq,15min</sub> screening level — max(40, RBL + 5)</td><td class="num"></td><td class="num"></td><td class="num">' + val(sleepLeq) + '</td></tr>';
-      html += '<tr><td>Night L<sub>max</sub> screening level — max(52, RBL + 15)</td><td class="num"></td><td class="num"></td><td class="num">' + val(sleepLmax) + '</td></tr>';
+      html += '<tr><td>Night L<sub>Aeq,15min</sub> screening level — max(40, RBL + 5)</td><td class="num"></td><td class="num"></td><td class="num">' + val(sleepLeq) + '</td></tr>';
+      html += '<tr><td>Night L<sub>Amax</sub> screening level — max(52, RBL + 15)</td><td class="num"></td><td class="num"></td><td class="num">' + val(sleepLmax) + '</td></tr>';
     } else {
       // Non-residential: only ANL and amenity criterion rows
       html += '<tr><td>Amenity noise level (ANL) — ' + typeLabel + '</td><td class="num">' + val(c._anlDay) + '</td><td class="num">' + val(c._anlEve) + '</td><td class="num">' + val(c._anlNight) + '</td></tr>';
@@ -5280,7 +5280,7 @@ function renderContribTable(tableId, prefix, numRows) {
 
   // Header row
   const thead = document.createElement('thead');
-  let hRow = '<tr><th style="width:42%;">Source</th><th class="num">Source Lw (dB(A))</th>';
+  let hRow = '<tr><th style="width:42%;">Source</th><th class="num">Source Lw (dB)</th>';
   if (receivers.length === 0) {
     hRow += '<th class="num" style="color:var(--muted);">— enter distances above —</th>';
   } else {
@@ -5409,7 +5409,7 @@ function renderEmergencyEquipCriteria() {
   var colCount = 1 + (fireOn ? 1 : 0) + (genOn ? 1 : 0);
   var eqWidth = colCount === 3 ? '35%' : '70%';
   var hdr = '<tr><th style="width:30%;">Receiver</th>';
-  hdr += '<th class="num" colspan="' + (colCount - 1) + '">Criteria, L<sub>eq</sub> dB(A)</th></tr>';
+  hdr += '<th class="num" colspan="' + (colCount - 1) + '">Criteria, L<sub>Aeq</sub> dB</th></tr>';
   hdr += '<tr><th style="background:#D9D9D9;"></th>';
   if (fireOn) hdr += '<th class="num" style="background:#D9D9D9;width:' + eqWidth + ';">Fire pump</th>';
   if (genOn) hdr += '<th class="num" style="background:#D9D9D9;width:' + eqWidth + ';">Standby generator</th>';
@@ -10069,7 +10069,7 @@ initCollapse();
     var _legendMaxDefault = 70;
     var _legendIntervalDefault = 5;
 
-    var PERIOD_LABELS = { day: 'Day L\u2091\u2091', eve: 'Evening L\u2091\u2091', night: 'Night L\u2091\u2091', lmax: 'Night L\u2098\u2090\u2093' };
+    var PERIOD_LABELS = { day: 'Day L<sub>Aeq</sub>', eve: 'Evening L<sub>Aeq</sub>', night: 'Night L<sub>Aeq</sub>', lmax: 'Night L<sub>Amax</sub>' };
 
     // Base colour ramp — interpolated to any number of bands
     var COLOUR_RAMP = [
@@ -10371,8 +10371,8 @@ initCollapse();
       _noiseLegend.onAdd = function() {
         var div = L.DomUtil.create('div', 'noise-legend');
         div.style.cssText = 'background:rgba(255,255,255,0.92);padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
-        var periodLabel = PERIOD_LABELS[_noiseMapPeriod] || 'Day L\u2091\u2091';
-        var s = '<b>' + periodLabel + ' dB(A)</b><br>';
+        var periodLabel = PERIOD_LABELS[_noiseMapPeriod] || 'Day L<sub>Aeq</sub>';
+        var s = '<b>' + periodLabel + ' dB</b><br>';
         s += '<span style="color:#888;font-size:10px;">' + _noiseMapHeight.toFixed(1) + 'm height</span><br>';
         // Build legend from NOISE_COLOURS (skip transparent first entry)
         for (var li = 1; li < NOISE_COLOURS.length; li++) {
