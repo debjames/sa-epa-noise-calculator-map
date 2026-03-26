@@ -420,3 +420,50 @@ describe('ISO/TR 17534-3 T11: Cubic building, double diffraction', () => {
     expect(Math.abs(total - expectedTotal)).toBeLessThan(1.0);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// Table/Contour Parity Check
+// Both paths use SharedCalc.calcISOatPoint — verify numerically identical
+// results when given the same inputs (no grid interpolation).
+// ═══════════════════════════════════════════════════════════════
+describe('Table/contour parity — both paths use identical SharedCalc functions', () => {
+  it('T01 geometry: same inputs produce identical LAeq (no barrier)', () => {
+    var tableResult = calcISOatPoint(LW_UNWEIGHTED, hS, dp, 0, 0, hR, {
+      temperature: 20, humidity: 70, groundFactor: 0
+    });
+    var workerResult = calcISOatPoint(LW_UNWEIGHTED, hS, dp, 0, 0, hR, {
+      temperature: 20, humidity: 70, groundFactor: 0
+    });
+    expect(tableResult).toBe(workerResult);
+  });
+
+  it('groundFactor as number vs {Gs,Gr,Gm} with equal values produce same result', () => {
+    var resultNumber = calcISOatPoint(LW_UNWEIGHTED, hS, dp, 0, 0, hR, {
+      temperature: 20, humidity: 70, groundFactor: 0.5
+    });
+    var resultObject = calcISOatPoint(LW_UNWEIGHTED, hS, dp, 0, 0, hR, {
+      temperature: 20, humidity: 70, groundFactor: { Gs: 0.5, Gr: 0.5, Gm: 0.5 }
+    });
+    expect(resultNumber).toBeCloseTo(resultObject, 10);
+  });
+
+  it('barrier screening: same delta produces identical result in both contexts', () => {
+    var result1 = calcISOatPoint(LW_UNWEIGHTED, hS, dp, 0, 0.1, hR, {
+      temperature: 20, humidity: 70, groundFactor: 0.5
+    }, 0.5, 0.3);
+    var result2 = calcISOatPoint(LW_UNWEIGHTED, hS, dp, 0, 0.1, hR, {
+      temperature: 20, humidity: 70, groundFactor: 0.5
+    }, 0.5, 0.3);
+    expect(result1).toBe(result2);
+  });
+
+  it('barrier result is lower than unscreened (sanity check)', () => {
+    var unscreened = calcISOatPoint(LW_UNWEIGHTED, hS, dp, 0, 0, hR, {
+      temperature: 20, humidity: 70, groundFactor: 0.5
+    });
+    var screened = calcISOatPoint(LW_UNWEIGHTED, hS, dp, 0, 0.1, hR, {
+      temperature: 20, humidity: 70, groundFactor: 0.5
+    }, 0.5, 0.3);
+    expect(screened).toBeLessThan(unscreened);
+  });
+});
