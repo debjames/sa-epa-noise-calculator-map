@@ -1141,6 +1141,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         </table>
       </div>
       <div id="breakdownMeta" style="font-size:10px;color:#888;padding:4px 14px;"></div>
+      <div style="padding:4px 14px;"><a href="#" id="terrainProfileLink" style="font-size:10px;color:#999;text-decoration:none;" onclick="showTerrainProfile();return false;">Show terrain profile</a></div>
+      <div id="terrainProfileContainer" style="display:none;padding:4px 14px;"></div>
     </div>
     <div id="facadeCorrectionRow" style="padding:6px 14px 0;">
       <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;font-weight:600;white-space:nowrap;">
@@ -1462,6 +1464,184 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   // Temporary test — remove once confirmed working
   DEMCache.getElevation(-34.9285, 138.6007)
     .then(function(el) { console.log('DEM test elevation:', el, 'm (expected ~50m)'); });
+})();
+</script>
+
+<!-- Terrain profile sampling and visualisation -->
+<script>
+(function() {
+  'use strict';
+
+  var DEG_TO_RAD = Math.PI / 180;
+  var R_EARTH = 6371000; // metres
+
+  /** Haversine distance between two {lat,lng} points in metres */
+  function haversineDist(a, b) {
+    var p1 = a.lat * DEG_TO_RAD, p2 = b.lat * DEG_TO_RAD;
+    var dp = (b.lat - a.lat) * DEG_TO_RAD;
+    var dl = (b.lng - a.lng) * DEG_TO_RAD;
+    var s = Math.sin(dp/2)*Math.sin(dp/2) + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)*Math.sin(dl/2);
+    return R_EARTH * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  }
+
+  /**
+   * Sample the ground elevation profile along a straight-line path.
+   * @param {number} srcLat - source latitude
+   * @param {number} srcLng - source longitude
+   * @param {number} recLat - receiver latitude
+   * @param {number} recLng - receiver longitude
+   * @param {number} [nSamples=20] - number of sample points including endpoints
+   * @returns {Promise<Array<{lat, lng, distanceFromSource_m, elevation_m}>>}
+   */
+  function getTerrainProfile(srcLat, srcLng, recLat, recLng, nSamples) {
+    nSamples = nSamples || 20;
+    if (nSamples < 2) nSamples = 2;
+
+    var totalDist = haversineDist({lat: srcLat, lng: srcLng}, {lat: recLat, lng: recLng});
+    var points = [];
+    for (var i = 0; i < nSamples; i++) {
+      var t = i / (nSamples - 1);
+      var lat = srcLat + t * (recLat - srcLat);
+      var lng = srcLng + t * (recLng - srcLng);
+      points.push({ lat: lat, lng: lng, t: t, distanceFromSource_m: t * totalDist });
+    }
+
+    if (!window.DEMCache) {
+      return Promise.resolve(points.map(function(p) {
+        return { lat: p.lat, lng: p.lng, distanceFromSource_m: p.distanceFromSource_m, elevation_m: null };
+      }));
+    }
+
+    return DEMCache.getElevations(points).then(function(elevations) {
+      return points.map(function(p, i) {
+        return {
+          lat: p.lat,
+          lng: p.lng,
+          distanceFromSource_m: p.distanceFromSource_m,
+          elevation_m: elevations[i]
+        };
+      });
+    });
+  }
+
+  /**
+   * Render a terrain profile as an inline SVG cross-section.
+   * @param {HTMLElement} container - element to insert SVG into
+   * @param {Array} profile - from getTerrainProfile
+   * @param {number} srcHeight - source height above ground (m)
+   * @param {number} recHeight - receiver height above ground (m)
+   * @param {string} [srcLabel] - source name
+   * @param {string} [recLabel] - receiver name
+   */
+  function renderTerrainProfileSVG(container, profile, srcHeight, recHeight, srcLabel, recLabel) {
+    if (!profile || profile.length < 2) {
+      container.innerHTML = '<span style="color:#999;font-size:11px;">No profile data</span>';
+      return;
+    }
+
+    var W = 400, H = 160, PAD = { top: 20, right: 20, bottom: 30, left: 40 };
+    var plotW = W - PAD.left - PAD.right;
+    var plotH = H - PAD.top - PAD.bottom;
+
+    // Data ranges
+    var maxDist = profile[profile.length - 1].distanceFromSource_m || 1;
+    var elevations = profile.map(function(p) { return p.elevation_m; }).filter(function(e) { return e !== null; });
+    if (elevations.length === 0) {
+      container.innerHTML = '<span style="color:#999;font-size:11px;">Elevation data unavailable</span>';
+      return;
+    }
+
+    var srcElev = profile[0].elevation_m || 0;
+    var recElev = profile[profile.length - 1].elevation_m || 0;
+    var srcTip = srcElev + srcHeight;
+    var recTip = recElev + recHeight;
+
+    var allHeights = elevations.concat([srcTip, recTip]);
+    var minElev = Math.min.apply(null, allHeights) - 2;
+    var maxElev = Math.max.apply(null, allHeights) + 5;
+    var elevRange = maxElev - minElev || 1;
+
+    function xPos(d) { return PAD.left + (d / maxDist) * plotW; }
+    function yPos(e) { return PAD.top + plotH - ((e - minElev) / elevRange) * plotH; }
+
+    // Build ground path
+    var groundPath = 'M' + xPos(0) + ',' + yPos(minElev);
+    profile.forEach(function(p) {
+      if (p.elevation_m !== null) {
+        groundPath += ' L' + xPos(p.distanceFromSource_m).toFixed(1) + ',' + yPos(p.elevation_m).toFixed(1);
+      }
+    });
+    groundPath += ' L' + xPos(maxDist) + ',' + yPos(minElev) + ' Z';
+
+    // Direct ray line
+    var rayX1 = xPos(0), rayY1 = yPos(srcTip);
+    var rayX2 = xPos(maxDist), rayY2 = yPos(recTip);
+
+    // Check for obstructions (ground above ray)
+    var obstructionPath = '';
+    var hasObstruction = false;
+    profile.forEach(function(p, i) {
+      if (p.elevation_m === null) return;
+      var t = p.distanceFromSource_m / maxDist;
+      var rayElev = srcTip + t * (recTip - srcTip);
+      if (p.elevation_m > rayElev) {
+        hasObstruction = true;
+        // Mark this point
+        var cx = xPos(p.distanceFromSource_m);
+        var cy = yPos(p.elevation_m);
+        obstructionPath += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="3" fill="#f59e0b" opacity="0.8"/>';
+      }
+    });
+
+    // Build SVG
+    var svg = '<svg width="' + W + '" height="' + H + '" style="background:#fafafa;border:1px solid #e5e7eb;border-radius:6px;font-family:sans-serif;">';
+
+    // Ground fill
+    svg += '<path d="' + groundPath + '" fill="#d4edda" stroke="#27ae60" stroke-width="1.5" opacity="0.7"/>';
+
+    // Direct ray
+    svg += '<line x1="' + rayX1.toFixed(1) + '" y1="' + rayY1.toFixed(1) + '" x2="' + rayX2.toFixed(1) + '" y2="' + rayY2.toFixed(1) + '" stroke="' + (hasObstruction ? '#f59e0b' : '#3498db') + '" stroke-width="1.5" stroke-dasharray="4 3"/>';
+
+    // Obstruction markers
+    svg += obstructionPath;
+
+    // Source and receiver pins
+    svg += '<circle cx="' + rayX1.toFixed(1) + '" cy="' + rayY1.toFixed(1) + '" r="4" fill="#e74c3c" stroke="#fff" stroke-width="1"/>';
+    svg += '<circle cx="' + rayX2.toFixed(1) + '" cy="' + rayY2.toFixed(1) + '" r="4" fill="#3498db" stroke="#fff" stroke-width="1"/>';
+
+    // Labels
+    svg += '<text x="' + (rayX1 + 6).toFixed(1) + '" y="' + (rayY1 - 6).toFixed(1) + '" font-size="9" fill="#e74c3c">' + (srcLabel || 'S') + ' (' + srcTip.toFixed(0) + 'm)</text>';
+    svg += '<text x="' + (rayX2 - 6).toFixed(1) + '" y="' + (rayY2 - 6).toFixed(1) + '" font-size="9" fill="#3498db" text-anchor="end">' + (recLabel || 'R') + ' (' + recTip.toFixed(0) + 'm)</text>';
+
+    // X axis
+    svg += '<line x1="' + PAD.left + '" y1="' + (H - PAD.bottom) + '" x2="' + (W - PAD.right) + '" y2="' + (H - PAD.bottom) + '" stroke="#ccc" stroke-width="0.5"/>';
+    svg += '<text x="' + (W / 2) + '" y="' + (H - 5) + '" font-size="9" fill="#888" text-anchor="middle">Distance (m)</text>';
+    // X ticks
+    for (var xi = 0; xi <= 4; xi++) {
+      var xd = (maxDist * xi / 4);
+      svg += '<text x="' + xPos(xd).toFixed(1) + '" y="' + (H - PAD.bottom + 12) + '" font-size="8" fill="#aaa" text-anchor="middle">' + Math.round(xd) + '</text>';
+    }
+
+    // Y axis
+    svg += '<line x1="' + PAD.left + '" y1="' + PAD.top + '" x2="' + PAD.left + '" y2="' + (H - PAD.bottom) + '" stroke="#ccc" stroke-width="0.5"/>';
+    svg += '<text x="12" y="' + (H / 2) + '" font-size="9" fill="#888" text-anchor="middle" transform="rotate(-90 12 ' + (H / 2) + ')">Elevation (m)</text>';
+    // Y ticks
+    for (var yi = 0; yi <= 3; yi++) {
+      var ye = minElev + (elevRange * yi / 3);
+      svg += '<text x="' + (PAD.left - 4) + '" y="' + (yPos(ye) + 3).toFixed(1) + '" font-size="8" fill="#aaa" text-anchor="end">' + Math.round(ye) + '</text>';
+    }
+
+    svg += '</svg>';
+
+    container.innerHTML = svg;
+    if (hasObstruction) {
+      container.innerHTML += '<div style="font-size:9px;color:#f59e0b;margin-top:2px;">\u26a0 Terrain above direct ray \u2014 potential ground screening</div>';
+    }
+  }
+
+  // Public API
+  window.getTerrainProfile = getTerrainProfile;
+  window.renderTerrainProfileSVG = renderTerrainProfileSVG;
 })();
 </script>
 
@@ -4610,7 +4790,37 @@ function getManualCrit(cellId) {
  * @param {number} sourceIdx - source index
  * @param {number} receiverIdx - receiver index (0-based)
  */
+var _breakdownSourceIdx = 0;
+var _breakdownRecvIdx = 0;
+
+/** Show terrain profile for the currently displayed breakdown pair */
+function showTerrainProfile() {
+  var container = document.getElementById('terrainProfileContainer');
+  if (!container || !window.getTerrainProfile) return;
+  container.style.display = '';
+  container.innerHTML = '<span style="font-size:10px;color:#999;">Loading terrain profile...</span>';
+
+  var src = (typeof sources !== 'undefined' && sources[_breakdownSourceIdx]) ? sources[_breakdownSourceIdx] : null;
+  if (!src || src.lat === null) { container.innerHTML = '<span style="color:#999;font-size:10px;">Source not placed</span>'; return; }
+
+  var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+  var recLL = allLL['r' + (_breakdownRecvIdx + 1)];
+  if (!recLL) { container.innerHTML = '<span style="color:#999;font-size:10px;">Receiver not placed</span>'; return; }
+
+  var srcHt = src.heightM || 1.5;
+  var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(_breakdownRecvIdx) : 1.5;
+
+  getTerrainProfile(src.lat, src.lng, recLL.lat, recLL.lng, 25).then(function(profile) {
+    renderTerrainProfileSVG(container, profile, srcHt, recHt, src.name || 'S', 'R' + (_breakdownRecvIdx + 1));
+  });
+}
+
 function showISOBreakdown(sourceIdx, receiverIdx) {
+  _breakdownSourceIdx = sourceIdx;
+  _breakdownRecvIdx = receiverIdx;
+  // Hide terrain profile from previous pair
+  var tpc = document.getElementById('terrainProfileContainer');
+  if (tpc) { tpc.style.display = 'none'; tpc.innerHTML = ''; }
   var panel = document.getElementById('isoBreakdownPanel');
   var body = document.getElementById('breakdownBody');
   var title = document.getElementById('breakdownTitle');
