@@ -129,7 +129,8 @@ var SharedCalc = (function() {
 
   /** ISO 9613-1 atmospheric absorption coefficients (dB/km) per octave band. */
   function calcAlphaAtm(tempC, humPct) {
-    if (tempC === 10 && humPct === 70) return ALPHA_DEFAULT.slice();
+    // No shortcut — always compute from formula for accuracy
+    // ALPHA_DEFAULT is kept for reference only
     var T = tempC + 273.15;
     var T0 = 293.15;
     var T01 = 273.16;
@@ -148,18 +149,33 @@ var SharedCalc = (function() {
           0.1068 * Math.exp(-3352.0 / T) / (frN + f2 / frN)
         )
       );
-      alpha.push(Math.round(a * 100) / 100);
+      alpha.push(a); // no rounding — full precision for ISO compliance
     }
     return alpha;
   }
 
-  /** ISO 9613-2 Section 8 barrier attenuation per octave band. */
-  function calcBarrierAttenuation(delta, frequencies) {
+  /** ISO 9613-2 Section 8 barrier attenuation per octave band.
+   *  @param {number} delta - path length difference (m)
+   *  @param {number[]} frequencies - octave band centre frequencies
+   *  @param {boolean} [capped=true] - apply 20 dB single-diffraction cap.
+   *    Per ISO/TR 17534-3 §5.3, the cap applies only to over-top diffraction.
+   *    Lateral (side) paths must NOT be capped — pass capped=false for those. */
+  function calcBarrierAttenuation(delta, frequencies, capped) {
+    if (capped === undefined) capped = true;
     if (delta <= 0) return frequencies.map(function() { return 0; });
+    var C2 = 20;  // single diffraction constant
+    var C3 = 1;   // ISO 9613-2 Table 7: C3 = 1 for single diffraction
+    var Kmet = 1;  // meteorological correction (no wind)
     return frequencies.map(function(f) {
       var lambda = 340 / f;
-      var raw = 10 * Math.log10(3 + (20 * delta) / lambda);
-      return Math.max(0, Math.min(raw, 20));
+      // ISO/TR 17534-3 §5.4: two-step Dz with floor at zero
+      // Step a: z_min = -(C2/C3)² · λ / Kmet
+      var z_min = -Math.pow(C2 / C3, 2) * lambda / Kmet;
+      // Step b: Dz = 10·lg(3 + C2·C3·z/λ·Kmet) for z > z_min, else 0
+      if (delta <= z_min) return 0;
+      var Dz = 10 * Math.log10(3 + C2 * C3 * delta / lambda * Kmet);
+      Dz = Math.max(0, Dz); // floor at zero
+      return capped ? Math.min(Dz, 20) : Dz;
     });
   }
 
@@ -360,9 +376,10 @@ var SharedCalc = (function() {
       return frequencies.map(function() { return 0; });
     }
     // Compute insertion loss for each path
-    var topIL = calcBarrierAttenuation(topDelta, frequencies);
-    var leftIL = (leftDelta > 0) ? calcBarrierAttenuation(leftDelta, frequencies) : null;
-    var rightIL = (rightDelta > 0) ? calcBarrierAttenuation(rightDelta, frequencies) : null;
+    // Per ISO/TR 17534-3 §5.3: 20 dB cap applies to over-top only, NOT to lateral paths
+    var topIL = calcBarrierAttenuation(topDelta, frequencies, true);   // capped
+    var leftIL = (leftDelta > 0) ? calcBarrierAttenuation(leftDelta, frequencies, false) : null;  // uncapped
+    var rightIL = (rightDelta > 0) ? calcBarrierAttenuation(rightDelta, frequencies, false) : null; // uncapped
 
     // Energy-sum: the received level behind a barrier is the sum of energy
     // arriving via each diffraction path. Each path reduces the source level
@@ -418,12 +435,29 @@ var SharedCalc = (function() {
       Abar = calcBarrierAttenuation(barrierDelta || 0, OCT_FREQ);
     }
 
+    // Per ISO 9613-2 Formula (12) and ISO/TR 17534-3 §5.5:
+    // When barrier is present, Abar replaces Agr (not added to it).
+    // Total attenuation = Adiv + Aatm + max(Abar, Agr).
+    // When Agr < 0 (reflecting ground) and barrier is present, clamp Agr to 0
+    // to prevent spurious gain from removing ground reflection bonus.
+    var hasBarrier = (barrierDelta || 0) > 0 || (endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0;
+
     var sumLin = 0;
     var anyBand = false;
     for (var i = 0; i < 8; i++) {
       var Lw_f = spectrum[i];
       if (Lw_f === null || Lw_f === undefined || !isFinite(Lw_f)) continue;
-      var A_f = Adiv + alpha[i] * d / 1000 + Agr[i] + Abar[i];
+      var Aatm_f = alpha[i] * d; // alpha is in dB/m, d is in metres
+      var AgrBar_f;
+      if (hasBarrier && Abar[i] > 0) {
+        // ISO 9613-2 Formula (12): Abar replaces Agr when barrier is dominant
+        // Per §5.5: clamp Agr to 0 when negative (reflecting ground)
+        var AgrClamped = Math.max(Agr[i], 0);
+        AgrBar_f = Math.max(Abar[i], AgrClamped);
+      } else {
+        AgrBar_f = Agr[i];
+      }
+      var A_f = Adiv + Aatm_f + AgrBar_f;
       sumLin += Math.pow(10, (Lw_f + (adjDB || 0) - A_f) / 10);
       anyBand = true;
     }
