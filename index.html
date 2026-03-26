@@ -3004,7 +3004,39 @@ function calcPredAtReceiver(prefix, sourcesForPeriod, receiverIdx, fallbackDista
 
   if (validSources.length === 0) return "";
 
-  var result = window._calc.totalAtReceiver(validSources, validDistances);
+  // Apply barrier screening per source in simple method (matches worker behaviour)
+  var contributions = [];
+  var screenable = (window._getScreenableBuildings) ? window._getScreenableBuildings() : (window._buildings || []);
+  var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+  var recLL = allLL['r' + (receiverIdx + 1)];
+
+  for (var vi = 0; vi < validSources.length; vi++) {
+    var lp = window._calc.sourceContribution(validSources[vi], validDistances[vi]);
+    if (!isFinite(lp)) continue;
+
+    // Barrier screening if buildings/barriers present
+    if (screenable.length > 0 && recLL) {
+      var si = validSources[vi]._sourceIdx || 0;
+      var srcLat = (typeof sources !== 'undefined' && sources[si]) ? sources[si].lat : null;
+      var srcLng = (typeof sources !== 'undefined' && sources[si]) ? sources[si].lng : null;
+      if (srcLat !== null && srcLng !== null) {
+        var srcLL = { lat: srcLat, lng: srcLng };
+        var srcHt = (sources[si] && sources[si].heightM) || 1.5;
+        var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
+        var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+        if (barrier && (barrier.pathLengthDiff > 0 || (barrier.endDeltaLeft || 0) > 0 || (barrier.endDeltaRight || 0) > 0)) {
+          var Abar = SharedCalc.calcBarrierWithEndDiffraction(
+            barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
+          );
+          lp -= Math.min(Abar[0], 20);
+        }
+      }
+    }
+    contributions.push(lp);
+  }
+
+  if (contributions.length === 0) return "";
+  var result = SharedCalc.energySum(contributions);
   if (!isFinite(result)) return "";
   return Math.round(result);
 }
