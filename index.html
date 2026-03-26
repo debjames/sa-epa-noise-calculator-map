@@ -1163,19 +1163,38 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   </div>
   </div>
 
-  <div class="sheet1" style="margin-top:20px;">
-    <div class="h2">Sound pressure level calculator</div>
-    <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources.
-    It does not consider ground and air absorption or meteorological effects, which are more significant over large distances.
-    It is intended to be used a simple screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.
+  <!-- How to use panel -->
+  <div class="card" style="margin-top:20px;">
+    <h2>How to use</h2>
+    <div style="line-height:1.8;font-size:12px;">
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:#3498db;color:#fff;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">1</span><div><b>Set the site location</b><br>Search for an address using the search bar, or click the map to centre the view on your site. The address is used in exported filenames.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:#3498db;color:#fff;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">2</span><div><b>Place noise source(s)</b><br>Click "+ Add source" to create a source. Click "Place" within the source card, then click the map to place the source pin. Each source has its own equipment list and height setting. Multiple sources are energy-summed at each receiver.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:#3498db;color:#fff;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">3</span><div><b>Enter equipment details</b><br>For each source, add equipment items with their sound power level (L<sub>w</sub>, dB(A)) and quantity. Use manufacturer data sheets or measured values. If operational time is less than 15 minutes per assessment period, enter the expected duration to apply a time weighting.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:#3498db;color:#fff;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">4</span><div><b>Place receivers</b><br>Click the receiver button (R1\u2013R4) on the toolbar, then click the map. Up to four receivers can be assessed simultaneously. Assign a name to each receiver for reporting purposes.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:#3498db;color:#fff;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">5</span><div><b>Set zones and receiver types</b><br>Use the zone dropdown for each receiver to set the applicable noise zone, or rely on auto-detection from SAPPA (SA), NSW Planning Portal, or VIC zone data. Select the receiver type (e.g. residential, commercial) to apply the correct criteria.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:#3498db;color:#fff;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">6</span><div><b>Review results</b><br>The results table shows predicted levels for day, evening, and night periods against the applicable criteria. Cells highlighted in red indicate an exceedance. Click any receiver row to see a per-band ISO 9613-2 calculation breakdown.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:#3498db;color:#fff;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">7</span><div><b>Enable the noise map (optional)</b><br>Toggle the Noise Map button to display predicted contours across the site. Select the period (day/evening/night) and receiver height. Contours are calculated using the same method as the receiver predictions.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:#3498db;color:#fff;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">8</span><div><b>Load planning overlays (optional)</b><br>Use the toolbar to add contextual layers including SA Planning zones, ANEF aircraft noise contours, and EPA licensed air emission points.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:#3498db;color:#fff;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">9</span><div><b>Export</b><br><b>Save session:</b> downloads a JSON file to reload this assessment later.<br><b>GIS Export:</b> exports sources, receivers, and contours as GeoJSON, KML, or CSV for use in QGIS, ArcGIS, or Google Earth.<br><b>Screenshot:</b> capture the map for use as a figure in reports.</div></div>
+      <div style="background:#f8f9fa;border-left:3px solid #f39c12;padding:8px 12px;font-size:11px;color:#856404;border-radius:4px;margin-top:4px;">Always cross-check predicted results against hand calculations for at least one receiver before using outputs in a report.</div>
     </div>
-    <div class="h2">Barrier attenuation</div>
-    <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. The tool uses the Maekawa diffraction formula based on path-length difference to determine insertion loss. For ISO 9613-2, attenuation is applied per octave band and capped at 20 dB. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.
-    </div>
-    <div class="h2">Operational time</div>
-    <div class="p" style="margin-bottom:0;" id="opTimeNote">The calculation provides an option to input the expected operational time during a 15 minute assessment period.
-    This will provide a 10·log time weighting to the source level to account for the contribution during the assessment period.
-    </div>
+  </div>
+
+  <!-- Methodology panel -->
+  <div class="card" style="margin-top:14px;">
+    <h2>Methodology</h2>
+    <div class="h2" style="font-size:13px;">Sound pressure level prediction</div>
+    <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Two propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), and ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity). It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
+    <div class="h2" style="font-size:13px;">Barrier attenuation</div>
+    <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. The tool uses the Maekawa diffraction formula based on path-length difference to determine insertion loss. For ISO 9613-2, attenuation is applied per octave band and capped at 20 dB. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.</div>
+    <div class="h2" style="font-size:13px;">Operational time</div>
+    <div class="p" id="opTimeNote">The calculation provides an option to input the expected operational time during a 15 minute assessment period. This will provide a 10\u00b7log time weighting to the source level to account for the contribution during the assessment period.</div>
+    <div class="h2" style="font-size:13px;">Multiple sources \u2014 energy summation</div>
+    <div class="p">Where more than one noise source is present, contributions at each receiver are combined by energy summation: L<sub>total</sub> = 10\u00b7log<sub>10</sub>(\u03a3 10<sup>L<sub>i</sub>/10</sup>). The combined level will always be higher than the loudest individual source, but by no more than 3 dB when two equal sources are present.</div>
+    <div class="h2" style="font-size:13px;">Noise map</div>
+    <div class="p">The noise map generates a predicted sound level grid across the map extent using the selected propagation method. Grid resolution is adaptive (5\u201350 m based on zoom level). Contour lines are interpolated from the grid and represent equal noise level lines in dB(A). The noise map uses the same source inputs, propagation method, and receiver height as the receiver predictions. Contour accuracy degrades at the edges of the grid and at large distances from sources.</div>
+    <div class="h2" style="font-size:13px;">Zone detection</div>
+    <div class="p" style="margin-bottom:0;">Receiver zones are detected automatically by querying the SA Planning portal (SAPPA) based on the receiver map location. Zone detection requires an internet connection and relies on the SAPPA API returning current data. Users should verify zone classifications independently, as the API may not reflect recent planning amendments. Zone information is used to apply the applicable EPA noise criteria for that receiver.</div>
   </div>
   <div style="margin-top:14px;"></div>
   <button class="pdf-btn" id="pdfBtn" type="button" style="display:none;">Export PDF</button>
@@ -5782,7 +5801,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation', 'GIS Export'];
+    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation', 'GIS Export', 'How to use', 'Methodology'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
