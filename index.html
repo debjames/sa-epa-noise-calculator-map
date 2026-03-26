@@ -385,6 +385,14 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <span style="color:#666;margin-left:4px;">ht:</span>
             <input type="number" id="noiseMapHeight" value="1.5" min="0.1" max="50" step="0.5" style="width:45px;font-size:11px;padding:1px 3px;text-align:center;" title="Contour map receiver height (m)">
             <span style="color:#666;">m</span>
+            <span style="color:#666;margin-left:6px;border-left:1px solid #ccc;padding-left:6px;">Scale:</span>
+            <input type="number" id="legendMin" value="25" min="0" max="119" step="1" style="width:35px;font-size:11px;padding:1px 2px;text-align:center;" title="Legend minimum dB(A)">
+            <span style="color:#666;">–</span>
+            <input type="number" id="legendMax" value="70" min="1" max="120" step="1" style="width:35px;font-size:11px;padding:1px 2px;text-align:center;" title="Legend maximum dB(A)">
+            <span style="color:#666;">dB</span>
+            <span style="color:#666;margin-left:2px;">every</span>
+            <input type="number" id="legendInterval" value="5" min="1" max="20" step="1" style="width:30px;font-size:11px;padding:1px 2px;text-align:center;" title="Contour interval dB">
+            <span id="legendError" style="color:#c0392b;font-size:10px;display:none;"></span>
           </span>
           <button class="tool-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;font-size:11px;color:#666;padding:3px 8px;">Reset overrides</button>
           <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
@@ -5668,6 +5676,9 @@ initCollapse();
         data.noiseMapOn = window._getNoiseMapOn ? window._getNoiseMapOn() : false;
         data.noiseMapPeriod = _noiseMapPeriod || 'day';
         data.noiseMapHeight = _noiseMapHeight || 1.5;
+        data.legendMin = _legendMin;
+        data.legendMax = _legendMax;
+        data.legendInterval = _legendInterval;
 
         // Building height overrides (OSM buildings only — not custom)
         var overrides = [];
@@ -6101,6 +6112,19 @@ initCollapse();
         _noiseMapHeight = data.noiseMapHeight;
         var nmhEl = document.getElementById('noiseMapHeight');
         if (nmhEl) nmhEl.value = _noiseMapHeight;
+      }
+      // Legend scale settings
+      if (data.legendMin !== undefined) {
+        _legendMin = data.legendMin;
+        _legendMax = data.legendMax || _legendMaxDefault;
+        _legendInterval = data.legendInterval || _legendIntervalDefault;
+        var lMinEl = document.getElementById('legendMin');
+        var lMaxEl = document.getElementById('legendMax');
+        var lIntEl = document.getElementById('legendInterval');
+        if (lMinEl) lMinEl.value = _legendMin;
+        if (lMaxEl) lMaxEl.value = _legendMax;
+        if (lIntEl) lIntEl.value = _legendInterval;
+        rebuildNoiseScale();
       }
       if (data.noiseMapOn && window._setNoiseMapOn) {
         setTimeout(function() { window._setNoiseMapOn(true); }, 1000);
@@ -10034,23 +10058,75 @@ initCollapse();
     var _noiseMapPeriod = 'day';
     var _noiseMapHeight = 1.5;
     var _noiseRecomputeTimer = null;
-    var CONTOUR_THRESHOLDS = [25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
+    var _lastNoiseData = null;
+
+    // Legend scale state (user-configurable)
+    var _legendMin = 25;
+    var _legendMax = 70;
+    var _legendInterval = 5;
+    var _legendMinDefault = 25;
+    var _legendMaxDefault = 70;
+    var _legendIntervalDefault = 5;
 
     var PERIOD_LABELS = { day: 'Day L\u2091\u2091', eve: 'Evening L\u2091\u2091', night: 'Night L\u2091\u2091', lmax: 'Night L\u2098\u2090\u2093' };
 
-    var NOISE_COLOURS = [
-      { min: -Infinity, max: 25, color: null },
-      { min: 25, max: 30, color: 'rgba(213,245,227,0.5)' },  // very light green
-      { min: 30, max: 35, color: 'rgba(169,223,191,0.5)' },  // light green
-      { min: 35, max: 40, color: 'rgba(46,204,113,0.5)' },   // green
-      { min: 40, max: 45, color: 'rgba(241,196,15,0.5)' },   // yellow
-      { min: 45, max: 50, color: 'rgba(230,126,34,0.5)' },   // orange
-      { min: 50, max: 55, color: 'rgba(231,76,60,0.55)' },   // red
-      { min: 55, max: 60, color: 'rgba(192,57,43,0.6)' },    // dark red
-      { min: 60, max: 65, color: 'rgba(146,43,33,0.65)' },   // very dark red
-      { min: 65, max: 70, color: 'rgba(123,36,28,0.7)' },    // near black red
-      { min: 70, max: Infinity, color: 'rgba(74,14,14,0.75)' } // darkest
+    // Base colour ramp — interpolated to any number of bands
+    var COLOUR_RAMP = [
+      [213,245,227], // very light green
+      [169,223,191], // light green
+      [46,204,113],  // green
+      [241,196,15],  // yellow
+      [230,126,34],  // orange
+      [231,76,60],   // red
+      [192,57,43],   // dark red
+      [146,43,33],   // very dark red
+      [123,36,28],   // near black red
+      [74,14,14]     // darkest
     ];
+
+    function interpolateColour(t) {
+      // t ranges 0..1 through the ramp
+      var idx = t * (COLOUR_RAMP.length - 1);
+      var lo = Math.floor(idx);
+      var hi = Math.min(lo + 1, COLOUR_RAMP.length - 1);
+      var f = idx - lo;
+      var c = COLOUR_RAMP[lo].map(function(v, i) {
+        return Math.round(v + f * (COLOUR_RAMP[hi][i] - v));
+      });
+      var opacity = 0.45 + 0.3 * t; // 0.45 at min to 0.75 at max
+      return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + opacity.toFixed(2) + ')';
+    }
+
+    function buildNoiseScale() {
+      var bands = [];
+      var thresholds = [];
+      var numBands = Math.ceil((_legendMax - _legendMin) / _legendInterval) + 1;
+      // Below-min band
+      bands.push({ min: -Infinity, max: _legendMin, color: null });
+      for (var i = 0; i < numBands; i++) {
+        var lo = _legendMin + i * _legendInterval;
+        var hi = lo + _legendInterval;
+        if (lo >= _legendMax) break;
+        if (hi > _legendMax + _legendInterval) break;
+        var t = numBands > 1 ? i / (numBands - 1) : 0;
+        bands.push({ min: lo, max: hi, color: interpolateColour(t) });
+        thresholds.push(lo);
+      }
+      // Above-max band
+      bands.push({ min: _legendMax, max: Infinity, color: interpolateColour(1) });
+      thresholds.push(_legendMax);
+      return { bands: bands, thresholds: thresholds };
+    }
+
+    var _noiseScale = buildNoiseScale();
+    var NOISE_COLOURS = _noiseScale.bands;
+    var CONTOUR_THRESHOLDS = _noiseScale.thresholds;
+
+    function rebuildNoiseScale() {
+      _noiseScale = buildNoiseScale();
+      NOISE_COLOURS = _noiseScale.bands;
+      CONTOUR_THRESHOLDS = _noiseScale.thresholds;
+    }
 
     function getNoiseColour(dB) {
       if (!isFinite(dB)) return null;
@@ -10348,6 +10424,7 @@ initCollapse();
             var svg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg>';
             noiseMapBtn.innerHTML = svg + ' Noise Map';
           }
+          _lastNoiseData = msg;
           renderNoiseCanvas(msg);
           showNoiseLegend();
           _noiseWorker = null;
@@ -10435,6 +10512,56 @@ initCollapse();
       }
       noiseMapHtInput.addEventListener('input', onHeightChange);
       noiseMapHtInput.addEventListener('change', onHeightChange);
+    }
+
+    // Legend scale controls
+    var legendMinEl = document.getElementById('legendMin');
+    var legendMaxEl = document.getElementById('legendMax');
+    var legendIntervalEl = document.getElementById('legendInterval');
+    var legendErrorEl = document.getElementById('legendError');
+
+    function validateLegendInputs() {
+      var mn = parseInt(legendMinEl.value);
+      var mx = parseInt(legendMaxEl.value);
+      var iv = parseInt(legendIntervalEl.value);
+      if (!Number.isFinite(mn) || !Number.isFinite(mx) || !Number.isFinite(iv)) {
+        legendErrorEl.textContent = 'Invalid values';
+        legendErrorEl.style.display = '';
+        return false;
+      }
+      if (mn >= mx) {
+        legendErrorEl.textContent = 'Min must be less than max';
+        legendErrorEl.style.display = '';
+        return false;
+      }
+      if ((mx - mn) < 2 * iv) {
+        legendErrorEl.textContent = 'Range too small for this interval';
+        legendErrorEl.style.display = '';
+        return false;
+      }
+      legendErrorEl.style.display = 'none';
+      return true;
+    }
+
+    function applyLegendScale() {
+      if (!validateLegendInputs()) return;
+      _legendMin = parseInt(legendMinEl.value);
+      _legendMax = parseInt(legendMaxEl.value);
+      _legendInterval = parseInt(legendIntervalEl.value);
+      rebuildNoiseScale();
+      // Re-render existing data with new scale (no recalculation)
+      if (_lastNoiseData) {
+        renderNoiseCanvas(_lastNoiseData);
+        generateContourLines(_lastNoiseData);
+      }
+      if (_noiseLegend) { map.removeControl(_noiseLegend); _noiseLegend = null; }
+      showNoiseLegend();
+    }
+
+    if (legendMinEl && legendMaxEl && legendIntervalEl) {
+      [legendMinEl, legendMaxEl, legendIntervalEl].forEach(function(el) {
+        el.addEventListener('change', applyLegendScale);
+      });
     }
 
     // Save/load noise map state
