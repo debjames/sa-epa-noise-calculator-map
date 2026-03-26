@@ -631,7 +631,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           </tr>
 
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"></td>
+            <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"><br><span id="groundElev_r1" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="num"><input type="number" id="recvHt1" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
             <td class="zone-col"><select id="r1"></select></td>
             <td id="r1_viczone" class="vic-only vic-zone-col"></td>
@@ -643,7 +643,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <td id="r1_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"></td>
+            <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"><br><span id="groundElev_r2" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="num"><input type="number" id="recvHt2" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
             <td class="zone-col"><select id="r2"></select></td>
             <td id="r2_viczone" class="vic-only vic-zone-col"></td>
@@ -655,7 +655,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <td id="r2_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"></td>
+            <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"><br><span id="groundElev_r3" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="num"><input type="number" id="recvHt3" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
             <td class="zone-col"><select id="r3"></select></td>
             <td id="r3_viczone" class="vic-only vic-zone-col"></td>
@@ -667,7 +667,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <td id="r3_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"></td>
+            <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"><br><span id="groundElev_r4" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="num"><input type="number" id="recvHt4" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
             <td class="zone-col"><select id="r4"></select></td>
             <td id="r4_viczone" class="vic-only vic-zone-col"></td>
@@ -2453,6 +2453,7 @@ let iso_humidity = 70;        // % RH
 
 // Per-receiver height overrides (null = inherit global iso_receiverHeight)
 var recvHeights = { r1: null, r2: null, r3: null, r4: null };
+var recvGroundElevations = { r1: null, r2: null, r3: null, r4: null };
 
 /** Get effective receiver height for a specific receiver (0-based index) */
 function getReceiverHeight(receiverIdx) {
@@ -2622,7 +2623,7 @@ const SOURCE_COLOURS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc
 /** ID/key prefix for source-scoped elements. Source 0 = '' (backward compat), source 1+ = 's1_', 's2_', etc. */
 function srcPrefix(sourceIdx) { return 's' + sourceIdx + '_'; }
 var sources = [
-  { id: 1, name: 'Source 1', lat: null, lng: null, heightM: 1.5, equipment: { day: [], eve: [], night: [], lmax: [] } }
+  { id: 1, name: 'Source 1', lat: null, lng: null, heightM: 1.5, groundElevation_m: null, effectiveHeight_ASL: null, equipment: { day: [], eve: [], night: [], lmax: [] } }
 ];
 // Distances matrix: sourceDistances[srcIdx][recvIdx] = metres (populated by updateAll)
 window._sourceDistances = [];
@@ -3566,6 +3567,15 @@ function renderSourceCards(expandIdx) {
     }
     row1.appendChild(status);
 
+    // Ground elevation display
+    var elevSpan = document.createElement('span');
+    elevSpan.id = 'groundElev_source_' + idx;
+    elevSpan.style.cssText = 'font-size:10px;color:#999;font-style:italic;margin-left:6px;';
+    if (src.groundElevation_m !== null) {
+      elevSpan.textContent = Math.round(src.groundElevation_m) + 'm ASL';
+    }
+    row1.appendChild(elevSpan);
+
     // Expand/collapse toggle for equipment
     var toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
@@ -3644,6 +3654,7 @@ document.addEventListener('DOMContentLoaded', function() {
         id: nextId,
         name: 'Source ' + nextId,
         lat: null, lng: null, heightM: 1.5,
+        groundElevation_m: null, effectiveHeight_ASL: null,
         equipment: { day: [], eve: [], night: [], lmax: [] }
       });
       renderSourceCards(sources.length - 1); // expand the newly added source
@@ -6637,7 +6648,8 @@ initCollapse();
         sources.length = 0;
         data.sources.forEach(function(s) {
           sources.push({ id: s.id, name: s.name, lat: s.lat || null, lng: s.lng || null,
-                         heightM: s.heightM || 1.5, equipment: { day: [], eve: [], night: [], lmax: [] } });
+                         heightM: s.heightM || 1.5, groundElevation_m: null, effectiveHeight_ASL: null,
+                         equipment: { day: [], eve: [], night: [], lmax: [] } });
         });
       } else if (isV1) {
         // v1 file: single source, keep existing sources[0]
@@ -9656,6 +9668,34 @@ initCollapse();
       }
     }
 
+    /** Fetch ground elevation for a placed/dragged pin and update state + display */
+    function fetchPinElevation(mode, latlng) {
+      if (!window.DEMCache) return;
+      var elevId = 'groundElev_' + mode;
+      var elevEl = document.getElementById(elevId);
+      if (elevEl) elevEl.textContent = 'fetching...';
+
+      DEMCache.getElevation(latlng.lat, latlng.lng).then(function(elev) {
+        if (isSourceMode(mode)) {
+          var idx = sourceIdxFromMode(mode);
+          if (sources[idx]) {
+            sources[idx].groundElevation_m = elev;
+            sources[idx].effectiveHeight_ASL = (elev !== null) ? elev + (sources[idx].heightM || 1.5) : null;
+          }
+        } else {
+          // Receiver r1-r4
+          if (typeof recvGroundElevations !== 'undefined') {
+            recvGroundElevations[mode] = elev;
+          }
+        }
+        // Update display
+        var el2 = document.getElementById(elevId);
+        if (el2) {
+          el2.textContent = (elev !== null) ? Math.round(elev) + 'm ASL' : 'unavailable';
+        }
+      });
+    }
+
     function placeMarker(mode, latlng) {
       var cfg = getModeCfg(mode);
 
@@ -9674,6 +9714,7 @@ initCollapse();
       markers[mode] = m;
       latlngs[mode] = latlng;
       syncSourceLatLng(mode, latlng);
+      fetchPinElevation(mode, latlng);
 
       /* Hide pin if pins are toggled off */
       if (typeof arePinsVisible !== 'undefined' && !arePinsVisible) {
@@ -9689,6 +9730,7 @@ initCollapse();
       m.on('dragend', function (e) {
         latlngs[mode] = e.target.getLatLng();
         syncSourceLatLng(mode, e.target.getLatLng());
+        fetchPinElevation(mode, e.target.getLatLng());
         updateAll();
         if (isSourceMode(mode)) {
           detectStateFromCoords(e.target.getLatLng());
