@@ -9670,8 +9670,9 @@ initCollapse();
 
     /** Fetch ground elevation for a placed/dragged pin and update state + display */
     function fetchPinElevation(mode, latlng) {
-      if (!window.DEMCache) return;
+      if (!window.DEMCache) { console.warn('DEMCache not available'); return; }
       var elevId = 'groundElev_' + mode;
+      // For sources, the element is recreated by renderSourceCards — defer lookup to callback
       var elevEl = document.getElementById(elevId);
       if (elevEl) elevEl.textContent = 'fetching...';
 
@@ -9682,16 +9683,18 @@ initCollapse();
             sources[idx].groundElevation_m = elev;
             sources[idx].effectiveHeight_ASL = (elev !== null) ? elev + (sources[idx].heightM || 1.5) : null;
           }
+          // Re-render source cards so the stored elevation is displayed
+          if (typeof renderSourceCards === 'function') renderSourceCards();
         } else {
           // Receiver r1-r4
           if (typeof recvGroundElevations !== 'undefined') {
             recvGroundElevations[mode] = elev;
           }
-        }
-        // Update display
-        var el2 = document.getElementById(elevId);
-        if (el2) {
-          el2.textContent = (elev !== null) ? Math.round(elev) + 'm ASL' : 'unavailable';
+          // Update receiver elevation display directly (static HTML, not rebuilt)
+          var el2 = document.getElementById(elevId);
+          if (el2) {
+            el2.textContent = (elev !== null) ? Math.round(elev) + 'm ASL' : 'unavailable';
+          }
         }
       });
     }
