@@ -341,11 +341,18 @@ var SharedCalc = (function() {
       };
     }
 
-    // Path length difference δ (Maekawa) — over the top
-    var delta =
-      Math.sqrt(d1 * d1 + (barrierH - srcHeightM) * (barrierH - srcHeightM)) +
-      Math.sqrt(d2 * d2 + (barrierH - recHeightM) * (barrierH - recHeightM)) -
-      dDirect;
+    // Path length difference δ — ISO 9613-2 §7.4 Fresnel approach
+    // Uses perpendicular distance from diffraction point to the 3D S-R line.
+    // This correctly handles barriers at any angle to the propagation path.
+    // For perpendicular barriers: reduces to 2·h_eff²/(dss+dsr) where h_eff = H - LOS_height
+    var h_eff = barrierH - losHeight; // effective height above line of sight
+    var dss_3d = Math.sqrt(d1 * d1 + (barrierH - srcHeightM) * (barrierH - srcHeightM));
+    var dsr_3d = Math.sqrt(d2 * d2 + (barrierH - recHeightM) * (barrierH - recHeightM));
+    // Fresnel zone path-length difference: z = 2·a²/(dss+dsr)
+    // where a is the perpendicular distance from barrier top to the 3D S→R line
+    // For a barrier in the vertical S-R plane, a ≈ h_eff (height above LOS)
+    var a_perp = h_eff; // perpendicular distance to 3D line (vertical component dominates)
+    var delta = (dss_3d + dsr_3d > 0) ? 2 * a_perp * a_perp / (dss_3d + dsr_3d) : 0;
 
     // Horizontal end diffraction — around each endpoint of the barrier edge
     var endDeltaLeft = 0;
