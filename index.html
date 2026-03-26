@@ -1265,6 +1265,206 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     'Regression: totalAtReceiver single source should match attenuatePoint');
 </script>
 
+<!-- DEM (Digital Elevation Model) cache — infrastructure only, no UI -->
+<script>
+(function() {
+  'use strict';
+
+  var OPEN_ELEVATION_URL = 'https://api.open-elevation.com/api/v1/lookup';
+  var CACHE_PRECISION = 4; // 4 decimal places ≈ 11m resolution
+  var SNAP_THRESHOLD = 0.0001; // degrees — reuse cached value within this distance
+  var _cache = {}; // "lat,lng" → elevation (m)
+  var _tileBounds = null; // { north, south, east, west } of last fetched tile
+  var _tileGrid = null;   // { lats[], lngs[], elevations[][] }
+  var _pendingBatch = null; // in-flight batch promise
+
+  function roundKey(lat, lng) {
+    return lat.toFixed(CACHE_PRECISION) + ',' + lng.toFixed(CACHE_PRECISION);
+  }
+
+  function findCached(lat, lng) {
+    var key = roundKey(lat, lng);
+    if (_cache[key] !== undefined) return _cache[key];
+    // Check nearby cached points within snap threshold
+    var rLat = parseFloat(lat.toFixed(CACHE_PRECISION));
+    var rLng = parseFloat(lng.toFixed(CACHE_PRECISION));
+    for (var k in _cache) {
+      var parts = k.split(',');
+      if (Math.abs(parseFloat(parts[0]) - rLat) <= SNAP_THRESHOLD &&
+          Math.abs(parseFloat(parts[1]) - rLng) <= SNAP_THRESHOLD) {
+        return _cache[k];
+      }
+    }
+    return undefined;
+  }
+
+  function storeCache(lat, lng, elevation) {
+    _cache[roundKey(lat, lng)] = elevation;
+  }
+
+  /**
+   * Fetch elevations from Open-Elevation API.
+   * @param {Array<{latitude:number, longitude:number}>} locations
+   * @returns {Promise<Array<number|null>>}
+   */
+  function fetchFromAPI(locations) {
+    if (locations.length === 0) return Promise.resolve([]);
+    // Batch in chunks of 100 (API limit)
+    var chunks = [];
+    for (var i = 0; i < locations.length; i += 100) {
+      chunks.push(locations.slice(i, i + 100));
+    }
+    return Promise.all(chunks.map(function(chunk) {
+      return fetch(OPEN_ELEVATION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locations: chunk })
+      })
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        if (!data || !data.results) return chunk.map(function() { return null; });
+        return data.results.map(function(r) {
+          return (r && r.elevation !== undefined) ? r.elevation : null;
+        });
+      })
+      .catch(function(err) {
+        console.warn('DEM fetch failed:', err.message || err);
+        return chunk.map(function() { return null; });
+      });
+    })).then(function(results) {
+      // Flatten chunks
+      var flat = [];
+      results.forEach(function(chunk) { flat = flat.concat(chunk); });
+      // Store in cache
+      for (var j = 0; j < locations.length; j++) {
+        if (flat[j] !== null) {
+          storeCache(locations[j].latitude, locations[j].longitude, flat[j]);
+        }
+      }
+      return flat;
+    });
+  }
+
+  /**
+   * Get elevation for a single point.
+   * @param {number} lat
+   * @param {number} lng
+   * @returns {Promise<number|null>}
+   */
+  function getElevation(lat, lng) {
+    var cached = findCached(lat, lng);
+    if (cached !== undefined) return Promise.resolve(cached);
+    return fetchFromAPI([{ latitude: lat, longitude: lng }])
+      .then(function(results) { return results[0]; });
+  }
+
+  /**
+   * Get elevations for multiple points (batch).
+   * @param {Array<{lat:number, lng:number}>} points
+   * @returns {Promise<Array<number|null>>}
+   */
+  function getElevations(points) {
+    var results = new Array(points.length);
+    var toFetch = [];
+    var fetchIndices = [];
+    for (var i = 0; i < points.length; i++) {
+      var cached = findCached(points[i].lat, points[i].lng);
+      if (cached !== undefined) {
+        results[i] = cached;
+      } else {
+        toFetch.push({ latitude: points[i].lat, longitude: points[i].lng });
+        fetchIndices.push(i);
+      }
+    }
+    if (toFetch.length === 0) return Promise.resolve(results);
+    return fetchFromAPI(toFetch).then(function(fetched) {
+      for (var j = 0; j < fetchIndices.length; j++) {
+        results[fetchIndices[j]] = fetched[j];
+      }
+      return results;
+    });
+  }
+
+  /**
+   * Fetch a grid of elevations covering the given bounds.
+   * Returns cached result if bounds are already covered.
+   * @param {number} north
+   * @param {number} south
+   * @param {number} east
+   * @param {number} west
+   * @param {number} [gridSpacing=0.0005] - degrees (~55m)
+   * @returns {Promise<{lats:number[], lngs:number[], elevations:number[][]}>}
+   */
+  function getTileForBounds(north, south, east, west, gridSpacing) {
+    gridSpacing = gridSpacing || 0.0005;
+
+    // Check if existing tile covers the requested bounds
+    if (_tileBounds && _tileGrid &&
+        _tileBounds.north >= north && _tileBounds.south <= south &&
+        _tileBounds.east >= east && _tileBounds.west <= west) {
+      return Promise.resolve(_tileGrid);
+    }
+
+    // Expand bounds by 20% to reduce re-fetches on small pans
+    var latSpan = north - south;
+    var lngSpan = east - west;
+    var expandedNorth = north + latSpan * 0.1;
+    var expandedSouth = south - latSpan * 0.1;
+    var expandedEast = east + lngSpan * 0.1;
+    var expandedWest = west - lngSpan * 0.1;
+
+    var lats = [];
+    var lngs = [];
+    for (var lat = expandedSouth; lat <= expandedNorth; lat += gridSpacing) {
+      lats.push(parseFloat(lat.toFixed(CACHE_PRECISION)));
+    }
+    for (var lng = expandedWest; lng <= expandedEast; lng += gridSpacing) {
+      lngs.push(parseFloat(lng.toFixed(CACHE_PRECISION)));
+    }
+
+    // Build flat point array
+    var points = [];
+    for (var r = 0; r < lats.length; r++) {
+      for (var c = 0; c < lngs.length; c++) {
+        points.push({ lat: lats[r], lng: lngs[c] });
+      }
+    }
+
+    console.log('DEMCache: fetching ' + points.length + ' elevation points (' + lats.length + ' x ' + lngs.length + ' grid)');
+
+    return getElevations(points).then(function(elev) {
+      var elevations = [];
+      var idx = 0;
+      for (var r = 0; r < lats.length; r++) {
+        var row = [];
+        for (var c = 0; c < lngs.length; c++) {
+          row.push(elev[idx++]);
+        }
+        elevations.push(row);
+      }
+      _tileBounds = { north: expandedNorth, south: expandedSouth, east: expandedEast, west: expandedWest };
+      _tileGrid = { lats: lats, lngs: lngs, elevations: elevations };
+      return _tileGrid;
+    });
+  }
+
+  // Public API
+  window.DEMCache = {
+    getElevation: getElevation,
+    getElevations: getElevations,
+    getTileForBounds: getTileForBounds,
+    getCacheSize: function() { return Object.keys(_cache).length; }
+  };
+
+  // Temporary test — remove once confirmed working
+  DEMCache.getElevation(-34.9285, 138.6007)
+    .then(function(el) { console.log('DEM test elevation:', el, 'm (expected ~50m)'); });
+})();
+</script>
+
 <script>
 const DATA = [{"key": "Adelaide Park Lands Zone | (no subzone)", "zone": "Adelaide Park Lands Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Adelaide Park Lands Zone | Adelaide Aquatic Centre Subzone", "zone": "Adelaide Park Lands Zone", "subzone": "Adelaide Aquatic Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Business Neighbourhood Zone | (no subzone)", "zone": "Business Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Business Neighbourhood Zone | Melbourne Street West Subzone", "zone": "Business Neighbourhood Zone", "subzone": "Melbourne Street West Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Capital City Zone | (no subzone)", "zone": "Capital City Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Capital City Zone | City Frame Subzone", "zone": "Capital City Zone", "subzone": "City Frame Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Caravan and Tourist Park Zone | (no subzone)", "zone": "Caravan and Tourist Park Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | (no subzone)", "zone": "City Living Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | Medium-High Intensity Subzone", "zone": "City Living Zone", "subzone": "Medium-High Intensity Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | North Adelaide Low Intensity Subzone", "zone": "City Living Zone", "subzone": "North Adelaide Low Intensity Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Living Zone | East Terrace Subzone", "zone": "City Living Zone", "subzone": "East Terrace Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "City Main Street Zone | (no subzone)", "zone": "City Main Street Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Main Street Zone | Gouger and Grote Street Subzone", "zone": "City Main Street Zone", "subzone": "Gouger and Grote Street Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Main Street Zone | Hindley Street Subzone", "zone": "City Main Street Zone", "subzone": "Hindley Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Main Street Zone | Rundle Mall Subzone", "zone": "City Main Street Zone", "subzone": "Rundle Mall Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Main Street Zone | Rundle Street Subzone", "zone": "City Main Street Zone", "subzone": "Rundle Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Main Street Zone | City High Street Subzone", "zone": "City Main Street Zone", "subzone": "City High Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "City Riverbank Zone | (no subzone)", "zone": "City Riverbank Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Cultural Institutions Subzone", "zone": "City Riverbank Zone", "subzone": "Cultural Institutions Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Entertainment Subzone", "zone": "City Riverbank Zone", "subzone": "Entertainment Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Health Subzone", "zone": "City Riverbank Zone", "subzone": "Health Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "City Riverbank Zone | Innovation Subzone", "zone": "City Riverbank Zone", "subzone": "Innovation Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Coastal Waters and Offshore Islands Zone | (no subzone)", "zone": "Coastal Waters and Offshore Islands Zone", "subzone": "", "land_use_raw": "Rural Living, Rural Industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Commonwealth Facilities Zone | (no subzone)", "zone": "Commonwealth Facilities Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Community Facilities Zone | (no subzone)", "zone": "Community Facilities Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Community Facilities Zone | St Andrews Hospital Precinct Subzone", "zone": "Community Facilities Zone", "subzone": "St Andrews Hospital Precinct Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Community Facilities Zone | Women’s and Children’s Hospital and Memorial Hospital Precinct Subzone", "zone": "Community Facilities Zone", "subzone": "Women’s and Children’s Hospital and Memorial Hospital Precinct Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Community Facilities Zone | Neighbourhood Subzone", "zone": "Community Facilities Zone", "subzone": "Neighbourhood Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Conservation Zone | (no subzone)", "zone": "Conservation Zone", "subzone": "", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Aquaculture and Recreation Subzone", "zone": "Conservation Zone", "subzone": "Aquaculture and Recreation Subzone", "land_use_raw": "Rural Living, Rural industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Conservation Zone | Dwelling Subzone", "zone": "Conservation Zone", "subzone": "Dwelling Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Shack Relocation Subzone", "zone": "Conservation Zone", "subzone": "Shack Relocation Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Small Scale Settlement Subzone", "zone": "Conservation Zone", "subzone": "Small Scale Settlement Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Conservation Zone | Visitor Experience Subzone", "zone": "Conservation Zone", "subzone": "Visitor Experience Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Deferred Urban Zone | (no subzone)", "zone": "Deferred Urban Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Employment Zone | (no subzone)", "zone": "Employment Zone", "subzone": "", "land_use_raw": "Light Industry, Commercial", "inf_day": 60, "inf_night": 53, "is_single": 0, "single_cat": ""}, {"key": "Employment Zone | Roadside Service Centre Subzone", "zone": "Employment Zone", "subzone": "Roadside Service Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Employment Zone | Retail Activity Centre Subzone", "zone": "Employment Zone", "subzone": "Retail Activity Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Employment (Bulk Handling) Zone | (no subzone)", "zone": "Employment (Bulk Handling) Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Employment (Enterprise) Zone | (no subzone)", "zone": "Employment (Enterprise) Zone", "subzone": "", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Employment (Enterprise) Zone | Light Industry Subzone", "zone": "Employment (Enterprise) Zone", "subzone": "Light Industry Subzone", "land_use_raw": "Light industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Light Industry"}, {"key": "Established Neighbourhood Zone | (no subzone)", "zone": "Established Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "General Neighbourhood Zone | (no subzone)", "zone": "General Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Golf Course Estate Zone | (no subzone)", "zone": "Golf Course Estate Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Hills Face Zone | (no subzone)", "zone": "Hills Face Zone", "subzone": "", "land_use_raw": "Rural Living, Rural Industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Hills Neighbourhood Zone | (no subzone)", "zone": "Hills Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Home Industry Zone | (no subzone)", "zone": "Home Industry Zone", "subzone": "", "land_use_raw": "Residential, Light Industry", "inf_day": 55, "inf_night": 48, "is_single": 0, "single_cat": ""}, {"key": "Housing Diversity Neighbourhood Zone | (no subzone)", "zone": "Housing Diversity Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Infrastructure Zone | (no subzone)", "zone": "Infrastructure Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Infrastructure (Airfield) Zone | (no subzone)", "zone": "Infrastructure (Airfield) Zone", "subzone": "", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Infrastructure (Airfield) Zone | Residential Aviation Estate Subzone", "zone": "Infrastructure (Airfield) Zone", "subzone": "Residential Aviation Estate Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Infrastructure (Ferry and Marina Facilities) Zone | (no subzone)", "zone": "Infrastructure (Ferry and Marina Facilities) Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Infrastructure (Ferry and Marina Facilities) Zone | Wallaroo Marina Subzone", "zone": "Infrastructure (Ferry and Marina Facilities) Zone", "subzone": "Wallaroo Marina Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Local Activity Centre Zone | (no subzone)", "zone": "Local Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Master Planned Neighbourhood Zone | (no subzone)", "zone": "Master Planned Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Neighbourhood Zone | Emerging Activity Centre Subzone", "zone": "Master Planned Neighbourhood Zone", "subzone": "Emerging Activity Centre Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Neighbourhood Zone | Hills Subzone", "zone": "Master Planned Neighbourhood Zone", "subzone": "Hills Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Renewal Zone | (no subzone)", "zone": "Master Planned Renewal Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Township Zone | (no subzone)", "zone": "Master Planned Township Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Master Planned Township Zone | Emerging Township Activity Centre Subzone", "zone": "Master Planned Township Zone", "subzone": "Emerging Township Activity Centre Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Motorsport Park Zone | (no subzone)", "zone": "Motorsport Park Zone", "subzone": "", "land_use_raw": "Special industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Neighbourhood Zone | (no subzone)", "zone": "Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | American River Subzone", "zone": "Neighbourhood Zone", "subzone": "American River Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Roxby Downs Subzone", "zone": "Neighbourhood Zone", "subzone": "Roxby Downs Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Underground Subzone", "zone": "Neighbourhood Zone", "subzone": "Underground Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Wallaroo Landmark Subzone", "zone": "Neighbourhood Zone", "subzone": "Wallaroo Landmark Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Neighbourhood Zone | Waterfront Subzone", "zone": "Neighbourhood Zone", "subzone": "Waterfront Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Productive Rural Landscape Zone | (no subzone)", "zone": "Productive Rural Landscape Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Productive Rural Landscape Zone | The Cedars Subzone", "zone": "Productive Rural Landscape Zone", "subzone": "The Cedars Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Recreation Zone | (no subzone)", "zone": "Recreation Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Recreation Zone | Adelaide Showgrounds Subzone", "zone": "Recreation Zone", "subzone": "Adelaide Showgrounds Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Remote Areas Zone | (no subzone)", "zone": "Remote Areas Zone", "subzone": "", "land_use_raw": "Rural Living, Residential, Rural Industry, Commercial, General Industry", "inf_day": 57, "inf_night": 49, "is_single": 0, "single_cat": ""}, {"key": "Residential Park Zone | (no subzone)", "zone": "Residential Park Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Resource Extraction Zone | (no subzone)", "zone": "Resource Extraction Zone", "subzone": "", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Rural Zone | (no subzone)", "zone": "Rural Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Zone | Kangaroo Island Subzone", "zone": "Rural Zone", "subzone": "Kangaroo Island Subzone", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Aquaculture Zone | (no subzone)", "zone": "Rural Aquaculture Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Horticulture Zone | (no subzone)", "zone": "Rural Horticulture Zone", "subzone": "", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Horticulture Zone | Windamere Park Subzone", "zone": "Rural Horticulture Zone", "subzone": "Windamere Park Subzone", "land_use_raw": "Residential, Rural Industry", "inf_day": 55, "inf_night": 48, "is_single": 0, "single_cat": ""}, {"key": "Rural Intensive Enterprise Zone | (no subzone)", "zone": "Rural Intensive Enterprise Zone", "subzone": "", "land_use_raw": "Rural Industry, General Industry", "inf_day": 61, "inf_night": 53, "is_single": 0, "single_cat": ""}, {"key": "Rural Living Zone | (no subzone)", "zone": "Rural Living Zone", "subzone": "", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Rural Living Zone | Animal Husbandry Subzone", "zone": "Rural Living Zone", "subzone": "Animal Husbandry Subzone", "land_use_raw": "Rural Living, Rural Industry", "inf_day": 52, "inf_night": 45, "is_single": 0, "single_cat": ""}, {"key": "Rural Living Zone | Intensive Horse Establishments Subzone", "zone": "Rural Living Zone", "subzone": "Intensive Horse Establishments Subzone", "land_use_raw": "Rural Industry", "inf_day": 57, "inf_night": 50, "is_single": 1, "single_cat": "Rural Industry"}, {"key": "Rural Neighbourhood Zone | (no subzone)", "zone": "Rural Neighbourhood Zone", "subzone": "", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Rural Neighbourhood Zone | Bookmark Creek Subzone", "zone": "Rural Neighbourhood Zone", "subzone": "Bookmark Creek Subzone", "land_use_raw": "Rural Living", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Rural Neighbourhood Zone | Adelaide Hills Subzone", "zone": "Rural Neighbourhood Zone", "subzone": "Adelaide Hills Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Rural Settlement Zone | (no subzone)", "zone": "Rural Settlement Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Rural Settlement Zone | Fisherman Bay Subzone", "zone": "Rural Settlement Zone", "subzone": "Fisherman Bay Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Rural Shack Settlement Zone | (no subzone)", "zone": "Rural Shack Settlement Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Strategic Employment Zone | (no subzone)", "zone": "Strategic Employment Zone", "subzone": "", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Strategic Employment Zone | Gillman Subzone", "zone": "Strategic Employment Zone", "subzone": "Gillman Subzone", "land_use_raw": "General Industry", "inf_day": 65, "inf_night": 55, "is_single": 1, "single_cat": "General Industry"}, {"key": "Strategic Employment Zone | National Naval Shipbuilding Subzone", "zone": "Strategic Employment Zone", "subzone": "National Naval Shipbuilding Subzone", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Strategic Employment Zone | Ports Subzone", "zone": "Strategic Employment Zone", "subzone": "Ports Subzone", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Strategic Employment Zone | Significant Industry Subzone", "zone": "Strategic Employment Zone", "subzone": "Significant Industry Subzone", "land_use_raw": "Special Industry", "inf_day": 70, "inf_night": 60, "is_single": 1, "single_cat": "Special Industry"}, {"key": "Strategic Innovation Zone | (no subzone)", "zone": "Strategic Innovation Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Strategic Innovation Zone | Rehabilitation Subzone", "zone": "Strategic Innovation Zone", "subzone": "Rehabilitation Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Strategic Innovation Zone | Flinders Subzone", "zone": "Strategic Innovation Zone", "subzone": "Flinders Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Strategic Innovation Zone | Repatriation Subzone", "zone": "Strategic Innovation Zone", "subzone": "Repatriation Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Strategic Innovation Zone | Activity Node Subzone", "zone": "Strategic Innovation Zone", "subzone": "Activity Node Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Suburban Activity Centre Zone | (no subzone)", "zone": "Suburban Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Suburban Business Zone | (no subzone)", "zone": "Suburban Business Zone", "subzone": "", "land_use_raw": "Residential, Light Industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Suburban Main Street Zone | (no subzone)", "zone": "Suburban Main Street Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Suburban Neighbourhood Zone | (no subzone)", "zone": "Suburban Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Tourism Development Zone | (no subzone)", "zone": "Tourism Development Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Tourism Development Zone | Monarto Safari Park Subzone", "zone": "Tourism Development Zone", "subzone": "Monarto Safari Park Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Tourism Development Zone | River Murray Experience Subzone", "zone": "Tourism Development Zone", "subzone": "River Murray Experience Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Tourism Development Zone | Winery Experience Subzone", "zone": "Tourism Development Zone", "subzone": "Winery Experience Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Township Neighbourhood Zone | (no subzone)", "zone": "Township Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Township Zone | (no subzone)", "zone": "Township Zone", "subzone": "", "land_use_raw": "Residential, Light Industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Township Zone | Nairne Redevelopment Subzone", "zone": "Township Zone", "subzone": "Nairne Redevelopment Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Township Activity Centre Zone | (no subzone)", "zone": "Township Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Township Main Street Zone | (no subzone)", "zone": "Township Main Street Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Activity Centre Zone | (no subzone)", "zone": "Urban Activity Centre Zone", "subzone": "", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Activity Centre Zone | Port Adelaide Centre Subzone", "zone": "Urban Activity Centre Zone", "subzone": "Port Adelaide Centre Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Corridor (Boulevard) Zone | (no subzone)", "zone": "Urban Corridor (Boulevard) Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Corridor (Business) Zone | (no subzone)", "zone": "Urban Corridor (Business) Zone", "subzone": "", "land_use_raw": "Light industry, Commercial", "inf_day": 60, "inf_night": 53, "is_single": 0, "single_cat": ""}, {"key": "Urban Corridor (Business) Zone | Urban Corridor Business Retail Subzone", "zone": "Urban Corridor (Business) Zone", "subzone": "Urban Corridor Business Retail Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Corridor (Living) Zone | (no subzone)", "zone": "Urban Corridor (Living) Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Urban Corridor (Living) Zone | Urban Corridor Living Retail Subzone", "zone": "Urban Corridor (Living) Zone", "subzone": "Urban Corridor Living Retail Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Corridor (Main Street) Zone | (no subzone)", "zone": "Urban Corridor (Main Street) Zone", "subzone": "", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Neighbourhood Zone | (no subzone)", "zone": "Urban Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential, Light industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Neighbourhood Zone | Main Street Subzone", "zone": "Urban Neighbourhood Zone", "subzone": "Main Street Subzone", "land_use_raw": "Residential, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Neighbourhood Zone | Urban Neighbourhood Retail Subzone", "zone": "Urban Neighbourhood Zone", "subzone": "Urban Neighbourhood Retail Subzone", "land_use_raw": "Commercial", "inf_day": 62, "inf_night": 55, "is_single": 1, "single_cat": "Commercial"}, {"key": "Urban Renewal Neighbourhood Zone | (no subzone)", "zone": "Urban Renewal Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Urban Renewal Neighbourhood Zone | Mixed Use Transition Subzone", "zone": "Urban Renewal Neighbourhood Zone", "subzone": "Mixed Use Transition Subzone", "land_use_raw": "Residential, Light Industry, Commercial", "inf_day": 57, "inf_night": 50, "is_single": 0, "single_cat": ""}, {"key": "Urban Renewal Neighbourhood Zone | Landscape Transition Subzone", "zone": "Urban Renewal Neighbourhood Zone", "subzone": "Landscape Transition Subzone", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Waterfront Neighbourhood Zone | (no subzone)", "zone": "Waterfront Neighbourhood Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Workers’ Settlement Zone | (no subzone)", "zone": "Workers’ Settlement Zone", "subzone": "", "land_use_raw": "Residential", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}, {"key": "Open Space Zone | Rural Living in non-urban areas", "zone": "Open Space Zone", "subzone": "", "land_use_raw": "Rural Living in non-urban areas", "inf_day": 47, "inf_night": 40, "is_single": 1, "single_cat": "Rural Living"}, {"key": "Open Space Zone | Residential in urban areas", "zone": "Open Space Zone", "subzone": "", "land_use_raw": "Residential in urban areas", "inf_day": 52, "inf_night": 45, "is_single": 1, "single_cat": "Residential"}];
 /* ===== VIC Zone Type Mapping (Annex A, Table A.1 of Pub 1826.5) ===== */
