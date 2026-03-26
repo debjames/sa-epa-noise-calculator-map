@@ -1715,7 +1715,14 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   function calcTerrainDiffraction(profile, srcH, recH) {
     var result = { delta_m: 0, insertionLoss_dB: 0, ridge: null, perBand: null };
     var ridge = detectDominantRidge(profile, srcH, recH);
-    if (!ridge || ridge.delta_m <= 0) return result;
+    if (!ridge || ridge.delta_m <= 0) {
+      console.log('Terrain diffraction: no ridge detected (delta <= 0)');
+      return result;
+    }
+
+    console.log('Terrain diffraction: ridge at ' + ridge.distance_m.toFixed(0) + 'm, ' +
+      'elev=' + ridge.elevation_m.toFixed(1) + 'm, protrusion=' + ridge.protrusion_m.toFixed(2) + 'm, ' +
+      'delta=' + ridge.delta_m.toFixed(4) + 'm');
 
     result.ridge = ridge;
     result.delta_m = ridge.delta_m;
@@ -1727,6 +1734,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       result.perBand = abar;
       // Broadband IL ≈ 1kHz band value
       result.insertionLoss_dB = abar[4]; // 1kHz band
+      console.log('Terrain IL per band:', abar.map(function(v) { return v.toFixed(1); }).join(', ') + ' dB');
     } else {
       // Fallback: simple Maekawa at 1kHz
       var lambda = 0.343;
@@ -2911,6 +2919,7 @@ window._sourceDistances = [];
 // Terrain diffraction cache: _terrainIL[srcIdx][recvIdx] = { delta_m, perBand: number[8] } | null
 // Populated asynchronously when pins are placed. Used synchronously in calcPredAtReceiver.
 var _terrainIL = [];
+window._terrainIL = _terrainIL; // expose for console debugging
 
 /** Compute and cache terrain diffraction for a source-receiver pair. Async — call after pin placement. */
 function updateTerrainIL(srcIdx, recvIdx) {
@@ -2934,6 +2943,7 @@ function updateTerrainIL(srcIdx, recvIdx) {
 /** Refresh terrain IL for all source-receiver pairs. Call after any pin movement. */
 function refreshAllTerrainIL() {
   if (typeof sources === 'undefined') return;
+  console.log('refreshAllTerrainIL: updating terrain IL for', sources.length, 'sources');
   sources.forEach(function(src, si) {
     if (src.lat === null) return;
     for (var ri = 0; ri < 4; ri++) {
