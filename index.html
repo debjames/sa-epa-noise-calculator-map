@@ -11631,9 +11631,44 @@ initCollapse();
       var gridRes = zoom >= 18 ? 5 : zoom >= 16 ? 10 : zoom >= 14 ? 25 : 50;
 
       var noiseMapBtn = document.getElementById('noiseMapBtn');
-      if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... 0%';
+      if (noiseMapBtn) noiseMapBtn.textContent = 'Fetching terrain...';
 
       var screenable = (typeof getScreenableBuildings === 'function') ? getScreenableBuildings() : [];
+
+      // Fetch DEM tile for terrain screening in the noise grid
+      var demSpacing = gridRes / 111320; // convert metres to approx degrees
+      var demPromise;
+      if (window.DEMCache) {
+        demPromise = DEMCache.getTileForBounds(
+          mapBounds.getNorth(), mapBounds.getSouth(),
+          mapBounds.getEast(), mapBounds.getWest(),
+          demSpacing
+        ).catch(function(err) {
+          console.warn('DEM tile fetch failed:', err);
+          return null;
+        });
+      } else {
+        demPromise = Promise.resolve(null);
+      }
+
+      demPromise.then(function(demTile) {
+      // Flatten DEM tile for worker transfer
+      var demData = null;
+      if (demTile && demTile.elevations) {
+        demData = {
+          lats: demTile.lats,
+          lngs: demTile.lngs,
+          // Flatten 2D array to 1D for efficient transfer
+          elevations: [].concat.apply([], demTile.elevations),
+          rows: demTile.lats.length,
+          cols: demTile.lngs.length
+        };
+      }
+      if (!demData) {
+        console.warn('Noise map: terrain data unavailable — no terrain screening applied.');
+      }
+
+      if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... 0%';
 
       _noiseWorker = new Worker('noise-worker.js');
       _noiseWorker.onmessage = function(e) {
@@ -11676,8 +11711,10 @@ initCollapse();
           groundFactor: iso_groundFactor,
           temperature: iso_temperature,
           humidity: iso_humidity
-        }
+        },
+        demTile: demData
       });
+      }); // end demPromise.then
     }
 
     function debouncedRecompute() {
