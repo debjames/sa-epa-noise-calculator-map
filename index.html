@@ -1183,6 +1183,22 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   <button class="pdf-btn" id="exportJsonBtn" type="button" style="margin-left:8px;">Save Assessment</button>
   <button class="pdf-btn" id="importJsonBtn" type="button">Load Assessment</button>
   <input type="file" id="importJsonFile" accept=".json" style="display:none;">
+
+  <!-- GIS Export panel -->
+  <div class="card" style="margin-top:14px;">
+    <h2>GIS Export</h2>
+    <div class="p" style="margin-bottom:8px;">Export assessment data for use in GIS applications (QGIS, ArcGIS, Google Earth).</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+      <button class="pdf-btn" id="exportGeoJsonBtn" type="button" title="To get a Shapefile, open this GeoJSON in QGIS and use Export → Save Features As → ESRI Shapefile.">Export GeoJSON</button>
+      <button class="pdf-btn" id="exportKmlBtn" type="button">Export KML</button>
+      <button class="pdf-btn" id="exportCsvBtn" type="button">Export CSV</button>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.6;">
+      <b>GeoJSON</b> — recommended for QGIS and ArcGIS. <span style="color:#888;">Tip: to get a Shapefile, open GeoJSON in QGIS → Export → Save Features As → ESRI Shapefile.</span><br>
+      <b>KML</b> — use with Google Earth or Google Maps.<br>
+      <b>CSV</b> — receivers only, for Excel or data joins.
+    </div>
+  </div>
 </div>
 </div>
 
@@ -6047,6 +6063,286 @@ initCollapse();
       }
     });
 
+    /* ══════════════════════════════════════════════════════════
+       GIS EXPORT — GeoJSON, KML, CSV
+       ══════════════════════════════════════════════════════════ */
+
+    function slugify(str) {
+      return (str || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 40);
+    }
+    function getExportAddress() {
+      var inp = document.getElementById('searchInput');
+      return (inp && inp.value) ? inp.value.trim() : '';
+    }
+    function getExportFilename(ext) {
+      var addr = slugify(getExportAddress()) || 'assessment';
+      var date = new Date().toISOString().slice(0, 10);
+      return addr + '_' + date + '_noise-assessment.' + ext;
+    }
+    function downloadBlob(content, filename, mimeType) {
+      if (window.showSaveFilePicker) {
+        var extMap = { 'geojson': '.geojson', 'kml': '.kml', 'csv': '.csv' };
+        var ext = filename.split('.').pop();
+        window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: ext.toUpperCase() + ' files', accept: {} }]
+        }).then(function(h) {
+          return h.createWritable().then(function(w) { return w.write(content).then(function() { return w.close(); }); });
+        }).catch(function(e) { if (e.name !== 'AbortError') console.error(e); });
+      } else {
+        var blob = new Blob([content], { type: mimeType });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+      }
+    }
+
+    function buildGISMetadata() {
+      return {
+        project_address: getExportAddress(),
+        exported: new Date().toISOString(),
+        method: propagationMethod === 'iso9613' ? 'ISO 9613-2:1996' : 'Simple (geometric spreading)',
+        tool: 'Resonate SA EPA Noise Calculator',
+        tool_version: 'v2.0',
+        periods_exported: ['day', 'evening', 'night'],
+        receiver_height_m: iso_receiverHeight || 1.5,
+        ground_factor: iso_groundFactor,
+        temperature_c: iso_temperature,
+        humidity_pct: iso_humidity,
+        notes: 'Predictions based on user-entered equipment Lw values. Verify against site measurements before relying on results for compliance purposes.'
+      };
+    }
+
+    function buildSourceFeatures() {
+      var features = [];
+      if (typeof sources === 'undefined') return features;
+      sources.forEach(function(src, si) {
+        if (src.lat === null || src.lng === null) return;
+        var equip = [];
+        ['day', 'eve', 'night', 'lmax'].forEach(function(p) {
+          var items = (typeof buildSourceEquipment === 'function') ? buildSourceEquipment(p, si) : [];
+          items.forEach(function(item) {
+            if (item.Lw > 0) equip.push({ name: item.name, lw: item.Lw, qty: item.quantity, period: p });
+          });
+        });
+        features.push({
+          type: 'Feature',
+          id: 'source-' + slugify(src.name || 'source-' + (si + 1)),
+          geometry: { type: 'Point', coordinates: [src.lng, src.lat] },
+          properties: {
+            feature_type: 'source',
+            name: src.name || 'Source ' + (si + 1),
+            combined_lw_dba: null,
+            source_height_m: src.heightM || 1.5,
+            equipment_list: equip,
+            period: 'all'
+          }
+        });
+      });
+      return features;
+    }
+
+    function buildReceiverFeatures() {
+      var features = [];
+      var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+      var recs = ['r1', 'r2', 'r3', 'r4'];
+      recs.forEach(function(rk, i) {
+        var ll = allLL[rk];
+        if (!ll) return;
+        var nameEl = document.getElementById('recvName' + (i + 1));
+        var name = (nameEl && nameEl.value.trim()) ? nameEl.value.trim() : 'Receiver ' + (i + 1);
+
+        // Read predicted values from DOM
+        var predDay = document.getElementById('predDay_' + (i + 1));
+        var predNight = document.getElementById('predNight_' + (i + 1));
+        var dayVal = predDay ? parseFloat(predDay.textContent) : null;
+        var nightVal = predNight ? parseFloat(predNight.textContent) : null;
+
+        features.push({
+          type: 'Feature',
+          id: 'receiver-' + (i + 1),
+          geometry: { type: 'Point', coordinates: [ll.lng, ll.lat] },
+          properties: {
+            feature_type: 'receiver',
+            name: name,
+            zone: null,
+            recv_type: null,
+            predicted_day: isFinite(dayVal) ? dayVal : null,
+            predicted_eve: null,
+            predicted_night: isFinite(nightVal) ? nightVal : null,
+            predicted_lmax: null,
+            criteria_day: null,
+            criteria_eve: null,
+            criteria_night: null,
+            exceedance_day: null,
+            exceedance_eve: null,
+            exceedance_night: null
+          }
+        });
+      });
+      return features;
+    }
+
+    function buildContourFeatures() {
+      // TODO: extract vector contours from canvas grid for non-polyline layers
+      var features = [];
+      if (!_noiseContourLayer) return features;
+      var period = _noiseMapPeriod || 'day';
+      _noiseContourLayer.eachLayer(function(layer) {
+        if (!layer.getLatLngs) return;
+        var lls = layer.getLatLngs();
+        var coords = lls.map(function(p) { return [p.lng, p.lat]; });
+        if (coords.length < 2) return;
+        var level = layer.options._dBLevel || null;
+        features.push({
+          type: 'Feature',
+          id: 'contour-' + (level || 'unknown') + 'dba-' + period,
+          geometry: { type: 'LineString', coordinates: coords },
+          properties: {
+            feature_type: 'contour',
+            level_dba: level,
+            period: period,
+            method: propagationMethod === 'iso9613' ? 'ISO 9613-2' : 'simple'
+          }
+        });
+      });
+      return features;
+    }
+
+    function buildBuildingFeatures() {
+      var features = [];
+      var bldgs = window._buildings || [];
+      bldgs.forEach(function(b) {
+        if (!b.polygon || b.polygon.length < 3) return;
+        var coords = b.polygon.map(function(p) { return [p[1], p[0]]; });
+        coords.push(coords[0]); // close ring
+        features.push({
+          type: 'Feature',
+          id: 'building-' + (b.id || 'unknown'),
+          geometry: { type: 'Polygon', coordinates: [coords] },
+          properties: {
+            feature_type: 'building',
+            osm_id: b.id || null,
+            building_type: null,
+            height_m: b.heightM || null
+          }
+        });
+      });
+      return features;
+    }
+
+    // ── GeoJSON export ──
+    var geoJsonBtn = document.getElementById('exportGeoJsonBtn');
+    if (geoJsonBtn) geoJsonBtn.addEventListener('click', function() {
+      var noContours = !_noiseContourLayer;
+      var fc = {
+        type: 'FeatureCollection',
+        metadata: buildGISMetadata(),
+        crs: { type: 'name', properties: { name: 'urn:ogc:def:crs:OGC:1.3:CRS84' } },
+        features: [].concat(
+          buildSourceFeatures(),
+          buildReceiverFeatures(),
+          buildContourFeatures(),
+          buildBuildingFeatures()
+        )
+      };
+      var json = JSON.stringify(fc, null, 2);
+      downloadBlob(json, getExportFilename('geojson'), 'application/geo+json');
+      if (noContours) {
+        alert('Noise contours not included \u2014 enable the noise map to export contour lines.');
+      }
+    });
+
+    // ── KML export ──
+    var kmlBtn = document.getElementById('exportKmlBtn');
+    if (kmlBtn) kmlBtn.addEventListener('click', function() {
+      var meta = buildGISMetadata();
+      var kml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+      kml += '<kml xmlns="http://www.opengis.net/kml/2.2">\n';
+      kml += '<!-- ' + meta.tool + ' v' + meta.tool_version + ' | ' + meta.project_address + ' | ' + meta.exported + ' | Method: ' + meta.method + ' -->\n';
+      kml += '<Document>\n<name>Noise Assessment \u2014 ' + escapeXML(meta.project_address || 'Export') + '</name>\n';
+      kml += '<description>' + escapeXML(meta.notes) + '</description>\n';
+
+      // Sources folder
+      kml += '<Folder><name>Sources</name>\n';
+      buildSourceFeatures().forEach(function(f) {
+        kml += '<Placemark><name>' + escapeXML(f.properties.name) + '</name>\n';
+        kml += '<Point><coordinates>' + f.geometry.coordinates[0] + ',' + f.geometry.coordinates[1] + ',0</coordinates></Point>\n';
+        kml += '<ExtendedData>';
+        kml += '<Data name="source_height_m"><value>' + f.properties.source_height_m + '</value></Data>';
+        kml += '</ExtendedData>\n';
+        kml += '</Placemark>\n';
+      });
+      kml += '</Folder>\n';
+
+      // Receivers folder
+      kml += '<Folder><name>Receivers</name>\n';
+      buildReceiverFeatures().forEach(function(f) {
+        var p = f.properties;
+        var comply = (p.exceedance_day !== null && p.exceedance_day <= 0) ? 'green' : (p.exceedance_day !== null ? 'red' : 'grey');
+        kml += '<Placemark><name>' + escapeXML(p.name) + '</name>\n';
+        kml += '<Style><IconStyle><color>' + (comply === 'green' ? 'ff00ff00' : comply === 'red' ? 'ff0000ff' : 'ff888888') + '</color></IconStyle></Style>\n';
+        kml += '<Point><coordinates>' + f.geometry.coordinates[0] + ',' + f.geometry.coordinates[1] + ',0</coordinates></Point>\n';
+        kml += '<ExtendedData>';
+        ['predicted_day', 'predicted_night', 'predicted_lmax'].forEach(function(k) {
+          if (p[k] !== null) kml += '<Data name="' + k + '"><value>' + p[k] + '</value></Data>';
+        });
+        kml += '</ExtendedData>\n';
+        kml += '</Placemark>\n';
+      });
+      kml += '</Folder>\n';
+
+      // Contours folder
+      var contours = buildContourFeatures();
+      if (contours.length > 0) {
+        kml += '<Folder><name>Contours (' + (_noiseMapPeriod || 'day') + ')</name>\n';
+        contours.forEach(function(f) {
+          kml += '<Placemark><name>' + (f.properties.level_dba || '?') + ' dB(A)</name>\n';
+          kml += '<LineString><coordinates>' + f.geometry.coordinates.map(function(c) { return c[0] + ',' + c[1] + ',0'; }).join(' ') + '</coordinates></LineString>\n';
+          kml += '</Placemark>\n';
+        });
+        kml += '</Folder>\n';
+      }
+
+      kml += '</Document>\n</kml>';
+      downloadBlob(kml, getExportFilename('kml'), 'application/vnd.google-earth.kml+xml');
+      if (contours.length === 0) {
+        alert('Noise contours not included \u2014 enable the noise map to export contour lines.');
+      }
+    });
+
+    // ── CSV export (receivers only) ──
+    var csvBtn = document.getElementById('exportCsvBtn');
+    if (csvBtn) csvBtn.addEventListener('click', function() {
+      var meta = buildGISMetadata();
+      var csv = '# Noise Assessment Export | ' + meta.project_address + ' | ' + meta.exported + ' | Method: ' + meta.method + '\n';
+      csv += 'Receiver,Lat,Lng,Zone,Type,Day_pred,Eve_pred,Night_pred,Lmax_pred,Day_crit,Eve_crit,Night_crit,Day_exceed,Eve_exceed,Night_exceed,Compliant\n';
+      buildReceiverFeatures().forEach(function(f) {
+        var p = f.properties;
+        var c = f.geometry.coordinates;
+        var comply = 'N/A';
+        if (p.exceedance_day !== null) comply = p.exceedance_day <= 0 ? 'Yes' : 'No';
+        csv += [
+          '"' + (p.name || '') + '"', c[1].toFixed(6), c[0].toFixed(6),
+          p.zone || '', p.recv_type || '',
+          p.predicted_day !== null ? p.predicted_day : '', p.predicted_eve !== null ? p.predicted_eve : '',
+          p.predicted_night !== null ? p.predicted_night : '', p.predicted_lmax !== null ? p.predicted_lmax : '',
+          p.criteria_day !== null ? p.criteria_day : '', p.criteria_eve !== null ? p.criteria_eve : '',
+          p.criteria_night !== null ? p.criteria_night : '',
+          p.exceedance_day !== null ? p.exceedance_day : '', p.exceedance_eve !== null ? p.exceedance_eve : '',
+          p.exceedance_night !== null ? p.exceedance_night : '',
+          comply
+        ].join(',') + '\n';
+      });
+      downloadBlob(csv, getExportFilename('csv').replace('noise-assessment', 'receivers'), 'text/csv');
+    });
+
+    function escapeXML(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
     /* ── IMPORT ── */
     var importBtn = document.getElementById('importJsonBtn');
     var importFile = document.getElementById('importJsonFile');
@@ -10608,7 +10904,8 @@ initCollapse();
           if (isClosed) chain.push(chain[0]);
           var smoothed = chaikinSmooth(chain, 3);
           _noiseContourLayer.addLayer(L.polyline(smoothed, {
-            color: '#333333', weight: 1, opacity: 0.6, interactive: false
+            color: '#333333', weight: 1, opacity: 0.6, interactive: false,
+            _dBLevel: threshold  // stored for GIS export
           }));
         });
       });
