@@ -5974,7 +5974,7 @@ initCollapse();
         if (paramsDiv) paramsDiv.style.display = propagationMethod === 'iso9613' ? '' : 'none';
         var rhEl = document.getElementById('isoRecvHeight');
         if (rhEl) rhEl.value = iso_receiverHeight;
-        var gfEl = document.getElementById('isoGround');
+        var gfEl = document.getElementById('isoGroundType');
         if (gfEl) gfEl.value = iso_groundFactor;
         var tEl = document.getElementById('isoTemp');
         if (tEl) tEl.value = iso_temperature;
@@ -9232,6 +9232,7 @@ initCollapse();
           if (srcZl) srcZl.remove();
         }
 
+        if (window._clearNoiseData) window._clearNoiseData();
         setMode('source');
       });
     }
@@ -9323,7 +9324,7 @@ initCollapse();
       else sourceLabel = 'Estimated (3m default)';
 
       var html = '<div style="min-width:200px;font-size:13px;">';
-      html += '<b>' + label + '</b><br>';
+      html += '<b>' + escapeHTML(label) + '</b><br>';
       html += '<span style="color:#666;">Height source: ' + sourceLabel + '</span><br>';
       html += '<span>Current height: <b>' + effectiveH.toFixed(1) + ' m</b></span><br>';
       html += '<div style="margin:6px 0;display:flex;align-items:center;gap:4px;">';
@@ -9635,7 +9636,7 @@ initCollapse();
           var html = '<div style="min-width:200px;font-size:13px;">';
           html += '<b>' + escapeHTML(ub.name || 'Barrier') + '</b><br>';
           html += '<div style="margin:6px 0;">';
-          html += 'Name: <input type="text" id="editBarName" value="' + (ub.name || '') + '" style="width:120px;padding:2px 4px;font-size:12px;"><br>';
+          html += 'Name: <input type="text" id="editBarName" value="' + escapeHTML(ub.name || '') + '" style="width:120px;padding:2px 4px;font-size:12px;"><br>';
           html += 'Height: <input type="number" id="editBarHeight" value="' + (ub.heightM || 2) + '" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;"> m';
           html += '</div>';
           html += '<button id="editBarApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
@@ -9677,23 +9678,17 @@ initCollapse();
               line.editing.enable();
               var editBarrierBtn = document.getElementById('drawBarrierBtn');
               if (editBarrierBtn) editBarrierBtn.classList.add('active');
-              // Listen for edit completion
-              line.on('edit', function() {
-                ub.vertices = line.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
-                _drawingActive = false;
-                if (editBarrierBtn) editBarrierBtn.classList.remove('active');
-                renderUserBarriers();
-                rebuildBuildingsIndex();
-              });
-              // Finish on map click or Escape
-              map.once('click', function() {
+              // Finish on map click or Escape — single handler, no stale references
+              function finishBarrierEdit() {
+                line.off('edit'); // prevent orphaned listener after re-render
                 if (line.editing) line.editing.disable();
                 _drawingActive = false;
                 if (editBarrierBtn) editBarrierBtn.classList.remove('active');
                 ub.vertices = line.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
                 renderUserBarriers();
                 rebuildBuildingsIndex();
-              });
+              }
+              map.once('click', finishBarrierEdit);
             });
           }, 50);
 
@@ -10105,9 +10100,8 @@ initCollapse();
       bands.push({ min: -Infinity, max: _legendMin, color: null });
       for (var i = 0; i < numBands; i++) {
         var lo = _legendMin + i * _legendInterval;
-        var hi = lo + _legendInterval;
+        var hi = Math.min(lo + _legendInterval, _legendMax);
         if (lo >= _legendMax) break;
-        if (hi > _legendMax + _legendInterval) break;
         var t = numBands > 1 ? i / (numBands - 1) : 0;
         bands.push({ min: lo, max: hi, color: interpolateColour(t) });
         thresholds.push(lo);
@@ -10567,6 +10561,7 @@ initCollapse();
     // Save/load noise map state
     window._getNoiseMapOn = function() { return _noiseMapOn; };
     window._recomputeNoiseMap = function() { if (_noiseMapOn) computeNoiseMap(); };
+    window._clearNoiseData = function() { _lastNoiseData = null; };
     window._setNoiseMapOn = function(v) {
       _noiseMapOn = !!v;
       if (noiseMapBtn) noiseMapBtn.classList.toggle('active', _noiseMapOn);
