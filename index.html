@@ -10340,6 +10340,7 @@ initCollapse();
         syncSourceLatLng(mode, e.target.getLatLng());
         fetchPinElevation(mode, e.target.getLatLng());
         updateAll();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
         if (isSourceMode(mode)) {
           detectStateFromCoords(e.target.getLatLng());
           querySourceParcel(e.target.getLatLng());
@@ -10359,6 +10360,7 @@ initCollapse();
       }
 
       updateAll();
+      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
 
       /* VIC urban: concentric circles + auto-IF around RECEIVER markers */
       if (!isSourceMode(mode)) {
