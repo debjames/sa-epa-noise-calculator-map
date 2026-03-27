@@ -446,7 +446,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           </div>
           <div class="vic-rural-only">
             <label class="h2" style="font-size:12px;" for="vicDistToZoneBoundary">Distance: receiver to zone boundary (m)</label>
-            <input type="number" id="vicDistToZoneBoundary" min="0" max="10000" step="1" placeholder="0" style="width:120px;margin-top:4px;" oninput="render()" onchange="render()">
+            <input type="number" id="vicDistToZoneBoundary" min="0" max="10000" step="1" placeholder="0" style="width:120px;margin-top:4px;" oninput="renderDebounced()" onchange="render()">
             <div class="small" style="margin-top:4px;">Applies −1 dB per 100 m (rounded down, max 9 dB) when source zone ≠ receiver zone.</div>
           </div>
           <div class="vic-urban-only">
@@ -498,17 +498,17 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;max-width:300px;">
               <div>
                 <label style="font-size:11px;font-weight:600;">Day</label>
-                <input type="number" id="nswRblDay" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="35" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
+                <input type="number" id="nswRblDay" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="35" oninput="updateNSWIntrusiveness();renderDebounced()" onchange="updateNSWIntrusiveness();render()">
                 <div class="nsw-intrusiveness-display" id="nswIntDay">Intrusiveness: 40</div>
               </div>
               <div>
                 <label style="font-size:11px;font-weight:600;">Evening</label>
-                <input type="number" id="nswRblEve" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
+                <input type="number" id="nswRblEve" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();renderDebounced()" onchange="updateNSWIntrusiveness();render()">
                 <div class="nsw-intrusiveness-display" id="nswIntEve">Intrusiveness: 35</div>
               </div>
               <div>
                 <label style="font-size:11px;font-weight:600;">Night</label>
-                <input type="number" id="nswRblNight" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();render()" onchange="updateNSWIntrusiveness();render()">
+                <input type="number" id="nswRblNight" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();renderDebounced()" onchange="updateNSWIntrusiveness();render()">
                 <div class="nsw-intrusiveness-display" id="nswIntNight">Intrusiveness: 35</div>
               </div>
             </div>
@@ -2962,36 +2962,50 @@ var _terrainEnabled = true; // controlled by #terrainScreeningCb checkbox
 
 function isTerrainEnabled() { return _terrainEnabled; }
 
-/** Compute and cache terrain diffraction for a source-receiver pair. Async — call after pin placement. */
+/** Compute and cache terrain diffraction for a source-receiver pair.
+ *  Returns a Promise that resolves when the cache entry is updated. */
 function updateTerrainIL(srcIdx, recvIdx) {
-  if (!_terrainEnabled) return;
-  if (!window.getTerrainProfile || !window.calcTerrainDiffraction) return;
+  if (!_terrainEnabled) return Promise.resolve();
+  if (!window.getTerrainProfile || !window.calcTerrainDiffraction) return Promise.resolve();
   var src = (typeof sources !== 'undefined' && sources[srcIdx]) ? sources[srcIdx] : null;
-  if (!src || src.lat === null) return;
+  if (!src || src.lat === null) return Promise.resolve();
   var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
   var recLL = allLL['r' + (recvIdx + 1)];
-  if (!recLL) return;
+  if (!recLL) return Promise.resolve();
 
   var srcH = src.heightM || 1.5;
   var recH = (typeof getReceiverHeight === 'function') ? getReceiverHeight(recvIdx) : 1.5;
 
-  getTerrainProfile(src.lat, src.lng, recLL.lat, recLL.lng, 25).then(function(profile) {
+  return getTerrainProfile(src.lat, src.lng, recLL.lat, recLL.lng, 25).then(function(profile) {
     var result = calcTerrainDiffraction(profile, srcH, recH);
     if (!_terrainIL[srcIdx]) _terrainIL[srcIdx] = [];
     _terrainIL[srcIdx][recvIdx] = (result.delta_m > 0) ? result : null;
   });
 }
 
-/** Refresh terrain IL for all source-receiver pairs. Call after any pin movement. */
+/** Refresh terrain IL for all source-receiver pairs. Batches all API calls
+ *  and renders once when all resolve — avoids N×4 individual render cycles. */
+var _terrainRefreshTimer = null;
 function refreshAllTerrainIL() {
   if (typeof sources === 'undefined') return;
-  console.log('refreshAllTerrainIL: updating terrain IL for', sources.length, 'sources');
-  sources.forEach(function(src, si) {
-    if (src.lat === null) return;
-    for (var ri = 0; ri < 4; ri++) {
-      updateTerrainIL(si, ri);
+  // Debounce: if called rapidly (e.g. during drag), only fire once after 300ms
+  if (_terrainRefreshTimer) clearTimeout(_terrainRefreshTimer);
+  _terrainRefreshTimer = setTimeout(function() {
+    _terrainRefreshTimer = null;
+    var promises = [];
+    sources.forEach(function(src, si) {
+      if (src.lat === null) return;
+      for (var ri = 0; ri < 4; ri++) {
+        promises.push(updateTerrainIL(si, ri));
+      }
+    });
+    if (promises.length > 0) {
+      Promise.all(promises).then(function() {
+        // Single render after all terrain data resolves
+        if (typeof render === 'function') render();
+      });
     }
-  });
+  }, 300);
 }
 
 // State detection: 'SA' | 'VIC' | 'NSW' | 'OTHER' | null
@@ -3856,6 +3870,23 @@ function renderSourceCards(expandIdx) {
   var container = document.getElementById('sourceCards');
   if (!container) return;
 
+  // Quick-path: if card count matches and no expand requested, just update mutable fields
+  var existingCards = container.querySelectorAll('[data-src-idx]');
+  if (expandIdx === undefined && existingCards.length === sources.length && existingCards.length > 0) {
+    sources.forEach(function(src, idx) {
+      var coordEl = document.getElementById('srcCoords_' + idx);
+      if (coordEl) {
+        coordEl.textContent = (src.lat !== null) ? src.lat.toFixed(2) + ', ' + src.lng.toFixed(2) : '';
+      }
+      var elevEl = document.getElementById('groundElev_source_' + idx);
+      if (elevEl && src.groundElevation_m !== null && src.groundElevation_m !== undefined) {
+        elevEl.textContent = Math.round(src.groundElevation_m) + 'm ASL';
+        elevEl.style.color = '#888';
+      }
+    });
+    return; // skip full rebuild
+  }
+
   // Preserve collapse state of existing equipment sections before clearing
   var _collapseState = {};
   document.querySelectorAll('[id^="srcEquipSection_"]').forEach(function(el) {
@@ -3877,6 +3908,7 @@ function renderSourceCards(expandIdx) {
   sources.forEach(function(src, idx) {
     var colour = SOURCE_COLOURS[idx % SOURCE_COLOURS.length];
     var wrapper = document.createElement('div');
+    wrapper.setAttribute('data-src-idx', idx);
     wrapper.style.cssText = 'flex:1 1 100%;';
 
     // Card header strip — two rows
@@ -4117,7 +4149,7 @@ function renderSourceTable(prefix, tbodyId, totalId, rows=5, sourceIdx=0){
     inpHt.style.width = "55px"; inpHt.inputMode = "decimal";
     inpHt.value = "1.5"; // default; updated when source is selected
     inpHt.id = `${sp}${prefix}_ht_inp_${i}`;
-    inpHt.addEventListener("input", function() { render(); });
+    inpHt.addEventListener("input", function() { renderDebounced(); });
 
     // Out-of-range warning elements
     const nWarning = document.createElement('div');
@@ -5229,6 +5261,15 @@ function runISOValidation() {
   btn.disabled = false;
 }
 
+// Debounced render — use renderDebounced() for input events to avoid
+// multiple full table rebuilds per keystroke. Direct render() is still
+// used for immediate updates (button clicks, pin placement).
+var _renderTimer = null;
+function renderDebounced() {
+  if (_renderTimer) clearTimeout(_renderTimer);
+  _renderTimer = setTimeout(function() { _renderTimer = null; render(); }, 100);
+}
+
 function render() {
   _hasRunCalculation = true;
   clearStaleIndicator();
@@ -5295,7 +5336,7 @@ function render() {
           var oldVal = cell.dataset.manualVal || '';
           cell.innerHTML = '<input type="number" class="manual-crit-input" id="' + inputId +
             '" min="0" max="120" step="1" placeholder="dB" value="' + oldVal +
-            '" oninput="this.parentElement.dataset.manualVal=this.value;render();" onchange="this.parentElement.dataset.manualVal=this.value;render();">';
+            '" oninput="this.parentElement.dataset.manualVal=this.value;renderDebounced();" onchange="this.parentElement.dataset.manualVal=this.value;render();">';
         }
       });
     } else if (isNSW) {
@@ -10927,8 +10968,11 @@ initCollapse();
       });
     }
 
+    var _buildingsMoveTimer = null;
     map.on('moveend', function() {
-      if (_buildingsOn) fetchBuildingsInView();
+      if (!_buildingsOn) return;
+      if (_buildingsMoveTimer) clearTimeout(_buildingsMoveTimer);
+      _buildingsMoveTimer = setTimeout(function() { fetchBuildingsInView(); }, 200);
     });
 
     // Expose for save/load
@@ -11971,7 +12015,7 @@ initCollapse();
       _legendMin = min; _legendMax = max; _legendInterval = interval;
     };
     window._rebuildNoiseScale = function() { rebuildNoiseScale(); };
-    window._recomputeNoiseMap = function() { if (_noiseMapOn) computeNoiseMap(); };
+    window._recomputeNoiseMap = function() { if (_noiseMapOn) debouncedRecompute(); };
     window._clearNoiseData = function() { _lastNoiseData = null; };
     window._setNoiseMapOn = function(v) {
       _noiseMapOn = !!v;
