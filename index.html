@@ -401,6 +401,19 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <span style="color:#666;margin-left:4px;">ht:</span>
             <input type="number" id="noiseMapHeight" value="1.5" min="0.1" max="50" step="0.5" style="width:45px;font-size:11px;padding:1px 3px;text-align:center;" title="Contour map receiver height (m)">
             <span style="color:#666;">m</span>
+            <span style="color:#666;margin-left:6px;border-left:1px solid #ccc;padding-left:6px;">Grid:</span>
+            <select id="noiseMapGridSel" style="font-size:11px;padding:1px 2px;border:1px solid #ccc;border-radius:4px;" title="Grid spacing for noise map calculation">
+              <option value="auto">Auto</option>
+              <option value="1">1 m</option>
+              <option value="2">2 m</option>
+              <option value="5">5 m</option>
+              <option value="10">10 m</option>
+              <option value="20">20 m</option>
+              <option value="50">50 m</option>
+              <option value="100">100 m</option>
+            </select>
+            <span id="noiseMapGridLabel" style="color:#888;font-size:10px;"></span>
+            <span id="noiseMapGridWarning" style="font-size:10px;display:none;"></span>
             <span style="color:#666;margin-left:6px;border-left:1px solid #ccc;padding-left:6px;">Scale:</span>
             <input type="number" id="legendMin" value="25" min="0" max="119" step="1" style="width:35px;font-size:11px;padding:1px 2px;text-align:center;" title="Legend minimum dB">
             <span style="color:#666;">–</span>
@@ -11520,6 +11533,7 @@ initCollapse();
     var _noiseLegend = null;
     var _noiseMapPeriod = 'day';
     var _noiseMapHeight = 1.5;
+    var _noiseMapGridSize = 'auto'; // 'auto' or fixed metres as number string
     var _noiseRecomputeTimer = null;
     var _lastNoiseData = null;
 
@@ -11869,8 +11883,16 @@ initCollapse();
 
       var mapBounds = map.getBounds();
       var zoom = map.getZoom();
-      // Adaptive resolution: finer at higher zoom
-      var gridRes = zoom >= 18 ? 5 : zoom >= 16 ? 10 : zoom >= 14 ? 25 : 50;
+      // Adaptive resolution: finer at higher zoom, or fixed if user overrides
+      var gridRes;
+      if (_noiseMapGridSize !== 'auto') {
+        gridRes = parseInt(_noiseMapGridSize, 10);
+      } else {
+        gridRes = zoom >= 18 ? 5 : zoom >= 16 ? 10 : zoom >= 14 ? 25 : 50;
+      }
+      // Update grid label
+      var _gridLabelEl = document.getElementById('noiseMapGridLabel');
+      if (_gridLabelEl) _gridLabelEl.textContent = _noiseMapGridSize === 'auto' ? '(' + gridRes + 'm)' : '';
 
       var noiseMapBtn = document.getElementById('noiseMapBtn');
       if (noiseMapBtn) noiseMapBtn.textContent = 'Fetching terrain...';
@@ -11988,6 +12010,32 @@ initCollapse();
           hideNoiseLegend();
           noiseMapBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map';
         }
+      });
+    }
+
+    // Grid size selector
+    var noiseMapGridSel = document.getElementById('noiseMapGridSel');
+    var noiseMapGridWarning = document.getElementById('noiseMapGridWarning');
+    if (noiseMapGridSel) {
+      noiseMapGridSel.addEventListener('change', function() {
+        _noiseMapGridSize = this.value;
+        // Update warning
+        var warn = '';
+        var warnColor = '#856404';
+        if (this.value === '1' || this.value === '2') {
+          warn = '\u26a0 Very fine grid \u2014 calculation will be slow. Recommended for small sites only.';
+        } else if (this.value === '5' || this.value === '10') {
+          warn = '\u26a0 Fine grid \u2014 calculation may be slow at this zoom level';
+        } else if (this.value === '50' || this.value === '100') {
+          warn = '\u2139 Coarse grid \u2014 use for quick overview only';
+          warnColor = '#0c5460';
+        }
+        if (noiseMapGridWarning) {
+          noiseMapGridWarning.textContent = warn;
+          noiseMapGridWarning.style.color = warnColor;
+          noiseMapGridWarning.style.display = warn ? '' : 'none';
+        }
+        debouncedRecompute();
       });
     }
 
