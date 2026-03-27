@@ -905,11 +905,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <!-- ═══ Custom sources panel ═══ -->
     <div class="grid2 grid-full" style="padding-top:0;">
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <h2 style="margin:0;">Custom sources</h2>
-          <button class="collapse-btn" style="font-size:11px;" onclick="var cb=document.getElementById('customSrcBody');if(cb){cb.classList.toggle('collapsed');this.innerHTML=cb.classList.contains('collapsed')?'&#x25BC;':'&#x25B2;';}">&#x25BC;</button>
-        </div>
-        <div id="customSrcBody" class="card-body collapsed">
+        <h2>Custom sources</h2>
+        <div id="customSrcBody">
           <div class="p" style="margin:8px 0 10px;">Add custom noise sources with name, overall Lw, and octave band spectrum (A-weighted). Custom sources persist across sessions and appear in all source dropdowns.</div>
 
           <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
@@ -6512,7 +6509,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation', 'Save & Export', 'How to use', 'Methodology'];
+    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation', 'Save & Export', 'How to use', 'Methodology', 'Custom sources'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
