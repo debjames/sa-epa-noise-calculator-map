@@ -394,6 +394,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 5v14M5 12h14"/></svg> Draw Building</button>
           <button class="tool-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h4l4-8 4 4h6"/></svg> Draw Barrier</button>
           <button class="tool-btn" id="noiseMapBtn" title="Compute and display noise contour map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map</button>
+          <button class="tool-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain</button>
           <span id="noiseMapControls" style="display:none;font-size:11px;align-items:center;gap:4px;">
             <button class="tool-btn active" data-nmperiod="day" style="font-size:10px;padding:2px 6px;">Day</button>
             <button class="tool-btn" data-nmperiod="eve" style="font-size:10px;padding:2px 6px;">Eve</button>
@@ -840,13 +841,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <div style="display:flex;align-items:center;gap:6px;">
               <label class="small" style="font-weight:600;white-space:nowrap;">Humidity (%RH)</label>
               <input type="number" id="isoHumidity" value="70" min="10" max="100" step="5" style="width:80px;">
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
-                <input type="checkbox" id="terrainScreeningCb" checked style="margin:0;">
-                Terrain screening
-              </label>
-              <span class="small" style="color:var(--muted);" title="Fetches ground elevation data from Open-Elevation API to detect ridgelines between source and receiver">(requires internet)</span>
             </div>
           </div>
           <div class="small" style="margin-top:10px;color:var(--muted);">
@@ -2955,7 +2949,7 @@ window._sourceDistances = [];
 // Populated asynchronously when pins are placed. Used synchronously in calcPredAtReceiver.
 var _terrainIL = [];
 window._terrainIL = _terrainIL; // expose for console debugging
-var _terrainEnabled = true; // controlled by #terrainScreeningCb checkbox
+var _terrainEnabled = false; // controlled by Terrain toolbar button (opt-in)
 
 function isTerrainEnabled() { return _terrainEnabled; }
 
@@ -5761,23 +5755,53 @@ function initPropagationMethod() {
     });
   });
 
-  // Terrain screening toggle
-  var terrCb = document.getElementById('terrainScreeningCb');
-  if (terrCb) {
+  // Terrain screening toolbar toggle
+  var terrBtn = document.getElementById('terrainToggleBtn');
+  if (terrBtn) {
     var savedTerrain = localStorage.getItem('terrain_enabled');
-    if (savedTerrain !== null) {
-      _terrainEnabled = savedTerrain !== 'false';
-      terrCb.checked = _terrainEnabled;
+    if (savedTerrain === 'true') {
+      _terrainEnabled = true;
+      terrBtn.classList.add('active');
     }
-    terrCb.addEventListener('change', function() {
-      _terrainEnabled = terrCb.checked;
+    terrBtn.addEventListener('click', function() {
+      _terrainEnabled = !_terrainEnabled;
+      terrBtn.classList.toggle('active', _terrainEnabled);
       localStorage.setItem('terrain_enabled', String(_terrainEnabled));
       if (_terrainEnabled) {
+        // Fetch ground elevations for all placed pins
+        Object.keys(latlngs).forEach(function(mode) {
+          if (latlngs[mode]) fetchPinElevation(mode, latlngs[mode]);
+        });
+        // Recalculate terrain IL for all pairs
         refreshAllTerrainIL();
+        // Prompt noise map regeneration if active
+        var nmBtn = document.getElementById('noiseMapBtn');
+        if (nmBtn && nmBtn.classList.contains('active')) {
+          alert('Terrain screening enabled \u2014 regenerate the noise map to apply terrain corrections.');
+        }
       } else {
         _terrainIL = [];
         window._terrainIL = _terrainIL;
+        // Clear stored elevations
+        sources.forEach(function(src) {
+          src.groundElevation_m = null;
+          src.effectiveHeight_ASL = null;
+        });
+        if (typeof recvGroundElevations !== 'undefined') {
+          for (var k in recvGroundElevations) recvGroundElevations[k] = null;
+        }
+        // Clear receiver elevation display text
+        for (var ri = 1; ri <= 4; ri++) {
+          var el = document.getElementById('groundElev_r' + ri);
+          if (el) el.textContent = '';
+        }
+        // Prompt noise map regeneration if active
+        var nmBtn2 = document.getElementById('noiseMapBtn');
+        if (nmBtn2 && nmBtn2.classList.contains('active')) {
+          alert('Terrain screening disabled \u2014 regenerate the noise map to remove terrain corrections.');
+        }
       }
+      if (typeof renderSourceCards === 'function') renderSourceCards();
       render();
     });
   }
@@ -7444,8 +7468,8 @@ initCollapse();
       // 15a. Terrain screening state
       if (data.terrain) {
         _terrainEnabled = data.terrain.enabled !== false;
-        var tcb = document.getElementById('terrainScreeningCb');
-        if (tcb) tcb.checked = _terrainEnabled;
+        var tBtn = document.getElementById('terrainToggleBtn');
+        if (tBtn) tBtn.classList.toggle('active', _terrainEnabled);
         // Restore elevations without re-fetching
         if (data.terrain.sourceElevations && typeof sources !== 'undefined') {
           sources.forEach(function(src, si) {
@@ -9844,7 +9868,7 @@ initCollapse();
       window._sourceDistances = sd;
 
       // Refresh terrain IL cache (async — will update on next render)
-      if (typeof refreshAllTerrainIL === 'function') refreshAllTerrainIL();
+      if (_terrainEnabled && typeof refreshAllTerrainIL === 'function') refreshAllTerrainIL();
 
       // Primary source for legacy distance inputs (Source 0)
       var src = latlngs['source_0'] || latlngs['source'];
@@ -10213,6 +10237,7 @@ initCollapse();
 
     /** Fetch ground elevation for a placed/dragged pin and update state + display */
     function fetchPinElevation(mode, latlng) {
+      if (!_terrainEnabled) return;
       if (!window.DEMCache) { console.warn('DEMCache not available'); return; }
       var elevId = 'groundElev_' + mode;
       // For sources, the element is recreated by renderSourceCards — defer lookup to callback
