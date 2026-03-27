@@ -5758,7 +5758,7 @@ function initPropagationMethod() {
   // Terrain screening toolbar toggle
   var terrBtn = document.getElementById('terrainToggleBtn');
   if (terrBtn) {
-    var savedTerrain = localStorage.getItem('terrain_enabled');
+    var savedTerrain = localStorage.getItem('terrain_screening');
     if (savedTerrain === 'true') {
       _terrainEnabled = true;
       terrBtn.classList.add('active');
@@ -5766,7 +5766,7 @@ function initPropagationMethod() {
     terrBtn.addEventListener('click', function() {
       _terrainEnabled = !_terrainEnabled;
       terrBtn.classList.toggle('active', _terrainEnabled);
-      localStorage.setItem('terrain_enabled', String(_terrainEnabled));
+      localStorage.setItem('terrain_screening', String(_terrainEnabled));
       if (_terrainEnabled) {
         // Fetch ground elevations for all placed pins
         Object.keys(latlngs).forEach(function(mode) {
