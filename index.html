@@ -1225,7 +1225,47 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="h2" style="font-size:13px;">Zone detection</div>
     <div class="p">Receiver zones are detected automatically by querying the SA Planning portal (SAPPA) based on the receiver map location. Zone detection requires an internet connection and relies on the SAPPA API returning current data. Users should verify zone classifications independently, as the API may not reflect recent planning amendments. Zone information is used to apply the applicable EPA noise criteria for that receiver.</div>
     <div class="h2" style="font-size:13px;">Terrain screening</div>
-    <div class="p" style="margin-bottom:0;">Where ground elevation data is available, the terrain profile between each source and receiver is sampled using the Open-Elevation API. The dominant intervening ridgeline is identified and diffraction loss calculated using the Maekawa formula (identical to the building barrier method). Only the single dominant path is assessed; multiple diffraction is not modelled. Where terrain and building barriers coincide, the greater insertion loss is applied.</div>
+    <div class="p">Where ground elevation data is available, the terrain profile between each source and receiver is sampled using the Open-Elevation API. The dominant intervening ridgeline is identified and diffraction loss calculated using the Maekawa formula (identical to the building barrier method). Only the single dominant path is assessed; multiple diffraction is not modelled. Where terrain and building barriers coincide, the greater insertion loss is applied.</div>
+    <div class="h2" style="font-size:13px;margin-top:18px;">Data sources</div>
+    <div class="h2" style="font-size:12px;margin-top:10px;">Planning zones</div>
+    <div class="p">Planning zone classifications are detected automatically via state planning portal APIs based on the placed receiver location. The data source varies by jurisdiction:</div>
+    <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+      <li>SA: SA Planning Portal (SAPPA) &mdash; SA Planning and Design Code</li>
+      <li>VIC: Victorian Planning Authority &mdash; Planning Schemes Online</li>
+      <li>NSW: NSW Planning Portal &mdash; Environmental Planning Instruments (LEPs and SEPPs)</li>
+    </ul>
+    <div class="p">Zone detection requires an internet connection. Users should verify zone classifications independently as APIs may not reflect recent planning amendments or interim provisions.</div>
+    <div class="h2" style="font-size:12px;margin-top:10px;">Noise criteria</div>
+    <div class="p">Applicable noise criteria are applied based on the detected zone and the selected state. Criteria sources by jurisdiction:</div>
+    <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+      <li>SA: Environment Protection (Commercial and Industrial Noise) Policy 2023 (SA EPA)</li>
+      <li>VIC: Environment Protection Act 2017 and Environment Protection Regulations 2021 (effective 1 July 2021). Noise limits and assessment methodology are set out in EPA Publication 1826.4 &mdash; Noise limit and assessment protocol for the control of noise from commercial, industrial and trade premises and entertainment venues. Note: the previous SEPP N-1 framework no longer applies from 1 July 2021.</li>
+      <li>NSW: Noise Policy for Industry (NSW EPA, 2017) &mdash; the current recommended guideline for new developments. The NSW Industrial Noise Policy (2000) may still apply to some existing developments and premises under transitional arrangements. Users should confirm which policy applies to their assessment with the NSW EPA.</li>
+    </ul>
+    <div class="p">Users should confirm the applicable policy version and any site-specific conditions with the relevant environment protection authority.</div>
+    <div class="h2" style="font-size:12px;margin-top:10px;">Aerial imagery</div>
+    <div class="p">Aerial imagery is provided by Esri World Imagery. Imagery currency varies by location &mdash; recent development or vegetation change may not be reflected.</div>
+    <div class="h2" style="font-size:12px;margin-top:10px;">Terrain elevation</div>
+    <div class="p">Ground elevations are fetched from the Open-Elevation API, serving SRTM (Shuttle Radar Topography Mission) data at approximately 30&thinsp;m horizontal resolution. Used to determine effective source and receiver heights above sea level and to calculate terrain diffraction loss along propagation paths. Accuracy may be reduced in areas of steep terrain, dense vegetation, or built-up urban areas. Higher-resolution DEM data (e.g. LiDAR-derived 1&thinsp;m or 5&thinsp;m DEMs available from state agencies) is recommended for detailed assessments in complex terrain.</div>
+    <div class="p">State LiDAR/DEM resources for reference:</div>
+    <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+      <li>SA: Surveying and Spatial SA (SAILIS)</li>
+      <li>VIC: DataVic (Vicmap Elevation)</li>
+      <li>NSW: NSW Spatial Services (Elvis elevation portal)</li>
+    </ul>
+    <div class="h2" style="font-size:12px;margin-top:10px;">Buildings</div>
+    <div class="p">Building footprints are sourced from OpenStreetMap (OSM) via the Overpass API. Coverage varies by location &mdash; major urban areas generally have good coverage; regional and rural areas may be incomplete. Building heights where shown are sourced from OSM tags and may not be available for all structures. For critical assessments, verify building dimensions against survey data or local government records.</div>
+    <div class="h2" style="font-size:12px;margin-top:10px;">Cadastral boundaries</div>
+    <div class="p">Property boundaries are sourced from the Esri World Boundaries and Places layer. For definitive cadastral information consult the relevant state land registry:</div>
+    <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+      <li>SA: Surveying and Spatial SA (SAILIS / Land Services SA)</li>
+      <li>VIC: Land Use Victoria (Landata)</li>
+      <li>NSW: NSW Land Registry Services (NSW LRS)</li>
+    </ul>
+    <div class="h2" style="font-size:12px;margin-top:10px;">MBS 010 screening</div>
+    <div class="p">MBS 010 screening criteria are based on SA Health guidelines for mineral exploration and mining. Applicable in SA only. Users should confirm the current version of the guidelines with SA Health.</div>
+    <div class="h2" style="font-size:12px;margin-top:10px;">ANEF contours</div>
+    <div class="p" style="margin-bottom:0;">Australian Noise Exposure Forecast (ANEF) contours are sourced from Airservices Australia and are available for all major Australian airports. Contours are provided for indicative planning purposes only and should not be used as a substitute for site-specific aircraft noise assessments. Consult Airservices Australia for definitive data. ANEF contours do not account for all low-level flight paths or helicopter operations.</div>
   </div>
 </div>
 </div>
