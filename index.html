@@ -395,7 +395,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 5v14M5 12h14"/></svg> Draw Building</button>
           <button class="tool-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h4l4-8 4 4h6"/></svg> Draw Barrier</button>
           <button class="tool-btn" id="noiseMapBtn" title="Compute and display noise contour map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map</button>
-          <span id="noiseMapControls" style="display:none;font-size:11px;align-items:center;gap:4px;flex-wrap:wrap;">
+          <span id="noiseMapControls" style="display:none;font-size:11px;align-items:center;gap:4px;flex-wrap:nowrap;white-space:nowrap;">
             <button class="tool-btn active" data-nmperiod="day" style="font-size:10px;padding:2px 6px;">Day</button>
             <button class="tool-btn" data-nmperiod="eve" style="font-size:10px;padding:2px 6px;">Eve</button>
             <button class="tool-btn" data-nmperiod="night" style="font-size:10px;padding:2px 6px;">Night</button>
@@ -415,7 +415,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <option value="100">100 m</option>
             </select>
             <span id="noiseMapGridLabel" style="color:#888;font-size:10px;"></span>
-            <span id="noiseMapGridWarning" style="display:none;font-size:10px;flex-basis:100%;margin-top:2px;"></span>
             <span style="color:#666;margin-left:6px;border-left:1px solid #ccc;padding-left:6px;">Scale:</span>
             <input type="number" id="legendMin" value="25" min="0" max="119" step="1" style="width:35px;font-size:11px;padding:1px 2px;text-align:center;" title="Legend minimum dB">
             <span style="color:#666;">–</span>
@@ -425,6 +424,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <input type="number" id="legendInterval" value="5" min="1" max="20" step="1" style="width:30px;font-size:11px;padding:1px 2px;text-align:center;" title="Contour interval dB">
             <span id="legendError" style="color:#c0392b;font-size:10px;display:none;"></span>
           </span>
+          <span id="noiseMapGridWarning" style="display:none;font-size:10px;flex-basis:100%;margin-top:2px;"></span>
           <button class="tool-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;font-size:11px;color:#666;padding:3px 8px;">Reset overrides</button>
           <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Major urban areas</button>
         </div>
