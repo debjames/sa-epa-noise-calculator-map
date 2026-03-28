@@ -8644,7 +8644,7 @@ initCollapse();
         return queryAndSetZoneNSW(mode, latlng);
       }
 
-      var selectId = (mode === 'source') ? 'src' : mode;
+      var selectId = (mode === 'source' || /^source_\d+$/.test(mode)) ? 'src' : mode;
       var statusEl = document.getElementById('map-status-' + mode);
 
       /* Show detecting state */
@@ -8692,7 +8692,7 @@ initCollapse();
           /* Update marker popup with zone info */
           var m = markers[mode];
           if (m && result.zone) {
-            var cfg = CFG[mode];
+            var cfg = getModeCfg(mode);
             var zoneLabel = result.zone;
             if (result.subzone) zoneLabel += ' / ' + result.subzone;
             m.setPopupContent(
@@ -8800,7 +8800,7 @@ initCollapse();
 
     function querySAPPAOverlays(mode, latlng) {
       if (currentState !== 'SA') return;
-      if (mode !== 'source') return;
+      if (!isSourceMode(mode)) return;
       var geom = latlng.lng + ',' + latlng.lat;
       var ptParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
 
@@ -9458,7 +9458,7 @@ initCollapse();
     window.updateConcentricCircles = updateConcentricCircles;
 
     function queryAndSetZoneVIC(mode, latlng) {
-      var selectId = (mode === 'source') ? 'src' : mode;
+      var selectId = (mode === 'source' || /^source_\d+$/.test(mode)) ? 'src' : mode;
       var statusEl = document.getElementById('map-status-' + mode);
 
       if (statusEl) {
@@ -9489,7 +9489,7 @@ initCollapse();
           if (result.zoneDesc) label += ' \u2014 ' + result.zoneDesc;
 
           // Auto-detect urban/rural from source zone (immediate zone-code pass)
-          if (mode === 'source' && zoneCode) {
+          if (isSourceMode(mode) && zoneCode) {
             var zoneBasedArea = detectVicAreaType(zoneCode);
             if (zoneBasedArea && zoneBasedArea !== vicAreaType) {
               setVicAreaType(zoneBasedArea);
@@ -9554,7 +9554,7 @@ initCollapse();
           // Update marker popup
           var m = markers[mode];
           if (m && zoneCode) {
-            var cfg = CFG[mode];
+            var cfg = getModeCfg(mode);
             m.setPopupContent(
               '<b>' + escapeHTML(cfg.label) + '</b><br>' +
               queryLat.toFixed(6) + ', ' + queryLng.toFixed(6) +
@@ -9645,7 +9645,7 @@ initCollapse();
           if (result.lga) label += ' (' + result.lga + ')';
 
           // Auto-set amenity area from zone code
-          if (mode === 'source' && zoneCode) {
+          if (isSourceMode(mode) && zoneCode) {
             var amenity = NSW_ZONE_TO_AMENITY[zoneCode] || 'suburban';
             var amenitySelect = document.getElementById('nswAmenityArea');
             if (amenitySelect) {
@@ -9671,7 +9671,7 @@ initCollapse();
           // Update marker popup
           var m = markers[mode];
           if (m) {
-            var cfg = CFG[mode];
+            var cfg = getModeCfg(mode);
             m.setPopupContent(
               '<b>' + escapeHTML(cfg.label) + '</b><br>' +
               queryLat.toFixed(6) + ', ' + queryLng.toFixed(6) +
