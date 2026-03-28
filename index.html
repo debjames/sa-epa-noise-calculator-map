@@ -4571,7 +4571,7 @@ function renderDetectedZones() {
     var data = autoIFDataPerReceiver[id];
     if (!data) return;
     var nameEl = document.getElementById('name_' + id);
-    var recvName = (nameEl && nameEl.value) ? nameEl.value : NSA_LABELS[id];
+    var recvName = escapeHTML((nameEl && nameEl.value) ? nameEl.value : NSA_LABELS[id]);
     var col = RECV_COLORS[id] || '#6b7280';
     var isVis = _vicRecvMapVisible[id];
     h += '<div style="padding:6px 8px;background:#f0f0f0;border-radius:4px;">';
@@ -5440,7 +5440,7 @@ function render() {
     if (showPerSource) {
       sources.forEach(function(src, si) {
         var c = SOURCE_COLOURS[si % SOURCE_COLOURS.length];
-        var sn = src.name || ('S' + (si+1));
+        var sn = escapeHTML(src.name || ('S' + (si+1)));
         hhtml += '<th class="num" style="font-size:11px;color:' + c + ';">' + sn + '<br>dist (m)</th>';
         hhtml += '<th class="num" style="font-size:11px;color:' + c + ';">' + sn + '<br>L<sub>p</sub> (dB)</th>';
       });
@@ -5470,7 +5470,7 @@ function render() {
     const tr = document.createElement('tr');
     const keyText = rKeys[i] || "";
     const nameInput = document.getElementById(`recvName${i+1}`);
-    const recvLabel = nameInput && nameInput.value.trim() ? nameInput.value.trim() : `Receiver ${i+1}`;
+    const recvLabel = escapeHTML(nameInput && nameInput.value.trim() ? nameInput.value.trim() : `Receiver ${i+1}`);
     let dayCrit, eveCrit, nightCrit, lmaxCrit;
     if (isOTHER) {
       // Read criteria from manual input fields
@@ -5819,8 +5819,9 @@ function initPropagationMethod() {
       localStorage.setItem('terrain_screening', String(_terrainEnabled));
       if (_terrainEnabled) {
         // Fetch ground elevations for all placed pins
-        Object.keys(latlngs).forEach(function(mode) {
-          if (latlngs[mode]) fetchPinElevation(mode, latlngs[mode]);
+        var _lls = window._getAllLatLngs ? window._getAllLatLngs() : {};
+        Object.keys(_lls).forEach(function(mode) {
+          if (_lls[mode] && window._fetchPinElevation) window._fetchPinElevation(mode, _lls[mode]);
         });
         // Recalculate terrain IL for all pairs
         refreshAllTerrainIL();
@@ -8037,6 +8038,7 @@ initCollapse();
     window._removeMarker = function(mode) { removeMarker(mode); };
     window._getMapRef = function() { return map; };
     window._getAllLatLngs = function() { return latlngs; };
+    window._fetchPinElevation = function(mode, ll) { fetchPinElevation(mode, ll); };
 
     /* ==== SAPPA Zoning Integration ==== */
     var SAPPA_BASE = 'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/CurrentPDC_wmas/MapServer';
@@ -10086,7 +10088,7 @@ initCollapse();
         visibleIds.forEach(function(id) {
           var data = window.autoIFDataPerReceiver[id];
           var nameEl = document.getElementById('name_' + id);
-          var recvName = (nameEl && nameEl.value) ? nameEl.value : NSA_LABELS[id];
+          var recvName = escapeHTML((nameEl && nameEl.value) ? nameEl.value : NSA_LABELS[id]);
           var col = RECV_CIRCLE_COLORS[id] || '#6b7280';
 
           var card = document.createElement('div');
@@ -11935,26 +11937,27 @@ initCollapse();
       if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... 0%';
 
       _noiseWorker = new Worker('noise-worker.js');
+      var _nmSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg>';
       _noiseWorker.onmessage = function(e) {
         var msg = e.data;
         if (msg.type === 'progress') {
           if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... ' + msg.percent + '%';
         } else if (msg.type === 'complete') {
-          if (noiseMapBtn) {
-            var svg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg>';
-            noiseMapBtn.innerHTML = svg + ' Noise Map';
-          }
+          if (noiseMapBtn) noiseMapBtn.innerHTML = _nmSvg + ' Noise Map';
           _lastNoiseData = msg;
           renderNoiseCanvas(msg);
           showNoiseLegend();
           _noiseWorker = null;
         } else if (msg.type === 'error') {
           console.warn('Noise map error:', msg.message);
-          if (noiseMapBtn) {
-            noiseMapBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map';
-          }
+          if (noiseMapBtn) noiseMapBtn.innerHTML = _nmSvg + ' Noise Map';
           _noiseWorker = null;
         }
+      };
+      _noiseWorker.onerror = function(e) {
+        console.error('Noise map worker error:', e);
+        if (noiseMapBtn) noiseMapBtn.innerHTML = _nmSvg + ' Noise Map';
+        _noiseWorker = null;
       };
 
       _noiseWorker.postMessage({
@@ -11994,6 +11997,8 @@ initCollapse();
 
     function showNoiseControls(show) {
       if (noiseMapControls) noiseMapControls.style.display = show ? 'inline-flex' : 'none';
+      var _warn = document.getElementById('noiseMapGridWarning');
+      if (_warn && !show) _warn.style.display = 'none';
     }
 
     if (noiseMapBtn) {
@@ -12002,6 +12007,8 @@ initCollapse();
         noiseMapBtn.classList.toggle('active', _noiseMapOn);
         showNoiseControls(_noiseMapOn);
         if (_noiseMapOn) {
+          var _warnEl = document.getElementById('noiseMapGridWarning');
+          if (_warnEl) _warnEl.style.display = 'none';
           computeNoiseMap();
         } else {
           if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
