@@ -38,6 +38,19 @@ self.onmessage = function(e) {
     var isoParams = opts.isoParams || {};
     var recvHeight = isoParams.receiverHeight || 1.5;
     var demTile = opts.demTile || null;
+    var terrainEnabled = !!opts.terrainEnabled;
+    var debugTerrain = !!opts.debugTerrain;
+
+    if (debugTerrain) {
+      if (terrainEnabled && demTile) {
+        console.log('[noise-worker] Terrain screening ON — DEM tile received:', demTile.rows, '×', demTile.cols,
+          'points | sample elev[0]:', demTile.elevations[0]);
+      } else if (terrainEnabled && !demTile) {
+        console.warn('[noise-worker] Terrain screening ON but demTile is null — no terrain IL will be applied.');
+      } else {
+        console.log('[noise-worker] Terrain screening OFF.');
+      }
+    }
 
     // DEM tile lookup: nearest-neighbour elevation from pre-fetched grid
     function demElevAt(lat, lng) {
@@ -59,11 +72,15 @@ self.onmessage = function(e) {
 
     // Terrain diffraction: check if ridgeline obstructs source→receiver ray
     // Returns { delta, perBand: number[8], broadband: number } or null
+    // Only called when terrainEnabled=true and demTile is non-null.
     function terrainILForRay(srcLL, srcH, recLL, recH) {
       if (!demTile) return null;
       var srcElev = demElevAt(srcLL.lat, srcLL.lng);
       var recElev = demElevAt(recLL.lat, recLL.lng);
-      if (srcElev === null || recElev === null) return null;
+      if (srcElev === null || recElev === null) {
+        if (debugTerrain) console.log('[noise-worker] terrainILForRay: null elevation at src or recv — skipping');
+        return null;
+      }
 
       var srcTip = srcElev + srcH;
       var recTip = recElev + recH;
@@ -98,6 +115,10 @@ self.onmessage = function(e) {
 
       // Per-band Maekawa IL using SharedCalc (same formula as building barriers)
       var perBand = calcBarrierAttenuation(delta, ISO_FREQS, true);
+      if (debugTerrain) {
+        console.log('[noise-worker] Terrain obstruction detected: protrusion=' + bestProtrusion.toFixed(1) +
+          'm, delta=' + delta.toFixed(3) + 'm, IL@1kHz=' + perBand[4].toFixed(1) + 'dB');
+      }
       return { delta: delta, perBand: perBand, broadband: perBand[4] }; // [4] = 1kHz
     }
 
@@ -176,8 +197,8 @@ self.onmessage = function(e) {
             buildingIL_broadband = Math.min(Abar_bb[0], 20);
           }
 
-          // Compute terrain IL (per-band)
-          var terrResult = terrainILForRay(srcLL, src.heightM, pt, recvHeight);
+          // Compute terrain IL (per-band) — only when terrain screening is enabled and DEM data available
+          var terrResult = (terrainEnabled && demTile) ? terrainILForRay(srcLL, src.heightM, pt, recvHeight) : null;
           var terrIL_broadband = terrResult ? terrResult.broadband : 0;
 
           var lp;

@@ -11999,8 +11999,22 @@ initCollapse();
           temperature: iso_temperature,
           humidity: iso_humidity
         },
-        demTile: demData
+        demTile: demData,
+        terrainEnabled: _terrainEnabled,
+        debugTerrain: !!window._debugTerrain
       });
+
+      // Diagnostic: confirm DEM tile contents reaching worker
+      if (window._debugTerrain) {
+        if (demData) {
+          console.log('Noise map: DEM tile passed to worker —', demData.rows, '×', demData.cols,
+            '=', demData.rows * demData.cols, 'points, spacing ≈' + Math.round(gridRes) + 'm',
+            '| sample elev [0]:', demData.elevations[0]);
+        } else {
+          console.warn('Noise map: DEM tile is null — terrain screening will NOT be applied in worker.');
+        }
+      }
+
       }); // end demPromise.then
     }
 
