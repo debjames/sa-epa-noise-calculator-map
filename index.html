@@ -970,14 +970,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       </div>
     </div>
 
-    <!-- ═══ Source management panel ═══ -->
+    <!-- ═══ Source pins panel (Chunk A: replaces equipment-table model) ═══ -->
     <div class="grid2 grid-full" style="padding-top:0;" id="sourcePanel">
       <div class="card">
-        <h2>Noise sources & location</h2>
-        <div id="sourceCardsBody">
-          <button type="button" id="addSourceBtn" class="pdf-btn" style="font-size:12px;padding:5px 14px;margin-bottom:10px;">+ Add Source</button>
-          <div id="sourceCards" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
-        </div>
+        <h2>Noise sources</h2>
+        <div id="sourcePinCards" style="display:flex;flex-direction:column;gap:0;"></div>
+        <button type="button" id="addSourcePinBtn" class="pdf-btn" style="font-size:12px;padding:5px 14px;margin-top:10px;">+ Add Source</button>
       </div>
     </div>
 
@@ -2887,14 +2885,8 @@ function parseCSVLine(line) {
   return result;
 }
 
-/** Rebuild all source dropdowns in all period tables while preserving current selections */
-function refreshAllSourceDropdowns() {
-  ['day', 'eve', 'night', 'lmax'].forEach(function(pfx) {
-    var tbodyId = pfx + 'SrcRows';
-    var totalId = pfx + 'SrcTotal';
-    renderSourceTable(pfx, tbodyId, totalId, 5);
-  });
-}
+/** refreshAllSourceDropdowns — REMOVED in Chunk A. TODO Chunk F: delete. */
+function refreshAllSourceDropdowns() {}
 
 // Facade reflection correction (0 or 2.5 dB, free-field to facade)
 var facadeCorrection = 0;
@@ -2968,79 +2960,35 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, rec
   return result;
 }
 
-/** Read spectrum, height, and adjDB for one equipment row from source-scoped DOM IDs.
- *  @param {number} sourceIdx - source index (0-based)
- *  @param {string} prefix - 'day', 'eve', or 'night' (NOT 'lmax' — excluded by ISO guard)
- *  @param {number} rowIdx - 1-based row index
- *  @returns {object|null} { spectrumA, srcHeight, adjDB, baseLw, name } or null */
-function getSourceSpectrumAndHeight(sourceIdx, prefix, rowIdx) {
-  var sp = srcPrefix(sourceIdx);
-  var tbodyEl = document.getElementById(sp + prefix + 'SrcRows');
-  if (!tbodyEl) return null;
-  var tr = tbodyEl.querySelectorAll('tr')[rowIdx - 1];
-  if (!tr) return null;
-
-  var sel = tr.querySelector('select');
-  var name = sel ? sel.value : '';
-  if (!name) return null;
-
-  var libFlat = SOURCE_LIBRARY;
-  var picked = libFlat.find(function(s) { return s.name === name; });
-  if (!picked) return null;
-
-  // Height: from DOM input or library default
-  var htEl = document.getElementById(sp + prefix + '_ht_inp_' + rowIdx);
-  var srcHeight = htEl ? Number(htEl.value) : (picked.height !== undefined ? picked.height : 1.5);
-  if (!Number.isFinite(srcHeight)) srcHeight = 1.5;
-
-  // Quantity, opTime, barrier → adjDB
-  var nEl = document.getElementById(sp + prefix + '_n_inp_' + rowIdx);
-  var minEl = document.getElementById(sp + prefix + '_min_inp_' + rowIdx);
-  var isSA = (currentState === 'SA' || currentState === null);
-  var divisor = isSA ? 15 : 100;
-  var defaultOp = isSA ? 15 : 100;
-  var n = nEl ? Number(nEl.value) : 1;
-  if (!Number.isFinite(n) || n <= 0) return null;
-  var opVal = minEl ? Number(minEl.value) : defaultOp;
-  if (!Number.isFinite(opVal)) opVal = defaultOp;
-  if (opVal <= 0) return null;
-  var adjDB = 10 * log10(n) + 10 * log10(opVal / divisor);
-
-  return {
-    spectrumA: picked.spectrum || null,
-    srcHeight: srcHeight,
-    adjDB: adjDB,
-    baseLw: picked.lw,
-    name: name
-  };
-}
-
-/** ISO 9613-2 prediction for a single source at a given distance.
- *  Loops over equipment rows for sources[sourceIdx], calls calcISO9613single per row.
- *  @param {number} sourceIdx - source index (0-based)
+/** ISO 9613-2 prediction for a single sourcePin at a receiver distance.
+ *  Reads spectrum and lw directly from sourcePins[si] (no DOM access).
+ *  @param {number} si - sourcePin index (0-based)
  *  @param {string} prefix - 'day', 'eve', or 'night'
  *  @param {number} distM - distance to receiver (m)
+ *  @param {number} receiverIdx - 0-based receiver index
  *  @returns {number} predicted LAeq (unrounded) or NaN */
-function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
+function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   if (!Number.isFinite(distM) || distM <= 0) return NaN;
-  var sp = srcPrefix(sourceIdx);
-  var tbodyEl = document.getElementById(sp + prefix + 'SrcRows');
-  if (!tbodyEl) return NaN;
-  var numRows = tbodyEl.querySelectorAll('tr').length;
+  var pin = sourcePins[si];
+  if (!pin || pin.lat === null) return NaN;
+  var lwVal = pin.lw ? pin.lw[prefix] : null;
+  if (!Number.isFinite(lwVal)) return NaN;
 
-  // Compute barrier delta for this source-receiver pair
-  var barrierDelta = 0;
-  if (window._geometry && window._buildings && window._buildings.length > 0 &&
-      typeof sources !== 'undefined' && sources[sourceIdx] &&
-      sources[sourceIdx].lat !== null && receiverIdx !== undefined) {
-    var srcLL = { lat: sources[sourceIdx].lat, lng: sources[sourceIdx].lng };
+  var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
+  var adjDB = opAdj;
+
+  var srcHeight = pin.height_m || 1.5;
+  var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
+
+  // Barrier delta for this source-receiver pair
+  var barrierDelta = 0, endDeltaL = 0, endDeltaR = 0;
+  if (window._geometry && window._buildings && window._buildings.length > 0 && receiverIdx !== undefined) {
+    var srcLL = { lat: pin.lat, lng: pin.lng };
     var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
     var recLL = allLL['r' + (receiverIdx + 1)];
     if (recLL) {
-      var srcHeightM = (sources[sourceIdx] && sources[sourceIdx].heightM) || 1.5;
-      var recHeightM = getReceiverHeight(receiverIdx);
       var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : window._buildings;
-      var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeightM, recHeightM, screenable);
+      var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeight, recHeight, screenable);
       if (barrier) {
         barrierDelta = barrier.pathLengthDiff;
         endDeltaL = barrier.endDeltaLeft || 0;
@@ -3049,47 +2997,35 @@ function calcISO9613forSource(sourceIdx, prefix, distM, receiverIdx) {
     }
   }
 
-  var endDeltaL = endDeltaL || 0;
-  var endDeltaR = endDeltaR || 0;
-
-  // Per-band terrain IL (applied where it exceeds building barrier)
+  // Per-band terrain IL
   var terrainPerBand = null;
-  if (_terrainEnabled && _terrainIL[sourceIdx] && _terrainIL[sourceIdx][receiverIdx]) {
-    var til = _terrainIL[sourceIdx][receiverIdx];
+  if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][receiverIdx]) {
+    var til = _terrainIL[si][receiverIdx];
     if (til.perBand && til.insertionLoss_dB > 0) terrainPerBand = til.perBand;
   }
 
-  var totalLin = 0;
-  var anySrc = false;
+  var spectrumA = pin.spectrum ? pin.spectrum[prefix] : null;
+  var hasSpectrum = spectrumA && Array.isArray(spectrumA) &&
+    spectrumA.some(function(v) { return v !== null && Number.isFinite(v) && v !== 0; });
 
-  for (var i = 1; i <= numRows; i++) {
-    var info = getSourceSpectrumAndHeight(sourceIdx, prefix, i);
-    if (!info) continue;
-
-    if (info.spectrumA) {
-      // Full octave-band ISO 9613-2 with barrier + end diffraction
-      var pred = calcISO9613single(info.spectrumA, info.srcHeight, distM, info.adjDB, barrierDelta, recHeightM, endDeltaL, endDeltaR, terrainPerBand);
-      if (Number.isFinite(pred)) {
-        totalLin += Math.pow(10, pred / 10);
-        anySrc = true;
-      }
-    } else {
-      // Flat spectrum fallback (source has no per-band data in library)
-      var lw = info.baseLw + info.adjDB;
-      if (Number.isFinite(lw) && lw > 0) {
-        var predSimple = attenuatePoint(lw, distM);
-        totalLin += Math.pow(10, predSimple / 10);
-        anySrc = true;
-      }
+  if (hasSpectrum) {
+    // Full octave-band ISO 9613-2 using stored A-weighted spectrum
+    return calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
+  } else {
+    // No spectrum: simple point source propagation with opTime weighting
+    var lwW = lwVal + adjDB;
+    if (barrierDelta > 0 || endDeltaL > 0 || endDeltaR > 0 || terrainPerBand) {
+      // Flat A-weighted spectrum: distribute lwW equally across 8 bands
+      var flatSpec = [];
+      for (var b = 0; b < 8; b++) flatSpec.push(lwW - 9.03); // -9.03 so sum = lwW
+      return calcISO9613single(flatSpec, srcHeight, distM, 0, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
     }
+    return attenuatePoint(lwW, distM);
   }
-
-  if (!anySrc) return NaN;
-  return 10 * log10(totalLin);
 }
 
-/** ISO 9613-2 prediction for total Leq from all sources at a receiver.
- *  Loops over sources[], calls calcISO9613forSource per source with per-source distance.
+/** ISO 9613-2 prediction for total Leq from all sourcePins at a receiver.
+ *  Loops over sourcePins[], calls calcISO9613forSourcePin per pin with per-source distance.
  *  @param {string} prefix - 'day', 'eve', or 'night'
  *  @param {number} receiverIdx - 0-based receiver index
  *  @returns {number|string} predicted LAeq (rounded) or "" if invalid */
@@ -3097,11 +3033,12 @@ function calcTotalISO9613(prefix, receiverIdx) {
   var totalLin = 0;
   var anySrc = false;
 
-  sources.forEach(function(src, si) {
+  sourcePins.forEach(function(pin, si) {
+    if (pin.lat === null) return;
     var d = getDistanceForSourceReceiver(si, receiverIdx);
     if (!Number.isFinite(d) || d <= 0) return;
 
-    var srcPred = calcISO9613forSource(si, prefix, d, receiverIdx);
+    var srcPred = calcISO9613forSourcePin(si, prefix, d, receiverIdx);
     if (Number.isFinite(srcPred)) {
       totalLin += Math.pow(10, srcPred / 10);
       anySrc = true;
@@ -3114,11 +3051,30 @@ function calcTotalISO9613(prefix, receiverIdx) {
 
 // --- Multi-source state ---
 const SOURCE_COLOURS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c'];
-/** ID/key prefix for source-scoped elements. Source 0 = '' (backward compat), source 1+ = 's1_', 's2_', etc. */
+
+/** Generate a simple unique ID for a source pin */
+function _newPinId() {
+  return 'src-' + Math.random().toString(36).slice(2, 6);
+}
+
+/** sourcePins[] — each entry is one discrete noise source.
+ *  spectrum.day/eve/night: A-weighted per-band Lw [63,125,250,500,1k,2k,4k,8k] or null.
+ *  lw.day/eve/night: overall A-weighted Lw dB — pre-filled from spectrum sum, user-editable. */
+var sourcePins = [{
+  id: _newPinId(),
+  name: 'Source 1',
+  lat: null, lng: null,
+  lw: { day: 85, eve: 85, night: 85 },
+  spectrum: { day: null, eve: null, night: null },
+  height_m: 1.5,
+  buildingHeight_m: 0,
+  groundElevation_m: null,
+  operationalTime_min: 15
+}];
+// TODO Chunk F: remove this alias once save/load is updated to use sourcePins
+var sources = sourcePins;
+/** ID/key prefix for source-scoped elements. Kept as stub for legacy DOM references. */
 function srcPrefix(sourceIdx) { return 's' + sourceIdx + '_'; }
-var sources = [
-  { id: 1, name: 'Source 1', lat: null, lng: null, heightM: 1.5, groundElevation_m: null, effectiveHeight_ASL: null, equipment: { day: [], eve: [], night: [], lmax: [] } }
-];
 // Distances matrix: sourceDistances[srcIdx][recvIdx] = metres (populated by updateAll)
 window._sourceDistances = [];
 
@@ -3135,13 +3091,13 @@ function isTerrainEnabled() { return _terrainEnabled; }
 function updateTerrainIL(srcIdx, recvIdx) {
   if (!_terrainEnabled) return Promise.resolve();
   if (!window.getTerrainProfile || !window.calcTerrainDiffraction) return Promise.resolve();
-  var src = (typeof sources !== 'undefined' && sources[srcIdx]) ? sources[srcIdx] : null;
+  var src = sourcePins[srcIdx] || null;
   if (!src || src.lat === null) return Promise.resolve();
   var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
   var recLL = allLL['r' + (recvIdx + 1)];
   if (!recLL) return Promise.resolve();
 
-  var srcH = src.heightM || 1.5;
+  var srcH = src.height_m || 1.5;
   var recH = (typeof getReceiverHeight === 'function') ? getReceiverHeight(recvIdx) : 1.5;
 
   return getTerrainProfile(src.lat, src.lng, recLL.lat, recLL.lng, 25).then(function(profile) {
@@ -3155,13 +3111,12 @@ function updateTerrainIL(srcIdx, recvIdx) {
  *  and renders once when all resolve — avoids N×4 individual render cycles. */
 var _terrainRefreshTimer = null;
 function refreshAllTerrainIL() {
-  if (typeof sources === 'undefined') return;
   // Debounce: if called rapidly (e.g. during drag), only fire once after 300ms
   if (_terrainRefreshTimer) clearTimeout(_terrainRefreshTimer);
   _terrainRefreshTimer = setTimeout(function() {
     _terrainRefreshTimer = null;
     var promises = [];
-    sources.forEach(function(src, si) {
+    sourcePins.forEach(function(src, si) {
       if (src.lat === null) return;
       for (var ri = 0; ri < 4; ri++) {
         promises.push(updateTerrainIL(si, ri));
@@ -3770,32 +3725,12 @@ function getDistanceForSourceReceiver(si, ri) {
   return Number.isFinite(d) ? d : NaN;
 }
 
-/**
- * Build a calc.js-compatible equipment array from DOM rows for a time period.
- * Each item: { name, Lw, quantity: 1 } — Lw already includes qty/opTime via rowTotalLw.
- * @param {string} prefix - 'day' | 'eve' | 'night' | 'lmax'
- * @returns {Array<{name: string, Lw: number, quantity: number}>}
- */
+/** buildSourceEquipment — REMOVED in Chunk A refactor (sourcePins model).
+ *  This function is no longer called. Left as stub to prevent load errors from
+ *  any cached event handlers. TODO Chunk F: delete entirely. */
 function buildSourceEquipment(prefix, sourceIdx) {
-  var sp = srcPrefix(sourceIdx || 0);
-  const tbodyEl = prefix === 'lmax'
-    ? document.getElementById(sp + 'nightLmaxRows')
-    : document.getElementById(sp + prefix + 'SrcRows');
-  if (!tbodyEl) return [];
-  const equipment = [];
-  const trs = tbodyEl.querySelectorAll('tr');
-  trs.forEach(function(tr, idx) {
-    const i = idx + 1;
-    const sel = tr.querySelector('select');
-    const lwEl = document.getElementById(sp + prefix + '_lw_' + i);
-    const name = sel ? sel.value : '';
-    const lw = lwEl ? Number(lwEl.textContent) : NaN;
-    if (name && Number.isFinite(lw) && lw > 0) {
-      // quantity = 1 because lw already includes qty + opTime adjustments
-      equipment.push({ name: name, Lw: lw, quantity: 1 });
-    }
-  });
-  return equipment;
+  // Legacy stub — returns empty array. ISO path uses calcISO9613forSourcePin instead.
+  return [];
 }
 
 /* Predicted level at receiver from all sources.
@@ -3804,76 +3739,61 @@ function buildSourceEquipment(prefix, sourceIdx) {
  * @param {number} receiverIdx - 0-based receiver index
  * @param {number} [fallbackDistanceM] - legacy single-distance fallback (Source 0 only)
  */
-function calcPredAtReceiver(prefix, sourcesForPeriod, receiverIdx, fallbackDistanceM) {
-  if (!sourcesForPeriod || sourcesForPeriod.length === 0) return "";
-
-  // ISO 9613-2: multi-source supported — loops all sources internally
+function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDistanceM) {
+  // ISO 9613-2: routes through calcISO9613forSourcePin for each pin
   if (propagationMethod === 'iso9613' && prefix && prefix !== 'lmax') {
     return calcTotalISO9613(prefix, receiverIdx);
   }
 
-  // Build per-source distances, excluding sources with no position
-  var validSources = [];
-  var validDistances = [];
-  sourcesForPeriod.forEach(function(src) {
-    var si = src._sourceIdx;
-    var d = getDistanceForSourceReceiver(si, receiverIdx);
-    if (!Number.isFinite(d) || d <= 0) {
-      // Fallback for Source 0: use legacy distance input if available
-      if (si === 0 && Number.isFinite(fallbackDistanceM) && fallbackDistanceM > 0) {
-        d = fallbackDistanceM;
-      } else {
-        return; // skip this source
-      }
-    }
-    validSources.push(src);
-    validDistances.push(d);
-  });
-
-  if (validSources.length === 0) return "";
-
-  // Apply barrier screening per source in simple method (matches worker behaviour)
+  // Simple propagation: use lw from each sourcePin directly
   var contributions = [];
   var screenable = (window._getScreenableBuildings) ? window._getScreenableBuildings() : (window._buildings || []);
   var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
   var recLL = allLL['r' + (receiverIdx + 1)];
 
-  for (var vi = 0; vi < validSources.length; vi++) {
-    var lp = window._calc.sourceContribution(validSources[vi], validDistances[vi]);
-    if (!isFinite(lp)) continue;
+  for (var si = 0; si < sourcePins.length; si++) {
+    var pin = sourcePins[si];
+    if (pin.lat === null) continue;
+    var lwVal = pin.lw ? pin.lw[prefix === 'lmax' ? 'night' : prefix] : null;
+    if (!Number.isFinite(lwVal)) continue;
 
-    // Barrier and terrain screening
-    // Apply the GREATER of building barrier IL and terrain IL — do not add both.
-    // This prevents double-counting when a ridgeline coincides with a building.
-    var buildingIL = 0;
-    var terrainIL = 0;
-    var si = validSources[vi]._sourceIdx || 0;
-
-    // Building/barrier screening
-    if (screenable.length > 0 && recLL) {
-      var srcLat = (typeof sources !== 'undefined' && sources[si]) ? sources[si].lat : null;
-      var srcLng = (typeof sources !== 'undefined' && sources[si]) ? sources[si].lng : null;
-      if (srcLat !== null && srcLng !== null) {
-        var srcLL = { lat: srcLat, lng: srcLng };
-        var srcHt = (sources[si] && sources[si].heightM) || 1.5;
-        var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
-        var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
-        if (barrier && (barrier.pathLengthDiff > 0 || (barrier.endDeltaLeft || 0) > 0 || (barrier.endDeltaRight || 0) > 0)) {
-          var Abar = SharedCalc.calcBarrierWithEndDiffraction(
-            barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
-          );
-          buildingIL = Math.min(Abar[0], 20);
-        }
+    var d = getDistanceForSourceReceiver(si, receiverIdx);
+    if (!Number.isFinite(d) || d <= 0) {
+      if (si === 0 && Number.isFinite(fallbackDistanceM) && fallbackDistanceM > 0) {
+        d = fallbackDistanceM;
+      } else {
+        continue;
       }
     }
 
-    // Terrain diffraction (from pre-computed cache — only when terrain toggle is enabled)
+    var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
+    // For Lmax: no operational time weighting
+    var lwW = (prefix === 'lmax') ? lwVal : lwVal + opAdj;
+    var lp = attenuatePoint(lwW, d);
+    if (!isFinite(lp)) continue;
+
+    // Building/barrier screening
+    var buildingIL = 0;
+    var terrainIL = 0;
+    if (screenable.length > 0 && recLL && pin.lat !== null) {
+      var srcLL = { lat: pin.lat, lng: pin.lng };
+      var srcHt = pin.height_m || 1.5;
+      var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
+      var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+      if (barrier && (barrier.pathLengthDiff > 0 || (barrier.endDeltaLeft || 0) > 0 || (barrier.endDeltaRight || 0) > 0)) {
+        var Abar = SharedCalc.calcBarrierWithEndDiffraction(
+          barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
+        );
+        buildingIL = Math.min(Abar[0], 20);
+      }
+    }
+
+    // Terrain diffraction
     if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][receiverIdx]) {
       var til = _terrainIL[si][receiverIdx];
       terrainIL = til.insertionLoss_dB || 0;
     }
 
-    // Apply the greater of building IL and terrain IL
     lp -= Math.max(buildingIL, terrainIL);
     contributions.push(lp);
   }
@@ -3885,40 +3805,9 @@ function calcPredAtReceiver(prefix, sourcesForPeriod, receiverIdx, fallbackDista
 }
 
 
-function makeSourceSelect(value="", library=SOURCE_LIBRARY_GROUPED_NON_LMAX){
-  const sel = document.createElement("select");
-  const blank = document.createElement("option");
-  blank.value = "";
-  blank.textContent = "— Select —";
-  sel.appendChild(blank);
-
-  // library can be either:
-  // - Array of {name,lw}
-  // - Object of { "Group name": [ {name,lw}, ... ], ... }  (renders <optgroup>)
-  if (Array.isArray(library)){
-    for (const s of library){
-      const o = document.createElement("option");
-      o.value = s.name;
-      o.textContent = s.name;
-      sel.appendChild(o);
-    }
-  } else if (library && typeof library === "object"){
-    for (const [groupName, arr] of Object.entries(library)){
-      const og = document.createElement("optgroup");
-      og.label = groupName;
-      for (const s of arr){
-        const o = document.createElement("option");
-        o.value = s.name;
-        o.textContent = s.name;
-        og.appendChild(o);
-      }
-      sel.appendChild(og);
-    }
-  }
-
-  sel.value = value;
-  return sel;
-}
+/** makeSourceSelect — REMOVED in Chunk A (sourcePins model, no per-row source dropdowns).
+ *  Library dropdown is now on the source pin card itself. TODO Chunk F: delete. */
+function makeSourceSelect(value, library) { return document.createElement('select'); }
 
 
 
@@ -3944,442 +3833,325 @@ function saveLS(key, val){ localStorage.setItem(key, String(val)); }
   keysToRemove.forEach(function(k){ localStorage.removeItem(k); });
 })();
 
-// --- Source card management ---
-/**
- * Build the HTML for one equipment table (header row + tbody + total row).
- * @param {string} prefix - 'day'|'eve'|'night'|'lmax'
- * @param {number} sourceIdx - source index (0 = no prefix, 1+ = s{N}_ prefix)
- * @returns {string} table HTML
- */
-function equipmentTableHTML(prefix, sourceIdx) {
-  var sp = srcPrefix(sourceIdx);
-  var isLmax = (prefix === 'lmax');
-  var isLeq = !isLmax;
-  var tableId = sp + (isLmax ? 'nightLmaxTable' : prefix + 'SrcTable');
-  var tbodyId = sp + (isLmax ? 'nightLmaxRows' : prefix + 'SrcRows');
-  var totalId = sp + (isLmax ? 'nightLmaxTotal' : prefix + 'SrcTotal');
-  var cls = isLmax ? ' class="crit-lmax-col"' : '';
-  var html = '<table id="' + tableId + '"' + cls + '><tr>';
-  if (isLmax) {
-    html += '<th style="width:54%;">Source</th>';
-    html += '<th style="width:16%;" class="center">Quantity</th>';
-    html += '<th style="width:15%;" class="num">Total Lw</th>';
-  } else {
-    html += '<th style="width:52%;">Source</th>';
-    html += '<th style="width:12%;" class="center">Quantity</th>';
-    html += '<th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>';
-    html += '<th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>';
-    html += '<th style="width:12%;" class="num">Total Lw</th>';
+// --- Source pin card management (Chunk A: replaces equipment-table model) ---
+
+/** Stub — equipment table rendering removed in Chunk A. TODO Chunk F: delete. */
+function equipmentTableHTML(prefix, sourceIdx) { return ''; }
+function createSourceEquipmentSection(sourceIdx) { return document.createElement('div'); }
+function initSourceEquipmentTables(sourceIdx) {}
+
+/** Sum of A-weighted per-band spectrum (returns overall LwA or null if no spectrum) */
+function spectrumLwA(specArr) {
+  if (!specArr || !Array.isArray(specArr)) return null;
+  var linSum = 0;
+  var any = false;
+  for (var i = 0; i < 8; i++) {
+    var v = specArr[i];
+    if (Number.isFinite(v)) { linSum += Math.pow(10, v / 10); any = true; }
   }
-  html += '</tr><tbody id="' + tbodyId + '"></tbody><tr>';
-  if (isLmax) {
-    html += '<th colspan="2" class="num">TOTAL</th>';
-  } else {
-    html += '<th colspan="3" class="num">TOTAL</th><th class="iso-ht-col"></th>';
-  }
-  html += '<th class="num" id="' + totalId + '">0</th></tr></table>';
-  return html;
+  return any ? (10 * Math.log10(linSum)) : null;
 }
 
-/** Create and initialise equipment tables for a source (sourceIdx > 0).
- *  Returns the DOM container element holding all 4 period sections. */
-function createSourceEquipmentSection(sourceIdx) {
-  var sp = srcPrefix(sourceIdx);
-  var colour = SOURCE_COLOURS[sourceIdx % SOURCE_COLOURS.length];
-  var srcName = (typeof sources !== 'undefined' && sources[sourceIdx]) ? sources[sourceIdx].name : 'Source ' + (sourceIdx + 1);
-  var section = document.createElement('div');
-  section.id = 'srcEquipSection_' + sourceIdx;
-  section.style.cssText = 'margin-top:10px;border-left:4px solid ' + colour + ';padding-left:12px;';
+const FREQ_LABELS = ['63', '125', '250', '500', '1k', '2k', '4k', '8k'];
 
-  // Source name label
-  var label = document.createElement('div');
-  label.style.cssText = 'font-size:13px;font-weight:700;color:' + colour + ';margin-bottom:8px;';
-  label.textContent = srcName + ' \u2014 Equipment';
-  section.appendChild(label);
-
-  // Day
-  var dayDiv = document.createElement('div');
-  dayDiv.className = 'crit-day-section';
-  dayDiv.innerHTML = '<h3 style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources \u2013 L<sub>eq</sub> (Day)</h3>' +
-    equipmentTableHTML('day', sourceIdx) +
-    '';
-  section.appendChild(dayDiv);
-
-  // Evening
-  var eveDiv = document.createElement('div');
-  eveDiv.className = 'crit-eve-section vic-only';
-  eveDiv.style.marginTop = '10px';
-  eveDiv.innerHTML = '<h3 style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources \u2013 L<sub>eq</sub> (Evening)</h3>' +
-    equipmentTableHTML('eve', sourceIdx);
-  section.appendChild(eveDiv);
-
-  // Night Leq + Lmax
-  var nightDiv = document.createElement('div');
-  nightDiv.className = 'crit-night-section';
-  nightDiv.style.marginTop = '10px';
-  nightDiv.innerHTML = '<h3 style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources \u2013 L<sub>eq</sub> (Night)</h3>' +
-    equipmentTableHTML('night', sourceIdx) +
-    '<div class="crit-lmax-col" style="margin-top:12px;"></div>' +
-    '<h3 class="crit-lmax-col" style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources \u2013 L<sub>max</sub></h3>' +
-    equipmentTableHTML('lmax', sourceIdx);
-  section.appendChild(nightDiv);
-
-  return section;
-}
-
-/** Initialise renderSourceTable calls for a source's equipment tables */
-function initSourceEquipmentTables(sourceIdx) {
-  var sp = srcPrefix(sourceIdx);
-  renderSourceTable('day', 'daySrcRows', 'daySrcTotal', 5, sourceIdx);
-  renderSourceTable('eve', 'eveSrcRows', 'eveSrcTotal', 5, sourceIdx);
-  renderSourceTable('night', 'nightSrcRows', 'nightSrcTotal', 5, sourceIdx);
-  renderSourceTable('lmax', 'nightLmaxRows', 'nightLmaxTotal', 1, sourceIdx);
-}
-
-function renderSourceCards(expandIdx) {
-  var container = document.getElementById('sourceCards');
+/** Render all source pin cards into #sourcePinCards */
+function renderSourcePins() {
+  var container = document.getElementById('sourcePinCards');
   if (!container) return;
 
-  // Quick-path: if card count matches and no expand requested, just update mutable fields
-  var existingCards = container.querySelectorAll('[data-src-idx]');
-  if (expandIdx === undefined && existingCards.length === sources.length && existingCards.length > 0) {
-    sources.forEach(function(src, idx) {
-      var coordEl = document.getElementById('srcCoords_' + idx);
-      if (coordEl) {
-        coordEl.textContent = (src.lat !== null) ? src.lat.toFixed(2) + ', ' + src.lng.toFixed(2) : '';
-      }
-      var elevEl = document.getElementById('groundElev_source_' + idx);
-      if (elevEl && src.groundElevation_m !== null && src.groundElevation_m !== undefined) {
-        elevEl.textContent = Math.round(src.groundElevation_m) + 'm ASL';
-        elevEl.style.color = '#888';
+  // Quick-path: update only mutable fields when card count hasn't changed
+  var existingCards = container.querySelectorAll('[data-pin-idx]');
+  if (existingCards.length === sourcePins.length && existingCards.length > 0) {
+    sourcePins.forEach(function(pin, idx) {
+      var coordEl = document.getElementById('pinCoords_' + idx);
+      if (coordEl) coordEl.textContent = (pin.lat !== null) ? pin.lat.toFixed(5) + ', ' + pin.lng.toFixed(5) : '';
+      var elevEl = document.getElementById('pinElev_' + idx);
+      if (elevEl && pin.groundElevation_m !== null) {
+        elevEl.textContent = Math.round(pin.groundElevation_m) + ' m ASL';
       }
     });
-    return; // skip full rebuild
+    return;
   }
-
-  // Preserve collapse state of existing equipment sections before clearing
-  var _collapseState = {};
-  document.querySelectorAll('[id^="srcEquipSection_"]').forEach(function(el) {
-    var idx = parseInt(el.id.replace('srcEquipSection_', ''), 10);
-    _collapseState[idx] = el.style.display === 'none';
-  });
 
   container.innerHTML = '';
-  document.querySelectorAll('[id^="srcEquipSection_"]').forEach(function(el) { el.remove(); });
 
-  // SVG pin icon (reusable)
-  function pinSVG(colour, size) {
-    size = size || 16;
-    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;">' +
-      '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="' + colour + '"/>' +
-      '<circle cx="12" cy="9" r="2.5" fill="white"/></svg>';
-  }
-
-  sources.forEach(function(src, idx) {
+  sourcePins.forEach(function(pin, idx) {
     var colour = SOURCE_COLOURS[idx % SOURCE_COLOURS.length];
     var wrapper = document.createElement('div');
-    wrapper.setAttribute('data-src-idx', idx);
-    wrapper.style.cssText = 'flex:1 1 100%;';
+    wrapper.setAttribute('data-pin-idx', idx);
+    wrapper.style.cssText = 'flex:1 1 100%;border-left:4px solid ' + colour + ';padding:10px 12px;background:#fafafa;border-radius:4px;margin-bottom:4px;';
 
-    // Card header strip — two rows
-    var card = document.createElement('div');
-    card.style.cssText = 'padding:8px 12px;border-left:4px solid ' + colour + ';background:#fafafa;border-radius:4px;';
+    // === HEADER ROW: name / height / opTime / place / coords ===
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;';
 
-    // Row 1: colour dot, name input, place button, status, delete
-    var row1 = document.createElement('div');
-    row1.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
-
-    // Colour dot
     var dot = document.createElement('span');
-    dot.style.cssText = 'width:12px;height:12px;border-radius:50%;background:' + colour + ';flex-shrink:0;';
-    row1.appendChild(dot);
+    dot.style.cssText = 'width:10px;height:10px;border-radius:50%;background:' + colour + ';flex-shrink:0;';
+    hdr.appendChild(dot);
 
-    // Name input
+    // Name
     var nameInp = document.createElement('input');
-    nameInp.type = 'text';
-    nameInp.value = src.name;
-    nameInp.style.cssText = 'border:1px solid #ddd;padding:3px 6px;font-size:13px;width:120px;border-radius:3px;flex-shrink:0;';
-    nameInp.addEventListener('change', function() { sources[idx].name = this.value; });
-    row1.appendChild(nameInp);
+    nameInp.type = 'text'; nameInp.value = pin.name;
+    nameInp.style.cssText = 'border:1px solid #ddd;padding:3px 6px;font-size:13px;width:130px;border-radius:3px;';
+    nameInp.addEventListener('change', function() {
+      sourcePins[idx].name = this.value;
+    });
+    hdr.appendChild(nameInp);
 
-    // Source height input
+    // Height
     var htLabel = document.createElement('span');
-    htLabel.style.cssText = 'font-size:11px;color:#666;flex-shrink:0;';
-    htLabel.textContent = '\u2195';
-    row1.appendChild(htLabel);
+    htLabel.textContent = '↕'; htLabel.style.cssText = 'font-size:11px;color:#666;';
+    hdr.appendChild(htLabel);
     var htInp = document.createElement('input');
-    htInp.type = 'number';
-    htInp.value = src.heightM || 1.5;
-    htInp.min = '0.1';
-    htInp.max = '50';
-    htInp.step = '0.5';
-    htInp.title = 'Source height (m)';
-    htInp.style.cssText = 'border:1px solid #ddd;padding:3px 4px;font-size:12px;width:50px;border-radius:3px;flex-shrink:0;';
+    htInp.type = 'number'; htInp.value = pin.height_m || 1.5; htInp.min = '0.1'; htInp.max = '50'; htInp.step = '0.5';
+    htInp.title = 'Source height above ground (m)';
+    htInp.style.cssText = 'border:1px solid #ddd;padding:3px 4px;font-size:12px;width:54px;border-radius:3px;';
     htInp.addEventListener('change', function() {
       var v = parseFloat(this.value);
-      if (Number.isFinite(v) && v >= 0.1) sources[idx].heightM = v;
-      else this.value = sources[idx].heightM || 1.5;
-      if (typeof render === 'function') render();
+      if (Number.isFinite(v) && v >= 0.1) { sourcePins[idx].height_m = v; }
+      else this.value = sourcePins[idx].height_m || 1.5;
+      if (typeof renderDebounced === 'function') renderDebounced();
     });
-    row1.appendChild(htInp);
+    hdr.appendChild(htInp);
     var htUnit = document.createElement('span');
-    htUnit.style.cssText = 'font-size:11px;color:#666;flex-shrink:0;';
-    htUnit.textContent = 'm';
-    row1.appendChild(htUnit);
+    htUnit.textContent = 'm'; htUnit.style.cssText = 'font-size:11px;color:#666;';
+    hdr.appendChild(htUnit);
 
-    // Place on map button with SVG pin icon
+    // Op time
+    var otLabel = document.createElement('span');
+    otLabel.textContent = '⏱'; otLabel.style.cssText = 'font-size:11px;color:#666;margin-left:4px;';
+    otLabel.title = 'Operational time (min per 15 min reference period)';
+    hdr.appendChild(otLabel);
+    var otInp = document.createElement('input');
+    otInp.type = 'number'; otInp.value = pin.operationalTime_min || 15; otInp.min = '1'; otInp.max = '15'; otInp.step = '1';
+    otInp.title = 'Operational time (min per 15 min)';
+    otInp.style.cssText = 'border:1px solid #ddd;padding:3px 4px;font-size:12px;width:46px;border-radius:3px;';
+    otInp.addEventListener('change', function() {
+      var v = Math.max(1, Math.min(15, parseInt(this.value) || 15));
+      sourcePins[idx].operationalTime_min = v;
+      this.value = v;
+      if (typeof renderDebounced === 'function') renderDebounced();
+    });
+    hdr.appendChild(otInp);
+    var otUnit = document.createElement('span');
+    otUnit.textContent = 'min'; otUnit.style.cssText = 'font-size:11px;color:#666;';
+    hdr.appendChild(otUnit);
+
+    // Place button
     var placeBtn = document.createElement('button');
     placeBtn.type = 'button';
-    placeBtn.innerHTML = pinSVG(src.lat !== null ? colour : '#999', 14) + ' ' + (src.lat !== null ? 'Placed' : 'Place');
+    placeBtn.innerHTML = (pin.lat !== null ? '📍 Placed' : '📍 Place');
     placeBtn.className = 'pdf-btn';
-    placeBtn.style.cssText = 'font-size:11px;padding:3px 8px;display:inline-flex;align-items:center;gap:3px;flex-shrink:0;';
+    placeBtn.style.cssText = 'font-size:11px;padding:3px 8px;flex-shrink:0;';
     placeBtn.addEventListener('click', function() {
-      if (typeof window._setMode === 'function') {
-        window._setMode('source_' + idx);
-      }
+      if (typeof window._setMode === 'function') window._setMode('source_' + idx);
     });
-    row1.appendChild(placeBtn);
+    hdr.appendChild(placeBtn);
 
-    // Status text (coordinates or "Not placed")
-    var status = document.createElement('span');
-    status.style.cssText = 'font-size:11px;color:#666;';
-    if (src.lat !== null) {
-      status.textContent = src.lat.toFixed(2) + ', ' + src.lng.toFixed(2);
-    } else {
-      status.textContent = 'Not placed';
-    }
-    row1.appendChild(status);
+    // Coordinates display
+    var coordSpan = document.createElement('span');
+    coordSpan.id = 'pinCoords_' + idx;
+    coordSpan.style.cssText = 'font-size:10px;color:#888;';
+    coordSpan.textContent = (pin.lat !== null) ? pin.lat.toFixed(5) + ', ' + pin.lng.toFixed(5) : '';
+    hdr.appendChild(coordSpan);
 
-    // Ground elevation display
+    // Elevation display
     var elevSpan = document.createElement('span');
-    elevSpan.id = 'groundElev_source_' + idx;
-    elevSpan.style.cssText = 'font-size:10px;color:#999;font-style:italic;margin-left:6px;';
-    if (src.groundElevation_m !== null) {
-      elevSpan.textContent = Math.round(src.groundElevation_m) + 'm ASL';
-    }
-    row1.appendChild(elevSpan);
+    elevSpan.id = 'pinElev_' + idx;
+    elevSpan.style.cssText = 'font-size:10px;color:#aaa;font-style:italic;';
+    elevSpan.textContent = (pin.groundElevation_m !== null) ? Math.round(pin.groundElevation_m) + ' m ASL' : '';
+    hdr.appendChild(elevSpan);
 
-    // Expand/collapse toggle for equipment
-    var toggleBtn = document.createElement('button');
-    toggleBtn.type = 'button';
-    toggleBtn.innerHTML = '&#x25BC;';
-    toggleBtn.title = 'Show/hide equipment tables';
-    toggleBtn.style.cssText = 'font-size:12px;padding:2px 6px;border:1px solid #ddd;background:#fff;cursor:pointer;border-radius:3px;flex-shrink:0;';
-    toggleBtn.addEventListener('click', function() {
-      var sec = document.getElementById('srcEquipSection_' + idx);
-      if (sec) {
-        var hidden = sec.style.display === 'none';
-        sec.style.display = hidden ? '' : 'none';
-        toggleBtn.innerHTML = hidden ? '&#x25B2;' : '&#x25BC;';
-      }
-    });
-    row1.appendChild(toggleBtn);
-
-    // Delete button (disabled if only 1 source)
+    // Delete button
     var delBtn = document.createElement('button');
-    delBtn.type = 'button';
-    delBtn.textContent = '\u2715';
-    delBtn.style.cssText = 'font-size:14px;padding:2px 6px;border:none;background:transparent;color:#999;cursor:pointer;margin-left:auto;';
-    delBtn.disabled = sources.length <= 1;
-    if (sources.length <= 1) delBtn.style.opacity = '0.3';
+    delBtn.type = 'button'; delBtn.textContent = '✕';
+    delBtn.style.cssText = 'font-size:13px;padding:2px 6px;border:none;background:transparent;color:#bbb;cursor:pointer;margin-left:auto;';
+    delBtn.disabled = sourcePins.length <= 1;
+    if (sourcePins.length <= 1) delBtn.style.opacity = '0.3';
     delBtn.addEventListener('click', function() {
-      if (sources.length <= 1) return;
-      if (typeof window._removeMarker === 'function') {
-        window._removeMarker('source_' + idx);
-      }
-      sources.splice(idx, 1);
-      renderSourceCards();
+      if (sourcePins.length <= 1) return;
+      if (typeof window._removeMarker === 'function') window._removeMarker('source_' + idx);
+      sourcePins.splice(idx, 1);
+      renderSourcePins();
       if (typeof render === 'function') render();
     });
-    row1.appendChild(delBtn);
+    hdr.appendChild(delBtn);
 
-    card.appendChild(row1);
-    wrapper.appendChild(card);
+    wrapper.appendChild(hdr);
 
-    // All sources get generated equipment tables
-    var equipSection = createSourceEquipmentSection(idx);
-    // Restore previous collapse state, or default collapsed unless this is the expandIdx
-    var shouldCollapse;
-    if (idx === expandIdx) {
-      shouldCollapse = false; // newly added source: expand
-    } else if (_collapseState.hasOwnProperty(idx)) {
-      shouldCollapse = _collapseState[idx]; // restore previous state
-    } else {
-      shouldCollapse = true; // new source not explicitly expanded: collapse
-    }
-    if (shouldCollapse) equipSection.style.display = 'none';
-    toggleBtn.innerHTML = shouldCollapse ? '&#x25BC;' : '&#x25B2;';
-    wrapper.appendChild(equipSection);
+    // === PERIOD TABS: Day / Eve / Night ===
+    var periods = [
+      { key: 'day',   label: 'Day L\u2091\u2091' },
+      { key: 'eve',   label: 'Eve L\u2091\u2091' },
+      { key: 'night', label: 'Night L\u2091\u2091' }
+    ];
+
+    periods.forEach(function(p) {
+      var pRow = document.createElement('div');
+      pRow.style.cssText = 'display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;flex-wrap:wrap;';
+
+      // Period label
+      var pLabel = document.createElement('span');
+      pLabel.textContent = p.label;
+      pLabel.style.cssText = 'font-size:11px;color:#555;width:60px;flex-shrink:0;padding-top:4px;';
+      pRow.appendChild(pLabel);
+
+      // Overall Lw input
+      var lwInp = document.createElement('input');
+      lwInp.type = 'number';
+      lwInp.value = (pin.lw && Number.isFinite(pin.lw[p.key])) ? pin.lw[p.key] : '';
+      lwInp.placeholder = 'Lw dB(A)';
+      lwInp.min = '0'; lwInp.max = '140'; lwInp.step = '1';
+      lwInp.style.cssText = 'border:1px solid #ddd;padding:3px 5px;font-size:12px;width:70px;border-radius:3px;';
+      lwInp.title = 'Overall A-weighted sound power level dB(A)';
+      lwInp.addEventListener('change', function() {
+        var v = parseFloat(this.value);
+        if (!sourcePins[idx].lw) sourcePins[idx].lw = {};
+        sourcePins[idx].lw[p.key] = Number.isFinite(v) ? v : null;
+        if (typeof renderDebounced === 'function') renderDebounced();
+      });
+      pRow.appendChild(lwInp);
+
+      // Library dropdown to pre-fill
+      var libSel = document.createElement('select');
+      libSel.style.cssText = 'font-size:11px;border:1px solid #ddd;padding:2px 4px;border-radius:3px;max-width:180px;';
+      var blankOpt = document.createElement('option');
+      blankOpt.value = ''; blankOpt.textContent = '— Library —';
+      libSel.appendChild(blankOpt);
+      if (typeof SOURCE_LIBRARY_GROUPED_NON_LMAX !== 'undefined') {
+        var lib = SOURCE_LIBRARY_GROUPED_NON_LMAX;
+        if (typeof lib === 'object' && !Array.isArray(lib)) {
+          Object.keys(lib).forEach(function(grp) {
+            var og = document.createElement('optgroup');
+            og.label = grp;
+            (lib[grp] || []).forEach(function(s) {
+              var o = document.createElement('option');
+              o.value = s.name; o.textContent = s.name;
+              og.appendChild(o);
+            });
+            libSel.appendChild(og);
+          });
+        }
+      }
+      libSel.addEventListener('change', function() {
+        var name = this.value;
+        if (!name) return;
+        var libFlat = (typeof SOURCE_LIBRARY !== 'undefined') ? SOURCE_LIBRARY : [];
+        var picked = libFlat.find(function(s) { return s.name === name; });
+        if (!picked) return;
+        // Pre-fill lw and spectrum for this period
+        if (!sourcePins[idx].lw) sourcePins[idx].lw = {};
+        sourcePins[idx].lw[p.key] = picked.lw || 0;
+        if (!sourcePins[idx].spectrum) sourcePins[idx].spectrum = {};
+        sourcePins[idx].spectrum[p.key] = (picked.spectrum && picked.spectrum.length === 8) ? picked.spectrum.slice() : null;
+        // Also pre-fill height from library if not set
+        if (picked.height !== undefined && idx === idx) {
+          sourcePins[idx].height_m = picked.height;
+        }
+        // Update UI
+        renderSourcePins();
+        if (typeof renderDebounced === 'function') renderDebounced();
+        this.value = '';
+      });
+      pRow.appendChild(libSel);
+
+      // Spectrum inputs (8 octave bands)
+      var specWrap = document.createElement('div');
+      specWrap.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;align-items:center;';
+      var specArr = (pin.spectrum && pin.spectrum[p.key]) ? pin.spectrum[p.key] : [];
+      FREQ_LABELS.forEach(function(fl, bi) {
+        var bandWrap = document.createElement('div');
+        bandWrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:1px;';
+        var bandLabel = document.createElement('span');
+        bandLabel.textContent = fl; bandLabel.style.cssText = 'font-size:9px;color:#aaa;';
+        bandWrap.appendChild(bandLabel);
+        var bandInp = document.createElement('input');
+        bandInp.type = 'number';
+        bandInp.value = (specArr[bi] !== undefined && specArr[bi] !== null) ? specArr[bi] : '';
+        bandInp.placeholder = '—';
+        bandInp.style.cssText = 'width:38px;font-size:11px;border:1px solid #ddd;padding:2px 3px;border-radius:2px;text-align:center;';
+        bandInp.title = fl + ' Hz band level (A-weighted Lw, dB)';
+        bandInp.addEventListener('change', function() {
+          var v = parseFloat(this.value);
+          if (!sourcePins[idx].spectrum) sourcePins[idx].spectrum = {};
+          if (!sourcePins[idx].spectrum[p.key]) sourcePins[idx].spectrum[p.key] = new Array(8).fill(null);
+          sourcePins[idx].spectrum[p.key][bi] = Number.isFinite(v) ? v : null;
+          // Auto-update overall Lw from spectrum sum
+          var lwa = spectrumLwA(sourcePins[idx].spectrum[p.key]);
+          if (lwa !== null) {
+            sourcePins[idx].lw[p.key] = Math.round(lwa * 10) / 10;
+          }
+          if (typeof renderDebounced === 'function') renderDebounced();
+        });
+        bandWrap.appendChild(bandInp);
+        specWrap.appendChild(bandWrap);
+      });
+      pRow.appendChild(specWrap);
+
+      // Copy from Day button (for eve and night)
+      if (p.key === 'eve' || p.key === 'night') {
+        var copyBtn = document.createElement('button');
+        copyBtn.type = 'button'; copyBtn.textContent = '← Day';
+        copyBtn.style.cssText = 'font-size:10px;padding:2px 6px;border:1px solid #ddd;background:#fff;cursor:pointer;border-radius:3px;';
+        copyBtn.title = 'Copy Lw and spectrum from Day';
+        copyBtn.addEventListener('click', function() {
+          var src = sourcePins[idx];
+          if (!src.lw || !Number.isFinite(src.lw.day)) return;
+          if (!src.lw) src.lw = {};
+          src.lw[p.key] = src.lw.day;
+          if (!src.spectrum) src.spectrum = {};
+          src.spectrum[p.key] = src.spectrum.day ? src.spectrum.day.slice() : null;
+          renderSourcePins();
+          if (typeof renderDebounced === 'function') renderDebounced();
+        });
+        pRow.appendChild(copyBtn);
+      }
+
+      wrapper.appendChild(pRow);
+    });
 
     container.appendChild(wrapper);
   });
-
-  // Initialise equipment tables for all sources
-  sources.forEach(function(src, idx) {
-    initSourceEquipmentTables(idx);
-  });
 }
 
-// "+ Add Source" button handler
+// Stub functions to prevent errors from cached load/save code
+// TODO Chunk F: remove these stubs after save/load is updated
+function renderSourceCards(expandIdx) { renderSourcePins(); }
+
+// "+ Add Source" button handler and initial render
 document.addEventListener('DOMContentLoaded', function() {
-  // One-time cleanup: remove orphaned barrier localStorage keys from pre-refactor sessions
+  // One-time cleanup: remove orphaned localStorage keys from pre-refactor sessions
   try {
     Object.keys(localStorage)
       .filter(function(k) { return k.includes('_bar_'); })
       .forEach(function(k) { localStorage.removeItem(k); });
-  } catch(e) { /* localStorage may be unavailable */ }
+  } catch(e) {}
 
-  var addBtn = document.getElementById('addSourceBtn');
+  var addBtn = document.getElementById('addSourcePinBtn');
   if (addBtn) {
     addBtn.addEventListener('click', function() {
-      var nextId = sources.length > 0 ? Math.max.apply(null, sources.map(function(s){return s.id;})) + 1 : 1;
-      sources.push({
-        id: nextId,
-        name: 'Source ' + nextId,
-        lat: null, lng: null, heightM: 1.5,
-        groundElevation_m: null, effectiveHeight_ASL: null,
-        equipment: { day: [], eve: [], night: [], lmax: [] }
+      sourcePins.push({
+        id: _newPinId(),
+        name: 'Source ' + (sourcePins.length + 1),
+        lat: null, lng: null,
+        lw: { day: 85, eve: 85, night: 85 },
+        spectrum: { day: null, eve: null, night: null },
+        height_m: 1.5,
+        buildingHeight_m: 0,
+        groundElevation_m: null,
+        operationalTime_min: 15
       });
-      renderSourceCards(sources.length - 1); // expand the newly added source
+      renderSourcePins();
     });
   }
-  // Initial render of source cards (expand Source 0 on first load)
-  renderSourceCards(0);
+
+  renderSourcePins();
 });
 
-function renderSourceTable(prefix, tbodyId, totalId, rows=5, sourceIdx=0){
-  var sp = srcPrefix(sourceIdx);
-  const tbody = document.getElementById(sp + tbodyId);
-  if (!tbody) return;
-  tbody.innerHTML = "";
 
-  function recalcAll(){
-    const rowTotals = [];
-    for (let i=1; i<=rows; i++){
-      const lwCell = document.getElementById(`${sp}${prefix}_lw_${i}`);
-      if (lwCell){
-        const v = Number(lwCell.textContent);
-        if (Number.isFinite(v) && v > 0) rowTotals.push(v);
-      }
-    }
-    const total = energeticSum(rowTotals);
-    const totalCell = document.getElementById(sp + totalId);
-    if (totalCell) totalCell.textContent = String(Math.round(total));
+/** renderSourceTable — REMOVED in Chunk A (sourcePins model). TODO Chunk F: delete. */
+function renderSourceTable(prefix, tbodyId, totalId, rows, sourceIdx) {}
 
-    // Keep receiver table updated when totals change
-    if (prefix === 'day' || prefix === 'eve' || prefix === 'night' || prefix === 'lmax') render();
-  }
-
-  for (let i=1; i<=rows; i++){
-    const tr = document.createElement("tr");
-
-    const kSrc = `${sp}${prefix}_src_${i}`;
-    const kN = `${sp}${prefix}_n_${i}`;
-    const kMin = `${sp}${prefix}_min_${i}`;
-
-    const srcVal = loadLS(kSrc);
-    const nVal = loadLS(kN);
-    const minVal = loadLS(kMin); // blank => assume 15 mins
-
-    const tdSrc = document.createElement("td");
-    const tdN = document.createElement("td"); tdN.className="center";
-    const includeMinutes = (prefix === 'day' || prefix === 'eve' || prefix === 'night');
-    const tdMin = document.createElement("td"); tdMin.className="center";
-    const tdLw = document.createElement("td"); tdLw.className="num"; tdLw.id = `${sp}${prefix}_lw_${i}`;
-
-    const libFlat = (prefix === 'lmax') ? SOURCE_LIBRARY_LMAX : SOURCE_LIBRARY;
-    const libGrouped = (prefix === 'lmax') ? SOURCE_LIBRARY_GROUPED_LMAX : SOURCE_LIBRARY_GROUPED_NON_LMAX;
-    const sel = makeSourceSelect(srcVal, libGrouped);
-    const inp = document.createElement("input");
-    inp.type="number"; inp.min="0"; inp.max="99"; inp.step="1"; inp.inputMode="numeric";
-    inp.value = (nVal === "" || nVal === null || nVal === undefined) ? "1" : nVal;
-
-    inp.id = `${sp}${prefix}_n_inp_${i}`;
-
-    const isSAMode = (currentState === 'SA' || currentState === null);
-    const opMax = isSAMode ? 15 : 100;
-    const opDefault = isSAMode ? "15" : "100";
-
-    const inpMin = document.createElement("input");
-    inpMin.type="number"; inpMin.min="0"; inpMin.max=String(opMax); inpMin.step="1"; inpMin.inputMode="numeric";
-    inpMin.style.width = isSAMode ? '' : '60px';
-    // Default to full operation (15 min for SA, 100% for others).
-    // Reset to default when switching modes (SA value of 15 shouldn't carry into % mode).
-    var storedMin = (minVal === "" || minVal === null || minVal === undefined) ? opDefault : minVal;
-    if (!isSAMode && Number(storedMin) <= 15) storedMin = opDefault;
-    inpMin.value = storedMin;
-    inpMin.id = `${sp}${prefix}_min_inp_${i}`;
-
-    // Source height input for ISO 9613-2 (Leq tables only, not Lmax)
-    const isLeqTable = (prefix !== 'lmax');
-    const tdHt = document.createElement("td"); tdHt.className = "center iso-ht-col";
-    tdHt.style.display = (propagationMethod === 'iso9613' && isLeqTable) ? '' : 'none';
-    const inpHt = document.createElement("input");
-    inpHt.type = "number"; inpHt.min = "0"; inpHt.max = "200"; inpHt.step = "0.5";
-    inpHt.style.width = "55px"; inpHt.inputMode = "decimal";
-    inpHt.value = "1.5"; // default; updated when source is selected
-    inpHt.id = `${sp}${prefix}_ht_inp_${i}`;
-    inpHt.addEventListener("input", function() { renderDebounced(); });
-
-    // Out-of-range warning elements
-    const nWarning = document.createElement('div');
-    nWarning.style.cssText = 'color:#dc2626;font-size:10px;margin-top:2px;display:none;';
-    nWarning.textContent = 'Max 99';
-    const minWarning = document.createElement('div');
-    minWarning.style.cssText = 'color:#dc2626;font-size:10px;margin-top:2px;display:none;';
-    minWarning.textContent = isSAMode ? 'Max 15 min' : 'Max 100%';
-
-    function recalcRow(){
-      const picked = libFlat.find(s => s.name === sel.value);
-      const base = picked ? Number(picked.lw) : NaN;
-      // Update height input default when source is selected
-      if (picked && picked.height !== undefined && isLeqTable) {
-        inpHt.value = picked.height;
-      }
-      let n = Number(inp.value);
-      if (n > 99) { n = 99; inp.value = 99; nWarning.style.display = ''; }
-      else if (n < 0) { n = 0; inp.value = 0; nWarning.style.display = ''; }
-      else { nWarning.style.display = 'none'; }
-      let minsVal = includeMinutes ? Number(inpMin.value) : (isSAMode ? 15 : 100);
-      if (includeMinutes) {
-        if (minsVal > opMax) { minsVal = opMax; inpMin.value = opMax; minWarning.style.display = ''; }
-        else if (minsVal < 0) { minsVal = 0; inpMin.value = 0; minWarning.style.display = ''; }
-        else { minWarning.style.display = 'none'; }
-      }
-      let lw = rowTotalLw(base, n, minsVal);
-
-      tdLw.textContent = String(Math.round(lw));
-
-      saveLS(kSrc, sel.value);
-      saveLS(kN, inp.value);
-      if (includeMinutes) saveLS(kMin, inpMin.value);
-      else saveLS(kMin, "");
-
-      recalcAll();
-    }
-
-    sel.addEventListener("change", recalcRow);
-    inp.addEventListener("input", recalcRow);
-    if (includeMinutes) inpMin.addEventListener("input", recalcRow);
-
-    tdSrc.appendChild(sel);
-    tdN.appendChild(inp);
-    tdN.appendChild(nWarning);
-    if (includeMinutes) { tdMin.appendChild(inpMin); tdMin.appendChild(minWarning); }
-    tdHt.appendChild(inpHt);
-
-    tr.appendChild(tdSrc);
-    tr.appendChild(tdN);
-    if (includeMinutes) tr.appendChild(tdMin);
-    if (isLeqTable) tr.appendChild(tdHt);
-    tr.appendChild(tdLw);
-
-    tbody.appendChild(tr);
-    recalcRow();
-  }
-
-  recalcAll();
-}
 
 function calcCriteria(source, rec, recId) {
   if (!source || !rec) return {day:"", evening:"", night:"", lmax:""};
@@ -5203,14 +4975,14 @@ function showTerrainProfile() {
   container.style.display = '';
   container.innerHTML = '<span style="font-size:10px;color:#999;">Loading terrain profile...</span>';
 
-  var src = (typeof sources !== 'undefined' && sources[_breakdownSourceIdx]) ? sources[_breakdownSourceIdx] : null;
+  var src = sourcePins[_breakdownSourceIdx] || null;
   if (!src || src.lat === null) { container.innerHTML = '<span style="color:#999;font-size:10px;">Source not placed</span>'; return; }
 
   var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
   var recLL = allLL['r' + (_breakdownRecvIdx + 1)];
   if (!recLL) { container.innerHTML = '<span style="color:#999;font-size:10px;">Receiver not placed</span>'; return; }
 
-  var srcHt = src.heightM || 1.5;
+  var srcHt = src.height_m || 1.5;
   var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(_breakdownRecvIdx) : 1.5;
 
   getTerrainProfile(src.lat, src.lng, recLL.lat, recLL.lng, 25).then(function(profile) {
@@ -5231,34 +5003,25 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
   if (!panel || !body) return;
 
   // Get source info
-  var src = (typeof sources !== 'undefined' && sources[sourceIdx]) ? sources[sourceIdx] : null;
+  var src = sourcePins[sourceIdx] || null;
   if (!src || src.lat === null) { panel.style.display = 'none'; return; }
 
   // Get receiver distance
   var dist = getDistanceForSourceReceiver(sourceIdx, receiverIdx);
   if (!Number.isFinite(dist) || dist <= 0) { panel.style.display = 'none'; return; }
 
-  // Get spectrum for first equipment item with spectrum data
-  var sp = srcPrefix(sourceIdx);
+  // Get spectrum from sourcePins (Chunk A model)
   var spectrum = null;
   var adjDB = 0;
-  var srcHt = src.heightM || 1.5;
+  var srcHt = src.height_m || 1.5;
   var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
 
-  // Try to get spectrum from first equipment row
-  if (typeof SOURCE_LIBRARY !== 'undefined' && typeof getSourceSpectrumAndHeight === 'function') {
-    var tbodyEl = document.getElementById(sp + 'daySrcRows');
-    if (tbodyEl) {
-      var rows = tbodyEl.querySelectorAll('tr');
-      for (var ri = 0; ri < rows.length; ri++) {
-        var info = getSourceSpectrumAndHeight(sourceIdx, 'day', ri + 1);
-        if (info && info.spectrumA) {
-          spectrum = info.spectrumA;
-          adjDB = info.adjDB || 0;
-          srcHt = info.srcHeight || srcHt;
-          break;
-        }
-      }
+  // Try to get spectrum from sourcePin day period
+  if (src.spectrum && src.spectrum.day) {
+    var daySpec = src.spectrum.day;
+    if (Array.isArray(daySpec) && daySpec.some(function(v) { return v !== null && Number.isFinite(v); })) {
+      spectrum = daySpec;
+      adjDB = 10 * log10((src.operationalTime_min || 15) / 15);
     }
   }
 
@@ -5529,47 +5292,27 @@ function render() {
   const tbody = document.getElementById('rows');
   tbody.innerHTML = "";
 
-  // Sum equipment totals across all sources for each period
-  function sumAllSrcTotals(periodTotalId) {
-    var total = 0;
-    sources.forEach(function(src, si) {
-      var v = getSrcTotal(srcPrefix(si) + periodTotalId);
-      if (Number.isFinite(v)) total += v;
+  // Check if any sourcePin has data for each period
+  function hasLwForPeriod(period) {
+    return sourcePins.some(function(p) {
+      return p.lat !== null && p.lw && Number.isFinite(p.lw[period]) && p.lw[period] > 0;
     });
-    return total;
   }
-  const dayTotal = sumAllSrcTotals('daySrcTotal');
-  const eveTotal = sumAllSrcTotals('eveSrcTotal');
-  const nightTotal = sumAllSrcTotals('nightSrcTotal');
-  const nightLmaxTotal = sumAllSrcTotals('nightLmaxTotal');
-
-  // Build calc.js-compatible source objects from all sources in state
-  // Source 0 reads from existing tables (no prefix); source 1+ reads from prefixed tables
-  function buildAllSourcesForPeriod(prefix) {
-    var all = [];
-    sources.forEach(function(src, si) {
-      var equip = buildSourceEquipment(prefix, si);
-      if (equip.length > 0) {
-        all.push({ equipment: equip, _sourceIdx: si });
-      }
-    });
-    return all;
-  }
-  const daySources = buildAllSourcesForPeriod('day');
-  const eveSources = buildAllSourcesForPeriod('eve');
-  const nightSources = buildAllSourcesForPeriod('night');
-  const lmaxSources = buildAllSourcesForPeriod('lmax');
+  var hasDay = hasLwForPeriod('day');
+  var hasEve = hasLwForPeriod('eve');
+  var hasNight = hasLwForPeriod('night');
+  var hasLmax = hasLwForPeriod('night'); // Lmax uses same pins as night
 
   // Build dynamic header for predicted noise levels table (includes per-source columns)
   var predHead = document.getElementById('predTableHead');
   if (predHead) {
     var hhtml = '<tr><th style="width:16%;">Receiver (Zone / Subzone)</th>';
-    // Per-source columns (only when >1 source has equipment or position)
-    var showPerSource = sources.length > 1;
+    // Per-source columns (only when >1 source)
+    var showPerSource = sourcePins.length > 1;
     if (showPerSource) {
-      sources.forEach(function(src, si) {
+      sourcePins.forEach(function(pin, si) {
         var c = SOURCE_COLOURS[si % SOURCE_COLOURS.length];
-        var sn = escapeHTML(src.name || ('S' + (si+1)));
+        var sn = escapeHTML(pin.name || ('S' + (si+1)));
         hhtml += '<th class="num" style="font-size:11px;color:' + c + ';">' + sn + '<br>dist (m)</th>';
         hhtml += '<th class="num" style="font-size:11px;color:' + c + ';">' + sn + '<br>L<sub>p</sub> (dB)</th>';
       });
@@ -5644,16 +5387,16 @@ function render() {
     var terrainBadge = terrainActive ? '<span title="Terrain screening applied" style="font-size:10px;color:#6b7280;margin-left:2px;">&#x26F0;</span>' : '';
     // Predictions: multi-source via calc.js with per-source distances from matrix
     const dist = getReceiverDistance(i+1); // legacy fallback for Source 0
-    let predDay = calcPredAtReceiver('day', daySources, i, dist);
-    let predEve = calcPredAtReceiver('eve', eveSources, i, dist);
-    let predNight = calcPredAtReceiver('night', nightSources, i, dist);
-    let predLmax = calcPredAtReceiver('lmax', lmaxSources, i, dist);
+    let predDay = calcPredAtReceiver('day', null, i, dist);
+    let predEve = calcPredAtReceiver('eve', null, i, dist);
+    let predNight = calcPredAtReceiver('night', null, i, dist);
+    let predLmax = calcPredAtReceiver('lmax', null, i, dist);
 
     // If no source is selected (total = 0) and predicted result is < 0, show blank
-    if (dayTotal === 0 && predDay !== "" && predDay < 0) predDay = "";
-    if (eveTotal === 0 && predEve !== "" && predEve < 0) predEve = "";
-    if (nightTotal === 0 && predNight !== "" && predNight < 0) predNight = "";
-    if (nightLmaxTotal === 0 && predLmax !== "" && predLmax < 0) predLmax = "";
+    if (!hasDay && predDay !== "" && predDay < 0) predDay = "";
+    if (!hasEve && predEve !== "" && predEve < 0) predEve = "";
+    if (!hasNight && predNight !== "" && predNight < 0) predNight = "";
+    if (!hasLmax && predLmax !== "" && predLmax < 0) predLmax = "";
 
     // Apply per-receiver characteristic penalties and facade correction to predicted levels
     const rp = recvPenalties[`r${i+1}`] || {day:0,eve:0,night:0};
@@ -5674,17 +5417,14 @@ function render() {
     // Per-source distance + contribution cells (only when multiple sources)
     var perSourceCells = '';
     if (showPerSource) {
-      sources.forEach(function(src, si) {
+      sourcePins.forEach(function(pin, si) {
         var d = getDistanceForSourceReceiver(si, i);
         var distStr = Number.isFinite(d) ? String(Math.round(d)) : '\u2014';
         var contribStr = '\u2014';
-        if (Number.isFinite(d) && d > 0) {
-          // Find this source's equipment for day period (representative)
-          var srcEquip = buildSourceEquipment('day', si);
-          if (srcEquip.length > 0) {
-            var lp = window._calc.sourceContribution({equipment: srcEquip}, d);
-            contribStr = isFinite(lp) ? String(Math.round(lp)) : '\u2014';
-          }
+        if (Number.isFinite(d) && d > 0 && pin.lat !== null && pin.lw && Number.isFinite(pin.lw.day)) {
+          var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
+          var lp = attenuatePoint(pin.lw.day + opAdj, d);
+          contribStr = isFinite(lp) ? String(Math.round(lp)) : '\u2014';
         }
         var c = SOURCE_COLOURS[si % SOURCE_COLOURS.length];
         perSourceCells += '<td class="num" style="font-size:11px;color:' + c + ';">' + distStr + '</td>';
@@ -5730,10 +5470,8 @@ function render() {
       tr.addEventListener('click', function() {
         // Show breakdown for first source with a valid position
         var firstSrcIdx = 0;
-        if (typeof sources !== 'undefined') {
-          for (var si = 0; si < sources.length; si++) {
-            if (sources[si].lat !== null) { firstSrcIdx = si; break; }
-          }
+        for (var si = 0; si < sourcePins.length; si++) {
+          if (sourcePins[si].lat !== null) { firstSrcIdx = si; break; }
         }
         showISOBreakdown(firstSrcIdx, recIdx);
       });
@@ -5755,10 +5493,10 @@ function render() {
     var sleepResults = [];
     recs.forEach(function(rec, i) {
       var dist = getReceiverDistance(i + 1); // legacy fallback
-      var predN = calcPredAtReceiver('night', nightSources, i, dist);
-      var predLmax = calcPredAtReceiver('lmax', lmaxSources, i, dist);
-      if (nightTotal === 0 && predN !== "" && predN < 0) predN = "";
-      if (nightLmaxTotal === 0 && predLmax !== "" && predLmax < 0) predLmax = "";
+      var predN = calcPredAtReceiver('night', null, i, dist);
+      var predLmax = calcPredAtReceiver('lmax', null, i, dist);
+      if (!hasNight && predN !== "" && predN < 0) predN = "";
+      if (!hasLmax && predLmax !== "" && predLmax < 0) predLmax = "";
       var rpSleep = recvPenalties['r'+(i+1)] || {night:0};
       var fcSleep = facadeCorrection || 0;
       var penN = (predN !== "" && predN !== null) ? predN + rpSleep.night + fcSleep : "";
@@ -6772,22 +6510,20 @@ initCollapse();
         data.currentState = currentState;
         data.vicAreaType = vicAreaType;
 
-        // Source table data (all periods, all sources)
-        var srcData = {};
-        sources.forEach(function(src, si) {
-          var sp = srcPrefix(si);
-          ['day','eve','night','lmax'].forEach(function(pfx) {
-            var numRows = (pfx === 'lmax') ? 1 : 5;
-            for (var i = 1; i <= numRows; i++) {
-              ['src','n','min','bar'].forEach(function(field) {
-                var key = sp + pfx + '_' + field + '_' + i;
-                var v = loadLS(key);
-                if (v) srcData[key] = v;
-              });
-            }
-          });
+        // TODO Chunk F: update save to serialise sourcePins[] with lw/spectrum per period.
+        // For now, save sourcePins metadata (lat/lng/name/height/lw) without spectrum.
+        data.sourcePins = sourcePins.map(function(pin) {
+          return {
+            id: pin.id, name: pin.name,
+            lat: pin.lat, lng: pin.lng,
+            height_m: pin.height_m,
+            operationalTime_min: pin.operationalTime_min,
+            lw: pin.lw ? JSON.parse(JSON.stringify(pin.lw)) : {},
+            spectrum: pin.spectrum ? JSON.parse(JSON.stringify(pin.spectrum)) : {}
+          };
         });
-        data.sourceTable = srcData;
+        // Legacy field (empty) — old save/load compatibility
+        data.sourceTable = {};
 
         // Zone selections
         data.zones = {};
@@ -6890,9 +6626,9 @@ initCollapse();
           data.customSources = JSON.parse(JSON.stringify(_customSources));
         }
 
-        // Sources array (multi-source state)
-        data.sources = sources.map(function(src) {
-          return { id: src.id, name: src.name, lat: src.lat, lng: src.lng, heightM: src.heightM || 1.5 };
+        // Sources array (legacy — now aliased to sourcePins; heightM mapped from height_m)
+        data.sources = sourcePins.map(function(src) {
+          return { id: src.id, name: src.name, lat: src.lat, lng: src.lng, heightM: src.height_m || 1.5 };
         });
 
         // Map marker positions (all markers from map state)
@@ -7068,29 +6804,20 @@ initCollapse();
 
     function buildSourceFeatures() {
       var features = [];
-      if (typeof sources === 'undefined') return features;
-      sources.forEach(function(src, si) {
-        if (src.lat === null || src.lng === null) return;
-        var equip = [];
-        ['day', 'eve', 'night', 'lmax'].forEach(function(p) {
-          var items = (typeof buildSourceEquipment === 'function') ? buildSourceEquipment(p, si) : [];
-          items.forEach(function(item) {
-            if (item.Lw > 0) equip.push({ name: item.name, lw: item.Lw, qty: item.quantity, period: p });
-          });
-        });
+      sourcePins.forEach(function(pin, si) {
+        if (pin.lat === null || pin.lng === null) return;
         features.push({
           type: 'Feature',
-          id: 'source-' + slugify(src.name || 'source-' + (si + 1)),
-          geometry: { type: 'Point', coordinates: [src.lng, src.lat] },
+          id: 'source-' + (typeof slugify === 'function' ? slugify(pin.name || 'source-' + (si + 1)) : 'source-' + (si + 1)),
+          geometry: { type: 'Point', coordinates: [pin.lng, pin.lat] },
           properties: {
             feature_type: 'source',
-            name: src.name || 'Source ' + (si + 1),
-            combined_lw_dba: null,
-            source_height_m: src.heightM || 1.5,
-            groundElevation_m: src.groundElevation_m || null,
-            effectiveHeight_ASL: (src.groundElevation_m != null) ? src.groundElevation_m + (src.heightM || 1.5) : null,
-            equipment_list: equip,
-            period: 'all'
+            name: pin.name || 'Source ' + (si + 1),
+            height_m: pin.height_m || 1.5,
+            operationalTime_min: pin.operationalTime_min || 15,
+            lw_day: pin.lw ? pin.lw.day : null,
+            lw_eve: pin.lw ? pin.lw.eve : null,
+            lw_night: pin.lw ? pin.lw.night : null
           }
         });
       });
@@ -7358,39 +7085,29 @@ initCollapse();
         setVicAreaType(data.vicAreaType);
       }
 
-      // 2b. Restore sources array (multi-source state)
-      var isV1 = !data._version || data._version < 2;
-      if (data.sources && Array.isArray(data.sources) && data.sources.length > 0) {
-        // Replace sources array with saved state
-        sources.length = 0;
-        data.sources.forEach(function(s) {
-          sources.push({ id: s.id, name: s.name, lat: s.lat || null, lng: s.lng || null,
-                         heightM: s.heightM || 1.5, groundElevation_m: null, effectiveHeight_ASL: null,
-                         equipment: { day: [], eve: [], night: [], lmax: [] } });
+      // 2b. Restore sourcePins array
+      // TODO Chunk F: full restore of spectrum and lw per period.
+      if (data.sourcePins && Array.isArray(data.sourcePins) && data.sourcePins.length > 0) {
+        sourcePins.length = 0;
+        data.sourcePins.forEach(function(s) {
+          sourcePins.push({
+            id: s.id || _newPinId(),
+            name: s.name || 'Source',
+            lat: s.lat || null, lng: s.lng || null,
+            lw: s.lw || { day: 85, eve: 85, night: 85 },
+            spectrum: s.spectrum || { day: null, eve: null, night: null },
+            height_m: s.height_m || 1.5,
+            buildingHeight_m: 0,
+            groundElevation_m: null,
+            operationalTime_min: s.operationalTime_min || 15
+          });
         });
-      } else if (isV1) {
-        // v1 file: single source, keep existing sources[0]
-        console.log('Loading v1 assessment — single source only.');
-        showLoadBanner('This file was saved before multi-source support. Loaded as single source.');
       }
-      // Re-render source cards (creates equipment tables for all sources)
-      if (typeof renderSourceCards === 'function') renderSourceCards();
+      // Re-render source pins UI
+      if (typeof renderSourcePins === 'function') renderSourcePins();
 
-      // 3. Source table data — write to localStorage then re-render tables
-      if (data.sourceTable) {
-        Object.keys(data.sourceTable).forEach(function(k) {
-          var storeKey = k;
-          // v1 compat: unprefixed keys → add s0_ prefix
-          if (isV1 && !k.match(/^s\d+_/)) {
-            storeKey = 's0_' + k;
-          }
-          saveLS(storeKey, data.sourceTable[k]);
-        });
-        // Re-render equipment tables for all sources
-        sources.forEach(function(src, si) {
-          initSourceEquipmentTables(si);
-        });
-      }
+      // 3. Legacy source table data — no-op in Chunk A (equipment model removed)
+      // TODO Chunk F: remove this block
 
       // 4. Receiver names
       if (data.receiverNames) {
@@ -10043,8 +9760,8 @@ initCollapse();
 
     /* ---- redraw dashed lines + update distance inputs ---- */
     function updateAll() {
-      // Build sourceDistances matrix for all sources × all receivers
-      var numSources = (typeof sources !== 'undefined') ? sources.length : 1;
+      // Build sourceDistances matrix for all sourcePins × all receivers
+      var numSources = sourcePins.length;
       var sd = [];
       for (var si = 0; si < numSources; si++) {
         sd[si] = [];
@@ -10444,10 +10161,10 @@ initCollapse();
           var idx = sourceIdxFromMode(mode);
           if (sources[idx]) {
             sources[idx].groundElevation_m = elev;
-            sources[idx].effectiveHeight_ASL = (elev !== null) ? elev + (sources[idx].heightM || 1.5) : null;
+            sources[idx].effectiveHeight_ASL = (elev !== null) ? elev + (sources[idx].height_m || 1.5) : null;
           }
-          // Re-render source cards so the stored elevation is displayed
-          if (typeof renderSourceCards === 'function') renderSourceCards();
+          // Re-render source pins so the stored elevation is displayed
+          if (typeof renderSourcePins === 'function') renderSourcePins();
         } else {
           // Receiver r1-r4
           if (typeof recvGroundElevations !== 'undefined') {
@@ -11626,13 +11343,11 @@ initCollapse();
 
       // Collect all placed source positions
       var srcPositions = [];
-      if (typeof sources !== 'undefined') {
-        sources.forEach(function(src) {
-          if (src.lat !== null && src.lng !== null) {
-            srcPositions.push({ lat: src.lat, lng: src.lng, heightM: src.heightM || 1.5 });
-          }
-        });
-      }
+      sourcePins.forEach(function(src) {
+        if (src.lat !== null && src.lng !== null) {
+          srcPositions.push({ lat: src.lat, lng: src.lng, heightM: src.height_m || 1.5 });
+        }
+      });
       if (srcPositions.length === 0 && allLL.source) {
         srcPositions.push({ lat: allLL.source.lat, lng: allLL.source.lng, heightM: 1.5 });
       }
@@ -11787,30 +11502,21 @@ initCollapse();
     function buildWorkerSources(period) {
       period = period || _noiseMapPeriod || 'day';
       var result = [];
-      if (typeof sources === 'undefined') return result;
-      sources.forEach(function(src, si) {
-        if (src.lat === null) return;
-        var equip = (typeof buildSourceEquipment === 'function') ? buildSourceEquipment(period, si) : [];
-        if (equip.length === 0) return;
+      sourcePins.forEach(function(pin, si) {
+        if (pin.lat === null) return;
+        var lwVal = pin.lw ? pin.lw[period] : null;
+        if (!Number.isFinite(lwVal)) return;
 
-        // Get spectrum from first equipment item if available
-        var spec = null;
-        var specAdj = 0;
-        if (typeof SOURCE_LIBRARY !== 'undefined') {
-          var first = equip[0];
-          var lib = SOURCE_LIBRARY.find(function(s) { return s.name === first.name; });
-          if (lib && lib.spectrum) {
-            spec = lib.spectrum;
-            specAdj = (first.Lw || 0) - (lib.lw || 0);
-          }
-        }
+        var opAdj = 10 * Math.log10((pin.operationalTime_min || 15) / 15);
+        var spec = (pin.spectrum && pin.spectrum[period]) ? pin.spectrum[period] : null;
 
         result.push({
-          lat: src.lat, lng: src.lng,
-          heightM: src.heightM || 1.5,
-          equipment: equip,
+          lat: pin.lat, lng: pin.lng,
+          heightM: pin.height_m || 1.5,
+          // Worker-compatible: use equipment array with single item
+          equipment: [{ name: pin.name || '', Lw: lwVal + opAdj, quantity: 1 }],
           spectrum: spec,
-          spectrumAdj: specAdj
+          spectrumAdj: 0
         });
       });
       return result;
