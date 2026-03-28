@@ -1445,15 +1445,22 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   /**
    * Fetch a grid of elevations covering the given bounds.
    * Returns cached result if bounds are already covered.
+   * Sends sequential 500-point POST chunks to avoid API overload.
+   *
    * @param {number} north
    * @param {number} south
    * @param {number} east
    * @param {number} west
-   * @param {number} [gridSpacing=0.0005] - degrees (~55m)
-   * @returns {Promise<{lats:number[], lngs:number[], elevations:number[][]}>}
+   * @param {number} [gridSpacing=0.002] - degrees (~222m default, sufficient for ridge-scale terrain)
+   * @param {function} [onProgress] - called as onProgress(chunksDone, chunksTotal) after each chunk
+   * @returns {Promise<{lats, lngs, elevations, _partialWarning}>}
+   *   _partialWarning is true when >50% of elevations are null (API failure)
    */
-  function getTileForBounds(north, south, east, west, gridSpacing) {
-    gridSpacing = gridSpacing || 0.0005;
+  function getTileForBounds(north, south, east, west, gridSpacing, onProgress) {
+    // Default to 0.002° (~222m) — coarser than SRTM 30m but sufficient to detect ridgelines.
+    // Terrain effects operate over ridge-scale distances (100s of metres); higher DEM resolution
+    // does not meaningfully improve noise map terrain screening accuracy at grid sizes ≥ 5m.
+    gridSpacing = gridSpacing || 0.002;
 
     // Check if existing tile covers the requested bounds
     if (_tileBounds && _tileGrid &&
@@ -1470,14 +1477,16 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     var expandedEast = east + lngSpan * 0.1;
     var expandedWest = west - lngSpan * 0.1;
 
-    // Guard against pathologically fine grids: clamp to keep point count under 5,000
+    // Safety clamp: max 2000 points (4 sequential chunks of 500).
+    // Fix 2 in computeNoiseMap reduces demSpacing so this is rarely reached.
     var latRange = expandedNorth - expandedSouth;
     var lngRange = expandedEast - expandedWest;
     var estPoints = Math.ceil(latRange / gridSpacing) * Math.ceil(lngRange / gridSpacing);
-    if (estPoints > 5000) {
-      var clampedSpacing = Math.sqrt((latRange * lngRange) / 5000);
-      console.warn('DEMCache: DEM tile would be ~' + estPoints + ' points — clamping grid from ' +
-        Math.round(gridSpacing * 111320) + 'm to ~' + Math.round(clampedSpacing * 111320) + 'm');
+    if (estPoints > 2000) {
+      var clampedSpacing = Math.sqrt((latRange * lngRange) / 2000);
+      if (window._debugTerrain) console.log('DEMCache: clamping DEM grid from ' +
+        Math.round(gridSpacing * 111320) + 'm to ~' + Math.round(clampedSpacing * 111320) + 'm (' +
+        estPoints + ' → ≤2000 points)');
       gridSpacing = clampedSpacing;
     }
 
@@ -1490,29 +1499,105 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       lngs.push(parseFloat(lng.toFixed(CACHE_PRECISION)));
     }
 
-    // Build flat point array
-    var points = [];
+    // Build result array; fill from cache where available
+    var results = new Array(lats.length * lngs.length);
+    var toFetch = []; // { apiPt: {latitude, longitude}, resultIdx }
+    var idx = 0;
     for (var r = 0; r < lats.length; r++) {
       for (var c = 0; c < lngs.length; c++) {
-        points.push({ lat: lats[r], lng: lngs[c] });
+        var cached = findCached(lats[r], lngs[c]);
+        if (cached !== undefined) {
+          results[idx] = cached;
+        } else {
+          toFetch.push({ apiPt: { latitude: lats[r], longitude: lngs[c] }, resultIdx: idx });
+          results[idx] = null; // placeholder
+        }
+        idx++;
       }
     }
 
-    if (window._debugTerrain) console.log('DEMCache: fetching ' + points.length + ' elevation points (' + lats.length + ' x ' + lngs.length + ' grid)');
+    if (window._debugTerrain) console.log('DEMCache: tile ' + lats.length + '\u00d7' + lngs.length +
+      ' = ' + results.length + ' points (' + (results.length - toFetch.length) + ' cached, ' +
+      toFetch.length + ' to fetch)');
 
-    return getElevations(points).then(function(elev) {
+    // Assemble final 2D elevation grid and cache the tile
+    function assembleTile(nullCount) {
       var elevations = [];
-      var idx = 0;
-      for (var r = 0; r < lats.length; r++) {
+      var i2 = 0;
+      for (var r2 = 0; r2 < lats.length; r2++) {
         var row = [];
-        for (var c = 0; c < lngs.length; c++) {
-          row.push(elev[idx++]);
+        for (var c2 = 0; c2 < lngs.length; c2++) {
+          row.push(results[i2++] !== undefined ? results[i2 - 1] : null);
         }
         elevations.push(row);
       }
+      var partialWarning = (nullCount > results.length * 0.5);
+      if (partialWarning) {
+        console.warn('DEMCache: >' + Math.round(nullCount / results.length * 100) + '% of tile elevations null (' +
+          nullCount + '/' + results.length + ') — terrain screening may be unreliable');
+      }
       _tileBounds = { north: expandedNorth, south: expandedSouth, east: expandedEast, west: expandedWest };
-      _tileGrid = { lats: lats, lngs: lngs, elevations: elevations };
+      _tileGrid = { lats: lats, lngs: lngs, elevations: elevations, _partialWarning: partialWarning };
       return _tileGrid;
+    }
+
+    // All served from cache — no network needed
+    if (toFetch.length === 0) {
+      return Promise.resolve(assembleTile(0));
+    }
+
+    // Sequential 500-point chunks — avoids overwhelming Open-Elevation API.
+    // Promise.all with 50 parallel chunks causes API to return all-null responses.
+    var CHUNK_SIZE = 500;
+    var chunks = [];
+    for (var i = 0; i < toFetch.length; i += CHUNK_SIZE) {
+      chunks.push(toFetch.slice(i, i + CHUNK_SIZE));
+    }
+    var totalChunks = chunks.length;
+    var nullCount = 0;
+
+    return chunks.reduce(function(promise, chunk, chunkIdx) {
+      return promise.then(function() {
+        var apiLocations = chunk.map(function(item) { return item.apiPt; });
+        return fetch(OPEN_ELEVATION_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ locations: apiLocations })
+        })
+        .then(function(resp) {
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          return resp.json();
+        })
+        .then(function(data) {
+          var elevs = (data && data.results)
+            ? data.results.map(function(pt) { return (pt && pt.elevation !== undefined) ? pt.elevation : null; })
+            : chunk.map(function() { return null; });
+          if (!data || !data.results) {
+            console.warn('DEMCache tile chunk ' + (chunkIdx + 1) + '/' + totalChunks + ': no results from API');
+          }
+          for (var j = 0; j < chunk.length; j++) {
+            var val = elevs[j];
+            results[chunk[j].resultIdx] = val;
+            if (val !== null) {
+              storeCache(chunk[j].apiPt.latitude, chunk[j].apiPt.longitude, val);
+            } else {
+              nullCount++;
+            }
+          }
+        })
+        .catch(function(err) {
+          console.warn('DEMCache tile chunk ' + (chunkIdx + 1) + '/' + totalChunks + ' failed:', err.message || err);
+          for (var j = 0; j < chunk.length; j++) {
+            results[chunk[j].resultIdx] = null;
+            nullCount++;
+          }
+        })
+        .then(function() {
+          if (onProgress) onProgress(chunkIdx + 1, totalChunks);
+        });
+      });
+    }, Promise.resolve()).then(function() {
+      return assembleTile(nullCount);
     });
   }
 
@@ -11553,10 +11638,30 @@ initCollapse();
     var _noiseCanvasLayer = null;
     var _noiseContourLayer = null;
     var _noiseLegend = null;
+    var _terrainWarningBanner = null;
     var _noiseMapPeriod = 'day';
     var _noiseMapHeight = 1.5;
     var _noiseMapGridSize = 'auto'; // 'auto' or fixed metres as number string
     var _noiseRecomputeTimer = null;
+
+    function showTerrainWarning(msg) {
+      hideTerrainWarning();
+      _terrainWarningBanner = L.control({ position: 'topright' });
+      _terrainWarningBanner.onAdd = function() {
+        var div = L.DomUtil.create('div');
+        div.style.cssText = 'background:rgba(255,180,0,0.92);color:#333;padding:5px 10px;' +
+          'font-size:11px;border-radius:4px;max-width:270px;box-shadow:0 1px 4px rgba(0,0,0,.3);';
+        div.textContent = '\u26a0 ' + msg;
+        return div;
+      };
+      _terrainWarningBanner.addTo(map);
+    }
+    function hideTerrainWarning() {
+      if (_terrainWarningBanner) {
+        try { map.removeControl(_terrainWarningBanner); } catch(e) {}
+        _terrainWarningBanner = null;
+      }
+    }
     var _lastNoiseData = null;
 
     // Legend scale state (user-configurable)
@@ -11921,14 +12026,28 @@ initCollapse();
 
       var screenable = (typeof getScreenableBuildings === 'function') ? getScreenableBuildings() : [];
 
-      // Fetch DEM tile for terrain screening in the noise grid (only if terrain enabled)
-      var demSpacing = gridRes / 111320; // convert metres to approx degrees
+      // Fetch DEM tile for terrain screening in the noise grid (only if terrain enabled).
+      // DEM resolution is intentionally coarser than the noise map grid: terrain effects
+      // operate over ridge-scale distances (100s of metres), so 100-220m DEM spacing is
+      // sufficient to detect significant ridgelines without saturating the elevation API.
+      var demSpacing;
+      if (gridRes >= 25) {
+        demSpacing = 0.002;   // ~222m — auto grid or coarse fixed (25m+)
+      } else if (gridRes >= 5) {
+        demSpacing = 0.001;   // ~111m — fine grid (5-10m noise resolution)
+      } else {
+        demSpacing = 0.0005;  // ~55m — very fine grid (1-2m noise resolution)
+      }
+
       var demPromise;
       if (_terrainEnabled && window.DEMCache) {
         demPromise = DEMCache.getTileForBounds(
           mapBounds.getNorth(), mapBounds.getSouth(),
           mapBounds.getEast(), mapBounds.getWest(),
-          demSpacing
+          demSpacing,
+          function(done, total) {
+            if (noiseMapBtn) noiseMapBtn.textContent = 'Fetching terrain... (' + done + '/' + total + ')';
+          }
         ).catch(function(err) {
           console.warn('DEM tile fetch failed:', err);
           return null;
@@ -11938,6 +12057,13 @@ initCollapse();
       }
 
       demPromise.then(function(demTile) {
+      // Show/clear partial-data warning banner
+      if (demTile && demTile._partialWarning) {
+        showTerrainWarning('Terrain data partially unavailable \u2014 contours may not reflect full terrain screening');
+      } else {
+        hideTerrainWarning();
+      }
+
       // Flatten DEM tile for worker transfer
       var demData = null;
       if (demTile && demTile.elevations) {
@@ -12048,6 +12174,7 @@ initCollapse();
           if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); _noiseCanvasLayer = null; }
           if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); _noiseContourLayer = null; }
           hideNoiseLegend();
+          hideTerrainWarning();
           noiseMapBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map';
         }
       });
