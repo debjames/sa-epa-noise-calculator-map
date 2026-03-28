@@ -5907,11 +5907,6 @@ function initPropagationMethod() {
   // Terrain screening toolbar toggle
   var terrBtn = document.getElementById('terrainToggleBtn');
   if (terrBtn) {
-    var savedTerrain = localStorage.getItem('terrain_screening');
-    if (savedTerrain === 'true') {
-      _terrainEnabled = true;
-      terrBtn.classList.add('active');
-    }
     terrBtn.addEventListener('click', function() {
       _terrainEnabled = !_terrainEnabled;
       terrBtn.classList.toggle('active', _terrainEnabled);
