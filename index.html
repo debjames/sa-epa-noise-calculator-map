@@ -158,47 +158,7 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   0%   { background-color: rgba(242,203,0,0.4); }
   100% { background-color: transparent; }
 }
-/* ---- Map pin icons ---- */
-@keyframes noisePin_pulse {
-  0%   { transform: scale(1);   opacity: 0.5; }
-  100% { transform: scale(2.5); opacity: 0;   }
-}
-.noisePin-src { position: relative; width: 40px; height: 40px; }
-.noisePin-ring {
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 18px; height: 18px;
-  margin: -9px 0 0 -9px;
-  border-radius: 50%;
-  border: 2px solid currentColor;
-  animation: noisePin_pulse 1.6s ease-out infinite;
-  pointer-events: none;
-}
-.noisePin-inner {
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 18px; height: 18px;
-  margin: -9px 0 0 -9px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 5px rgba(0,0,0,.45);
-  display: flex; align-items: center; justify-content: center;
-}
-.noisePin-inner > span {
-  color: #fff; font-size: 8px; font-weight: 700;
-  line-height: 1; pointer-events: none; user-select: none;
-}
-.noisePin-recv {
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,.3);
-  display: flex; align-items: center; justify-content: center;
-}
-.noisePin-recv > span {
-  color: #fff; font-size: 11px; font-weight: 700;
-  line-height: 1; pointer-events: none; user-select: none;
-}
+
 .zone-status-label {
   font-size: 10px;
   color: var(--muted);
@@ -5677,21 +5637,6 @@ function render() {
     const night = compCell(predNightPenalised, nightCrit);
     const lmax = compCell(predLmaxAdj, lmaxCrit);
 
-    // Map pin compliance colour — updated via window bridge after render()
-    const _pinHasCrit = day.delta !== '' || eve.delta !== '' || night.delta !== '';
-    const _pinHasExc = _pinHasCrit && ((day.delta !== '' && !day.ok) || (eve.delta !== '' && !eve.ok) || (night.delta !== '' && !night.ok));
-    const _pinHasMarg = _pinHasCrit && !_pinHasExc && (
-      (day.delta !== '' && day.delta >= -3) || (eve.delta !== '' && eve.delta >= -3) || (night.delta !== '' && night.delta >= -3)
-    );
-    const _pinColor = !_pinHasCrit ? '#7f8c8d' : (_pinHasExc ? '#e74c3c' : (_pinHasMarg ? '#e67e22' : '#27ae60'));
-    let _pinTip = '<b>' + recvLabel + '</b>';
-    if (predDayPenalised !== '' && predDayPenalised !== null && predDayPenalised !== undefined && Number.isFinite(+predDayPenalised)) {
-      _pinTip += '<br>Day: ' + Math.round(+predDayPenalised) + ' dB';
-      if (dayCrit !== '' && dayCrit !== null && dayCrit !== undefined) _pinTip += ' / ' + dayCrit + ' dB crit.';
-    }
-    if (!window._recvPinDetails) window._recvPinDetails = {};
-    window._recvPinDetails['r' + (i + 1)] = { color: _pinColor, tip: _pinTip };
-
     function okText(v) { return v === "" ? "" : (v ? "<span class='ok'>Yes</span>" : "<span class='bad'>No</span>"); }
     function cellClass(v) { return v === "" ? "" : (v ? "cell-ok" : "cell-bad"); }
 
@@ -5835,16 +5780,6 @@ function render() {
   // Update octave band spectrum chart
   if (typeof updateSpectrumChart === 'function') updateSpectrumChart();
 
-  // Update map pin colours and tooltips to reflect current compliance/equipment state
-  if (typeof window._updateAllPinIcons === 'function') {
-    var _srcEquip = {};
-    if (typeof sources !== 'undefined') {
-      sources.forEach(function(src, si) {
-        _srcEquip['source_' + si] = !!(src.equipment && src.equipment.some(function(e) { return e.quantity > 0; }));
-      });
-    }
-    window._updateAllPinIcons(_srcEquip);
-  }
 }
 
 
@@ -10029,74 +9964,36 @@ initCollapse();
     }
     /* ==== End NSW ePlanning Zoning Integration ==== */
 
-    /* ---- Pin icons ---- */
+    /* ---- custom pin icon (SVG data URL — uses L.icon, not divIcon) ---- */
+    function makeIcon(cfg) {
+      var c = cfg.color;
+      var t = cfg.initial;
 
-    // Source pin: pulsing circle. hasEquipment controls pulse rings.
-    function makeSourceIcon(cfg, hasEquipment) {
-      var color = cfg.color || '#c0392b';
-      var label = cfg.initial || 'S';
-      var rings = hasEquipment
-        ? '<div class="noisePin-ring" style="color:' + color + '"></div>' +
-          '<div class="noisePin-ring" style="color:' + color + ';animation-delay:.8s"></div>'
-        : '';
-      return L.divIcon({
-        className: '',
-        html: '<div class="noisePin-src">' + rings +
-              '<div class="noisePin-inner" style="background:' + color + ';">' +
-              '<span>' + label + '</span></div></div>',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
-        popupAnchor: [0, -22]
+      // Teardrop SVG: circle (r=9, centre y=11) with pointed tip at bottom
+      // Canvas 26×30; shoulder points where sides meet the circle at y=17
+      // shoulderDX = √(9²−6²) ≈ 6.7
+      var W = 26, H = 30, cx = 13;
+      var fs = t.length > 1 ? 8 : 10;
+      var svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' +
+        '<defs><filter id="ds" x="-40%" y="-30%" width="180%" height="160%">' +
+        '<feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.35"/>' +
+        '</filter></defs>' +
+        '<path d="M ' + cx + ' 28 L 6.3 17 A 9 9 0 1 1 19.7 17 Z"' +
+        ' fill="#fff" stroke="' + c + '" stroke-width="1.5" stroke-linejoin="round"' +
+        ' filter="url(#ds)"/>' +
+        '<text x="' + cx + '" y="11" text-anchor="middle" dominant-baseline="central"' +
+        ' fill="' + c + '" font-family="sans-serif" font-size="' + fs + '" font-weight="700"' +
+        ' pointer-events="none">' + t + '</text>' +
+        '</svg>';
+
+      return L.icon({
+        iconUrl: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg),
+        iconSize: [W, H],
+        iconAnchor: [cx, H - 1],
+        popupAnchor: [0, -(H - 1)]
       });
     }
-
-    // Receiver pin: flat compliance-coloured circle.
-    function makeReceiverIcon(id, color) {
-      var n = id.replace(/[^0-9]/g, '') || '?';
-      return L.divIcon({
-        className: '',
-        html: '<div class="noisePin-recv" style="background:' + (color || '#7f8c8d') + ';">' +
-              '<span>' + n + '</span></div>',
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
-        popupAnchor: [0, -13]
-      });
-    }
-
-    /* Window bridge — called from render() (global scope) which cannot access
-     * markers directly (it lives outside initMap's closure).
-     * srcEquipMap: { 'source_0': bool, ... }
-     * Receiver colours + tooltips are read from window._recvPinDetails set by render(). */
-    window._updateAllPinIcons = function(srcEquipMap) {
-      var details = window._recvPinDetails || {};
-      ['r1', 'r2', 'r3', 'r4'].forEach(function(id) {
-        if (!markers[id]) return;
-        var d = details[id] || {};
-        var color = d.color || '#7f8c8d';
-        // Only call setIcon when colour actually changes — avoids resetting animations
-        if (markers[id]._pinColor !== color) {
-          markers[id]._pinColor = color;
-          markers[id].setIcon(makeReceiverIcon(id, color));
-        }
-        // Update hover tooltip when content changes
-        if (d.tip && markers[id]._pinTip !== d.tip) {
-          markers[id]._pinTip = d.tip;
-          markers[id].unbindTooltip();
-          markers[id].bindTooltip(d.tip, { direction: 'top', sticky: false, offset: [0, -12] });
-        }
-      });
-      // Source pins: only update when equipment state changes (prevents pulse restart)
-      if (srcEquipMap) {
-        Object.keys(markers).forEach(function(mode) {
-          if (!isSourceMode(mode) || !markers[mode]) return;
-          var hasEquip = !!srcEquipMap[mode];
-          if (markers[mode]._hasEquip !== hasEquip) {
-            markers[mode]._hasEquip = hasEquip;
-            markers[mode].setIcon(makeSourceIcon(getModeCfg(mode), hasEquip));
-          }
-        });
-      }
-    };
 
     /* ---- Haversine distance (metres) ---- */
     function haversine(a, b) {
@@ -10547,7 +10444,7 @@ initCollapse();
       if (markers[mode]) map.removeLayer(markers[mode]);
 
       var m = L.marker(latlng, {
-        icon: isSourceMode(mode) ? makeSourceIcon(cfg, false) : makeReceiverIcon(mode, '#7f8c8d'),
+        icon: makeIcon(cfg),
         draggable: true,
         title: cfg.label
       })
