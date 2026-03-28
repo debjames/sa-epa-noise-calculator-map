@@ -1471,6 +1471,17 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     var expandedEast = east + lngSpan * 0.1;
     var expandedWest = west - lngSpan * 0.1;
 
+    // Guard against pathologically fine grids: clamp to keep point count under 5,000
+    var latRange = expandedNorth - expandedSouth;
+    var lngRange = expandedEast - expandedWest;
+    var estPoints = Math.ceil(latRange / gridSpacing) * Math.ceil(lngRange / gridSpacing);
+    if (estPoints > 5000) {
+      var clampedSpacing = Math.sqrt((latRange * lngRange) / 5000);
+      console.warn('DEMCache: DEM tile would be ~' + estPoints + ' points — clamping grid from ' +
+        Math.round(gridSpacing * 111320) + 'm to ~' + Math.round(clampedSpacing * 111320) + 'm');
+      gridSpacing = clampedSpacing;
+    }
+
     var lats = [];
     var lngs = [];
     for (var lat = expandedSouth; lat <= expandedNorth; lat += gridSpacing) {
@@ -3021,7 +3032,7 @@ function updateTerrainIL(srcIdx, recvIdx) {
     var result = calcTerrainDiffraction(profile, srcH, recH);
     if (!_terrainIL[srcIdx]) _terrainIL[srcIdx] = [];
     _terrainIL[srcIdx][recvIdx] = (result.delta_m > 0) ? result : null;
-  });
+  }).catch(function() { return null; });
 }
 
 /** Refresh terrain IL for all source-receiver pairs. Batches all API calls
@@ -3044,7 +3055,9 @@ function refreshAllTerrainIL() {
       Promise.all(promises).then(function() {
         // Single render after all terrain data resolves
         if (typeof render === 'function') render();
-      });
+        // Also refresh noise map if active — terrain IL now current (M1 fix)
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      }).catch(console.warn);
     }
   }, 300);
 }
@@ -7543,7 +7556,8 @@ initCollapse();
       if (data.buildingsOn !== undefined && window._setBuildingsOn) {
         window._setBuildingsOn(data.buildingsOn);
       }
-      // Noise map settings
+      // Noise map settings — always reset grid size to Auto on load (never restore a fine saved grid)
+      if (window._setNoiseMapGridSize) window._setNoiseMapGridSize('auto');
       if (data.noiseMapPeriod && window._setNoiseMapPeriod) {
         window._setNoiseMapPeriod(data.noiseMapPeriod);
         document.querySelectorAll('[data-nmperiod]').forEach(function(b) {
@@ -10316,6 +10330,10 @@ initCollapse();
             el2.textContent = (elev !== null) ? Math.round(elev) + 'm ASL' : 'unavailable';
           }
         }
+      }).catch(function(err) {
+        console.warn('fetchPinElevation: elevation fetch failed for', mode, err);
+        var el3 = document.getElementById(elevId);
+        if (el3) el3.textContent = 'unavailable';
       });
     }
 
@@ -12127,6 +12145,13 @@ initCollapse();
     window._getNoiseContourLayer = function() { return _noiseContourLayer; };
     window._setNoiseMapPeriod = function(v) { _noiseMapPeriod = v; };
     window._setNoiseMapHeight = function(v) { _noiseMapHeight = v; };
+    window._setNoiseMapGridSize = function(v) {
+      _noiseMapGridSize = v || 'auto';
+      var sel = document.getElementById('noiseMapGridSel');
+      if (sel) sel.value = _noiseMapGridSize;
+      var warn = document.getElementById('noiseMapGridWarning');
+      if (warn) warn.style.display = 'none';
+    };
     window._setLegendSettings = function(min, max, interval) {
       _legendMin = min; _legendMax = max; _legendInterval = interval;
     };
