@@ -4134,6 +4134,354 @@ function renderSourcePins() {
 // TODO Chunk F: remove these stubs after save/load is updated
 function renderSourceCards(expandIdx) { renderSourcePins(); }
 
+/* ==========================================
+   Chunk C — Floating Source Pin Panel
+   ========================================== */
+
+var _srcPanel = null;
+var _srcPanelIdx = -1;
+var _srcPanelActiveTab = 'day';
+var _sfp_lastClientX = 200;
+var _sfp_lastClientY = 200;
+var _SFP_FREQS = ['63', '125', '250', '500', '1k', '2k', '4k', '8k'];
+
+/** Returns true if pin's values for `period` differ from day values */
+function srcPanelPeriodDiffersFromDay(pin, period) {
+  if (period === 'day') return false;
+  if (!pin.lw) return false;
+  var lwDay = pin.lw.day, lwP = pin.lw[period];
+  if (Number.isFinite(lwDay) && Number.isFinite(lwP) && Math.abs(lwP - lwDay) > 0.05) return true;
+  if (pin.spectrum && pin.spectrum[period] && pin.spectrum.day) {
+    for (var i = 0; i < 8; i++) {
+      var d = pin.spectrum.day[i], p = pin.spectrum[period][i];
+      if (d !== null && p !== null && Math.abs(d - p) > 0.05) return true;
+      if ((d === null) !== (p === null)) return true;
+    }
+  }
+  return false;
+}
+
+/** Build HTML for one period tab's Lw + 8-band inputs */
+function srcPanelPeriodHTML(pin, period) {
+  var lw = (pin.lw && Number.isFinite(pin.lw[period])) ? pin.lw[period] : '';
+  var spec = (pin.spectrum && pin.spectrum[period]) ? pin.spectrum[period] : Array(8).fill(null);
+  var bands = _SFP_FREQS.map(function(f, i) {
+    var v = (spec[i] !== null && Number.isFinite(spec[i])) ? spec[i] : '';
+    return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">' +
+      '<span style="font-size:9px;color:#999;white-space:nowrap;">' + f + '</span>' +
+      '<input type="number" class="sfp-band" data-period="' + period + '" data-band="' + i + '" ' +
+      'value="' + v + '" step="0.1" style="width:36px;font-size:11px;padding:2px 3px;border:1px solid #ddd;border-radius:3px;text-align:center;" ' +
+      'title="' + f + ' Hz band Lw dB(A)">' +
+      '</div>';
+  }).join('');
+  return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+    '<label style="font-size:12px;color:#555;white-space:nowrap;">Overall Lw&nbsp;dB(A)</label>' +
+    '<input type="number" class="sfp-lw" data-period="' + period + '" value="' + lw + '" ' +
+    'min="0" max="140" step="1" style="width:70px;font-size:13px;font-weight:600;padding:3px 5px;border:1px solid #ccc;border-radius:4px;">' +
+    '</div>' +
+    '<div style="display:flex;gap:3px;">' + bands + '</div>';
+}
+
+function _sfpTabActive() {
+  return 'flex:1;padding:5px 0;font-size:12px;border:1px solid #c0392b;border-bottom:none;border-radius:4px 4px 0 0;background:#fff7f7;color:#c0392b;font-weight:600;cursor:pointer;';
+}
+function _sfpTabInactive() {
+  return 'flex:1;padding:5px 0;font-size:12px;border:1px solid #ddd;border-bottom:none;border-radius:4px 4px 0 0;background:#fafafa;color:#555;cursor:pointer;';
+}
+
+function _sfpDotHTML(pin, period) {
+  return srcPanelPeriodDiffersFromDay(pin, period)
+    ? '<span class="sfp-td" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#c0392b;margin-left:3px;vertical-align:middle;"></span>'
+    : '<span class="sfp-td" style="display:none;"></span>';
+}
+
+/** Build the full panel innerHTML */
+function buildSrcPanelHTML(pin, pinIdx, activeTab) {
+  var colour = SOURCE_COLOURS[pinIdx % SOURCE_COLOURS.length];
+  var shortLabel = 'S' + (pinIdx + 1);
+  activeTab = activeTab || 'day';
+  var coordsStr = (pin.lat !== null)
+    ? pin.lat.toFixed(3) + '\u00b0, ' + pin.lng.toFixed(3) + '\u00b0' +
+      (pin.groundElevation_m !== null ? ' | Ground: ' + Math.round(pin.groundElevation_m) + 'm ASL' : '')
+    : 'Not placed yet';
+  var libOpts = '<option value="">\u2014 Select from library\u2026 \u2014</option>';
+  if (typeof SOURCE_LIBRARY_GROUPED_NON_LMAX !== 'undefined') {
+    Object.keys(SOURCE_LIBRARY_GROUPED_NON_LMAX).forEach(function(grp) {
+      libOpts += '<optgroup label="' + escapeHTML(grp) + '">';
+      (SOURCE_LIBRARY_GROUPED_NON_LMAX[grp] || []).forEach(function(s) {
+        libOpts += '<option value="' + escapeHTML(s.name) + '">' + escapeHTML(s.name) + '</option>';
+      });
+      libOpts += '</optgroup>';
+    });
+  }
+  var effectiveHt = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
+  var canDelete = sourcePins.length > 1;
+  return (
+    '<div style="padding:14px 14px 10px;border-bottom:1px solid #f0f0f0;">' +
+    '<div style="display:flex;align-items:center;gap:8px;">' +
+    '<span style="width:10px;height:10px;border-radius:50%;background:' + colour + ';flex-shrink:0;display:inline-block;"></span>' +
+    '<input id="sfp-name" type="text" value="' + escapeHTML(pin.name || shortLabel) + '" ' +
+    'style="flex:1;font-size:14px;font-weight:600;border:none;border-bottom:1px solid #e5e5e5;padding:2px 4px;outline:none;background:transparent;" placeholder="Source name">' +
+    '<button id="sfp-close-x" style="background:none;border:none;font-size:18px;color:#bbb;cursor:pointer;padding:0 4px;line-height:1;" title="Close">\u00d7</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:#aaa;margin-top:4px;margin-left:18px;">' + escapeHTML(coordsStr) + '</div>' +
+    '</div>' +
+    '<div style="padding:10px 14px;border-bottom:1px solid #f0f0f0;">' +
+    '<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:5px;">Select from library</div>' +
+    '<input id="sfp-lib-search" type="text" placeholder="Search\u2026" autocomplete="off" ' +
+    'style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px 4px 0 0;padding:5px 8px;font-size:12px;border-bottom:none;">' +
+    '<select id="sfp-lib-sel" style="width:100%;box-sizing:border-box;font-size:12px;border:1px solid #ddd;border-radius:0 0 4px 4px;padding:3px 4px;height:72px;">' +
+    libOpts + '</select>' +
+    '</div>' +
+    '<div style="padding:10px 14px 0;">' +
+    '<div style="display:flex;gap:0;">' +
+    '<button class="sfp-tab" data-period="day" style="' + (activeTab==='day' ? _sfpTabActive() : _sfpTabInactive()) + '">Day</button>' +
+    '<button class="sfp-tab" data-period="eve" style="' + (activeTab==='eve' ? _sfpTabActive() : _sfpTabInactive()) + '">Evening' + _sfpDotHTML(pin,'eve') + '</button>' +
+    '<button class="sfp-tab" data-period="night" style="' + (activeTab==='night' ? _sfpTabActive() : _sfpTabInactive()) + '">Night' + _sfpDotHTML(pin,'night') + '</button>' +
+    '</div>' +
+    '<div id="sfp-tab-body" style="border:1px solid #ddd;border-radius:0 0 4px 4px;padding:10px 8px 8px;">' +
+    srcPanelPeriodHTML(pin, activeTab) +
+    '</div>' +
+    '</div>' +
+    '<div style="padding:10px 14px;border-top:1px solid #f0f0f0;">' +
+    '<div style="margin-bottom:8px;">' +
+    '<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">Height above ground (m)</div>' +
+    '<div style="display:flex;align-items:center;gap:8px;">' +
+    '<input id="sfp-height" type="number" value="' + (pin.height_m || 1.5) + '" min="0.1" max="50" step="0.5" ' +
+    'style="width:64px;font-size:13px;padding:4px 5px;border:1px solid #ccc;border-radius:4px;">' +
+    '<span id="sfp-ht-info" style="font-size:11px;color:#aaa;">Building: ' + (pin.buildingHeight_m || 0) + 'm | Effective: ' + effectiveHt.toFixed(1) + 'm</span>' +
+    '</div>' +
+    '</div>' +
+    '<div>' +
+    '<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">Operational time (min / 15-min period)</div>' +
+    '<div style="display:flex;align-items:center;gap:8px;">' +
+    '<input id="sfp-optime" type="number" value="' + (pin.operationalTime_min || 15) + '" min="1" max="15" step="1" ' +
+    'style="width:56px;font-size:13px;padding:4px 5px;border:1px solid #ccc;border-radius:4px;">' +
+    '<span style="font-size:11px;color:#aaa;">15 = continuous</span>' +
+    '</div>' +
+    '</div>' +
+    '</div>' +
+    '<div style="padding:8px 14px 14px;display:flex;gap:8px;justify-content:space-between;align-items:center;">' +
+    '<button id="sfp-delete" ' + (canDelete ? '' : 'disabled ') +
+    'style="padding:6px 12px;font-size:12px;border:1px solid ' + (canDelete ? '#e74c3c' : '#ccc') + ';border-radius:4px;background:#fff;' +
+    'color:' + (canDelete ? '#e74c3c' : '#aaa') + ';cursor:' + (canDelete ? 'pointer' : 'default') + ';font-weight:600;">' +
+    '\uD83D\uDDD1 Delete source</button>' +
+    '<button id="sfp-close-btn" style="padding:6px 12px;font-size:12px;border:1px solid #ddd;border-radius:4px;background:#f8f8f8;cursor:pointer;color:#555;">Close</button>' +
+    '</div>'
+  );
+}
+
+/** Wire all event handlers inside the open panel */
+function attachSrcPanelListeners(pin, pinIdx) {
+  var panel = _srcPanel;
+  if (!panel) return;
+  function doClose() { closeSrcPanel(); }
+  var cx = panel.querySelector('#sfp-close-x');
+  var cb = panel.querySelector('#sfp-close-btn');
+  if (cx) cx.addEventListener('click', doClose);
+  if (cb) cb.addEventListener('click', doClose);
+  var delBtn = panel.querySelector('#sfp-delete');
+  if (delBtn && !delBtn.disabled) {
+    delBtn.addEventListener('click', function() {
+      closeSrcPanel();
+      sourcePins.splice(pinIdx, 1);
+      if (typeof window._refreshAllSourceMarkers === 'function') window._refreshAllSourceMarkers();
+      window._subjectSiteLatlng = (sourcePins.length > 0 && sourcePins[0].lat !== null)
+        ? { lat: sourcePins[0].lat, lng: sourcePins[0].lng } : null;
+      if (typeof renderSourcePins === 'function') renderSourcePins();
+      if (typeof updateAll === 'function') updateAll();
+      if (typeof render === 'function') render();
+    });
+  }
+  var nameInp = panel.querySelector('#sfp-name');
+  if (nameInp) {
+    nameInp.addEventListener('input', function() {
+      pin.name = this.value;
+      if (typeof window._setSrcMarkerTitle === 'function') {
+        window._setSrcMarkerTitle(pinIdx, 'S' + (pinIdx + 1) + (this.value ? ' \u2014 ' + this.value : ''));
+      }
+      if (typeof updateAll === 'function') updateAll();
+    });
+  }
+  var libSearch = panel.querySelector('#sfp-lib-search');
+  var libSel = panel.querySelector('#sfp-lib-sel');
+  if (libSearch && libSel) {
+    libSearch.addEventListener('input', function() {
+      var q = this.value.toLowerCase().trim();
+      libSel.innerHTML = '<option value="">\u2014 Select from library\u2026 \u2014</option>';
+      if (typeof SOURCE_LIBRARY_GROUPED_NON_LMAX !== 'undefined') {
+        Object.keys(SOURCE_LIBRARY_GROUPED_NON_LMAX).forEach(function(grp) {
+          var items = (SOURCE_LIBRARY_GROUPED_NON_LMAX[grp] || []).filter(function(s) {
+            return !q || s.name.toLowerCase().indexOf(q) !== -1;
+          });
+          if (!items.length) return;
+          var og = document.createElement('optgroup');
+          og.label = grp;
+          items.forEach(function(s) {
+            var o = document.createElement('option'); o.value = s.name; o.textContent = s.name; og.appendChild(o);
+          });
+          libSel.appendChild(og);
+        });
+      }
+    });
+    libSel.addEventListener('change', function() {
+      var name = this.value; if (!name) return;
+      var libFlat = typeof SOURCE_LIBRARY !== 'undefined' ? SOURCE_LIBRARY : [];
+      var entry = null;
+      for (var i = 0; i < libFlat.length; i++) { if (libFlat[i].name === name) { entry = libFlat[i]; break; } }
+      if (!entry) { this.value = ''; return; }
+      pin.name = entry.name;
+      if (Number.isFinite(entry.height)) pin.height_m = entry.height;
+      if (!pin.lw) pin.lw = {};
+      if (!pin.spectrum) pin.spectrum = {};
+      if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+      var lwVal = Number.isFinite(entry.lw) ? entry.lw : null;
+      var spec = Array.isArray(entry.spectrum) ? entry.spectrum.slice() : null;
+      pin.lw.day = lwVal; pin.spectrum.day = spec ? spec.slice() : null;
+      if (!pin._userEdited.eve)   { pin.lw.eve   = lwVal; pin.spectrum.eve   = spec ? spec.slice() : null; }
+      if (!pin._userEdited.night) { pin.lw.night  = lwVal; pin.spectrum.night = spec ? spec.slice() : null; }
+      var ni = panel.querySelector('#sfp-name'); if (ni) ni.value = pin.name;
+      var hi = panel.querySelector('#sfp-height'); if (hi) hi.value = pin.height_m;
+      var eff = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
+      var hti = panel.querySelector('#sfp-ht-info'); if (hti) hti.textContent = 'Building: ' + (pin.buildingHeight_m || 0) + 'm | Effective: ' + eff.toFixed(1) + 'm';
+      var tbody = panel.querySelector('#sfp-tab-body');
+      if (tbody) tbody.innerHTML = srcPanelPeriodHTML(pin, _srcPanelActiveTab);
+      attachSrcPeriodListeners(pin, pinIdx, _srcPanelActiveTab, panel);
+      updateSrcPanelTabDots(pin, panel);
+      if (typeof window._setSrcMarkerTitle === 'function') window._setSrcMarkerTitle(pinIdx, 'S' + (pinIdx + 1) + ' \u2014 ' + pin.name);
+      this.value = '';
+      if (typeof updateAll === 'function') updateAll();
+    });
+  }
+  panel.querySelectorAll('.sfp-tab').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var period = this.getAttribute('data-period');
+      if (period === _srcPanelActiveTab) return;
+      _srcPanelActiveTab = period;
+      panel.querySelectorAll('.sfp-tab').forEach(function(b) {
+        b.style.cssText = (b.getAttribute('data-period') === period) ? _sfpTabActive() : _sfpTabInactive();
+      });
+      var tbody = panel.querySelector('#sfp-tab-body');
+      if (tbody) tbody.innerHTML = srcPanelPeriodHTML(pin, period);
+      attachSrcPeriodListeners(pin, pinIdx, period, panel);
+    });
+  });
+  attachSrcPeriodListeners(pin, pinIdx, _srcPanelActiveTab, panel);
+  var htInp = panel.querySelector('#sfp-height');
+  if (htInp) {
+    htInp.addEventListener('change', function() {
+      var v = parseFloat(this.value);
+      if (Number.isFinite(v) && v >= 0.1) {
+        pin.height_m = v;
+        var eff = v + (pin.buildingHeight_m || 0);
+        var hti = panel.querySelector('#sfp-ht-info'); if (hti) hti.textContent = 'Building: ' + (pin.buildingHeight_m || 0) + 'm | Effective: ' + eff.toFixed(1) + 'm';
+        if (typeof updateAll === 'function') updateAll();
+      } else { this.value = pin.height_m || 1.5; }
+    });
+  }
+  var otInp = panel.querySelector('#sfp-optime');
+  if (otInp) {
+    otInp.addEventListener('change', function() {
+      var v = Math.max(1, Math.min(15, parseInt(this.value) || 15));
+      pin.operationalTime_min = v; this.value = v;
+      if (typeof updateAll === 'function') updateAll();
+    });
+  }
+  panel.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+  panel.addEventListener('click', function(e) { e.stopPropagation(); });
+  if (nameInp) setTimeout(function() { nameInp.select(); }, 60);
+}
+
+/** Wire Lw + band listeners for one period */
+function attachSrcPeriodListeners(pin, pinIdx, period, panel) {
+  var lwInp = panel.querySelector('.sfp-lw[data-period="' + period + '"]');
+  if (lwInp) {
+    lwInp.addEventListener('change', function() {
+      var v = parseFloat(this.value);
+      if (!pin.lw) pin.lw = {};
+      pin.lw[period] = Number.isFinite(v) ? v : null;
+      if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+      if (period === 'day') {
+        if (!pin._userEdited.eve)   { pin.lw.eve   = v; }
+        if (!pin._userEdited.night) { pin.lw.night  = v; }
+      } else { pin._userEdited[period] = true; }
+      updateSrcPanelTabDots(pin, panel);
+      if (typeof updateAll === 'function') updateAll();
+    });
+  }
+  panel.querySelectorAll('.sfp-band[data-period="' + period + '"]').forEach(function(inp) {
+    inp.addEventListener('change', function() {
+      var band = parseInt(this.getAttribute('data-band'));
+      var v = parseFloat(this.value);
+      if (!pin.spectrum) pin.spectrum = {};
+      if (!pin.spectrum[period]) pin.spectrum[period] = Array(8).fill(null);
+      pin.spectrum[period][band] = Number.isFinite(v) ? v : null;
+      if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+      if (period === 'day') {
+        if (!pin._userEdited.eve) {
+          if (!pin.spectrum.eve) pin.spectrum.eve = Array(8).fill(null);
+          pin.spectrum.eve[band] = Number.isFinite(v) ? v : null;
+        }
+        if (!pin._userEdited.night) {
+          if (!pin.spectrum.night) pin.spectrum.night = Array(8).fill(null);
+          pin.spectrum.night[band] = Number.isFinite(v) ? v : null;
+        }
+      } else { pin._userEdited[period] = true; }
+      updateSrcPanelTabDots(pin, panel);
+      if (typeof updateAll === 'function') updateAll();
+    });
+  });
+}
+
+/** Refresh tab indicator dots */
+function updateSrcPanelTabDots(pin, panel) {
+  if (!panel) return;
+  panel.querySelectorAll('.sfp-tab').forEach(function(btn) {
+    var period = btn.getAttribute('data-period');
+    if (period === 'day') return;
+    var dot = btn.querySelector('.sfp-td');
+    if (dot) {
+      var hasDiff = srcPanelPeriodDiffersFromDay(pin, period);
+      dot.style.display = hasDiff ? 'inline-block' : 'none';
+    }
+  });
+}
+
+/** Open (or reopen) the floating source panel */
+function openSrcPanel(pinIdx, clientX, clientY) {
+  var pin = sourcePins[pinIdx];
+  if (!pin) return;
+  if (clientX !== undefined) _sfp_lastClientX = clientX;
+  if (clientY !== undefined) _sfp_lastClientY = clientY;
+  if (_srcPanel) { _srcPanel.remove(); _srcPanel = null; }
+  if (_srcPanelIdx !== pinIdx) _srcPanelActiveTab = 'day';
+  _srcPanelIdx = pinIdx;
+  if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+  var panel = document.createElement('div');
+  panel.id = 'srcFloatPanel';
+  panel.style.cssText = 'position:fixed;width:320px;max-height:80vh;overflow-y:auto;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;';
+  panel.innerHTML = buildSrcPanelHTML(pin, pinIdx, _srcPanelActiveTab);
+  document.body.appendChild(panel);
+  _srcPanel = panel;
+  var vw = window.innerWidth, vh = window.innerHeight, W = 322;
+  var left = _sfp_lastClientX + 20;
+  var top  = _sfp_lastClientY - 40;
+  if (left + W + 10 > vw) left = _sfp_lastClientX - W - 10;
+  if (left < 10) left = 10;
+  var approxH = Math.min(600, vh * 0.8);
+  if (top + approxH + 10 > vh) top = vh - approxH - 10;
+  if (top < 10) top = 10;
+  panel.style.left = left + 'px';
+  panel.style.top  = top  + 'px';
+  attachSrcPanelListeners(pin, pinIdx);
+}
+
+/** Close the floating source panel */
+function closeSrcPanel() {
+  if (_srcPanel) { _srcPanel.remove(); _srcPanel = null; }
+  _srcPanelIdx = -1;
+}
+
 // "+ Add Source" button handler and initial render
 document.addEventListener('DOMContentLoaded', function() {
   // One-time cleanup: remove orphaned localStorage keys from pre-refactor sessions
@@ -4142,6 +4490,11 @@ document.addEventListener('DOMContentLoaded', function() {
       .filter(function(k) { return k.includes('_bar_'); })
       .forEach(function(k) { localStorage.removeItem(k); });
   } catch(e) {}
+
+  /* Escape key closes source panel */
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && typeof _srcPanel !== 'undefined' && _srcPanel) closeSrcPanel();
+  });
 
   var addBtn = document.getElementById('addSourcePinBtn');
   if (addBtn) {
@@ -7900,6 +8253,8 @@ initCollapse();
     window._getAllLatLngs = function() { return latlngs; };
     /* Refresh all source_N dot+label markers after array splice (renumbers labels S1,S2,…) */
     window._refreshAllSourceMarkers = function() {
+      /* Close floating panel before markers are recreated */
+      if (typeof closeSrcPanel === 'function') closeSrcPanel();
       /* Remove all source_N markers */
       Object.keys(markers).forEach(function(k) {
         if (/^source_\d+$/.test(k)) { map.removeLayer(markers[k]); delete markers[k]; }
@@ -7921,6 +8276,14 @@ initCollapse();
       window._subjectSiteLatlng = first ? L.latLng(first.lat, first.lng) : null;
     };
     window._fetchPinElevation = function(mode, ll) { fetchPinElevation(mode, ll); };
+    window._setSrcMarkerTitle = function(idx, title) {
+      var mode = 'source_' + idx;
+      var m = markers[mode];
+      if (m) {
+        var el = m.getElement ? m.getElement() : null;
+        if (el) el.title = title;
+      }
+    };
 
     /* ==== SAPPA Zoning Integration ==== */
     var SAPPA_BASE = 'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/CurrentPDC_wmas/MapServer';
@@ -10268,13 +10631,15 @@ initCollapse();
           zIndexOffset: 500
         }).addTo(map);
         labelMarkers[mode] = lbl;
-        /* Click on dot → open source panel (Chunk C — console.log for now) */
-        m.on('click', (function(capturedSi, capturedPin) {
+        /* Click on dot → open floating source panel (Chunk C) */
+        m.on('click', (function(capturedSi) {
           return function(e) {
             L.DomEvent.stopPropagation(e);
-            console.log('[source click] pin id:', capturedPin && capturedPin.id, 'idx:', capturedSi);
+            var cx = e.originalEvent ? e.originalEvent.clientX : _sfp_lastClientX;
+            var cy = e.originalEvent ? e.originalEvent.clientY : _sfp_lastClientY;
+            if (typeof openSrcPanel === 'function') openSrcPanel(capturedSi, cx, cy);
           };
-        })(si, pin));
+        })(si));
         /* Hide label with dot if pins are toggled off */
         if (typeof arePinsVisible !== 'undefined' && !arePinsVisible) lbl.setOpacity(0);
         /* Set _subjectSiteLatlng when source_0 is placed */
@@ -10424,6 +10789,8 @@ initCollapse();
     /* ---- map click ---- */
     map.on('click', function (e) {
       if (_drawingActive) return; // don't place markers while drawing a building polygon
+      /* Close source panel if open — map click is always "outside" the panel */
+      if (typeof _srcPanel !== 'undefined' && _srcPanel) closeSrcPanel();
       if (!currentMode) return;   // browse mode — no placement
       if (currentMode === 'addSource') {
         addNewSourcePin(e.latlng);
