@@ -3,7 +3,9 @@
  * All acoustic, geometry, and ISO functions loaded from shared-calc.js.
  *
  * Receives: { bounds, gridResolutionM, sources, buildings, prefix,
- *             propagationMethod, isoParams }
+ *             propagationMethod, isoParams,
+ *             demCache: [{lat, lng, elev}], demSpacing: number,
+ *             terrainEnabled: bool, debugTerrain: bool }
  * Posts:    { type: 'progress', percent }
  *           { type: 'complete', grid: [...] }
  *           { type: 'error', message }
@@ -37,64 +39,169 @@ self.onmessage = function(e) {
     var method = opts.propagationMethod || 'simple';
     var isoParams = opts.isoParams || {};
     var recvHeight = isoParams.receiverHeight || 1.5;
-    var demTile = opts.demTile || null;
+    var demCache = opts.demCache || null;   // flat [{lat, lng, elev}] from main thread
     var terrainEnabled = !!opts.terrainEnabled;
     var debugTerrain = !!opts.debugTerrain;
 
     if (debugTerrain) {
-      if (terrainEnabled && demTile) {
-        console.log('[noise-worker] Terrain screening ON — DEM tile received:', demTile.rows, '×', demTile.cols,
-          'points | sample elev[0]:', demTile.elevations[0]);
-      } else if (terrainEnabled && !demTile) {
-        console.warn('[noise-worker] Terrain screening ON but demTile is null — no terrain IL will be applied.');
+      if (terrainEnabled && demCache && demCache.length > 0) {
+        console.log('[noise-worker] Terrain screening ON — DEM cache received:', demCache.length,
+          'points | sample elev[0]:', demCache[0].elev);
+      } else if (terrainEnabled && (!demCache || demCache.length === 0)) {
+        console.warn('[noise-worker] Terrain screening ON but demCache is empty — no terrain IL will be applied.');
       } else {
         console.log('[noise-worker] Terrain screening OFF.');
       }
     }
 
-    // DEM tile lookup: nearest-neighbour elevation from pre-fetched grid
-    function demElevAt(lat, lng) {
-      if (!demTile) return null;
-      // Find nearest row/col
-      var ri = 0, bestLatDiff = Infinity;
-      for (var i = 0; i < demTile.rows; i++) {
-        var d = Math.abs(demTile.lats[i] - lat);
-        if (d < bestLatDiff) { bestLatDiff = d; ri = i; }
+    /* ── Build structured DEM grid for bilinear interpolation ── */
+    // Extract unique sorted lat/lng axes from the flat cache array.
+    // Points were fetched on a regular grid so this reconstructs that structure,
+    // handling any gaps where the API returned null (those were not pushed to demCache).
+    var _cacheLats = [];  // sorted unique lat values
+    var _cacheLngs = [];  // sorted unique lng values
+    var _cacheElev = [];  // 2D: _cacheElev[latIdx][lngIdx], undefined where data is missing
+
+    if (demCache && demCache.length > 0) {
+      var _latSet = Object.create(null), _lngSet = Object.create(null);
+      for (var _i = 0; _i < demCache.length; _i++) {
+        _latSet[demCache[_i].lat] = true;
+        _lngSet[demCache[_i].lng] = true;
       }
-      var ci = 0, bestLngDiff = Infinity;
-      for (var j = 0; j < demTile.cols; j++) {
-        var d2 = Math.abs(demTile.lngs[j] - lng);
-        if (d2 < bestLngDiff) { bestLngDiff = d2; ci = j; }
+      _cacheLats = Object.keys(_latSet).map(Number).sort(function(a, b) { return a - b; });
+      _cacheLngs = Object.keys(_lngSet).map(Number).sort(function(a, b) { return a - b; });
+
+      // Reverse index: value → array index (used when filling elevGrid)
+      var _latToIdx = Object.create(null), _lngToIdx = Object.create(null);
+      for (var _ii = 0; _ii < _cacheLats.length; _ii++) _latToIdx[_cacheLats[_ii]] = _ii;
+      for (var _jj = 0; _jj < _cacheLngs.length; _jj++) _lngToIdx[_cacheLngs[_jj]] = _jj;
+
+      // Allocate 2D elevation array (undefined = missing/null from API)
+      for (var _ri = 0; _ri < _cacheLats.length; _ri++) {
+        _cacheElev.push(new Array(_cacheLngs.length));
       }
-      var val = demTile.elevations[ri * demTile.cols + ci];
-      return (val !== null && val !== undefined) ? val : null;
+      for (var _k = 0; _k < demCache.length; _k++) {
+        var _ri2 = _latToIdx[demCache[_k].lat];
+        var _ci2 = _lngToIdx[demCache[_k].lng];
+        if (_ri2 !== undefined && _ci2 !== undefined) {
+          _cacheElev[_ri2][_ci2] = demCache[_k].elev;
+        }
+      }
     }
 
-    // Terrain diffraction: check if ridgeline obstructs source→receiver ray
-    // Returns { delta, perBand: number[8], broadband: number } or null
-    // Only called when terrainEnabled=true and demTile is non-null.
-    function terrainILForRay(srcLL, srcH, recLL, recH) {
-      if (!demTile) return null;
-      var srcElev = demElevAt(srcLL.lat, srcLL.lng);
-      var recElev = demElevAt(recLL.lat, recLL.lng);
-      if (srcElev === null || recElev === null) {
-        if (debugTerrain) console.log('[noise-worker] terrainILForRay: null elevation at src or recv — skipping');
-        return null;
+    /* ── Binary bracket search ──
+     * Returns the index lo such that arr[lo] <= val <= arr[lo+1].
+     * Returns -1 if val is outside [arr[0], arr[last]].
+     */
+    function bracketIdx(arr, val) {
+      if (arr.length < 2 || val < arr[0] || val > arr[arr.length - 1]) return -1;
+      var lo = 0, hi = arr.length - 2;
+      while (lo < hi) {
+        var mid = (lo + hi + 1) >> 1;
+        if (arr[mid] <= val) lo = mid; else hi = mid - 1;
       }
+      return lo;
+    }
+
+    /* ── Nearest-neighbour fallback (no snap threshold) ──
+     * Always returns the closest cached elevation regardless of distance.
+     * Used when the query is outside the DEM extent or too few bilinear
+     * corners are available. No snap threshold ensures points outside the
+     * DEM extent receive the nearest edge elevation rather than null,
+     * eliminating any hard rectangular clip at the cache boundary.
+     */
+    function nearestElev(lat, lng) {
+      if (!demCache || demCache.length === 0) return null;
+      var bestDsq = Infinity, bestElev = null;
+      for (var _ni = 0; _ni < demCache.length; _ni++) {
+        var dlat = demCache[_ni].lat - lat;
+        var dlng = demCache[_ni].lng - lng;
+        var dsq = dlat * dlat + dlng * dlng;
+        if (dsq < bestDsq) { bestDsq = dsq; bestElev = demCache[_ni].elev; }
+      }
+      return bestElev;
+    }
+
+    /* ── Bilinear elevation lookup ──
+     * Finds the four surrounding DEM grid points bracketing (lat, lng) and
+     * bilinearly interpolates. Falls back to nearest-neighbour when:
+     *   - the query is outside the DEM cache extent
+     *   - fewer than 3 of the 4 corners have valid elevations
+     * This produces smooth elevation gradients between DEM sample points,
+     * eliminating the stepped artefacts from nearest-neighbour transitions.
+     */
+    function lookupElev(lat, lng) {
+      if (!demCache || demCache.length === 0) return null;
+
+      var i0 = bracketIdx(_cacheLats, lat);
+      var j0 = bracketIdx(_cacheLngs, lng);
+
+      // Outside DEM extent → nearest-neighbour extends coverage to grid edges
+      if (i0 < 0 || j0 < 0) return nearestElev(lat, lng);
+
+      var i1 = i0 + 1, j1 = j0 + 1;
+      var e00 = _cacheElev[i0][j0]; // SW corner
+      var e01 = _cacheElev[i0][j1]; // SE corner
+      var e10 = _cacheElev[i1][j0]; // NW corner
+      var e11 = _cacheElev[i1][j1]; // NE corner
+
+      // Count valid corners
+      var validVals = [];
+      if (e00 !== undefined) validVals.push(e00);
+      if (e01 !== undefined) validVals.push(e01);
+      if (e10 !== undefined) validVals.push(e10);
+      if (e11 !== undefined) validVals.push(e11);
+
+      if (validVals.length === 0) return nearestElev(lat, lng);
+      if (validVals.length < 3) return nearestElev(lat, lng);
+
+      // Fill any single missing corner with the mean of the other three
+      var mean = 0;
+      for (var _vi = 0; _vi < validVals.length; _vi++) mean += validVals[_vi];
+      mean /= validVals.length;
+      if (e00 === undefined) e00 = mean;
+      if (e01 === undefined) e01 = mean;
+      if (e10 === undefined) e10 = mean;
+      if (e11 === undefined) e11 = mean;
+
+      // Fractional position within the quad
+      var tLat = (lat - _cacheLats[i0]) / (_cacheLats[i1] - _cacheLats[i0]);
+      var tLng = (lng - _cacheLngs[j0]) / (_cacheLngs[j1] - _cacheLngs[j0]);
+
+      // Bilinear: interpolate along south edge, north edge, then between them
+      var e_s = e00 * (1 - tLng) + e01 * tLng;
+      var e_n = e10 * (1 - tLng) + e11 * tLng;
+      return e_s * (1 - tLat) + e_n * tLat;
+    }
+
+    /* ── Terrain diffraction IL for a single source→receiver ray ──
+     * Samples 20 points along the ray, finds maximum protrusion above the
+     * line-of-sight, computes Fresnel δ and per-band Maekawa IL.
+     * Returns broadband IL in dB (≥ 0), or 0 if no obstruction or no data.
+     * Always returns a number (never null) so callers can safely write to
+     * the terrain IL pre-pass grid without special-casing missing data.
+     */
+    function terrainILBroadband(srcLL, srcH, recLL, recH) {
+      if (!demCache || demCache.length === 0) return 0;
+
+      var srcElev = lookupElev(srcLL.lat, srcLL.lng);
+      var recElev = lookupElev(recLL.lat, recLL.lng);
+      // If elevation is unavailable, treat as flat — 0 dB terrain IL, render normally
+      if (srcElev === null || recElev === null) return 0;
 
       var srcTip = srcElev + srcH;
       var recTip = recElev + recH;
       var totalDist = flatDistM(srcLL, recLL);
-      if (totalDist < 1) return null;
+      if (totalDist < 1) return 0;
 
       var bestProtrusion = 0;
       var bestD1 = 0, bestD2 = 0;
       var N_SAMPLES = 20;
-      for (var i = 1; i < N_SAMPLES; i++) {
-        var t = i / N_SAMPLES;
+      for (var _si2 = 1; _si2 < N_SAMPLES; _si2++) {
+        var t = _si2 / N_SAMPLES;
         var sLat = srcLL.lat + t * (recLL.lat - srcLL.lat);
         var sLng = srcLL.lng + t * (recLL.lng - srcLL.lng);
-        var elev = demElevAt(sLat, sLng);
+        var elev = lookupElev(sLat, sLng);
         if (elev === null) continue;
         var losElev = srcTip + t * (recTip - srcTip);
         var protrusion = elev - losElev;
@@ -105,23 +212,25 @@ self.onmessage = function(e) {
         }
       }
 
-      if (bestProtrusion <= 0) return null;
+      if (bestProtrusion <= 0) return 0;
 
-      // Fresnel zone delta (same as building barriers)
+      // Fresnel path-length difference
       var d1_3d = Math.sqrt(bestD1 * bestD1 + bestProtrusion * bestProtrusion);
       var d2_3d = Math.sqrt(bestD2 * bestD2 + bestProtrusion * bestProtrusion);
       var delta = (d1_3d + d2_3d > 0) ? 2 * bestProtrusion * bestProtrusion / (d1_3d + d2_3d) : 0;
-      if (delta <= 0) return null;
+      if (delta <= 0) return 0;
 
-      // Per-band Maekawa IL using SharedCalc (same formula as building barriers)
+      // Per-band Maekawa IL; return broadband at 1 kHz
       var perBand = calcBarrierAttenuation(delta, ISO_FREQS, true);
-      if (debugTerrain) {
-        console.log('[noise-worker] Terrain obstruction detected: protrusion=' + bestProtrusion.toFixed(1) +
-          'm, delta=' + delta.toFixed(3) + 'm, IL@1kHz=' + perBand[4].toFixed(1) + 'dB');
+      var broadband = Math.max(0, perBand[4]); // [4] = 1 kHz
+      if (debugTerrain && broadband > 0) {
+        console.log('[noise-worker] Terrain obstruction: protrusion=' + bestProtrusion.toFixed(1) +
+          'm, delta=' + delta.toFixed(3) + 'm, IL@1kHz=' + broadband.toFixed(1) + 'dB');
       }
-      return { delta: delta, perBand: perBand, broadband: perBand[4] }; // [4] = 1kHz
+      return broadband;
     }
 
+    /* ── Grid geometry ── */
     var midLat = (bounds.north + bounds.south) / 2;
     var dLat = res / 111320;
     var dLng = res / (111320 * Math.cos(midLat * Math.PI / 180));
@@ -149,6 +258,84 @@ self.onmessage = function(e) {
       };
     });
 
+    /* ── Pre-compute and Gaussian-smooth terrain IL grids ──
+     *
+     * Issue 1 fix (rectangular clip): terrain IL is computed for EVERY grid
+     * cell and stored as an explicit 0 where DEM data is absent. The main
+     * loop then uses a simple table lookup — no path can skip rendering a
+     * cell due to missing terrain data.
+     *
+     * Issue 2 fix (radial spikes): a separable Gaussian kernel (radius 2,
+     * σ = 1.0 grid cells) is applied to the raw terrain IL grid for each
+     * source before the main propagation loop. This smooths the abrupt
+     * 0↔IL transitions at DEM cell boundaries near the source while
+     * preserving the large-scale acoustic shadow shapes.
+     *
+     * Only the terrain IL contribution is smoothed — the base propagation
+     * levels (distance attenuation, barriers) are computed exactly per cell.
+     */
+    var terrainSmoothed = null; // terrainSmoothed[si] = Float32Array(rows * cols), 0-based
+
+    if (terrainEnabled && demCache && demCache.length > 0) {
+      // Build separable Gaussian kernel: radius=2, σ=1.0, kernel size=5
+      var _KR = 2, _SIGMA = 1.0, _KS = 5;
+      var _kernel = new Float32Array(_KS);
+      var _ksum = 0;
+      for (var _ki = 0; _ki < _KS; _ki++) {
+        var _kx = _ki - _KR;
+        _kernel[_ki] = Math.exp(-(_kx * _kx) / (2 * _SIGMA * _SIGMA));
+        _ksum += _kernel[_ki];
+      }
+      for (var _ki2 = 0; _ki2 < _KS; _ki2++) _kernel[_ki2] /= _ksum;
+
+      terrainSmoothed = [];
+
+      for (var _psi = 0; _psi < srcData.length; _psi++) {
+        var _psrc = srcData[_psi];
+        var _psrcLL = { lat: _psrc.lat, lng: _psrc.lng };
+
+        // Step 1: raw terrain IL for every grid cell (0 where no data or no obstruction)
+        var _ilRaw = new Float32Array(rows * cols);
+        for (var _pr = 0; _pr < rows; _pr++) {
+          var _plat = bounds.south + (_pr + 0.5) * dLat;
+          for (var _pc = 0; _pc < cols; _pc++) {
+            var _plng = bounds.west + (_pc + 0.5) * dLng;
+            var _ppt = { lat: _plat, lng: _plng };
+            _ilRaw[_pr * cols + _pc] = terrainILBroadband(_psrcLL, _psrc.heightM, _ppt, recvHeight);
+          }
+        }
+
+        // Step 2: separable Gaussian smooth — horizontal pass into temp
+        var _temp = new Float32Array(rows * cols);
+        for (var _hr = 0; _hr < rows; _hr++) {
+          for (var _hc = 0; _hc < cols; _hc++) {
+            var _hval = 0;
+            for (var _hki = 0; _hki < _KS; _hki++) {
+              var _hcc = Math.max(0, Math.min(cols - 1, _hc + _hki - _KR));
+              _hval += _ilRaw[_hr * cols + _hcc] * _kernel[_hki];
+            }
+            _temp[_hr * cols + _hc] = _hval;
+          }
+        }
+
+        // Step 3: vertical pass from temp into smoothed output
+        var _ilSmooth = new Float32Array(rows * cols);
+        for (var _vr = 0; _vr < rows; _vr++) {
+          for (var _vc = 0; _vc < cols; _vc++) {
+            var _vval = 0;
+            for (var _vki = 0; _vki < _KS; _vki++) {
+              var _vrr = Math.max(0, Math.min(rows - 1, _vr + _vki - _KR));
+              _vval += _temp[_vrr * cols + _vc] * _kernel[_vki];
+            }
+            _ilSmooth[_vr * cols + _vc] = _vval;
+          }
+        }
+
+        terrainSmoothed.push(_ilSmooth);
+      }
+    }
+
+    /* ── Main propagation loop ── */
     var grid = [];
     var lastProgress = 0;
 
@@ -160,7 +347,7 @@ self.onmessage = function(e) {
 
         var insideBuilding = false;
         for (var bi = 0; bi < buildings.length; bi++) {
-          if (buildings[bi].isBarrier) continue; // barriers are polylines, not closed polygons
+          if (buildings[bi].isBarrier) continue;
           if (pointInPolygonLatLng(pt, buildings[bi].polygon)) {
             insideBuilding = true;
             break;
@@ -178,9 +365,8 @@ self.onmessage = function(e) {
           var dist = flatDistM(srcLL, pt);
           if (dist < 0.1) dist = 0.1;
 
-          var barrierDelta = 0;
-          var endDeltaLeft = 0;
-          var endDeltaRight = 0;
+          // Building / structural barrier IL
+          var barrierDelta = 0, endDeltaLeft = 0, endDeltaRight = 0;
           if (buildings.length > 0) {
             var barrier = getDominantBarrier(srcLL, pt, src.heightM, recvHeight, buildings);
             if (barrier) {
@@ -190,52 +376,35 @@ self.onmessage = function(e) {
             }
           }
 
-          // Compute building barrier IL (broadband at 1kHz for simple method)
           var buildingIL_broadband = 0;
           if (barrierDelta > 0 || endDeltaLeft > 0 || endDeltaRight > 0) {
             var Abar_bb = calcBarrierWithEndDiffraction(barrierDelta, endDeltaLeft, endDeltaRight, [1000]);
             buildingIL_broadband = Math.min(Abar_bb[0], 20);
           }
 
-          // Compute terrain IL (per-band) — only when terrain screening is enabled and DEM data available
-          var terrResult = (terrainEnabled && demTile) ? terrainILForRay(srcLL, src.heightM, pt, recvHeight) : null;
-          var terrIL_broadband = terrResult ? terrResult.broadband : 0;
+          // Smoothed terrain IL from pre-computed grid (0 if no terrain data or outside DEM)
+          // Using pre-smoothed values in a table lookup here — no inline terrain computation.
+          var terrIL = terrainSmoothed ? (terrainSmoothed[si][r * cols + c] || 0) : 0;
 
           var lp;
           if (method === 'iso9613' && src.spectrum) {
-            // ISO: apply per-band terrain IL where it exceeds building barrier
-            // Building barrier is already applied per-band inside calcISOatPoint
-            lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight);
-            if (terrResult && terrIL_broadband > buildingIL_broadband && isFinite(lp)) {
-              // Terrain exceeds building — apply the per-band excess
-              var bldgPerBand = (barrierDelta > 0 || endDeltaLeft > 0 || endDeltaRight > 0)
-                ? calcBarrierWithEndDiffraction(barrierDelta, endDeltaLeft, endDeltaRight, ISO_FREQS)
-                : ISO_FREQS.map(function() { return 0; });
-              // Recompute with terrain IL replacing building IL where terrain is larger
-              var terrPerBand = terrResult.perBand;
-              var excessSum = 0;
-              for (var bi = 0; bi < 8; bi++) {
-                var excess = Math.max(0, terrPerBand[bi] - bldgPerBand[bi]);
-                excessSum += excess;
-              }
-              // Apply average per-band excess as broadband adjustment
-              if (excessSum > 0) lp -= (excessSum / 8);
+            // ISO: compute propagation level, then apply terrain excess over building IL
+            lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
+              barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight);
+            // Apply smoothed terrain IL where it exceeds the already-applied building IL
+            if (terrIL > buildingIL_broadband && isFinite(lp)) {
+              lp -= (terrIL - buildingIL_broadband);
             }
           } else {
-            // Simple method: apply max(building, terrain) broadband
-            var effectiveIL = Math.max(buildingIL_broadband, terrIL_broadband);
-            lp = attenuatePoint(src.combinedLw, dist);
-            lp -= effectiveIL;
+            // Simple: max of building IL and terrain IL
+            var effectiveIL = Math.max(buildingIL_broadband, terrIL);
+            lp = attenuatePoint(src.combinedLw, dist) - effectiveIL;
           }
 
           if (isFinite(lp)) contributions.push(lp);
         }
 
-        if (contributions.length === 0) {
-          grid.push(NaN);
-        } else {
-          grid.push(energySum(contributions));
-        }
+        grid.push(contributions.length > 0 ? energySum(contributions) : NaN);
       }
 
       var pct = Math.round((r + 1) / rows * 100);

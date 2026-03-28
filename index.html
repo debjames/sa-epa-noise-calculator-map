@@ -8551,7 +8551,7 @@ initCollapse();
     window._requeryAllZones = function() {
       if (latlngs['source']) queryAndSetZone('source', latlngs['source']);
       for (var i = 1; i <= 4; i++) {
-        var key = 'R' + i;
+        var key = 'r' + i;
         if (latlngs[key]) queryAndSetZone(key, latlngs[key]);
       }
     };
@@ -8954,6 +8954,7 @@ initCollapse();
 
     /* --- Auto-detect zone at point and set dropdown --- */
     function queryAndSetZone(mode, latlng) {
+      console.log('[zone] queryAndSetZone called — mode:', mode, 'state:', currentState, 'lat:', latlng && latlng.lat.toFixed(5));
       // No zone detection in OTHER mode
       if (currentState === 'OTHER') return;
       // Dispatch to VIC-specific zone detection when in VIC mode
@@ -12141,58 +12142,83 @@ initCollapse();
 
       var screenable = (typeof getScreenableBuildings === 'function') ? getScreenableBuildings() : [];
 
-      // Fetch DEM tile for terrain screening in the noise grid (only if terrain enabled).
-      // DEM resolution is intentionally coarser than the noise map grid: terrain effects
-      // operate over ridge-scale distances (100s of metres), so 100-220m DEM spacing is
-      // sufficient to detect significant ridgelines without saturating the elevation API.
+      // Pre-warm DEMCache for terrain screening via sequential 100-point batches.
+      // Uses the same DEMCache.getElevations() method as terrain profiles — avoids
+      // all-null responses caused by large parallel-chunk tile fetches.
+      // DEM resolution is intentionally coarser than the noise grid: terrain effects
+      // operate over ridge-scale distances (100s m), so 100-220m spacing is sufficient.
       var demSpacing;
       if (gridRes >= 25) {
         demSpacing = 0.002;   // ~222m — auto grid or coarse fixed (25m+)
       } else if (gridRes >= 5) {
-        demSpacing = 0.001;   // ~111m — fine grid (5-10m noise resolution)
+        demSpacing = 0.001;   // ~111m — fine grid (5–10m noise resolution)
       } else {
-        demSpacing = 0.0005;  // ~55m — very fine grid (1-2m noise resolution)
+        demSpacing = 0.0005;  // ~55m — very fine grid (1–2m noise resolution)
       }
 
       var demPromise;
       if (_terrainEnabled && window.DEMCache) {
-        demPromise = DEMCache.getTileForBounds(
-          mapBounds.getNorth(), mapBounds.getSouth(),
-          mapBounds.getEast(), mapBounds.getWest(),
-          demSpacing,
-          function(done, total) {
-            if (noiseMapBtn) noiseMapBtn.textContent = 'Fetching terrain... (' + done + '/' + total + ')';
+        // Build coarse grid of sample points covering expanded map bounds
+        var _demN = mapBounds.getNorth(), _demS = mapBounds.getSouth();
+        var _demE = mapBounds.getEast(), _demW = mapBounds.getWest();
+        var _demLatSpan = _demN - _demS, _demLngSpan = _demE - _demW;
+        var _demExpN = _demN + _demLatSpan * 0.1, _demExpS = _demS - _demLatSpan * 0.1;
+        var _demExpE = _demE + _demLngSpan * 0.1, _demExpW = _demW - _demLngSpan * 0.1;
+        var _demGridPts = [];
+        for (var _demLat = _demExpS; _demLat <= _demExpN + demSpacing * 0.5; _demLat += demSpacing) {
+          for (var _demLng = _demExpW; _demLng <= _demExpE + demSpacing * 0.5; _demLng += demSpacing) {
+            _demGridPts.push({ lat: parseFloat(_demLat.toFixed(5)), lng: parseFloat(_demLng.toFixed(5)) });
           }
-        ).catch(function(err) {
-          console.warn('DEM tile fetch failed:', err);
-          return null;
+        }
+        // Clamp to 2000 points max
+        if (_demGridPts.length > 2000) {
+          var _demSkip = Math.ceil(_demGridPts.length / 2000);
+          _demGridPts = _demGridPts.filter(function(_, i) { return i % _demSkip === 0; });
+        }
+        var _demTotalPts = _demGridPts.length;
+        var _demChunkSize = 100; // 100 pts per call = 1 POST request per chunk, same as terrain profile
+        var _demChunks = [];
+        for (var _demCi = 0; _demCi < _demTotalPts; _demCi += _demChunkSize) {
+          _demChunks.push(_demGridPts.slice(_demCi, _demCi + _demChunkSize));
+        }
+        var _demEntries = []; // flat [{lat, lng, elev}] — passed directly to worker
+        demPromise = _demChunks.reduce(function(pr, chunk, idx) {
+          return pr.then(function() {
+            return DEMCache.getElevations(chunk).then(function(elevs) {
+              for (var _j = 0; _j < chunk.length; _j++) {
+                if (elevs[_j] !== null && elevs[_j] !== undefined) {
+                  _demEntries.push({ lat: chunk[_j].lat, lng: chunk[_j].lng, elev: elevs[_j] });
+                }
+              }
+              var _done = Math.min((idx + 1) * _demChunkSize, _demTotalPts);
+              if (noiseMapBtn) noiseMapBtn.textContent = 'Fetching terrain... (' + _done + '/' + _demTotalPts + ')';
+            });
+          });
+        }, Promise.resolve())
+        .then(function() { return { entries: _demEntries, total: _demTotalPts }; })
+        .catch(function(err) {
+          console.warn('DEM pre-warm failed:', err);
+          return { entries: [], total: _demTotalPts };
         });
       } else {
         demPromise = Promise.resolve(null);
       }
 
-      demPromise.then(function(demTile) {
-      // Show/clear partial-data warning banner
-      if (demTile && demTile._partialWarning) {
+      demPromise.then(function(demResult) {
+      // Assess terrain data quality and show appropriate warning banner
+      var demEntries = (demResult && demResult.entries) ? demResult.entries : [];
+      var demTotal = (demResult && demResult.total) ? demResult.total : 0;
+      var _demValidFrac = demTotal > 0 ? demEntries.length / demTotal : 0;
+      if (_terrainEnabled && demTotal > 0 && _demValidFrac < 0.2) {
+        showTerrainWarning('Terrain data unavailable \u2014 terrain screening not applied (try again later)');
+        demEntries = []; // too few valid points — skip terrain
+      } else if (_terrainEnabled && demTotal > 0 && _demValidFrac < 0.8) {
         showTerrainWarning('Terrain data partially unavailable \u2014 contours may not reflect full terrain screening');
       } else {
         hideTerrainWarning();
       }
-
-      // Flatten DEM tile for worker transfer
-      var demData = null;
-      if (demTile && demTile.elevations) {
-        demData = {
-          lats: demTile.lats,
-          lngs: demTile.lngs,
-          // Flatten 2D array to 1D for efficient transfer
-          elevations: [].concat.apply([], demTile.elevations),
-          rows: demTile.lats.length,
-          cols: demTile.lngs.length
-        };
-      }
-      if (!demData) {
-        console.warn('Noise map: terrain data unavailable — no terrain screening applied.');
+      if (_terrainEnabled && demTotal > 0 && demEntries.length === 0) {
+        console.warn('Noise map: terrain data unavailable \u2014 no terrain screening applied.');
       }
 
       if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... 0%';
@@ -12240,19 +12266,19 @@ initCollapse();
           temperature: iso_temperature,
           humidity: iso_humidity
         },
-        demTile: demData,
+        demCache: demEntries,
+        demSpacing: demSpacing,
         terrainEnabled: _terrainEnabled,
         debugTerrain: !!window._debugTerrain
       });
 
-      // Diagnostic: confirm DEM tile contents reaching worker
+      // Diagnostic: confirm DEM cache contents reaching worker
       if (window._debugTerrain) {
-        if (demData) {
-          console.log('Noise map: DEM tile passed to worker —', demData.rows, '×', demData.cols,
-            '=', demData.rows * demData.cols, 'points, spacing ≈' + Math.round(gridRes) + 'm',
-            '| sample elev [0]:', demData.elevations[0]);
+        if (demEntries.length > 0) {
+          console.log('Noise map: DEM cache passed to worker —', demEntries.length + '/' + demTotal,
+            'valid points (' + Math.round(_demValidFrac * 100) + '%) | sample elev[0]:', demEntries[0].elev);
         } else {
-          console.warn('Noise map: DEM tile is null — terrain screening will NOT be applied in worker.');
+          console.warn('Noise map: DEM cache empty — terrain screening will NOT be applied in worker.');
         }
       }
 
