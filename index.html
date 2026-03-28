@@ -393,7 +393,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 5v14M5 12h14"/></svg> Draw Building</button>
           <button class="tool-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h4l4-8 4 4h6"/></svg> Draw Barrier</button>
           <button class="tool-btn" id="noiseMapBtn" title="Compute and display noise contour map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map</button>
-          <span id="noiseMapControls" style="display:none;font-size:11px;align-items:center;gap:4px;">
+          <span id="noiseMapControls" style="display:none;font-size:11px;align-items:center;gap:4px;flex-wrap:wrap;">
             <button class="tool-btn active" data-nmperiod="day" style="font-size:10px;padding:2px 6px;">Day</button>
             <button class="tool-btn" data-nmperiod="eve" style="font-size:10px;padding:2px 6px;">Eve</button>
             <button class="tool-btn" data-nmperiod="night" style="font-size:10px;padding:2px 6px;">Night</button>
@@ -413,6 +413,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               <option value="100">100 m</option>
             </select>
             <span id="noiseMapGridLabel" style="color:#888;font-size:10px;"></span>
+            <span id="noiseMapGridWarning" style="display:none;font-size:10px;flex-basis:100%;margin-top:2px;"></span>
             <span style="color:#666;margin-left:6px;border-left:1px solid #ccc;padding-left:6px;">Scale:</span>
             <input type="number" id="legendMin" value="25" min="0" max="119" step="1" style="width:35px;font-size:11px;padding:1px 2px;text-align:center;" title="Legend minimum dB">
             <span style="color:#666;">–</span>
@@ -426,8 +427,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
           <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Major urban areas</button>
         </div>
-        <div id="noiseMapGridWarning" style="display:none;font-size:11px;margin-bottom:4px;"></div>
-
         <!-- Status row -->
         <div class="map-status-row">
           <span id="map-status-source" style="color:#dc2626;">&#9679; Source: not placed</span>
@@ -1331,7 +1330,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   var _cache = {}; // "lat,lng" → elevation (m)
   var _tileBounds = null; // { north, south, east, west } of last fetched tile
   var _tileGrid = null;   // { lats[], lngs[], elevations[][] }
-  var _pendingBatch = null; // in-flight batch promise
+
 
   function roundKey(lat, lng) {
     return lat.toFixed(CACHE_PRECISION) + ',' + lng.toFixed(CACHE_PRECISION);
@@ -1499,7 +1498,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       }
     }
 
-    console.log('DEMCache: fetching ' + points.length + ' elevation points (' + lats.length + ' x ' + lngs.length + ' grid)');
+    if (window._debugTerrain) console.log('DEMCache: fetching ' + points.length + ' elevation points (' + lats.length + ' x ' + lngs.length + ' grid)');
 
     return getElevations(points).then(function(elev) {
       var elevations = [];
@@ -1777,11 +1776,11 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     var result = { delta_m: 0, insertionLoss_dB: 0, ridge: null, perBand: null };
     var ridge = detectDominantRidge(profile, srcH, recH);
     if (!ridge || ridge.delta_m <= 0) {
-      console.log('Terrain diffraction: no ridge detected (delta <= 0)');
+      if (window._debugTerrain) console.log('Terrain diffraction: no ridge detected (delta <= 0)');
       return result;
     }
 
-    console.log('Terrain diffraction: ridge at ' + ridge.distance_m.toFixed(0) + 'm, ' +
+    if (window._debugTerrain) console.log('Terrain diffraction: ridge at ' + ridge.distance_m.toFixed(0) + 'm, ' +
       'elev=' + ridge.elevation_m.toFixed(1) + 'm, protrusion=' + ridge.protrusion_m.toFixed(2) + 'm, ' +
       'delta=' + ridge.delta_m.toFixed(4) + 'm');
 
@@ -1795,7 +1794,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       result.perBand = abar;
       // Broadband IL ≈ 1kHz band value
       result.insertionLoss_dB = abar[4]; // 1kHz band
-      console.log('Terrain IL per band:', abar.map(function(v) { return v.toFixed(1); }).join(', ') + ' dB');
+      if (window._debugTerrain) console.log('Terrain IL per band:', abar.map(function(v) { return v.toFixed(1); }).join(', ') + ' dB');
     } else {
       // Fallback: simple Maekawa at 1kHz
       var lambda = 0.343;
@@ -8866,7 +8865,7 @@ initCollapse();
             var zoneLabel = result.zone;
             if (result.subzone) zoneLabel += ' / ' + result.subzone;
             m.setPopupContent(
-              '<b>' + cfg.label + '</b><br>' +
+              '<b>' + escapeHTML(cfg.label) + '</b><br>' +
               queryLat.toFixed(6) + ', ' + queryLng.toFixed(6) +
               '<br><i style="color:#059669;">' + zoneLabel + '</i>'
             );
@@ -9726,7 +9725,7 @@ initCollapse();
           if (m && zoneCode) {
             var cfg = CFG[mode];
             m.setPopupContent(
-              '<b>' + cfg.label + '</b><br>' +
+              '<b>' + escapeHTML(cfg.label) + '</b><br>' +
               queryLat.toFixed(6) + ', ' + queryLng.toFixed(6) +
               '<br><i style="color:#059669;">' + label + '</i>' +
               (zoneType ? '<br><span style="font-size:11px;">Type ' + zoneType + '</span>' : '')
@@ -9843,7 +9842,7 @@ initCollapse();
           if (m) {
             var cfg = CFG[mode];
             m.setPopupContent(
-              '<b>' + cfg.label + '</b><br>' +
+              '<b>' + escapeHTML(cfg.label) + '</b><br>' +
               queryLat.toFixed(6) + ', ' + queryLng.toFixed(6) +
               (zoneCode ? '<br><i style="color:#1e3a5f;">' + label + '</i>' : '')
             );
@@ -10166,7 +10165,7 @@ initCollapse();
       fetch(
         'https://nominatim.openstreetmap.org/reverse?format=json&lat=' +
         latlng.lat + '&lon=' + latlng.lng + '&zoom=18&addressdetails=1',
-        { headers: { 'Accept-Language': 'en', 'User-Agent': 'NoiseCalcTool/1.0' } }
+        { headers: { 'Accept-Language': 'en', 'Referer': 'https://debjames.github.io/sa-epa-noise-calculator-map/' } }
       )
       .then(function(r) { return r.json(); })
       .then(function(data) {
@@ -10289,6 +10288,9 @@ initCollapse();
     /** Extract source index from mode string, or 0 for legacy 'source' */
     function sourceIdxFromMode(mode) {
       var m = mode.match(/^source_(\d+)$/);
+      if (!m && typeof sources !== 'undefined' && sources.length > 1) {
+        console.warn('sourceIdxFromMode: legacy source mode with multiple sources — defaulting to index 0');
+      }
       return m ? parseInt(m[1], 10) : 0;
     }
     /** Sync sources[] state from latlngs when a source marker is placed/dragged */
@@ -10348,7 +10350,7 @@ initCollapse();
         draggable: true,
         title: cfg.label
       })
-      .bindPopup('<b>' + cfg.label + '</b><br>' +
+      .bindPopup('<b>' + escapeHTML(cfg.label) + '</b><br>' +
                  latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6))
       .addTo(map);
 
@@ -10617,7 +10619,7 @@ initCollapse();
       return fetch(
         'https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&countrycodes=au&q=' +
         encodeURIComponent(q),
-        { headers: { 'Accept-Language': 'en', 'User-Agent': 'NoiseCalcTool/1.0' } }
+        { headers: { 'Accept-Language': 'en', 'Referer': 'https://debjames.github.io/sa-epa-noise-calculator-map/' } }
       )
       .then(function(r) { return r.json(); });
     }
@@ -12015,8 +12017,7 @@ initCollapse();
 
     function showNoiseControls(show) {
       if (noiseMapControls) noiseMapControls.style.display = show ? 'inline-flex' : 'none';
-      var _warn = document.getElementById('noiseMapGridWarning');
-      if (_warn && !show) _warn.style.display = 'none';
+      // Warning is inside noiseMapControls — hidden automatically with parent
     }
 
     if (noiseMapBtn) {
@@ -12026,7 +12027,7 @@ initCollapse();
         showNoiseControls(_noiseMapOn);
         if (_noiseMapOn) {
           var _warnEl = document.getElementById('noiseMapGridWarning');
-          if (_warnEl) _warnEl.style.display = 'none';
+          if (_warnEl) { _warnEl.style.display = 'none'; _warnEl.textContent = ''; }
           computeNoiseMap();
         } else {
           if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
