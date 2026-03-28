@@ -376,11 +376,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
         <!-- Row 1: Sources/receivers, Pins, Boundary -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;align-items:center;">
-          <button class="tool-btn map-mode-btn active" id="mapMode-source" title="Click map to place noise source" style="border-left:3px solid #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise Source</button>
+          <button class="tool-btn map-mode-btn" id="mapMode-source" title="Click map to place noise source" style="border-left:3px solid #dc2626;display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise Source</button>
           <button class="tool-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1</button>
           <button class="tool-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
           <button class="tool-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
           <button class="tool-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4</button>
+          <button class="tool-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Add Source</button>
           <button class="tool-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide location pins on map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Pins</button>
           <button class="tool-btn parcel-toggle-btn active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Boundary</button>
           <span style="flex:1;"></span>
@@ -3623,6 +3624,16 @@ var _resultsAreStale = false;
 var _hasRunCalculation = false;
 var _recalcDebounceTimer = null;
 
+/* ---- Simple floating toast notification ---- */
+function showToast(msg, durationMs) {
+  var d = durationMs || 3000;
+  var t = document.createElement('div');
+  t.style.cssText = 'position:fixed;top:58px;left:50%;transform:translateX(-50%);z-index:99999;background:#1e293b;color:#f8fafc;padding:8px 18px;font-size:13px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.25);pointer-events:none;';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, d);
+}
+
 function markResultsStale() {
   if (!_hasRunCalculation) return; // no stale indicator before first calc
   _resultsAreStale = true;
@@ -3970,9 +3981,14 @@ function renderSourcePins() {
     if (sourcePins.length <= 1) delBtn.style.opacity = '0.3';
     delBtn.addEventListener('click', function() {
       if (sourcePins.length <= 1) return;
-      if (typeof window._removeMarker === 'function') window._removeMarker('source_' + idx);
       sourcePins.splice(idx, 1);
+      /* Refresh all source markers (renumbers labels S1, S2, …) */
+      if (typeof window._refreshAllSourceMarkers === 'function') window._refreshAllSourceMarkers();
+      /* Update subject site reference */
+      window._subjectSiteLatlng = (sourcePins.length > 0 && sourcePins[0].lat !== null)
+        ? { lat: sourcePins[0].lat, lng: sourcePins[0].lng } : null;
       renderSourcePins();
+      if (typeof updateAll === 'function') updateAll();
       if (typeof render === 'function') render();
     });
     hdr.appendChild(delBtn);
@@ -7866,7 +7882,8 @@ initCollapse();
     var markers = {};   /* key -> L.marker  */
     var latlngs = {};   /* key -> {lat,lng} */
     var lines   = {};   /* key -> L.polyline */
-    var currentMode = 'source';
+    var labelMarkers = {}; /* key -> L.marker (source dot label, separate from dot) */
+    var currentMode = null;
     var _drawingActive = false; // true while Leaflet.draw polygon is being drawn
 
     /* Expose source and receiver positions for functions outside the IIFE */
@@ -7881,6 +7898,28 @@ initCollapse();
     window._removeMarker = function(mode) { removeMarker(mode); };
     window._getMapRef = function() { return map; };
     window._getAllLatLngs = function() { return latlngs; };
+    /* Refresh all source_N dot+label markers after array splice (renumbers labels S1,S2,…) */
+    window._refreshAllSourceMarkers = function() {
+      /* Remove all source_N markers */
+      Object.keys(markers).forEach(function(k) {
+        if (/^source_\d+$/.test(k)) { map.removeLayer(markers[k]); delete markers[k]; }
+      });
+      Object.keys(labelMarkers).forEach(function(k) {
+        if (/^source_\d+$/.test(k)) { map.removeLayer(labelMarkers[k]); delete labelMarkers[k]; }
+      });
+      Object.keys(latlngs).forEach(function(k) {
+        if (/^source_\d+$/.test(k)) delete latlngs[k];
+      });
+      /* Recreate for all placed sourcePins at their new indices */
+      sourcePins.forEach(function(pin, idx) {
+        if (pin.lat !== null) {
+          placeMarker('source_' + idx, L.latLng(pin.lat, pin.lng));
+        }
+      });
+      /* Update subject site reference to first placed source */
+      var first = sourcePins.find(function(p) { return p.lat !== null; });
+      window._subjectSiteLatlng = first ? L.latLng(first.lat, first.lng) : null;
+    };
     window._fetchPinElevation = function(mode, ll) { fetchPinElevation(mode, ll); };
 
     /* ==== SAPPA Zoning Integration ==== */
@@ -9738,6 +9777,28 @@ initCollapse();
       });
     }
 
+    /* ---- Source pin: circle dot icon ---- */
+    function makeSrcDotIcon(colour) {
+      return L.divIcon({
+        className: '',
+        html: '<div style="width:12px;height:12px;border-radius:50%;background:' + colour + ';border:1px solid #922b21;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>',
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+        popupAnchor: [0, -10]
+      });
+    }
+
+    /* ---- Source pin: label icon (always-visible text above the dot) ---- */
+    function makeSrcLabelIcon(text) {
+      return L.divIcon({
+        className: '',
+        html: '<div style="font-size:10px;font-weight:700;color:#7b241c;white-space:nowrap;text-align:center;pointer-events:none;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;">' + escapeHTML(text) + '</div>',
+        iconSize: [36, 14],
+        iconAnchor: [18, 22],
+        popupAnchor: [0, 0]
+      });
+    }
+
     /* ---- Haversine distance (metres) ---- */
     function haversine(a, b) {
       var R  = 6371000;
@@ -10186,17 +10247,45 @@ initCollapse();
     function placeMarker(mode, latlng) {
       var cfg = getModeCfg(mode);
 
-      /* remove old */
+      /* remove old markers (dot + label for sources) */
       if (markers[mode]) map.removeLayer(markers[mode]);
+      if (labelMarkers[mode]) { map.removeLayer(labelMarkers[mode]); delete labelMarkers[mode]; }
 
-      var m = L.marker(latlng, {
-        icon: makeIcon(cfg),
-        draggable: true,
-        title: cfg.label
-      })
-      .bindPopup('<b>' + escapeHTML(cfg.label) + '</b><br>' +
-                 latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6))
-      .addTo(map);
+      var m;
+      if (isSourceMode(mode)) {
+        /* === Circle dot marker for source pins === */
+        var si = sourceIdxFromMode(mode);
+        var colour = SOURCE_COLOURS[si % SOURCE_COLOURS.length];
+        var shortLabel = 'S' + (si + 1);
+        var pin = sourcePins[si];
+        var tooltip = shortLabel + (pin && pin.name && pin.name !== ('Source ' + (si + 1)) ? ' \u2014 ' + pin.name : '');
+        m = L.marker(latlng, { icon: makeSrcDotIcon(colour), draggable: true, title: tooltip || shortLabel }).addTo(map);
+        /* Label marker: always-visible text above the dot (non-interactive) */
+        var lbl = L.marker(latlng, {
+          icon: makeSrcLabelIcon(shortLabel),
+          draggable: false,
+          interactive: false,
+          zIndexOffset: 500
+        }).addTo(map);
+        labelMarkers[mode] = lbl;
+        /* Click on dot → open source panel (Chunk C — console.log for now) */
+        m.on('click', (function(capturedSi, capturedPin) {
+          return function(e) {
+            L.DomEvent.stopPropagation(e);
+            console.log('[source click] pin id:', capturedPin && capturedPin.id, 'idx:', capturedSi);
+          };
+        })(si, pin));
+        /* Hide label with dot if pins are toggled off */
+        if (typeof arePinsVisible !== 'undefined' && !arePinsVisible) lbl.setOpacity(0);
+        /* Set _subjectSiteLatlng when source_0 is placed */
+        if (si === 0) window._subjectSiteLatlng = latlng;
+      } else {
+        /* === Teardrop marker for receiver pins === */
+        m = L.marker(latlng, { icon: makeIcon(cfg), draggable: true, title: cfg.label })
+          .bindPopup('<b>' + escapeHTML(cfg.label) + '</b><br>' +
+                     latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6))
+          .addTo(map);
+      }
 
       markers[mode] = m;
       latlngs[mode] = latlng;
@@ -10214,34 +10303,40 @@ initCollapse();
 
       /* update on drag */
       m.on('drag', function (e) {
-        latlngs[mode] = e.target.getLatLng();
-        syncSourceLatLng(mode, e.target.getLatLng());
+        var ll = e.target.getLatLng();
+        latlngs[mode] = ll;
+        syncSourceLatLng(mode, ll);
+        if (labelMarkers[mode]) labelMarkers[mode].setLatLng(ll);
         updateAll();
       });
       m.on('dragend', function (e) {
-        latlngs[mode] = e.target.getLatLng();
-        syncSourceLatLng(mode, e.target.getLatLng());
-        fetchPinElevation(mode, e.target.getLatLng());
+        var ll = e.target.getLatLng();
+        latlngs[mode] = ll;
+        syncSourceLatLng(mode, ll);
+        if (labelMarkers[mode]) labelMarkers[mode].setLatLng(ll);
+        /* Update subject site reference if this is source index 0 */
+        if (isSourceMode(mode) && sourceIdxFromMode(mode) === 0) window._subjectSiteLatlng = ll;
+        fetchPinElevation(mode, ll);
         /* Auto-detect zone — called before updateAll so it fires even if render throws */
-        console.log('Zone detect triggered:', mode, e.target.getLatLng());
-        queryAndSetZone(mode, e.target.getLatLng());
+        console.log('Zone detect triggered:', mode, ll);
+        queryAndSetZone(mode, ll);
         updateAll();
         if (window._recomputeNoiseMap) window._recomputeNoiseMap();
         if (isSourceMode(mode)) {
-          detectStateFromCoords(e.target.getLatLng());
-          querySourceParcel(e.target.getLatLng());
+          detectStateFromCoords(ll);
+          querySourceParcel(ll);
         }
         if (!isSourceMode(mode)) {
           // Receiver moved — update concentric circles and auto-IF for this receiver
           updateConcentricCircles();
-          triggerAutoIF(mode, e.target.getLatLng());
+          triggerAutoIF(mode, ll);
         }
       });
 
       /* status label */
       var statusEl = document.getElementById('map-status-' + mode);
       if (statusEl) {
-        setStatusText(statusEl, (mode === 'source' ? '\u25CF Source' : '\u25CF ' + cfg.label) + ': placed');
+        setStatusText(statusEl, (isSourceMode(mode) ? '\u25CF Source' : '\u25CF ' + cfg.label) + ': placed');
       }
 
       updateAll();
@@ -10295,12 +10390,45 @@ initCollapse();
       });
       var btn = document.getElementById('mapMode-' + mode);
       if (btn) btn.classList.add('active');
+      /* Update map cursor: crosshair while in any placement mode */
+      if (map && map.getContainer) {
+        map.getContainer().style.cursor = mode ? 'crosshair' : '';
+      }
+    }
+
+    /* ---- Add a new source pin (called from addSource map-click mode) ---- */
+    function addNewSourcePin(latlng) {
+      if (sourcePins.length >= 20) {
+        showToast('Maximum 20 sources reached.');
+        return;
+      }
+      var idx = sourcePins.length;
+      sourcePins.push({
+        id: _newPinId(),
+        name: 'Source ' + (idx + 1),
+        lat: null, lng: null,
+        lw: { day: 85, eve: 85, night: 85 },
+        spectrum: { day: null, eve: null, night: null },
+        height_m: 1.5,
+        buildingHeight_m: 0,
+        groundElevation_m: null,
+        operationalTime_min: 15
+      });
+      var mode = 'source_' + idx;
+      placeMarker(mode, latlng);
+      /* Exit addSource placement mode after placing one pin */
+      setMode(null);
+      if (typeof renderSourcePins === 'function') renderSourcePins();
     }
 
     /* ---- map click ---- */
     map.on('click', function (e) {
       if (_drawingActive) return; // don't place markers while drawing a building polygon
       if (!currentMode) return;   // browse mode — no placement
+      if (currentMode === 'addSource') {
+        addNewSourcePin(e.latlng);
+        return;
+      }
       placeMarker(currentMode, e.latlng);
     });
 
@@ -10309,6 +10437,7 @@ initCollapse();
       if (!markers[mode]) return;
       map.removeLayer(markers[mode]);
       delete markers[mode];
+      if (labelMarkers[mode]) { map.removeLayer(labelMarkers[mode]); delete labelMarkers[mode]; }
       delete latlngs[mode];
       if (lines[mode]) { map.removeLayer(lines[mode]); delete lines[mode]; }
 
@@ -10355,6 +10484,18 @@ initCollapse();
       });
     });
 
+    /* ---- "Add Source" toolbar button ---- */
+    var addSrcModeBtn = document.getElementById('mapMode-addSource');
+    if (addSrcModeBtn) {
+      addSrcModeBtn.addEventListener('click', function() {
+        if (currentMode === 'addSource') {
+          setMode(null); // click again to cancel
+        } else {
+          setMode('addSource');
+        }
+      });
+    }
+
     /* ---- Pins visibility toggle ---- */
     var arePinsVisible = true;
     var pinsToggleBtn = document.getElementById('pinsToggleBtn');
@@ -10368,6 +10509,12 @@ initCollapse();
           if (lines[mode]) {
             lines[mode].setStyle({ opacity: arePinsVisible ? 0.75 : 0 });
           }
+        });
+        /* Also toggle source_N dot and label markers */
+        sourcePins.forEach(function(pin, idx) {
+          var smode = 'source_' + idx;
+          if (markers[smode]) markers[smode].setOpacity(arePinsVisible ? 1 : 0);
+          if (labelMarkers[smode]) labelMarkers[smode].setOpacity(arePinsVisible ? 1 : 0);
         });
         if (arePinsVisible) {
           pinsToggleBtn.classList.add('active');
