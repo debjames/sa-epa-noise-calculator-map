@@ -10560,6 +10560,10 @@ initCollapse();
       syncSourceLatLng(mode, latlng);
       fetchPinElevation(mode, latlng);
 
+      /* Auto-detect zone — called here (before updateAll) so it fires even if render throws */
+      console.log('Zone detect triggered:', mode, latlng);
+      queryAndSetZone(mode, latlng);
+
       /* Hide pin if pins are toggled off */
       if (typeof arePinsVisible !== 'undefined' && !arePinsVisible) {
         m.setOpacity(0);
@@ -10575,6 +10579,9 @@ initCollapse();
         latlngs[mode] = e.target.getLatLng();
         syncSourceLatLng(mode, e.target.getLatLng());
         fetchPinElevation(mode, e.target.getLatLng());
+        /* Auto-detect zone — called before updateAll so it fires even if render throws */
+        console.log('Zone detect triggered:', mode, e.target.getLatLng());
+        queryAndSetZone(mode, e.target.getLatLng());
         updateAll();
         if (window._recomputeNoiseMap) window._recomputeNoiseMap();
         if (isSourceMode(mode)) {
@@ -10586,7 +10593,6 @@ initCollapse();
           updateConcentricCircles();
           triggerAutoIF(mode, e.target.getLatLng());
         }
-        queryAndSetZone(mode, e.target.getLatLng());
       });
 
       /* status label */
@@ -10620,9 +10626,6 @@ initCollapse();
           if (tb) tb.innerHTML = '&#x25B2;';
         }
       });
-
-      /* Auto-detect zone */
-      queryAndSetZone(mode, latlng);
 
       /* auto-advance: source modes advance to r1, receiver modes advance through ORDER */
       if (isSourceMode(mode)) {
