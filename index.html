@@ -387,6 +387,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <!-- Row 2: Overlays -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
           <button class="tool-btn zone-toggle-btn" id="zoneToggleBtn" title="Toggle zoning overlay on map" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Show Zones</button>
+          <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
           <button class="tool-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial</button>
           <button class="tool-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain</button>
           <button class="tool-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastral</button>
@@ -425,7 +426,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <span id="legendError" style="color:#c0392b;font-size:10px;display:none;"></span>
           </span>
           <button class="tool-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;font-size:11px;color:#666;padding:3px 8px;">Reset overrides</button>
-          <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
           <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Major urban areas</button>
         </div>
         <!-- Status row -->
@@ -10083,6 +10083,9 @@ initCollapse();
           if (statusEl && rec) setStatusText(statusEl, '\u25CF ' + cfg.label + ': placed (place source to get distance)');
         }
       });
+
+      // Clear and redraw ray lines so they always reflect current pin positions
+      if (typeof window._updateRayLines === 'function') window._updateRayLines();
     }
 
     /* ---- place or move a marker ---- */
