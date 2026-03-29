@@ -3190,7 +3190,7 @@ var sourcePins = [{
   id: _newPinId(),
   name: 'Source 1',
   lat: null, lng: null,
-  lw: { day: 85, eve: 85, night: 85 },
+  lw: { day: null, eve: null, night: null },
   lw_max: null,
   spectrum: { day: null, eve: null, night: null },
   spectrum_max: null,
@@ -4384,7 +4384,7 @@ function srcPanelPeriodHTML(pin, period) {
 /** Build HTML for one always-visible period section */
 function srcPanelPeriodSectionHTML(pin, period, periodLabel) {
   var SFP_FREQS = ['63', '125', '250', '500', '1k', '2k', '4k', '8k'];
-  var lwVal = pin.lw[period] !== undefined ? pin.lw[period] : 85;
+  var lwVal = (pin.lw && pin.lw[period] !== undefined && pin.lw[period] !== null) ? pin.lw[period] : '';
   var spectrum = pin.spectrum[period] || {};
   var active = !pin.activeInPeriod || pin.activeInPeriod[period] !== false;
   var diffMark = srcPanelPeriodDiffersFromDay(pin, period) ? ' <span class="sfp-td-' + period + '" style="color:#c0392b;font-size:10px;">&#9679;</span>' : '';
@@ -4453,8 +4453,13 @@ function srcPanelLmaxSectionHTML(pin) {
     '<div class="sfp-lmax-content" style="' + (!activeLmax ? 'opacity:0.5;pointer-events:none;' : '') + '">' +
       '<div style="margin-bottom:6px;">' +
         '<label style="font-size:11px;display:block;margin-bottom:2px;">Lmax library:</label>' +
-        '<input class="sfp-lmax-lib-search" type="text" placeholder="Search Lmax library\u2026" autocomplete="off" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px 4px 0 0;padding:4px 8px;font-size:11px;border-bottom:none;">' +
-        '<select class="sfp-lmax-lib-sel" style="width:100%;box-sizing:border-box;font-size:11px;border:1px solid #ddd;border-radius:0 0 4px 4px;padding:2px 4px;height:60px;">' + lmaxLibOpts + '</select>' +
+        '<div style="position:relative;">' +
+          '<input class="sfp-lmax-lib-combo" type="text" placeholder="Search Lmax library\u2026" autocomplete="off" ' +
+            'style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px;padding:4px 8px;font-size:11px;">' +
+          '<div class="sfp-lmax-lib-dropdown" style="position:absolute;bottom:calc(100% + 2px);left:0;right:0;max-height:132px;overflow-y:auto;' +
+            'background:#fff;border:1px solid #ddd;border-radius:4px;z-index:200;display:none;' +
+            'box-shadow:0 -4px 8px rgba(0,0,0,0.1);"></div>' +
+        '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
         '<label style="font-size:11px;white-space:nowrap;">Lw,max (dB):</label>' +
@@ -4498,28 +4503,30 @@ function buildSrcPanelHTML(pin, pinIdx) {
       libOpts += '</optgroup>';
     });
   }
-  return '<div class="sfp-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:10px 14px 0;">' +
+  return '<div class="sfp-header" style="display:flex;justify-content:space-between;align-items:center;flex-shrink:0;padding:10px 14px 8px;border-bottom:1px solid #f0f0f0;">' +
     '<input class="sfp-name" type="text" value="' + escapeHTML(pin.name || '') + '" style="font-weight:700;font-size:13px;border:none;border-bottom:1px solid #ccc;width:160px;">' +
     '<span style="font-size:10px;color:#666;margin-left:8px;">' + coordStr + '</span>' +
     '<button id="sfp-close-x" style="background:none;border:none;font-size:18px;color:#bbb;cursor:pointer;padding:0 4px;line-height:1;" title="Close">\u00d7</button>' +
   '</div>' +
-  '<div style="margin-bottom:8px;padding:0 14px;">' +
+  '<div style="padding:6px 14px 4px;flex-shrink:0;position:relative;">' +
     '<label style="font-size:11px;display:block;margin-bottom:2px;">Source library:</label>' +
-    '<input id="sfp-lib-search" type="text" placeholder="Search library\u2026" autocomplete="off" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px 4px 0 0;padding:5px 8px;font-size:12px;border-bottom:none;">' +
-    '<select id="sfp-lib-sel" style="width:100%;box-sizing:border-box;font-size:12px;border:1px solid #ddd;border-radius:0 0 4px 4px;padding:3px 4px;height:72px;">' + libOpts + '</select>' +
+    '<input id="sfp-lib-combo" type="text" placeholder="Search library\u2026" autocomplete="off" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;">' +
+    '<div id="sfp-lib-dropdown" style="position:absolute;top:100%;left:14px;right:14px;max-height:132px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-top:none;border-radius:0 0 4px 4px;z-index:200;display:none;box-shadow:0 4px 8px rgba(0,0,0,0.1);"></div>' +
   '</div>' +
-  '<div style="padding:0 14px;">' +
-    srcPanelPeriodSectionHTML(pin, 'day', 'Day') +
-    srcPanelPeriodSectionHTML(pin, 'eve', 'Evening') +
-    srcPanelPeriodSectionHTML(pin, 'night', 'Night') +
-    srcPanelLmaxSectionHTML(pin) +
+  '<div class="sfp-body" style="flex:1;overflow-y:auto;min-height:0;">' +
+    '<div style="padding:0 14px;">' +
+      srcPanelPeriodSectionHTML(pin, 'day', 'Day') +
+      srcPanelPeriodSectionHTML(pin, 'eve', 'Evening') +
+      srcPanelPeriodSectionHTML(pin, 'night', 'Night') +
+      srcPanelLmaxSectionHTML(pin) +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:4px;padding:0 14px;">' +
+      '<label style="font-size:11px;white-space:nowrap;">Ht (m): <input type="number" class="sfp-height" value="' + (pin.height_m || 1.5) + '" style="width:52px;text-align:center;font-size:12px;"></label>' +
+      '<label style="font-size:11px;white-space:nowrap;">Op time (min): <input type="number" class="sfp-optime" value="' + (pin.operationalTime_min || 15) + '" style="width:52px;text-align:center;font-size:12px;"></label>' +
+    '</div>' +
+    '<div class="sfp-bldg-info" style="font-size:11px;color:#6b7280;padding:2px 14px 8px;min-height:16px;">' + bldgInfoHTML + '</div>' +
   '</div>' +
-  '<div style="display:flex;gap:8px;margin-bottom:4px;padding:0 14px;">' +
-    '<label style="font-size:11px;white-space:nowrap;">Ht (m): <input type="number" class="sfp-height" value="' + (pin.height_m || 1.5) + '" style="width:52px;text-align:center;font-size:12px;"></label>' +
-    '<label style="font-size:11px;white-space:nowrap;">Op time (min): <input type="number" class="sfp-optime" value="' + (pin.operationalTime_min || 15) + '" style="width:52px;text-align:center;font-size:12px;"></label>' +
-  '</div>' +
-  '<div class="sfp-bldg-info" style="font-size:11px;color:#6b7280;padding:2px 14px 8px;min-height:16px;">' + bldgInfoHTML + '</div>' +
-  '<div class="sfp-footer" style="display:flex;justify-content:space-between;padding:8px 14px 14px;">' +
+  '<div class="sfp-footer" style="display:flex;justify-content:space-between;padding:8px 14px 14px;flex-shrink:0;border-top:1px solid #f0f0f0;">' +
     '<button id="sfp-delete" style="background:#c0392b;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px;"' + (sourcePins.length <= 1 ? ' disabled' : '') + '>Delete</button>' +
     '<button id="sfp-close-btn" style="background:#7f8c8d;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px;">Close</button>' +
   '</div>';
@@ -4599,35 +4606,11 @@ function attachSrcPanelListeners(pin, pinIdx) {
     attachSrcPeriodListeners(pin, pinIdx, period, panel);
   });
 
-  // Lmax library search + select
-  var lmaxLibSearch = panel.querySelector('.sfp-lmax-lib-search');
-  var lmaxLibSel = panel.querySelector('.sfp-lmax-lib-sel');
-  if (lmaxLibSearch && lmaxLibSel) {
-    lmaxLibSearch.addEventListener('input', function() {
-      var query = this.value.toLowerCase().trim();
-      lmaxLibSel.querySelectorAll('optgroup').forEach(function(og) {
-        var grpVisible = false;
-        og.querySelectorAll('option').forEach(function(o) {
-          var match = !query || o.textContent.toLowerCase().indexOf(query) !== -1;
-          o.style.display = match ? '' : 'none';
-          if (match) grpVisible = true;
-        });
-        og.style.display = grpVisible ? '' : 'none';
-      });
-    });
-    lmaxLibSel.addEventListener('change', function() {
-      var name = this.value;
-      if (!name) return;
-      var entry = null;
-      if (typeof SOURCE_LIBRARY_GROUPED_LMAX !== 'undefined') {
-        Object.keys(SOURCE_LIBRARY_GROUPED_LMAX).some(function(grp) {
-          var arr = SOURCE_LIBRARY_GROUPED_LMAX[grp] || [];
-          for (var ei = 0; ei < arr.length; ei++) {
-            if (arr[ei].name === name) { entry = arr[ei]; return true; }
-          }
-        });
-      }
-      if (!entry) return;
+  // Lmax library combo autocomplete
+  var lmaxLibCombo = panel.querySelector('.sfp-lmax-lib-combo');
+  var lmaxLibDrop = panel.querySelector('.sfp-lmax-lib-dropdown');
+  if (lmaxLibCombo && lmaxLibDrop) {
+    function _applyLmaxEntry(entry) {
       if (Number.isFinite(entry.lw)) {
         pin.lw_max = entry.lw;
         var lwLmaxInpA = panel.querySelector('.sfp-lw-lmax');
@@ -4640,8 +4623,45 @@ function attachSrcPanelListeners(pin, pinIdx) {
           inp.value = (pin.spectrum_max && idx >= 0 && Number.isFinite(pin.spectrum_max[idx])) ? pin.spectrum_max[idx] : '';
         });
       }
-      this.value = ''; // Reset select after applying
       if (typeof window.updateAll === 'function') window.updateAll();
+    }
+    function _buildLmaxDropdown(q) {
+      lmaxLibDrop.innerHTML = '';
+      if (!q) { lmaxLibDrop.style.display = 'none'; return; }
+      var matches = [];
+      if (typeof SOURCE_LIBRARY_GROUPED_LMAX !== 'undefined') {
+        Object.keys(SOURCE_LIBRARY_GROUPED_LMAX).forEach(function(grp) {
+          (SOURCE_LIBRARY_GROUPED_LMAX[grp] || []).forEach(function(s) {
+            if (s.name.toLowerCase().indexOf(q) !== -1) matches.push(s);
+          });
+        });
+      }
+      matches = matches.slice(0, 20);
+      if (!matches.length) { lmaxLibDrop.style.display = 'none'; return; }
+      matches.forEach(function(s) {
+        var item = document.createElement('div');
+        item.textContent = s.name;
+        item.style.cssText = 'padding:5px 8px;font-size:11px;cursor:pointer;border-bottom:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        item.addEventListener('mouseenter', function() { this.style.background = '#f0f7ff'; });
+        item.addEventListener('mouseleave', function() { this.style.background = ''; });
+        item.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          lmaxLibCombo.value = '';
+          lmaxLibDrop.style.display = 'none';
+          _applyLmaxEntry(s);
+        });
+        lmaxLibDrop.appendChild(item);
+      });
+      lmaxLibDrop.style.display = 'block';
+    }
+    lmaxLibCombo.addEventListener('input', function() {
+      _buildLmaxDropdown(this.value.toLowerCase().trim());
+    });
+    lmaxLibCombo.addEventListener('blur', function() {
+      setTimeout(function() { lmaxLibDrop.style.display = 'none'; }, 150);
+    });
+    lmaxLibCombo.addEventListener('focus', function() {
+      if (this.value.trim()) _buildLmaxDropdown(this.value.toLowerCase().trim());
     });
   }
 
@@ -4681,34 +4701,11 @@ function attachSrcPanelListeners(pin, pinIdx) {
     });
   }
 
-  // Library search/select
-  var libSearch = panel.querySelector('#sfp-lib-search');
-  var libSel = panel.querySelector('#sfp-lib-sel');
-  if (libSearch && libSel) {
-    libSearch.addEventListener('input', function() {
-      var q = this.value.toLowerCase().trim();
-      libSel.innerHTML = '<option value="">\u2014 Select from library\u2026 \u2014</option>';
-      if (typeof SOURCE_LIBRARY_GROUPED_NON_LMAX !== 'undefined') {
-        Object.keys(SOURCE_LIBRARY_GROUPED_NON_LMAX).forEach(function(grp) {
-          var items = (SOURCE_LIBRARY_GROUPED_NON_LMAX[grp] || []).filter(function(s) {
-            return !q || s.name.toLowerCase().indexOf(q) !== -1;
-          });
-          if (!items.length) return;
-          var og = document.createElement('optgroup');
-          og.label = grp;
-          items.forEach(function(s) {
-            var o = document.createElement('option'); o.value = s.name; o.textContent = s.name; og.appendChild(o);
-          });
-          libSel.appendChild(og);
-        });
-      }
-    });
-    libSel.addEventListener('change', function() {
-      var name = this.value; if (!name) return;
-      var libFlat = typeof SOURCE_LIBRARY !== 'undefined' ? SOURCE_LIBRARY : [];
-      var entry = null;
-      for (var i = 0; i < libFlat.length; i++) { if (libFlat[i].name === name) { entry = libFlat[i]; break; } }
-      if (!entry) { this.value = ''; return; }
+  // Library combo autocomplete
+  var libCombo = panel.querySelector('#sfp-lib-combo');
+  var libDrop = panel.querySelector('#sfp-lib-dropdown');
+  if (libCombo && libDrop) {
+    function _applyLeqEntry(entry) {
       pin.name = entry.name;
       if (Number.isFinite(entry.height)) pin.height_m = entry.height;
       if (!pin.lw) pin.lw = {};
@@ -4721,9 +4718,8 @@ function attachSrcPanelListeners(pin, pinIdx) {
       if (!pin._userEdited.night) { pin.lw.night  = lwVal; pin.spectrum.night = spec ? spec.slice() : null; }
       var ni = panel.querySelector('.sfp-name'); if (ni) ni.value = pin.name;
       var hi = panel.querySelector('.sfp-height'); if (hi) hi.value = pin.height_m;
-      // Refresh period sections
       ['day', 'eve', 'night'].forEach(function(p) {
-        var lwEl = panel.querySelector('.sfp-lw-' + p); if (lwEl) lwEl.value = pin.lw[p] !== undefined ? pin.lw[p] : '';
+        var lwEl2 = panel.querySelector('.sfp-lw-' + p); if (lwEl2) lwEl2.value = pin.lw[p] !== null && pin.lw[p] !== undefined ? pin.lw[p] : '';
         panel.querySelectorAll('.sfp-band-' + p).forEach(function(inp) {
           var freq = inp.dataset.freq;
           var idx = ['63','125','250','500','1k','2k','4k','8k'].indexOf(freq);
@@ -4731,9 +4727,39 @@ function attachSrcPanelListeners(pin, pinIdx) {
         });
       });
       if (typeof window._setSrcMarkerTitle === 'function') window._setSrcMarkerTitle(pinIdx, 'S' + (pinIdx + 1) + ' \u2014 ' + pin.name);
-      this.value = '';
       updateSrcPanelPeriodDots(pin, panel);
       if (typeof window.updateAll === 'function') window.updateAll();
+    }
+    function _buildLeqDropdown(q) {
+      libDrop.innerHTML = '';
+      if (!q) { libDrop.style.display = 'none'; return; }
+      var libFlat = typeof SOURCE_LIBRARY !== 'undefined' ? SOURCE_LIBRARY : [];
+      var matches = libFlat.filter(function(s) { return s.name.toLowerCase().indexOf(q) !== -1; }).slice(0, 20);
+      if (!matches.length) { libDrop.style.display = 'none'; return; }
+      matches.forEach(function(s) {
+        var item = document.createElement('div');
+        item.textContent = s.name;
+        item.style.cssText = 'padding:5px 8px;font-size:12px;cursor:pointer;border-bottom:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        item.addEventListener('mouseenter', function() { this.style.background = '#f0f7ff'; });
+        item.addEventListener('mouseleave', function() { this.style.background = ''; });
+        item.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          libCombo.value = '';
+          libDrop.style.display = 'none';
+          _applyLeqEntry(s);
+        });
+        libDrop.appendChild(item);
+      });
+      libDrop.style.display = 'block';
+    }
+    libCombo.addEventListener('input', function() {
+      _buildLeqDropdown(this.value.toLowerCase().trim());
+    });
+    libCombo.addEventListener('blur', function() {
+      setTimeout(function() { libDrop.style.display = 'none'; }, 150);
+    });
+    libCombo.addEventListener('focus', function() {
+      if (this.value.trim()) _buildLeqDropdown(this.value.toLowerCase().trim());
     });
   }
 
@@ -4773,17 +4799,17 @@ function attachSrcPeriodListeners(pin, pinIdx, period, panel) {
   if (lwEl) {
     lwEl.addEventListener('change', function() {
       var val = parseFloat(this.value);
-      if (isNaN(val)) return;
+      var newLw = (this.value.trim() === '' || isNaN(val)) ? null : val;
       if (!pin.lw) pin.lw = {};
-      pin.lw[period] = val;
+      pin.lw[period] = newLw;
       // If day changed and eve/night not user-edited, auto-copy
       if (period === 'day') {
         if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
         ['eve', 'night'].forEach(function(p) {
           if (!pin._userEdited[p]) {
-            pin.lw[p] = val;
+            pin.lw[p] = newLw;
             var otherEl = panel.querySelector('.sfp-lw-' + p);
-            if (otherEl) otherEl.value = val;
+            if (otherEl) otherEl.value = newLw !== null ? newLw : '';
           }
         });
       } else {
@@ -4856,7 +4882,7 @@ function openSrcPanel(pinIdx, clientX, clientY) {
   if (!pin.activeInPeriod.hasOwnProperty('lmax')) pin.activeInPeriod.lmax = false;
   var panel = document.createElement('div');
   panel.id = 'srcFloatPanel';
-  panel.style.cssText = 'position:fixed;width:340px;max-height:85vh;overflow-y:auto;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;';
+  panel.style.cssText = 'position:fixed;width:340px;max-height:calc(100vh - 80px);overflow:visible;display:flex;flex-direction:column;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;';
   panel.innerHTML = buildSrcPanelHTML(pin, pinIdx);
   document.body.appendChild(panel);
   _srcPanel = panel;
@@ -4865,8 +4891,8 @@ function openSrcPanel(pinIdx, clientX, clientY) {
   var top  = _sfp_lastClientY - 40;
   if (left + W + 10 > vw) left = _sfp_lastClientX - W - 10;
   if (left < 10) left = 10;
-  var approxH = Math.min(600, vh * 0.8);
-  if (top + approxH + 10 > vh) top = vh - approxH - 10;
+  var actualH = panel.offsetHeight || Math.min(600, vh * 0.8);
+  if (top + actualH + 10 > vh) top = Math.max(10, vh - actualH - 10);
   if (top < 10) top = 10;
   panel.style.left = left + 'px';
   panel.style.top  = top  + 'px';
@@ -4900,7 +4926,7 @@ document.addEventListener('DOMContentLoaded', function() {
         id: _newPinId(),
         name: 'Source ' + (sourcePins.length + 1),
         lat: null, lng: null,
-        lw: { day: 85, eve: 85, night: 85 },
+        lw: { day: null, eve: null, night: null },
         lw_max: null,
         spectrum: { day: null, eve: null, night: null },
         spectrum_max: null,
@@ -11361,7 +11387,7 @@ initCollapse();
         id: _newPinId(),
         name: 'Source ' + (idx + 1),
         lat: null, lng: null,
-        lw: { day: 85, eve: 85, night: 85 },
+        lw: { day: null, eve: null, night: null },
         lw_max: null,
         spectrum: { day: null, eve: null, night: null },
         spectrum_max: null,
