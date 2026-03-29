@@ -4521,7 +4521,7 @@ function buildSrcPanelHTML(pin, pinIdx) {
       srcPanelLmaxSectionHTML(pin) +
     '</div>' +
     '<div style="display:flex;gap:8px;margin-bottom:4px;padding:0 14px;">' +
-      '<label style="font-size:11px;white-space:nowrap;">Ht (m): <input type="number" class="sfp-height" value="' + (pin.height_m || 1.5) + '" style="width:52px;text-align:center;font-size:12px;"></label>' +
+      '<label style="font-size:11px;white-space:nowrap;">Ht (m): <input type="number" class="sfp-height" value="' + (pin.height_m || 1.5) + '" min="0" step="0.1" style="width:52px;text-align:center;font-size:12px;"></label>' +
       '<label style="font-size:11px;white-space:nowrap;">Op time (min): <input type="number" class="sfp-optime" value="' + (pin.operationalTime_min || 15) + '" style="width:52px;text-align:center;font-size:12px;"></label>' +
     '</div>' +
     '<div class="sfp-bldg-info" style="font-size:11px;color:#6b7280;padding:2px 14px 8px;min-height:16px;">' + bldgInfoHTML + '</div>' +
@@ -4627,7 +4627,6 @@ function attachSrcPanelListeners(pin, pinIdx) {
     }
     function _buildLmaxDropdown(q) {
       lmaxLibDrop.innerHTML = '';
-      if (!q) { lmaxLibDrop.style.display = 'none'; return; }
       var matches = [];
       if (typeof SOURCE_LIBRARY_GROUPED_LMAX !== 'undefined') {
         Object.keys(SOURCE_LIBRARY_GROUPED_LMAX).forEach(function(grp) {
@@ -4661,7 +4660,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
       setTimeout(function() { lmaxLibDrop.style.display = 'none'; }, 150);
     });
     lmaxLibCombo.addEventListener('focus', function() {
-      if (this.value.trim()) _buildLmaxDropdown(this.value.toLowerCase().trim());
+      _buildLmaxDropdown(this.value.toLowerCase().trim());
     });
   }
 
@@ -4732,7 +4731,6 @@ function attachSrcPanelListeners(pin, pinIdx) {
     }
     function _buildLeqDropdown(q) {
       libDrop.innerHTML = '';
-      if (!q) { libDrop.style.display = 'none'; return; }
       var libFlat = typeof SOURCE_LIBRARY !== 'undefined' ? SOURCE_LIBRARY : [];
       var matches = libFlat.filter(function(s) { return s.name.toLowerCase().indexOf(q) !== -1; }).slice(0, 20);
       if (!matches.length) { libDrop.style.display = 'none'; return; }
@@ -4759,7 +4757,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
       setTimeout(function() { libDrop.style.display = 'none'; }, 150);
     });
     libCombo.addEventListener('focus', function() {
-      if (this.value.trim()) _buildLeqDropdown(this.value.toLowerCase().trim());
+      _buildLeqDropdown(this.value.toLowerCase().trim());
     });
   }
 
