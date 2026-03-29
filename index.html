@@ -144,6 +144,21 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .contrib-sub-h { font-size:12px; font-weight:700; margin:0 0 6px; }
 .contrib-section + .contrib-section { margin-top:16px; }
 
+/* ===== Per-period results table labels ===== */
+.pred-period-lbl {
+  font-size: 12px; font-weight: 700;
+  background: rgba(242,203,0,0.18);
+  border-left: 3px solid rgba(242,203,0,1);
+  padding: 3px 8px; margin: 0;
+  border-radius: 3px 3px 0 0;
+}
+.pred-period-lbl + table { margin-top: 0; border-radius: 0 0 6px 6px; }
+
+/* ===== Source contribution table ===== */
+.contrib-recv-hdr td { background: #f3f4f6; font-size: 12px; font-weight: 700; padding: 5px 8px; border-top: 2px solid var(--border); }
+.contrib-recv-hdr:first-child td { border-top: none; }
+.contrib-total-row td { border-top: 1px solid var(--border); padding: 4px 8px; }
+
 /* ===== Unified toggle button styles ===== */
 /* All toolbar toggles share the same base, hover, and active states */
 .tool-btn:hover { background: #f0f5fa; }
@@ -315,6 +330,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 .state-badge-sa { background:#dbeafe; color:#1e40af; }
 .state-badge-vic { background:#fce7f3; color:#9d174d; }
 .state-badge-other { background:#fef3c7; color:#92400e; }
+
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" crossorigin="anonymous"/>
@@ -381,22 +397,26 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
           <button class="tool-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
           <button class="tool-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4</button>
-          <button class="tool-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Add Source</button>
-          <button class="tool-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide location pins on map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Pins</button>
+          <button class="tool-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide receiver pins on map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receivers</button>
           <button class="tool-btn parcel-toggle-btn active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Boundary</button>
           <span style="flex:1;"></span>
           <button class="tool-btn map-mode-btn" id="mapClearBtn" title="Remove all markers and clear distances"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg> Clear All</button>
         </div>
-        <!-- Row 2: Overlays -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
+        <!-- Row 2: Period + map overlays -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;align-items:center;">
           <button class="tool-btn zone-toggle-btn" id="zoneToggleBtn" title="Toggle zoning overlay on map" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Show Zones</button>
           <button class="tool-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 Screening</button>
           <button class="tool-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial</button>
-          <button class="tool-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain</button>
           <button class="tool-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastral</button>
+          <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Major urban areas</button>
+        </div>
+        <!-- Row 3: Terrain / Buildings / Draw tools / Add source / Noise map -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
+          <button class="tool-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain</button>
           <button class="tool-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
           <button class="tool-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 5v14M5 12h14"/></svg> Draw Building</button>
           <button class="tool-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h4l4-8 4 4h6"/></svg> Draw Barrier</button>
+          <button class="tool-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Add Point Source</button>
           <button class="tool-btn" id="noiseMapBtn" title="Compute and display noise contour map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map</button>
           <span id="noiseMapControls" style="display:none;font-size:11px;align-items:center;gap:4px;flex-wrap:nowrap;white-space:nowrap;">
             <button class="tool-btn active" data-nmperiod="day" style="font-size:10px;padding:2px 6px;">Day</button>
@@ -427,9 +447,15 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <input type="number" id="legendInterval" value="5" min="1" max="20" step="1" style="width:30px;font-size:11px;padding:1px 2px;text-align:center;" title="Contour interval dB">
             <span id="legendError" style="color:#c0392b;font-size:10px;display:none;"></span>
           </span>
+          <span id="noiseMapLmaxNote" style="display:none;font-size:10px;color:#4b6e9e;flex-basis:100%;margin-top:2px;">&#x2139; Simple propagation &mdash; no ground, atmospheric, or terrain corrections applied</span>
+          <div id="noiseMapLmaxMethodRow" style="display:none;font-size:11px;flex-basis:100%;margin-top:4px;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="color:#555;font-weight:600;">L<sub>Amax</sub> method:</span>
+            <label style="cursor:pointer;display:flex;align-items:center;gap:2px;"><input type="radio" name="lmaxMethod" value="simple" checked style="margin:0 2px 0 0;"> Simple</label>
+            <label style="cursor:pointer;display:flex;align-items:center;gap:2px;"><input type="radio" name="lmaxMethod" value="iso9613_g0" style="margin:0 2px 0 0;"> ISO 9613-2 G=0</label>
+            <label style="cursor:pointer;display:flex;align-items:center;gap:2px;"><input type="radio" name="lmaxMethod" value="iso9613_g_sel" style="margin:0 2px 0 0;"> ISO 9613-2 selected G</label>
+          </div>
           <span id="noiseMapGridWarning" style="display:none;font-size:10px;flex-basis:100%;margin-top:2px;"></span>
           <button class="tool-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;font-size:11px;color:#666;padding:3px 8px;">Reset overrides</button>
-          <button class="tool-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Major urban areas</button>
         </div>
         <!-- Status row -->
         <div class="map-status-row">
@@ -635,7 +661,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <tr>
             <td><b>Subject site</b></td>
             <td class="num"></td>
-            <td class="zone-col"><select id="src"></select></td>
+            <td class="zone-col"><select id="src"></select><div id="src-zone-autodetect" style="display:none;font-size:10px;color:#6b7280;font-style:italic;margin-top:2px;line-height:1.3;">Auto-detected from source location</div></td>
             <td id="src_viczone" class="vic-only vic-zone-col"></td>
             <td id="src_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"></td>
@@ -972,7 +998,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     </div>
 
     <!-- ═══ Source pins panel (Chunk A: replaces equipment-table model) ═══ -->
-    <div class="grid2 grid-full" style="padding-top:0;" id="sourcePanel">
+    <div class="grid2 grid-full" style="padding-top:0;display:none;" id="sourcePanel">
       <div class="card">
         <h2>Noise sources</h2>
         <div id="sourcePinCards" style="display:flex;flex-direction:column;gap:0;"></div>
@@ -1061,19 +1087,10 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="grid2" style="padding-top:0;">
       <div class="card span2">
         <h2>Source contribution</h2>
-        <div class="p">Predicted sound pressure level at each receiver from individual sources, based on a point-source propagation model (−20 log<sub>10</sub> distance − 8 dB). Levels shown include any quantity and operational time adjustments applied in the source tables above.</div>
-        <div class="contrib-section">
-          <div class="contrib-sub-h">Day L<sub>Aeq</sub> contributions at receivers (dB)</div>
-          <div class="table-scroll"><table id="contribDayTable"></table></div>
-        </div>
-        <div class="contrib-section vic-only">
-          <div class="contrib-sub-h">Evening L<sub>Aeq</sub> contributions at receivers (dB)</div>
-          <div class="table-scroll"><table id="contribEveTable"></table></div>
-        </div>
-        <div class="contrib-section">
-          <div class="contrib-sub-h">Night L<sub>Aeq</sub> contributions at receivers (dB)</div>
-          <div class="table-scroll"><table id="contribNightTable"></table></div>
-        </div>
+        <div class="p">Predicted sound pressure level at each receiver from individual sources, using the selected propagation method. Levels include ground effect, atmospheric absorption, and terrain screening where applicable.</div>
+        <div id="contribPeriodBar" class="contrib-sub-h" style="margin-bottom:6px;"></div>
+        <div class="table-scroll"><table id="contribTable" style="width:100%;"></table></div>
+        <div id="contribLmaxSection" style="display:none;margin-top:14px;"></div>
       </div>
     </div>
 
@@ -1124,10 +1141,18 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       <div class="card span2">
         <h2>Predicted noise levels</h2>
       <div class="table-scroll">
-    <table id="predTable">
-      <thead id="predTableHead"></thead>
-      <tbody id="rows"></tbody>
-    </table>
+    <!-- Day Leq results -->
+    <div class="pred-period-lbl">Day L<sub>eq</sub></div>
+    <table id="predTableDay" style="width:100%;"><thead id="predTableDayHead"></thead><tbody id="rowsDay"></tbody></table>
+    <!-- Evening Leq results (VIC / NSW / OTHER only) -->
+    <div class="pred-period-lbl vic-only" style="margin-top:14px;">Evening L<sub>eq</sub></div>
+    <table id="predTableEve" class="vic-only" style="width:100%;"><thead id="predTableEveHead"></thead><tbody id="rowsEve"></tbody></table>
+    <!-- Night Leq results -->
+    <div class="pred-period-lbl" style="margin-top:14px;">Night L<sub>eq</sub></div>
+    <table id="predTableNight" style="width:100%;"><thead id="predTableNightHead"></thead><tbody id="rowsNight"></tbody></table>
+    <!-- Night Lmax results (hidden when no lmax criteria) -->
+    <div id="predLmaxLabel" class="pred-period-lbl" style="margin-top:14px;display:none;">Night L<sub>max</sub></div>
+    <table id="predTableLmax" style="width:100%;display:none;"><thead id="predTableLmaxHead"></thead><tbody id="rowsLmax"></tbody></table>
 
     <!-- Per-band calculation breakdown panel (ISO 17534-1 §5.2.2) -->
     <div id="isoBreakdownPanel" style="display:none;border-top:2px solid #3498db;margin-top:8px;padding:10px 0;">
@@ -2972,13 +2997,16 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   if (!Number.isFinite(distM) || distM <= 0) return NaN;
   var pin = sourcePins[si];
   if (!pin || pin.lat === null) return NaN;
+  // Respect activeInPeriod flag
+  var checkPeriod = (prefix === 'day') ? 'day' : (prefix === 'eve' ? 'eve' : 'night');
+  if (pin.activeInPeriod && pin.activeInPeriod[checkPeriod] === false) return NaN;
   var lwVal = pin.lw ? pin.lw[prefix] : null;
   if (!Number.isFinite(lwVal)) return NaN;
 
   var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
   var adjDB = opAdj;
 
-  var srcHeight = pin.height_m || 1.5;
+  var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
   var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
 
   // Barrier delta for this source-receiver pair
@@ -3010,8 +3038,19 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
     spectrumA.some(function(v) { return v !== null && Number.isFinite(v) && v !== 0; });
 
   if (hasSpectrum) {
-    // Full octave-band ISO 9613-2 using stored A-weighted spectrum
-    return calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
+    // Normalise spectrum to match the entered broadband Lw for this period.
+    // specAdj = lwVal - energySum(spectrum):
+    //   = 0   when spectrum already sums to lwVal (no change to existing results)
+    //   < 0   when lw[period] < energySum(spectrum), e.g. lw.night=75 with the
+    //          same spectral shape as lw.day=85 — correctly reduces night by 10 dB
+    // Same normalisation approach as calcTotalISO9613Lmax.
+    var specEnergyLin = 0;
+    for (var b = 0; b < spectrumA.length; b++) {
+      if (Number.isFinite(spectrumA[b])) specEnergyLin += Math.pow(10, spectrumA[b] / 10);
+    }
+    var specAdj = (specEnergyLin > 0) ? (lwVal - 10 * log10(specEnergyLin)) : 0;
+    // Full octave-band ISO 9613-2 using normalised A-weighted spectrum
+    return calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
   } else {
     // No spectrum: simple point source propagation with opTime weighting
     var lwW = lwVal + adjDB;
@@ -3050,6 +3089,90 @@ function calcTotalISO9613(prefix, receiverIdx) {
   return Math.round(10 * log10(totalLin));
 }
 
+/** ISO 9613-2 Lmax prediction from all sourcePins at a receiver.
+ *  Uses lw_max and spectrum_max (with spectrum used as shape when available).
+ *  groundFactor can be overridden (for G=0 mode).
+ * @param {number} receiverIdx - 0-based receiver index
+ * @param {number} [groundFactorOverride] - overrides iso_groundFactor when provided
+ * @returns {number|string} predicted LAmax (rounded) or "" if invalid */
+function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
+  var totalLin = 0;
+  var anySrc = false;
+  var gf = (groundFactorOverride !== undefined && Number.isFinite(groundFactorOverride))
+    ? groundFactorOverride : iso_groundFactor;
+
+  sourcePins.forEach(function(pin, si) {
+    if (pin.lat === null) return;
+    if (!pin.activeInPeriod || pin.activeInPeriod.lmax !== true) return;
+    var d = getDistanceForSourceReceiver(si, receiverIdx);
+    if (!Number.isFinite(d) || d <= 0) return;
+
+    var lwMax = Number.isFinite(pin.lw_max) ? pin.lw_max : null;
+    if (!Number.isFinite(lwMax)) return;
+
+    var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
+    var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
+
+    // Barrier delta for this source-receiver pair
+    var barrierDelta = 0, endDeltaL = 0, endDeltaR = 0;
+    if (window._geometry && window._buildings && window._buildings.length > 0) {
+      var srcLL = { lat: pin.lat, lng: pin.lng };
+      var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+      var recLL = allLL['r' + (receiverIdx + 1)];
+      if (recLL) {
+        var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : window._buildings;
+        var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeight, recHeight, screenable);
+        if (barrier) {
+          barrierDelta = barrier.pathLengthDiff;
+          endDeltaL = barrier.endDeltaLeft || 0;
+          endDeltaR = barrier.endDeltaRight || 0;
+        }
+      }
+    }
+
+    // Per-band terrain IL
+    var terrainPerBand = null;
+    if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][receiverIdx]) {
+      var til = _terrainIL[si][receiverIdx];
+      if (til.perBand && til.insertionLoss_dB > 0) terrainPerBand = til.perBand;
+    }
+
+    var isoParamsLmax = {
+      receiverHeight: recHeight,
+      groundFactor: gf,
+      temperature: iso_temperature,
+      humidity: iso_humidity
+    };
+
+    var spectrumMax = Array.isArray(pin.spectrum_max) ? pin.spectrum_max : null;
+    var hasSpectrum = spectrumMax && spectrumMax.some(function(v) {
+      return v !== null && Number.isFinite(v) && v !== 0;
+    });
+
+    var lp;
+    if (hasSpectrum) {
+      // Normalize spectrum to match lw_max total level
+      var specAdj = lwMax - SharedCalc.energySum(spectrumMax);
+      lp = SharedCalc.calcISOatPoint(spectrumMax, srcHeight, d, specAdj,
+        barrierDelta, recHeight, isoParamsLmax, endDeltaL, endDeltaR, terrainPerBand);
+    } else {
+      // No spectrum: flat A-weighted spectrum, energy sum = lwMax
+      var flatSpec = [];
+      for (var b = 0; b < 8; b++) flatSpec.push(lwMax - 9.03);
+      lp = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, 0,
+        barrierDelta, recHeight, isoParamsLmax, endDeltaL, endDeltaR, terrainPerBand);
+    }
+
+    if (Number.isFinite(lp)) {
+      totalLin += Math.pow(10, lp / 10);
+      anySrc = true;
+    }
+  });
+
+  if (!anySrc) return "";
+  return Math.round(10 * log10(totalLin));
+}
+
 // --- Multi-source state ---
 const SOURCE_COLOURS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c'];
 
@@ -3057,6 +3180,8 @@ const SOURCE_COLOURS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc
 function _newPinId() {
   return 'src-' + Math.random().toString(36).slice(2, 6);
 }
+
+var _globalPeriod = 'day'; // 'day' | 'eve' | 'night'
 
 /** sourcePins[] — each entry is one discrete noise source.
  *  spectrum.day/eve/night: A-weighted per-band Lw [63,125,250,500,1k,2k,4k,8k] or null.
@@ -3066,16 +3191,86 @@ var sourcePins = [{
   name: 'Source 1',
   lat: null, lng: null,
   lw: { day: 85, eve: 85, night: 85 },
+  lw_max: null,
   spectrum: { day: null, eve: null, night: null },
+  spectrum_max: null,
   height_m: 1.5,
   buildingHeight_m: 0,
   groundElevation_m: null,
-  operationalTime_min: 15
+  operationalTime_min: 15,
+  activeInPeriod: { day: true, eve: true, night: true, lmax: false }
 }];
 // TODO Chunk F: remove this alias once save/load is updated to use sourcePins
 var sources = sourcePins;
 /** ID/key prefix for source-scoped elements. Kept as stub for legacy DOM references. */
 function srcPrefix(sourceIdx) { return 's' + sourceIdx + '_'; }
+
+// ── Building-under-source detection ─────────────────────────────────────────
+
+/** Ray-casting point-in-polygon.
+ *  polygon: array of [lat, lon] pairs (last point need not repeat first). */
+function _pointInPolygon(lat, lng, polygon) {
+  var inside = false, n = polygon.length;
+  for (var i = 0, j = n - 1; i < n; j = i++) {
+    var xi = polygon[i][1], yi = polygon[i][0]; // lon, lat
+    var xj = polygon[j][1], yj = polygon[j][0];
+    if (((yi > lat) !== (yj > lat)) &&
+        (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Check all loaded OSM building polygons for the given source pin.
+ *  Sets pin.buildingHeight_m to the tallest overlapping building (0 if none or layer off).
+ *  Then refreshes the floating panel display if it is open for that pin. */
+function detectBuildingUnderSource(pinIdx) {
+  var pin = sourcePins[pinIdx];
+  if (!pin || pin.lat === null) return;
+
+  // If buildings layer is not active, clear height silently
+  if (!window._getBuildingsOn || !window._getBuildingsOn()) {
+    if (pin.buildingHeight_m !== 0) {
+      pin.buildingHeight_m = 0;
+      _updateSrcPanelBuildingDisplay(pinIdx);
+    }
+    return;
+  }
+
+  var buildings = window._buildings || [];
+  var maxH = 0;
+  for (var i = 0; i < buildings.length; i++) {
+    var b = buildings[i];
+    if (b.excluded || b.demolished) continue;
+    if (!b.polygon || b.polygon.length < 3) continue;
+    if (_pointInPolygon(pin.lat, pin.lng, b.polygon)) {
+      var h = (b.heightM && b.heightM > 0) ? b.heightM : 3.0;
+      if (h > maxH) maxH = h;
+    }
+  }
+  pin.buildingHeight_m = maxH;
+  _updateSrcPanelBuildingDisplay(pinIdx);
+}
+
+/** Refresh the building-info line inside the floating panel (no-op when panel is closed
+ *  or open for a different source). */
+function _updateSrcPanelBuildingDisplay(pinIdx) {
+  if (typeof _srcPanelIdx === 'undefined' || _srcPanelIdx !== pinIdx) return;
+  if (typeof _srcPanel === 'undefined' || !_srcPanel) return;
+  var pin = sourcePins[pinIdx];
+  if (!pin) return;
+  var el = _srcPanel.querySelector('.sfp-bldg-info');
+  if (!el) return;
+  var bh = pin.buildingHeight_m || 0;
+  var eff = ((pin.height_m || 1.5) + bh).toFixed(1);
+  if (bh > 0) {
+    el.innerHTML = '<span style="color:#c0392b;">&#x26A0; Building detected: ' +
+      bh.toFixed(1) + 'm</span> \u2014 Effective ht: ' + eff + 'm';
+  } else {
+    el.textContent = 'No building detected \u2014 Effective ht: ' + eff + 'm';
+  }
+}
 // Distances matrix: sourceDistances[srcIdx][recvIdx] = metres (populated by updateAll)
 window._sourceDistances = [];
 
@@ -3755,6 +3950,11 @@ function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDi
   if (propagationMethod === 'iso9613' && prefix && prefix !== 'lmax') {
     return calcTotalISO9613(prefix, receiverIdx);
   }
+  // Lmax ISO: routes through calcTotalISO9613Lmax with optional ground factor override
+  if (prefix === 'lmax' && window._getLmaxMethod && window._getLmaxMethod() !== 'simple') {
+    var _gfOverride = (window._getLmaxMethod() === 'iso9613_g0') ? 0 : undefined;
+    return calcTotalISO9613Lmax(receiverIdx, _gfOverride);
+  }
 
   // Simple propagation: use lw from each sourcePin directly
   var contributions = [];
@@ -3765,7 +3965,20 @@ function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDi
   for (var si = 0; si < sourcePins.length; si++) {
     var pin = sourcePins[si];
     if (pin.lat === null) continue;
-    var lwVal = pin.lw ? pin.lw[prefix === 'lmax' ? 'night' : prefix] : null;
+    // Respect activeInPeriod flag (same guard as ISO path)
+    var _ap = pin.activeInPeriod;
+    if (prefix === 'lmax') {
+      if (!_ap || _ap.lmax !== true) continue;
+    } else {
+      if (_ap && _ap[prefix] === false) continue;
+    }
+    // For Lmax: use lw_max (no fallback — null if not set); for Leq: use lw[prefix]
+    var lwVal;
+    if (prefix === 'lmax') {
+      lwVal = Number.isFinite(pin.lw_max) ? pin.lw_max : null;
+    } else {
+      lwVal = pin.lw ? pin.lw[prefix] : null;
+    }
     if (!Number.isFinite(lwVal)) continue;
 
     var d = getDistanceForSourceReceiver(si, receiverIdx);
@@ -3783,26 +3996,26 @@ function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDi
     var lp = attenuatePoint(lwW, d);
     if (!isFinite(lp)) continue;
 
-    // Building/barrier screening
+    // Building/barrier screening and terrain — NOT applied for Lmax (simple propagation only)
     var buildingIL = 0;
     var terrainIL = 0;
-    if (screenable.length > 0 && recLL && pin.lat !== null) {
-      var srcLL = { lat: pin.lat, lng: pin.lng };
-      var srcHt = pin.height_m || 1.5;
-      var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
-      var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
-      if (barrier && (barrier.pathLengthDiff > 0 || (barrier.endDeltaLeft || 0) > 0 || (barrier.endDeltaRight || 0) > 0)) {
-        var Abar = SharedCalc.calcBarrierWithEndDiffraction(
-          barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
-        );
-        buildingIL = Math.min(Abar[0], 20);
+    if (prefix !== 'lmax') {
+      if (screenable.length > 0 && recLL && pin.lat !== null) {
+        var srcLL = { lat: pin.lat, lng: pin.lng };
+        var srcHt = pin.height_m || 1.5;
+        var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
+        var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+        if (barrier && (barrier.pathLengthDiff > 0 || (barrier.endDeltaLeft || 0) > 0 || (barrier.endDeltaRight || 0) > 0)) {
+          var Abar = SharedCalc.calcBarrierWithEndDiffraction(
+            barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
+          );
+          buildingIL = Math.min(Abar[0], 20);
+        }
       }
-    }
-
-    // Terrain diffraction
-    if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][receiverIdx]) {
-      var til = _terrainIL[si][receiverIdx];
-      terrainIL = til.insertionLoss_dB || 0;
+      if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][receiverIdx]) {
+        var til = _terrainIL[si][receiverIdx];
+        terrainIL = til.insertionLoss_dB || 0;
+      }
     }
 
     lp -= Math.max(buildingIL, terrainIL);
@@ -3987,6 +4200,8 @@ function renderSourcePins() {
       /* Update subject site reference */
       window._subjectSiteLatlng = (sourcePins.length > 0 && sourcePins[0].lat !== null)
         ? { lat: sourcePins[0].lat, lng: sourcePins[0].lng } : null;
+      /* Re-query SA subject site zone for the new source_0 */
+      if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
       renderSourcePins();
       if (typeof updateAll === 'function') updateAll();
       if (typeof render === 'function') render();
@@ -4161,25 +4376,95 @@ function srcPanelPeriodDiffersFromDay(pin, period) {
   return false;
 }
 
-/** Build HTML for one period tab's Lw + 8-band inputs */
+/** Build HTML for one period tab's Lw + 8-band inputs (legacy, kept for compatibility) */
 function srcPanelPeriodHTML(pin, period) {
-  var lw = (pin.lw && Number.isFinite(pin.lw[period])) ? pin.lw[period] : '';
-  var spec = (pin.spectrum && pin.spectrum[period]) ? pin.spectrum[period] : Array(8).fill(null);
-  var bands = _SFP_FREQS.map(function(f, i) {
-    var v = (spec[i] !== null && Number.isFinite(spec[i])) ? spec[i] : '';
-    return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">' +
-      '<span style="font-size:9px;color:#999;white-space:nowrap;">' + f + '</span>' +
-      '<input type="number" class="sfp-band" data-period="' + period + '" data-band="' + i + '" ' +
-      'value="' + v + '" step="0.1" style="width:36px;font-size:11px;padding:2px 3px;border:1px solid #ddd;border-radius:3px;text-align:center;" ' +
-      'title="' + f + ' Hz band Lw dB(A)">' +
-      '</div>';
+  return srcPanelPeriodSectionHTML(pin, period, period.charAt(0).toUpperCase() + period.slice(1));
+}
+
+/** Build HTML for one always-visible period section */
+function srcPanelPeriodSectionHTML(pin, period, periodLabel) {
+  var SFP_FREQS = ['63', '125', '250', '500', '1k', '2k', '4k', '8k'];
+  var lwVal = pin.lw[period] !== undefined ? pin.lw[period] : 85;
+  var spectrum = pin.spectrum[period] || {};
+  var active = !pin.activeInPeriod || pin.activeInPeriod[period] !== false;
+  var diffMark = srcPanelPeriodDiffersFromDay(pin, period) ? ' <span class="sfp-td-' + period + '" style="color:#c0392b;font-size:10px;">&#9679;</span>' : '';
+
+  var bandsHTML = SFP_FREQS.map(function(f) {
+    var v = '';
+    if (Array.isArray(spectrum)) {
+      // legacy array format
+      var idx = SFP_FREQS.indexOf(f);
+      v = (spectrum[idx] !== null && spectrum[idx] !== undefined && Number.isFinite(spectrum[idx])) ? spectrum[idx] : '';
+    } else if (spectrum && spectrum[f] !== undefined) {
+      v = spectrum[f];
+    }
+    return '<label style="display:flex;flex-direction:column;align-items:center;font-size:10px;gap:2px;">' +
+      f + '<input type="number" class="sfp-band-' + period + '" data-freq="' + f + '" value="' + v + '" ' +
+      'style="width:38px;text-align:center;padding:2px 0;font-size:11px;" placeholder="\u2014"></label>';
   }).join('');
-  return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
-    '<label style="font-size:12px;color:#555;white-space:nowrap;">Overall Lw&nbsp;dB(A)</label>' +
-    '<input type="number" class="sfp-lw" data-period="' + period + '" value="' + lw + '" ' +
-    'min="0" max="140" step="1" style="width:70px;font-size:13px;font-weight:600;padding:3px 5px;border:1px solid #ccc;border-radius:4px;">' +
+
+  return '<div class="sfp-period-section" data-period="' + period + '" style="' + (!active ? 'opacity:0.5;' : '') + 'margin-bottom:8px;">' +
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+      '<strong style="font-size:12px;">' + periodLabel + diffMark + '</strong>' +
+      '<label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer;margin-left:auto;">' +
+        '<input type="checkbox" class="sfp-active-' + period + '"' + (active ? ' checked' : '') + '> Active' +
+      '</label>' +
     '</div>' +
-    '<div style="display:flex;gap:3px;">' + bands + '</div>';
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+      '<label style="font-size:11px;white-space:nowrap;">Lw (dB):</label>' +
+      '<input type="number" class="sfp-lw-' + period + '" value="' + lwVal + '" style="width:64px;text-align:center;font-size:13px;">' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;">' + bandsHTML + '</div>' +
+  '</div>';
+}
+
+/** Build HTML for the Lmax section in the source floating panel */
+function srcPanelLmaxSectionHTML(pin) {
+  var SFP_FREQS = ['63', '125', '250', '500', '1k', '2k', '4k', '8k'];
+  var lwMax = Number.isFinite(pin.lw_max) ? pin.lw_max : '';
+  var spectrum = Array.isArray(pin.spectrum_max) ? pin.spectrum_max : [];
+  var activeLmax = pin.activeInPeriod ? pin.activeInPeriod.lmax === true : false;
+
+  var bandsHTML = SFP_FREQS.map(function(f, idx) {
+    var v = (spectrum[idx] !== null && spectrum[idx] !== undefined && Number.isFinite(spectrum[idx])) ? spectrum[idx] : '';
+    return '<label style="display:flex;flex-direction:column;align-items:center;font-size:10px;gap:2px;">' +
+      f + '<input type="number" class="sfp-band-lmax" data-freq="' + f + '" value="' + v + '" ' +
+      'style="width:38px;text-align:center;padding:2px 0;font-size:11px;" placeholder="\u2014"></label>';
+  }).join('');
+
+  var lmaxLibOpts = '<option value="">\u2014 Select from Lmax library\u2026 \u2014</option>';
+  if (typeof SOURCE_LIBRARY_GROUPED_LMAX !== 'undefined') {
+    Object.keys(SOURCE_LIBRARY_GROUPED_LMAX).forEach(function(grp) {
+      lmaxLibOpts += '<optgroup label="' + escapeHTML(grp) + '">';
+      (SOURCE_LIBRARY_GROUPED_LMAX[grp] || []).forEach(function(s) {
+        lmaxLibOpts += '<option value="' + escapeHTML(s.name) + '">' + escapeHTML(s.name) + '</option>';
+      });
+      lmaxLibOpts += '</optgroup>';
+    });
+  }
+
+  return '<div class="sfp-period-section" data-period="lmax" style="margin-bottom:8px;border-top:1px solid #e5e7eb;padding-top:8px;">' +
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+      '<strong style="font-size:12px;">Night L<sub>max</sub></strong>' +
+      '<label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer;margin-left:auto;">' +
+        '<input type="checkbox" class="sfp-active-lmax"' + (activeLmax ? ' checked' : '') + '> Active' +
+      '</label>' +
+    '</div>' +
+    '<div class="sfp-lmax-content" style="' + (!activeLmax ? 'opacity:0.5;pointer-events:none;' : '') + '">' +
+      '<div style="margin-bottom:6px;">' +
+        '<label style="font-size:11px;display:block;margin-bottom:2px;">Lmax library:</label>' +
+        '<input class="sfp-lmax-lib-search" type="text" placeholder="Search Lmax library\u2026" autocomplete="off" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px 4px 0 0;padding:4px 8px;font-size:11px;border-bottom:none;">' +
+        '<select class="sfp-lmax-lib-sel" style="width:100%;box-sizing:border-box;font-size:11px;border:1px solid #ddd;border-radius:0 0 4px 4px;padding:2px 4px;height:60px;">' + lmaxLibOpts + '</select>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+        '<label style="font-size:11px;white-space:nowrap;">Lw,max (dB):</label>' +
+        '<input type="number" class="sfp-lw-lmax" value="' + lwMax + '" placeholder="\u2014" style="width:64px;text-align:center;font-size:13px;">' +
+      '</div>' +
+      '<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Octave band spectrum (reference only):</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;">' + bandsHTML + '</div>' +
+      '<div style="font-size:10px;color:#6b7280;margin-top:4px;font-style:italic;">Spectrum used for ISO 9613-2 Lmax prediction; broadband Lw,max used for simple propagation</div>' +
+    '</div>' +
+  '</div>';
 }
 
 function _sfpTabActive() {
@@ -4196,14 +4481,13 @@ function _sfpDotHTML(pin, period) {
 }
 
 /** Build the full panel innerHTML */
-function buildSrcPanelHTML(pin, pinIdx, activeTab) {
-  var colour = SOURCE_COLOURS[pinIdx % SOURCE_COLOURS.length];
-  var shortLabel = 'S' + (pinIdx + 1);
-  activeTab = activeTab || 'day';
-  var coordsStr = (pin.lat !== null)
-    ? pin.lat.toFixed(3) + '\u00b0, ' + pin.lng.toFixed(3) + '\u00b0' +
-      (pin.groundElevation_m !== null ? ' | Ground: ' + Math.round(pin.groundElevation_m) + 'm ASL' : '')
-    : 'Not placed yet';
+function buildSrcPanelHTML(pin, pinIdx) {
+  var coordStr = (pin.lat !== null) ? pin.lat.toFixed(5) + ', ' + pin.lng.toFixed(5) : '\u2014';
+  var bh  = pin.buildingHeight_m || 0;
+  var eff = ((pin.height_m || 1.5) + bh).toFixed(1);
+  var bldgInfoHTML = bh > 0
+    ? '<span style="color:#c0392b;">&#x26A0; Building detected: ' + bh.toFixed(1) + 'm</span> \u2014 Effective ht: ' + eff + 'm'
+    : 'No building detected \u2014 Effective ht: ' + eff + 'm';
   var libOpts = '<option value="">\u2014 Select from library\u2026 \u2014</option>';
   if (typeof SOURCE_LIBRARY_GROUPED_NON_LMAX !== 'undefined') {
     Object.keys(SOURCE_LIBRARY_GROUPED_NON_LMAX).forEach(function(grp) {
@@ -4214,95 +4498,190 @@ function buildSrcPanelHTML(pin, pinIdx, activeTab) {
       libOpts += '</optgroup>';
     });
   }
-  var effectiveHt = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
-  var canDelete = sourcePins.length > 1;
-  return (
-    '<div style="padding:14px 14px 10px;border-bottom:1px solid #f0f0f0;">' +
-    '<div style="display:flex;align-items:center;gap:8px;">' +
-    '<span style="width:10px;height:10px;border-radius:50%;background:' + colour + ';flex-shrink:0;display:inline-block;"></span>' +
-    '<input id="sfp-name" type="text" value="' + escapeHTML(pin.name || shortLabel) + '" ' +
-    'style="flex:1;font-size:14px;font-weight:600;border:none;border-bottom:1px solid #e5e5e5;padding:2px 4px;outline:none;background:transparent;" placeholder="Source name">' +
+  return '<div class="sfp-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:10px 14px 0;">' +
+    '<input class="sfp-name" type="text" value="' + escapeHTML(pin.name || '') + '" style="font-weight:700;font-size:13px;border:none;border-bottom:1px solid #ccc;width:160px;">' +
+    '<span style="font-size:10px;color:#666;margin-left:8px;">' + coordStr + '</span>' +
     '<button id="sfp-close-x" style="background:none;border:none;font-size:18px;color:#bbb;cursor:pointer;padding:0 4px;line-height:1;" title="Close">\u00d7</button>' +
-    '</div>' +
-    '<div style="font-size:11px;color:#aaa;margin-top:4px;margin-left:18px;">' + escapeHTML(coordsStr) + '</div>' +
-    '</div>' +
-    '<div style="padding:10px 14px;border-bottom:1px solid #f0f0f0;">' +
-    '<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:5px;">Select from library</div>' +
-    '<input id="sfp-lib-search" type="text" placeholder="Search\u2026" autocomplete="off" ' +
-    'style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px 4px 0 0;padding:5px 8px;font-size:12px;border-bottom:none;">' +
-    '<select id="sfp-lib-sel" style="width:100%;box-sizing:border-box;font-size:12px;border:1px solid #ddd;border-radius:0 0 4px 4px;padding:3px 4px;height:72px;">' +
-    libOpts + '</select>' +
-    '</div>' +
-    '<div style="padding:10px 14px 0;">' +
-    '<div style="display:flex;gap:0;">' +
-    '<button class="sfp-tab" data-period="day" style="' + (activeTab==='day' ? _sfpTabActive() : _sfpTabInactive()) + '">Day</button>' +
-    '<button class="sfp-tab" data-period="eve" style="' + (activeTab==='eve' ? _sfpTabActive() : _sfpTabInactive()) + '">Evening' + _sfpDotHTML(pin,'eve') + '</button>' +
-    '<button class="sfp-tab" data-period="night" style="' + (activeTab==='night' ? _sfpTabActive() : _sfpTabInactive()) + '">Night' + _sfpDotHTML(pin,'night') + '</button>' +
-    '</div>' +
-    '<div id="sfp-tab-body" style="border:1px solid #ddd;border-radius:0 0 4px 4px;padding:10px 8px 8px;">' +
-    srcPanelPeriodHTML(pin, activeTab) +
-    '</div>' +
-    '</div>' +
-    '<div style="padding:10px 14px;border-top:1px solid #f0f0f0;">' +
-    '<div style="margin-bottom:8px;">' +
-    '<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">Height above ground (m)</div>' +
-    '<div style="display:flex;align-items:center;gap:8px;">' +
-    '<input id="sfp-height" type="number" value="' + (pin.height_m || 1.5) + '" min="0.1" max="50" step="0.5" ' +
-    'style="width:64px;font-size:13px;padding:4px 5px;border:1px solid #ccc;border-radius:4px;">' +
-    '<span id="sfp-ht-info" style="font-size:11px;color:#aaa;">Building: ' + (pin.buildingHeight_m || 0) + 'm | Effective: ' + effectiveHt.toFixed(1) + 'm</span>' +
-    '</div>' +
-    '</div>' +
-    '<div>' +
-    '<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">Operational time (min / 15-min period)</div>' +
-    '<div style="display:flex;align-items:center;gap:8px;">' +
-    '<input id="sfp-optime" type="number" value="' + (pin.operationalTime_min || 15) + '" min="1" max="15" step="1" ' +
-    'style="width:56px;font-size:13px;padding:4px 5px;border:1px solid #ccc;border-radius:4px;">' +
-    '<span style="font-size:11px;color:#aaa;">15 = continuous</span>' +
-    '</div>' +
-    '</div>' +
-    '</div>' +
-    '<div style="padding:8px 14px 14px;display:flex;gap:8px;justify-content:space-between;align-items:center;">' +
-    '<button id="sfp-delete" ' + (canDelete ? '' : 'disabled ') +
-    'style="padding:6px 12px;font-size:12px;border:1px solid ' + (canDelete ? '#e74c3c' : '#ccc') + ';border-radius:4px;background:#fff;' +
-    'color:' + (canDelete ? '#e74c3c' : '#aaa') + ';cursor:' + (canDelete ? 'pointer' : 'default') + ';font-weight:600;">' +
-    '\uD83D\uDDD1 Delete source</button>' +
-    '<button id="sfp-close-btn" style="padding:6px 12px;font-size:12px;border:1px solid #ddd;border-radius:4px;background:#f8f8f8;cursor:pointer;color:#555;">Close</button>' +
-    '</div>'
-  );
+  '</div>' +
+  '<div style="margin-bottom:8px;padding:0 14px;">' +
+    '<label style="font-size:11px;display:block;margin-bottom:2px;">Source library:</label>' +
+    '<input id="sfp-lib-search" type="text" placeholder="Search library\u2026" autocomplete="off" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px 4px 0 0;padding:5px 8px;font-size:12px;border-bottom:none;">' +
+    '<select id="sfp-lib-sel" style="width:100%;box-sizing:border-box;font-size:12px;border:1px solid #ddd;border-radius:0 0 4px 4px;padding:3px 4px;height:72px;">' + libOpts + '</select>' +
+  '</div>' +
+  '<div style="padding:0 14px;">' +
+    srcPanelPeriodSectionHTML(pin, 'day', 'Day') +
+    srcPanelPeriodSectionHTML(pin, 'eve', 'Evening') +
+    srcPanelPeriodSectionHTML(pin, 'night', 'Night') +
+    srcPanelLmaxSectionHTML(pin) +
+  '</div>' +
+  '<div style="display:flex;gap:8px;margin-bottom:4px;padding:0 14px;">' +
+    '<label style="font-size:11px;white-space:nowrap;">Ht (m): <input type="number" class="sfp-height" value="' + (pin.height_m || 1.5) + '" style="width:52px;text-align:center;font-size:12px;"></label>' +
+    '<label style="font-size:11px;white-space:nowrap;">Op time (min): <input type="number" class="sfp-optime" value="' + (pin.operationalTime_min || 15) + '" style="width:52px;text-align:center;font-size:12px;"></label>' +
+  '</div>' +
+  '<div class="sfp-bldg-info" style="font-size:11px;color:#6b7280;padding:2px 14px 8px;min-height:16px;">' + bldgInfoHTML + '</div>' +
+  '<div class="sfp-footer" style="display:flex;justify-content:space-between;padding:8px 14px 14px;">' +
+    '<button id="sfp-delete" style="background:#c0392b;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px;"' + (sourcePins.length <= 1 ? ' disabled' : '') + '>Delete</button>' +
+    '<button id="sfp-close-btn" style="background:#7f8c8d;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px;">Close</button>' +
+  '</div>';
 }
 
 /** Wire all event handlers inside the open panel */
 function attachSrcPanelListeners(pin, pinIdx) {
   var panel = _srcPanel;
   if (!panel) return;
-  function doClose() { closeSrcPanel(); }
+
+  // Close buttons
   var cx = panel.querySelector('#sfp-close-x');
   var cb = panel.querySelector('#sfp-close-btn');
-  if (cx) cx.addEventListener('click', doClose);
-  if (cb) cb.addEventListener('click', doClose);
+  if (cx) cx.addEventListener('click', function() { closeSrcPanel(); });
+  if (cb) cb.addEventListener('click', function() { closeSrcPanel(); });
+
+  // Delete
   var delBtn = panel.querySelector('#sfp-delete');
   if (delBtn && !delBtn.disabled) {
     delBtn.addEventListener('click', function() {
       closeSrcPanel();
+      var modeKey = 'source_' + pinIdx;
+      if (typeof markers !== 'undefined' && markers[modeKey]) { if (typeof map !== 'undefined') map.removeLayer(markers[modeKey]); delete markers[modeKey]; }
+      if (typeof labelMarkers !== 'undefined' && labelMarkers[modeKey]) { if (typeof map !== 'undefined') map.removeLayer(labelMarkers[modeKey]); delete labelMarkers[modeKey]; }
+      if (typeof latlngs !== 'undefined') delete latlngs[modeKey];
       sourcePins.splice(pinIdx, 1);
       if (typeof window._refreshAllSourceMarkers === 'function') window._refreshAllSourceMarkers();
       window._subjectSiteLatlng = (sourcePins.length > 0 && sourcePins[0].lat !== null)
         ? { lat: sourcePins[0].lat, lng: sourcePins[0].lng } : null;
+      /* Re-query SA subject site zone for the new source_0 */
+      if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
       if (typeof renderSourcePins === 'function') renderSourcePins();
-      if (typeof updateAll === 'function') updateAll();
-      if (typeof render === 'function') render();
+      if (typeof window.updateAll === 'function') window.updateAll();
     });
   }
-  var nameInp = panel.querySelector('#sfp-name');
-  if (nameInp) {
-    nameInp.addEventListener('input', function() {
+
+  // Name
+  var nameEl = panel.querySelector('.sfp-name');
+  if (nameEl) {
+    nameEl.addEventListener('change', function() {
       pin.name = this.value;
-      if (typeof window._setSrcMarkerTitle === 'function') {
-        window._setSrcMarkerTitle(pinIdx, 'S' + (pinIdx + 1) + (this.value ? ' \u2014 ' + this.value : ''));
-      }
-      if (typeof updateAll === 'function') updateAll();
+      if (typeof window._setSrcMarkerTitle === 'function') window._setSrcMarkerTitle(pinIdx, 'S' + (pinIdx + 1) + (this.value ? ' \u2014 ' + this.value : ''));
+      if (typeof renderSourcePins === 'function') renderSourcePins();
     });
   }
+
+  // Height
+  var htEl = panel.querySelector('.sfp-height');
+  if (htEl) htEl.addEventListener('change', function() {
+    pin.height_m = parseFloat(this.value) || 1.5;
+    _updateSrcPanelBuildingDisplay(pinIdx);
+    if (typeof window.updateAll === 'function') window.updateAll();
+  });
+
+  // Optime
+  var otEl = panel.querySelector('.sfp-optime');
+  if (otEl) otEl.addEventListener('change', function() {
+    pin.operationalTime_min = parseFloat(this.value) || 15;
+    if (typeof window.updateAll === 'function') window.updateAll();
+  });
+
+  // Active checkboxes
+  ['day', 'eve', 'night'].forEach(function(period) {
+    var cb = panel.querySelector('.sfp-active-' + period);
+    if (!cb) return;
+    cb.addEventListener('change', function() {
+      if (!pin.activeInPeriod) pin.activeInPeriod = { day: true, eve: true, night: true };
+      pin.activeInPeriod[period] = this.checked;
+      var section = panel.querySelector('.sfp-period-section[data-period="' + period + '"]');
+      if (section) section.style.opacity = this.checked ? '' : '0.5';
+      if (typeof window.updateAll === 'function') window.updateAll();
+    });
+  });
+
+  // Per-period Lw + band inputs
+  ['day', 'eve', 'night'].forEach(function(period) {
+    attachSrcPeriodListeners(pin, pinIdx, period, panel);
+  });
+
+  // Lmax library search + select
+  var lmaxLibSearch = panel.querySelector('.sfp-lmax-lib-search');
+  var lmaxLibSel = panel.querySelector('.sfp-lmax-lib-sel');
+  if (lmaxLibSearch && lmaxLibSel) {
+    lmaxLibSearch.addEventListener('input', function() {
+      var query = this.value.toLowerCase().trim();
+      lmaxLibSel.querySelectorAll('optgroup').forEach(function(og) {
+        var grpVisible = false;
+        og.querySelectorAll('option').forEach(function(o) {
+          var match = !query || o.textContent.toLowerCase().indexOf(query) !== -1;
+          o.style.display = match ? '' : 'none';
+          if (match) grpVisible = true;
+        });
+        og.style.display = grpVisible ? '' : 'none';
+      });
+    });
+    lmaxLibSel.addEventListener('change', function() {
+      var name = this.value;
+      if (!name) return;
+      var entry = null;
+      if (typeof SOURCE_LIBRARY_GROUPED_LMAX !== 'undefined') {
+        Object.keys(SOURCE_LIBRARY_GROUPED_LMAX).some(function(grp) {
+          var arr = SOURCE_LIBRARY_GROUPED_LMAX[grp] || [];
+          for (var ei = 0; ei < arr.length; ei++) {
+            if (arr[ei].name === name) { entry = arr[ei]; return true; }
+          }
+        });
+      }
+      if (!entry) return;
+      if (Number.isFinite(entry.lw)) {
+        pin.lw_max = entry.lw;
+        var lwLmaxInpA = panel.querySelector('.sfp-lw-lmax');
+        if (lwLmaxInpA) lwLmaxInpA.value = pin.lw_max;
+      }
+      if (Array.isArray(entry.spectrum)) {
+        pin.spectrum_max = entry.spectrum.slice();
+        panel.querySelectorAll('.sfp-band-lmax').forEach(function(inp) {
+          var idx = _SFP_FREQS.indexOf(inp.dataset.freq);
+          inp.value = (pin.spectrum_max && idx >= 0 && Number.isFinite(pin.spectrum_max[idx])) ? pin.spectrum_max[idx] : '';
+        });
+      }
+      this.value = ''; // Reset select after applying
+      if (typeof window.updateAll === 'function') window.updateAll();
+    });
+  }
+
+  // Lmax Lw input — blank field clears lw_max to null
+  var lwLmaxEl = panel.querySelector('.sfp-lw-lmax');
+  if (lwLmaxEl) {
+    lwLmaxEl.addEventListener('change', function() {
+      var val = parseFloat(this.value);
+      pin.lw_max = (this.value.trim() === '' || !Number.isFinite(val)) ? null : val;
+      if (typeof window.updateAll === 'function') window.updateAll();
+    });
+  }
+
+  // Lmax band inputs (reference only — no recalculation triggered)
+  panel.querySelectorAll('.sfp-band-lmax').forEach(function(inp) {
+    inp.addEventListener('change', function() {
+      var freq = this.dataset.freq;
+      var val = this.value.trim();
+      var bandIdx = _SFP_FREQS.indexOf(freq);
+      if (!Array.isArray(pin.spectrum_max)) pin.spectrum_max = Array(8).fill(null);
+      pin.spectrum_max[bandIdx] = (val === '') ? null : parseFloat(val);
+    });
+  });
+
+  // Lmax Active checkbox
+  var lmaxActiveCb = panel.querySelector('.sfp-active-lmax');
+  if (lmaxActiveCb) {
+    lmaxActiveCb.addEventListener('change', function() {
+      if (!pin.activeInPeriod) pin.activeInPeriod = { day: true, eve: true, night: true, lmax: false };
+      pin.activeInPeriod.lmax = this.checked;
+      var lmaxContent = panel.querySelector('.sfp-lmax-content');
+      if (lmaxContent) {
+        lmaxContent.style.opacity = this.checked ? '' : '0.5';
+        lmaxContent.style.pointerEvents = this.checked ? '' : 'none';
+      }
+      if (typeof window.updateAll === 'function') window.updateAll();
+    });
+  }
+
+  // Library search/select
   var libSearch = panel.querySelector('#sfp-lib-search');
   var libSel = panel.querySelector('#sfp-lib-sel');
   if (libSearch && libSel) {
@@ -4340,110 +4719,127 @@ function attachSrcPanelListeners(pin, pinIdx) {
       pin.lw.day = lwVal; pin.spectrum.day = spec ? spec.slice() : null;
       if (!pin._userEdited.eve)   { pin.lw.eve   = lwVal; pin.spectrum.eve   = spec ? spec.slice() : null; }
       if (!pin._userEdited.night) { pin.lw.night  = lwVal; pin.spectrum.night = spec ? spec.slice() : null; }
-      var ni = panel.querySelector('#sfp-name'); if (ni) ni.value = pin.name;
-      var hi = panel.querySelector('#sfp-height'); if (hi) hi.value = pin.height_m;
-      var eff = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
-      var hti = panel.querySelector('#sfp-ht-info'); if (hti) hti.textContent = 'Building: ' + (pin.buildingHeight_m || 0) + 'm | Effective: ' + eff.toFixed(1) + 'm';
-      var tbody = panel.querySelector('#sfp-tab-body');
-      if (tbody) tbody.innerHTML = srcPanelPeriodHTML(pin, _srcPanelActiveTab);
-      attachSrcPeriodListeners(pin, pinIdx, _srcPanelActiveTab, panel);
-      updateSrcPanelTabDots(pin, panel);
+      var ni = panel.querySelector('.sfp-name'); if (ni) ni.value = pin.name;
+      var hi = panel.querySelector('.sfp-height'); if (hi) hi.value = pin.height_m;
+      // Refresh period sections
+      ['day', 'eve', 'night'].forEach(function(p) {
+        var lwEl = panel.querySelector('.sfp-lw-' + p); if (lwEl) lwEl.value = pin.lw[p] !== undefined ? pin.lw[p] : '';
+        panel.querySelectorAll('.sfp-band-' + p).forEach(function(inp) {
+          var freq = inp.dataset.freq;
+          var idx = ['63','125','250','500','1k','2k','4k','8k'].indexOf(freq);
+          inp.value = (pin.spectrum[p] && idx >= 0 && pin.spectrum[p][idx] !== null && Number.isFinite(pin.spectrum[p][idx])) ? pin.spectrum[p][idx] : '';
+        });
+      });
       if (typeof window._setSrcMarkerTitle === 'function') window._setSrcMarkerTitle(pinIdx, 'S' + (pinIdx + 1) + ' \u2014 ' + pin.name);
       this.value = '';
-      if (typeof updateAll === 'function') updateAll();
+      updateSrcPanelPeriodDots(pin, panel);
+      if (typeof window.updateAll === 'function') window.updateAll();
     });
   }
-  panel.querySelectorAll('.sfp-tab').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var period = this.getAttribute('data-period');
-      if (period === _srcPanelActiveTab) return;
-      _srcPanelActiveTab = period;
-      panel.querySelectorAll('.sfp-tab').forEach(function(b) {
-        b.style.cssText = (b.getAttribute('data-period') === period) ? _sfpTabActive() : _sfpTabInactive();
-      });
-      var tbody = panel.querySelector('#sfp-tab-body');
-      if (tbody) tbody.innerHTML = srcPanelPeriodHTML(pin, period);
-      attachSrcPeriodListeners(pin, pinIdx, period, panel);
-    });
-  });
-  attachSrcPeriodListeners(pin, pinIdx, _srcPanelActiveTab, panel);
-  var htInp = panel.querySelector('#sfp-height');
-  if (htInp) {
-    htInp.addEventListener('change', function() {
-      var v = parseFloat(this.value);
-      if (Number.isFinite(v) && v >= 0.1) {
-        pin.height_m = v;
-        var eff = v + (pin.buildingHeight_m || 0);
-        var hti = panel.querySelector('#sfp-ht-info'); if (hti) hti.textContent = 'Building: ' + (pin.buildingHeight_m || 0) + 'm | Effective: ' + eff.toFixed(1) + 'm';
-        if (typeof updateAll === 'function') updateAll();
-      } else { this.value = pin.height_m || 1.5; }
-    });
-  }
-  var otInp = panel.querySelector('#sfp-optime');
-  if (otInp) {
-    otInp.addEventListener('change', function() {
-      var v = Math.max(1, Math.min(15, parseInt(this.value) || 15));
-      pin.operationalTime_min = v; this.value = v;
-      if (typeof updateAll === 'function') updateAll();
-    });
-  }
+
   panel.addEventListener('mousedown', function(e) { e.stopPropagation(); });
   panel.addEventListener('click', function(e) { e.stopPropagation(); });
-  if (nameInp) setTimeout(function() { nameInp.select(); }, 60);
+
+  // Draggable panel header
+  var header = panel.querySelector('.sfp-header');
+  if (header) {
+    header.style.cursor = 'move';
+    header.addEventListener('mousedown', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+      var startX = e.clientX, startY = e.clientY;
+      var startLeft = parseInt(panel.style.left) || 0;
+      var startTop = parseInt(panel.style.top) || 0;
+      function onMove(ev) {
+        panel.style.left = (startLeft + ev.clientX - startX) + 'px';
+        panel.style.top = (startTop + ev.clientY - startY) + 'px';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      e.preventDefault();
+    });
+  }
+
+  if (nameEl) setTimeout(function() { nameEl.select(); }, 60);
 }
 
 /** Wire Lw + band listeners for one period */
 function attachSrcPeriodListeners(pin, pinIdx, period, panel) {
-  var lwInp = panel.querySelector('.sfp-lw[data-period="' + period + '"]');
-  if (lwInp) {
-    lwInp.addEventListener('change', function() {
-      var v = parseFloat(this.value);
+  var SFP_FREQS = ['63', '125', '250', '500', '1k', '2k', '4k', '8k'];
+  var lwEl = panel.querySelector('.sfp-lw-' + period);
+  if (lwEl) {
+    lwEl.addEventListener('change', function() {
+      var val = parseFloat(this.value);
+      if (isNaN(val)) return;
       if (!pin.lw) pin.lw = {};
-      pin.lw[period] = Number.isFinite(v) ? v : null;
-      if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+      pin.lw[period] = val;
+      // If day changed and eve/night not user-edited, auto-copy
       if (period === 'day') {
-        if (!pin._userEdited.eve)   { pin.lw.eve   = v; }
-        if (!pin._userEdited.night) { pin.lw.night  = v; }
-      } else { pin._userEdited[period] = true; }
-      updateSrcPanelTabDots(pin, panel);
-      if (typeof updateAll === 'function') updateAll();
+        if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+        ['eve', 'night'].forEach(function(p) {
+          if (!pin._userEdited[p]) {
+            pin.lw[p] = val;
+            var otherEl = panel.querySelector('.sfp-lw-' + p);
+            if (otherEl) otherEl.value = val;
+          }
+        });
+      } else {
+        if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+        pin._userEdited[period] = true;
+      }
+      updateSrcPanelPeriodDots(pin, panel);
+      if (typeof window.updateAll === 'function') window.updateAll();
     });
   }
-  panel.querySelectorAll('.sfp-band[data-period="' + period + '"]').forEach(function(inp) {
+
+  panel.querySelectorAll('.sfp-band-' + period).forEach(function(inp) {
     inp.addEventListener('change', function() {
-      var band = parseInt(this.getAttribute('data-band'));
-      var v = parseFloat(this.value);
+      var freq = this.dataset.freq;
+      var val = this.value.trim();
+      var bandIdx = SFP_FREQS.indexOf(freq);
       if (!pin.spectrum) pin.spectrum = {};
       if (!pin.spectrum[period]) pin.spectrum[period] = Array(8).fill(null);
-      pin.spectrum[period][band] = Number.isFinite(v) ? v : null;
-      if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+      if (val === '') {
+        if (Array.isArray(pin.spectrum[period])) { pin.spectrum[period][bandIdx] = null; }
+      } else {
+        if (Array.isArray(pin.spectrum[period])) { pin.spectrum[period][bandIdx] = parseFloat(val); }
+      }
+      // Auto-copy day spectrum to eve/night if not user-edited
       if (period === 'day') {
-        if (!pin._userEdited.eve) {
-          if (!pin.spectrum.eve) pin.spectrum.eve = Array(8).fill(null);
-          pin.spectrum.eve[band] = Number.isFinite(v) ? v : null;
-        }
-        if (!pin._userEdited.night) {
-          if (!pin.spectrum.night) pin.spectrum.night = Array(8).fill(null);
-          pin.spectrum.night[band] = Number.isFinite(v) ? v : null;
-        }
-      } else { pin._userEdited[period] = true; }
-      updateSrcPanelTabDots(pin, panel);
-      if (typeof updateAll === 'function') updateAll();
+        if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+        ['eve', 'night'].forEach(function(p) {
+          if (!pin._userEdited[p]) {
+            if (!pin.spectrum[p]) pin.spectrum[p] = Array(8).fill(null);
+            if (Array.isArray(pin.spectrum[p])) { pin.spectrum[p][bandIdx] = val === '' ? null : parseFloat(val); }
+            var otherEl = panel.querySelector('.sfp-band-' + p + '[data-freq="' + freq + '"]');
+            if (otherEl) otherEl.value = val;
+          }
+        });
+      } else {
+        if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+        pin._userEdited[period] = true;
+      }
+      updateSrcPanelPeriodDots(pin, panel);
+      if (typeof window.updateAll === 'function') window.updateAll();
     });
   });
 }
 
-/** Refresh tab indicator dots */
+/** Refresh tab indicator dots (legacy alias) */
 function updateSrcPanelTabDots(pin, panel) {
+  updateSrcPanelPeriodDots(pin, panel);
+}
+
+/** Refresh period difference indicator dots */
+function updateSrcPanelPeriodDots(pin, panel) {
   if (!panel) return;
-  panel.querySelectorAll('.sfp-tab').forEach(function(btn) {
-    var period = btn.getAttribute('data-period');
-    if (period === 'day') return;
-    var dot = btn.querySelector('.sfp-td');
-    if (dot) {
-      var hasDiff = srcPanelPeriodDiffersFromDay(pin, period);
-      dot.style.display = hasDiff ? 'inline-block' : 'none';
-    }
+  ['eve', 'night'].forEach(function(period) {
+    var dotEl = panel.querySelector('.sfp-td-' + period);
+    if (!dotEl) return;
+    dotEl.style.display = srcPanelPeriodDiffersFromDay(pin, period) ? '' : 'none';
   });
 }
 
@@ -4454,13 +4850,14 @@ function openSrcPanel(pinIdx, clientX, clientY) {
   if (clientX !== undefined) _sfp_lastClientX = clientX;
   if (clientY !== undefined) _sfp_lastClientY = clientY;
   if (_srcPanel) { _srcPanel.remove(); _srcPanel = null; }
-  if (_srcPanelIdx !== pinIdx) _srcPanelActiveTab = 'day';
   _srcPanelIdx = pinIdx;
   if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+  if (!pin.activeInPeriod) pin.activeInPeriod = { day: true, eve: true, night: true, lmax: false };
+  if (!pin.activeInPeriod.hasOwnProperty('lmax')) pin.activeInPeriod.lmax = false;
   var panel = document.createElement('div');
   panel.id = 'srcFloatPanel';
-  panel.style.cssText = 'position:fixed;width:320px;max-height:80vh;overflow-y:auto;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;';
-  panel.innerHTML = buildSrcPanelHTML(pin, pinIdx, _srcPanelActiveTab);
+  panel.style.cssText = 'position:fixed;width:340px;max-height:85vh;overflow-y:auto;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;';
+  panel.innerHTML = buildSrcPanelHTML(pin, pinIdx);
   document.body.appendChild(panel);
   _srcPanel = panel;
   var vw = window.innerWidth, vh = window.innerHeight, W = 322;
@@ -4504,17 +4901,55 @@ document.addEventListener('DOMContentLoaded', function() {
         name: 'Source ' + (sourcePins.length + 1),
         lat: null, lng: null,
         lw: { day: 85, eve: 85, night: 85 },
+        lw_max: null,
         spectrum: { day: null, eve: null, night: null },
+        spectrum_max: null,
         height_m: 1.5,
         buildingHeight_m: 0,
         groundElevation_m: null,
-        operationalTime_min: 15
+        operationalTime_min: 15,
+        activeInPeriod: { day: true, eve: true, night: true, lmax: false }
       });
       renderSourcePins();
     });
   }
 
   renderSourcePins();
+
+  // ── Buildings-layer hooks for source building detection ───────────────────
+  (function() {
+    function _redetectAllSources() {
+      sourcePins.forEach(function(pin, i) {
+        if (pin.lat !== null && typeof detectBuildingUnderSource === 'function') {
+          detectBuildingUnderSource(i);
+        }
+      });
+      if (typeof window.updateAll === 'function') window.updateAll();
+    }
+
+    // Re-detect when the buildings toggle button is clicked (50 ms delay lets
+    // the buildings IIFE flip _buildingsOn before we read it via _getBuildingsOn).
+    var _bBtn = document.getElementById('buildingsToggleBtn');
+    if (_bBtn) {
+      _bBtn.addEventListener('click', function() {
+        setTimeout(_redetectAllSources, 50);
+      });
+    }
+
+    // Re-detect whenever window._buildings is replaced (async Overpass fetch
+    // completes, or rebuild after user edits).
+    var _bInternal = window._buildings || [];
+    Object.defineProperty(window, '_buildings', {
+      get: function() { return _bInternal; },
+      set: function(v) {
+        _bInternal = v;
+        if (window._getBuildingsOn && window._getBuildingsOn()) {
+          setTimeout(_redetectAllSources, 0);
+        }
+      },
+      configurable: true
+    });
+  })();
 });
 
 
@@ -5433,8 +5868,9 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
   var terrainData = (_terrainIL[sourceIdx] && _terrainIL[sourceIdx][receiverIdx]) ? _terrainIL[sourceIdx][receiverIdx] : null;
   var terrainPerBand = (terrainData && terrainData.perBand) ? terrainData.perBand : null;
 
-  // Render table
+  // Render table — collect displayed Lp values to compute a consistent total
   var html = '';
+  var displayedLpValues = []; // 1dp-rounded band Lp values for energy-sum total
   for (var i = 0; i < detail.bands.length; i++) {
     var b = detail.bands[i];
     // Show per-band terrain IL (excess over building barrier where terrain is larger)
@@ -5443,6 +5879,8 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
       aterr = Math.max(0, terrainPerBand[i] - (b.Abar || 0)); // excess over building
       if (terrainPerBand[i] > 0 && b.Abar <= 0) aterr = terrainPerBand[i]; // no building → full terrain
     }
+    var lpDisplay = isFinite(b.Lp) ? b.Lp.toFixed(1) : '—';
+    if (isFinite(b.Lp)) displayedLpValues.push(Math.round(b.Lp * 10) / 10); // same precision as shown
     html += '<tr style="border-bottom:1px solid #eee;">';
     html += '<td style="padding:3px 6px;font-weight:600;">' + b.freq + '</td>';
     html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(b.Lw) ? b.Lw.toFixed(1) : '—') + '</td>';
@@ -5452,14 +5890,16 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
     html += '<td style="text-align:right;padding:3px 6px;">' + (b.Abar > 0 ? b.Abar.toFixed(1) : '—') + '</td>';
     html += '<td style="text-align:right;padding:3px 6px;">' + (aterr > 0 ? aterr.toFixed(1) : '—') + '</td>';
     html += '<td style="text-align:right;padding:3px 6px;">' + b.AgrBar.toFixed(1) + '</td>';
-    html += '<td style="text-align:right;padding:3px 6px;font-weight:700;">' + (isFinite(b.Lp) ? b.Lp.toFixed(1) : '—') + '</td>';
+    html += '<td style="text-align:right;padding:3px 6px;font-weight:700;">' + lpDisplay + '</td>';
     html += '</tr>';
   }
-  // Total row
+  // Total = energy sum of the DISPLAYED (rounded) per-band Lp values — guaranteed
+  // to equal what the user sees when they manually sum the Lp column.
+  var displayTotal = displayedLpValues.length > 0 ? SharedCalc.energySum(displayedLpValues) : NaN;
   html += '<tr style="border-top:2px solid #333;font-weight:700;background:#f8f9fa;">';
   html += '<td style="padding:3px 6px;">Total</td>';
   html += '<td colspan="7"></td>';
-  html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(detail.total) ? detail.total.toFixed(1) : '—') + ' dB</td>';
+  html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(displayTotal) ? displayTotal.toFixed(1) : '—') + ' dB</td>';
   html += '</tr>';
 
   body.innerHTML = html;
@@ -5658,93 +6098,79 @@ function render() {
     }
   });
 
-  const tbody = document.getElementById('rows');
-  tbody.innerHTML = "";
-
-  // Check if any sourcePin has data for each period
+  // ── Period data availability ──────────────────────────────────────────────
   function hasLwForPeriod(period) {
     return sourcePins.some(function(p) {
       return p.lat !== null && p.lw && Number.isFinite(p.lw[period]) && p.lw[period] > 0;
     });
   }
-  var hasDay = hasLwForPeriod('day');
-  var hasEve = hasLwForPeriod('eve');
+  var hasDay   = hasLwForPeriod('day');
+  var hasEve   = hasLwForPeriod('eve');
   var hasNight = hasLwForPeriod('night');
-  var hasLmax = hasLwForPeriod('night'); // Lmax uses same pins as night
+  var hasLmax  = hasLwForPeriod('night');
 
-  // Build dynamic header for predicted noise levels table (includes per-source columns)
-  var predHead = document.getElementById('predTableHead');
-  if (predHead) {
-    var hhtml = '<tr><th style="width:16%;">Receiver (Zone / Subzone)</th>';
-    // Per-source columns (only when >1 source)
-    var showPerSource = sourcePins.length > 1;
-    if (showPerSource) {
-      sourcePins.forEach(function(pin, si) {
-        var c = SOURCE_COLOURS[si % SOURCE_COLOURS.length];
-        var sn = escapeHTML(pin.name || ('S' + (si+1)));
-        hhtml += '<th class="num" style="font-size:11px;color:' + c + ';">' + sn + '<br>dist (m)</th>';
-        hhtml += '<th class="num" style="font-size:11px;color:' + c + ';">' + sn + '<br>L<sub>p</sub> (dB)</th>';
-      });
-    }
-    hhtml += '<th class="num crit-day-col">Day <br>L<sub>eq</sub> predicted</th>';
-    hhtml += '<th class="num crit-day-col">Day <br>L<sub>eq</sub> criterion</th>';
-    hhtml += '<th class="num crit-day-col">Day <br>L<sub>eq</sub> Δ</th>';
-    hhtml += '<th class="center crit-day-col">Day <br>L<sub>eq</sub> OK?</th>';
-    hhtml += '<th class="num vic-only crit-eve-col">Eve <br>L<sub>eq</sub> predicted</th>';
-    hhtml += '<th class="num vic-only crit-eve-col">Eve <br>L<sub>eq</sub> criterion</th>';
-    hhtml += '<th class="num vic-only crit-eve-col">Eve <br>L<sub>eq</sub> Δ</th>';
-    hhtml += '<th class="center vic-only crit-eve-col">Eve <br>L<sub>eq</sub> OK?</th>';
-    hhtml += '<th class="num crit-night-col">Night <br>L<sub>eq</sub> predicted</th>';
-    hhtml += '<th class="num crit-night-col">Night <br>L<sub>eq</sub> criterion</th>';
-    hhtml += '<th class="num crit-night-col">Night <br>L<sub>eq</sub> Δ</th>';
-    hhtml += '<th class="center crit-night-col">Night <br>L<sub>eq</sub> OK?</th>';
-    hhtml += '<th class="num crit-lmax-col">Night <br>L<sub>max</sub> predicted</th>';
-    hhtml += '<th class="num crit-lmax-col">Night <br>L<sub>max</sub> criterion</th>';
-    hhtml += '<th class="num crit-lmax-col">Night <br>L<sub>max</sub> Δ</th>';
-    hhtml += '<th class="center crit-lmax-col">Night <br>L<sub>max</sub> OK?</th>';
-    hhtml += '</tr>';
-    predHead.innerHTML = hhtml;
+  // ── Build simple 5-col header for each period table ───────────────────────
+  function buildPeriodHead(headId) {
+    var h = document.getElementById(headId);
+    if (!h) return;
+    h.innerHTML = '<tr>' +
+      '<th style="width:44%;">Receiver (Zone / Subzone)</th>' +
+      '<th class="num">Predicted</th>' +
+      '<th class="num">Criterion</th>' +
+      '<th class="num">\u0394</th>' +
+      '<th class="center">OK?</th>' +
+      '</tr>';
   }
+  buildPeriodHead('predTableDayHead');
+  buildPeriodHead('predTableEveHead');
+  buildPeriodHead('predTableNightHead');
+  buildPeriodHead('predTableLmaxHead');
 
-  var _vicRuralDistNotes = null; // collect distance adjustment footnotes
+  // ── Clear period tbodies ──────────────────────────────────────────────────
+  var tbDay   = document.getElementById('rowsDay');
+  var tbEve   = document.getElementById('rowsEve');
+  var tbNight = document.getElementById('rowsNight');
+  var tbLmax  = document.getElementById('rowsLmax');
+  if (tbDay)   tbDay.innerHTML   = '';
+  if (tbEve)   tbEve.innerHTML   = '';
+  if (tbNight) tbNight.innerHTML = '';
+  if (tbLmax)  tbLmax.innerHTML  = '';
+
+  var _vicRuralDistNotes = null;
+  var _anyLmaxCrit = false;
+
   recs.forEach((rec, i) => {
-    const tr = document.createElement('tr');
-    const keyText = rKeys[i] || "";
+    const keyText = rKeys[i] || '';
     const nameInput = document.getElementById(`recvName${i+1}`);
     const recvLabel = escapeHTML(nameInput && nameInput.value.trim() ? nameInput.value.trim() : `Receiver ${i+1}`);
     let dayCrit, eveCrit, nightCrit, lmaxCrit;
     if (isOTHER) {
-      // Read criteria from manual input fields
       const rid = ids[i];
-      dayCrit = getManualCrit(rid + '_daycrit');
-      eveCrit = getManualCrit(rid + '_evecrit');
+      dayCrit  = getManualCrit(rid + '_daycrit');
+      eveCrit  = getManualCrit(rid + '_evecrit');
       nightCrit = getManualCrit(rid + '_nightcrit');
-      lmaxCrit = getManualCrit(rid + '_lmaxcrit');
+      lmaxCrit  = getManualCrit(rid + '_lmaxcrit');
     } else if (isNSW) {
       const crit = calcCriteriaNSW(i + 1);
-      dayCrit = crit.day;
-      eveCrit = crit.evening;
+      dayCrit  = crit.day;
+      eveCrit  = crit.evening;
       nightCrit = crit.night;
-      lmaxCrit = crit.lmax;
+      lmaxCrit  = crit.lmax;
     } else {
       const crit = isVIC ? calcCriteriaVICForReceiver(ids[i]) : calcCriteria(src, rec, ids[i]);
-      dayCrit = crit.day;
-      eveCrit = (isVIC && crit.evening !== undefined) ? crit.evening : "";
+      dayCrit  = crit.day;
+      eveCrit  = (isVIC && crit.evening !== undefined) ? crit.evening : '';
       nightCrit = crit.night;
-      lmaxCrit = crit.lmax;
-      // Track distance adjustment for rural footnote
+      lmaxCrit  = crit.lmax;
       if (isVIC && vicAreaType === 'rural' && crit.distAdj && crit.distAdj > 0) {
         if (!_vicRuralDistNotes) _vicRuralDistNotes = [];
         var recvNameFn = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : ('Receiver ' + (i + 1));
-        _vicRuralDistNotes.push({name: recvNameFn, dist: getReceiverDistance(i + 1), adj: crit.distAdj});
+        _vicRuralDistNotes.push({ name: recvNameFn, dist: getReceiverDistance(i + 1), adj: crit.distAdj });
       }
     }
+    if (lmaxCrit !== '' && lmaxCrit !== null && lmaxCrit !== undefined) _anyLmaxCrit = true;
 
-    const rowId = `r${i+1}`;
-    const predDayId = `${rowId}_day`;
-    const predEveId = `${rowId}_eve`;
-    const predNightId = `${rowId}_night`;
-    // Terrain indicator: check if any source has terrain screening active for this receiver
+    // Terrain badge
     var terrainActive = false;
     if (_terrainEnabled && _terrainIL) {
       for (var tsi = 0; tsi < _terrainIL.length; tsi++) {
@@ -5754,148 +6180,115 @@ function render() {
       }
     }
     var terrainBadge = terrainActive ? '<span title="Terrain screening applied" style="font-size:10px;color:#6b7280;margin-left:2px;">&#x26F0;</span>' : '';
-    // Predictions: multi-source via calc.js with per-source distances from matrix
-    const dist = getReceiverDistance(i+1); // legacy fallback for Source 0
-    let predDay = calcPredAtReceiver('day', null, i, dist);
-    let predEve = calcPredAtReceiver('eve', null, i, dist);
+
+    // Predictions
+    const dist = getReceiverDistance(i + 1);
+    let predDay   = calcPredAtReceiver('day',  null, i, dist);
+    let predEve   = calcPredAtReceiver('eve',  null, i, dist);
     let predNight = calcPredAtReceiver('night', null, i, dist);
-    let predLmax = calcPredAtReceiver('lmax', null, i, dist);
+    let predLmax  = calcPredAtReceiver('lmax',  null, i, dist);
 
-    // If no source is selected (total = 0) and predicted result is < 0, show blank
-    if (!hasDay && predDay !== "" && predDay < 0) predDay = "";
-    if (!hasEve && predEve !== "" && predEve < 0) predEve = "";
-    if (!hasNight && predNight !== "" && predNight < 0) predNight = "";
-    if (!hasLmax && predLmax !== "" && predLmax < 0) predLmax = "";
+    if (!hasDay   && predDay   !== '' && predDay   < 0) predDay   = '';
+    if (!hasEve   && predEve   !== '' && predEve   < 0) predEve   = '';
+    if (!hasNight && predNight !== '' && predNight < 0) predNight = '';
+    if (!hasLmax  && predLmax  !== '' && predLmax  < 0) predLmax  = '';
 
-    // Apply per-receiver characteristic penalties and facade correction to predicted levels
-    const rp = recvPenalties[`r${i+1}`] || {day:0,eve:0,night:0};
+    const rp = recvPenalties[`r${i+1}`] || { day: 0, eve: 0, night: 0 };
     const fc = facadeCorrection || 0;
-    const predDayPenalised = (predDay !== "" && predDay !== null && predDay !== undefined) ? predDay + rp.day + fc : predDay;
-    const predEvePenalised = (predEve !== "" && predEve !== null && predEve !== undefined) ? predEve + rp.eve + fc : predEve;
-    const predNightPenalised = (predNight !== "" && predNight !== null && predNight !== undefined) ? predNight + rp.night + fc : predNight;
-    const predLmaxAdj = (predLmax !== "" && predLmax !== null && predLmax !== undefined) ? predLmax + fc : predLmax;
+    const predDayPenalised   = (predDay   !== '' && predDay   != null) ? predDay   + rp.day   + fc : predDay;
+    const predEvePenalised   = (predEve   !== '' && predEve   != null) ? predEve   + rp.eve   + fc : predEve;
+    const predNightPenalised = (predNight !== '' && predNight != null) ? predNight + rp.night + fc : predNight;
+    const predLmaxAdj        = (predLmax  !== '' && predLmax  != null) ? predLmax  + fc            : predLmax;
 
-    const day = compCell(predDayPenalised, dayCrit);
-    const eve = compCell(predEvePenalised, eveCrit);
+    const day   = compCell(predDayPenalised,   dayCrit);
+    const eve   = compCell(predEvePenalised,   eveCrit);
     const night = compCell(predNightPenalised, nightCrit);
-    const lmax = compCell(predLmaxAdj, lmaxCrit);
+    const lmax  = compCell(predLmaxAdj,        lmaxCrit);
 
-    function okText(v) { return v === "" ? "" : (v ? "<span class='ok'>Yes</span>" : "<span class='bad'>No</span>"); }
-    function cellClass(v) { return v === "" ? "" : (v ? "cell-ok" : "cell-bad"); }
+    function okText(v) { return v === '' ? '' : (v ? "<span class='ok'>Yes</span>" : "<span class='bad'>No</span>"); }
+    function cellClass(v) { return v === '' ? '' : (v ? 'cell-ok' : 'cell-bad'); }
 
-    // Per-source distance + contribution cells (only when multiple sources)
-    var perSourceCells = '';
-    if (showPerSource) {
-      sourcePins.forEach(function(pin, si) {
-        var d = getDistanceForSourceReceiver(si, i);
-        var distStr = Number.isFinite(d) ? String(Math.round(d)) : '\u2014';
-        var contribStr = '\u2014';
-        if (Number.isFinite(d) && d > 0 && pin.lat !== null && pin.lw && Number.isFinite(pin.lw.day)) {
-          var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
-          var lp = attenuatePoint(pin.lw.day + opAdj, d);
-          contribStr = isFinite(lp) ? String(Math.round(lp)) : '\u2014';
-        }
-        var c = SOURCE_COLOURS[si % SOURCE_COLOURS.length];
-        perSourceCells += '<td class="num" style="font-size:11px;color:' + c + ';">' + distStr + '</td>';
-        perSourceCells += '<td class="num" style="font-size:11px;color:' + c + ';">' + contribStr + '</td>';
-      });
+    // Shared receiver label cell
+    const recvCell = `<td><b>${recvLabel}</b>${keyText ? '<br><span class="small">' + keyText + '</span>' : ''}${terrainBadge}</td>`;
+
+    // Build one result row for a given period
+    function makeRow(predicted, criterion, cmp) {
+      var tr = document.createElement('tr');
+      var predFmt = fmt(predicted);
+      var predClass = cellClass(cmp.ok);
+      tr.innerHTML = recvCell +
+        '<td class="num ' + predClass + '">' + predFmt + '</td>' +
+        td(fmt(criterion), 'num') +
+        td(cmp.delta === '' ? '' : String(cmp.delta), 'num') +
+        td(okText(cmp.ok), 'center ' + predClass);
+      return tr;
     }
 
-    // Build evening cells (hidden via CSS when not VIC/NSW/OTHER)
-    const eveCells = (isVIC || isNSW || isOTHER) ?
-      `<td class="num vic-only crit-eve-col"><span id="${predEveId}" style="display:inline-block;min-width:48px;">${predEvePenalised}</span></td>` +
-      td(fmt(eveCrit), "num vic-only crit-eve-col") +
-      td(eve.delta === "" ? "" : String(eve.delta), "num vic-only crit-eve-col") +
-      td(okText(eve.ok), "center vic-only crit-eve-col "+cellClass(eve.ok))
-      :
-      `<td class="num vic-only crit-eve-col"></td><td class="num vic-only crit-eve-col"></td><td class="num vic-only crit-eve-col"></td><td class="center vic-only crit-eve-col"></td>`;
+    // ISO breakdown click — show breakdown for first placed source
+    function addClick(tr) {
+      tr.style.cursor = 'pointer';
+      tr.title = 'Click for per-band ISO 9613-2 calculation breakdown';
+      (function(recIdx) {
+        tr.addEventListener('click', function() {
+          var firstSrcIdx = 0;
+          for (var si = 0; si < sourcePins.length; si++) {
+            if (sourcePins[si].lat !== null) { firstSrcIdx = si; break; }
+          }
+          showISOBreakdown(firstSrcIdx, recIdx);
+        });
+      })(i);
+    }
 
-    tr.innerHTML =
-      `<td><b>${recvLabel}</b>${keyText ? '<br><span class="small">'+keyText+'</span>' : ''}</td>` +
-
-      perSourceCells +
-
-      `<td class="num crit-day-col"><span id="${predDayId}" style="display:inline-block;min-width:48px;">${predDayPenalised}</span>${terrainBadge}</td>` +
-      td(fmt(dayCrit), "num crit-day-col") +
-      td(day.delta === "" ? "" : String(day.delta), "num crit-day-col") +
-      td(okText(day.ok), "center crit-day-col "+cellClass(day.ok)) +
-
-      eveCells +
-
-      `<td class="num crit-night-col"><span id="${predNightId}" style="display:inline-block;min-width:48px;">${predNightPenalised}</span>${terrainBadge}</td>` +
-      td(fmt(nightCrit), "num crit-night-col") +
-      td(night.delta === "" ? "" : String(night.delta), "num crit-night-col") +
-      td(okText(night.ok), "center crit-night-col "+cellClass(night.ok)) +
-
-      `<td class="num crit-lmax-col"><span style="display:inline-block;min-width:48px;">${predLmaxAdj}</span></td>` +
-      td(lmaxCrit === "" ? "" : fmt(lmaxCrit), "num crit-lmax-col") +
-      td(lmax.delta === "" ? "" : String(lmax.delta), "num crit-lmax-col") +
-      td(okText(lmax.ok), "center crit-lmax-col "+cellClass(lmax.ok));
-
-    // Click handler: show per-band ISO breakdown (§5.2.2)
-    tr.style.cursor = 'pointer';
-    tr.title = 'Click for per-band ISO 9613-2 calculation breakdown';
-    (function(recIdx) {
-      tr.addEventListener('click', function() {
-        // Show breakdown for first source with a valid position
-        var firstSrcIdx = 0;
-        for (var si = 0; si < sourcePins.length; si++) {
-          if (sourcePins[si].lat !== null) { firstSrcIdx = si; break; }
-        }
-        showISOBreakdown(firstSrcIdx, recIdx);
-      });
-    })(i);
-    tbody.appendChild(tr);
+    if (tbDay)   { var dTr = makeRow(predDayPenalised,   dayCrit,  day);   addClick(dTr); tbDay.appendChild(dTr);   }
+    if (tbEve)   { var eTr = makeRow(predEvePenalised,   eveCrit,  eve);   addClick(eTr); tbEve.appendChild(eTr);   }
+    if (tbNight) { var nTr = makeRow(predNightPenalised, nightCrit, night); addClick(nTr); tbNight.appendChild(nTr); }
+    if (tbLmax)  { var xTr = makeRow(predLmaxAdj,        lmaxCrit, lmax);  addClick(xTr); tbLmax.appendChild(xTr);  }
   });
 
-  // NSW sleep disturbance screening row
-  if (isNSW) {
+  // NSW sleep disturbance screening row (appended to Night table)
+  if (isNSW && tbNight) {
     var rblNightInp = document.getElementById('nswRblNight');
     var rblN = rblNightInp && rblNightInp.value !== '' ? Math.max(Number(rblNightInp.value), NSW_MIN_RBLS.night) : NSW_MIN_RBLS.night;
     var sleepLeqThreshold = Math.max(NSW_SLEEP_THRESHOLDS.laeq15min, rblN + 5);
     var sleepLmaxThreshold = Math.max(NSW_SLEEP_THRESHOLDS.lafmax, rblN + 15);
-
-    var sleepTr = document.createElement('tr');
-    sleepTr.className = 'nsw-sleep-row';
-
-    // Check each receiver's night prediction against sleep thresholds
     var sleepResults = [];
     recs.forEach(function(rec, i) {
-      var dist = getReceiverDistance(i + 1); // legacy fallback
-      var predN = calcPredAtReceiver('night', null, i, dist);
-      var predLmax = calcPredAtReceiver('lmax', null, i, dist);
-      if (!hasNight && predN !== "" && predN < 0) predN = "";
-      if (!hasLmax && predLmax !== "" && predLmax < 0) predLmax = "";
-      var rpSleep = recvPenalties['r'+(i+1)] || {night:0};
+      var dist = getReceiverDistance(i + 1);
+      var predN    = calcPredAtReceiver('night', null, i, dist);
+      var predLmax = calcPredAtReceiver('lmax',  null, i, dist);
+      if (!hasNight && predN    !== '' && predN    < 0) predN    = '';
+      if (!hasLmax  && predLmax !== '' && predLmax < 0) predLmax = '';
+      var rpSleep = recvPenalties['r' + (i + 1)] || { night: 0 };
       var fcSleep = facadeCorrection || 0;
-      var penN = (predN !== "" && predN !== null) ? predN + rpSleep.night + fcSleep : "";
-      var leqExceeds = penN !== "" && penN > sleepLeqThreshold;
-      var predLmaxFC = (predLmax !== "" && predLmax !== null) ? predLmax + fcSleep : predLmax;
-      var lmaxExceeds = predLmaxFC !== "" && predLmaxFC > sleepLmaxThreshold;
-      sleepResults.push({ leqExceeds: leqExceeds, lmaxExceeds: lmaxExceeds, hasData: penN !== "" || predLmax !== "" });
+      var penN    = (predN    !== '' && predN    != null) ? predN    + rpSleep.night + fcSleep : '';
+      var predLmaxFC = (predLmax !== '' && predLmax != null) ? predLmax + fcSleep : predLmax;
+      sleepResults.push({
+        leqExceeds:  penN !== '' && penN > sleepLeqThreshold,
+        lmaxExceeds: predLmaxFC !== '' && predLmaxFC > sleepLmaxThreshold,
+        hasData:     penN !== '' || predLmax !== ''
+      });
     });
-
     var anySleepIssue = sleepResults.some(function(s) { return s.leqExceeds || s.lmaxExceeds; });
     var anyData = sleepResults.some(function(s) { return s.hasData; });
-
-    // Add sleep disturbance screening summary row
-    var sleepHtml = '<td colspan="5" style="font-size:12px;"><b>Sleep disturbance screening (Section 2.5)</b><br>' +
-      '<span style="font-size:11px;">Thresholds: L<sub>Aeq,15min</sub> ' + Math.round(sleepLeqThreshold) + ' dB | L<sub>AFmax</sub> ' + Math.round(sleepLmaxThreshold) + ' dB</span></td>';
-    // Evening columns (4 cells)
-    sleepHtml += '<td class="vic-only crit-eve-col" colspan="4"></td>';
-    // Night result
-    if (!anyData) {
-      sleepHtml += '<td colspan="4" class="crit-night-col" style="font-size:12px;color:var(--muted);">Enter noise data</td>';
-    } else if (anySleepIssue) {
-      sleepHtml += '<td colspan="4" class="crit-night-col nsw-sleep-warn">Detailed sleep disturbance assessment required</td>';
-    } else {
-      sleepHtml += '<td colspan="4" class="crit-night-col nsw-sleep-ok">Below screening thresholds</td>';
-    }
-    // Lmax columns (4 cells)
-    sleepHtml += '<td class="crit-lmax-col" colspan="4"></td>';
-    sleepTr.innerHTML = sleepHtml;
-    tbody.appendChild(sleepTr);
+    var sleepMsg = !anyData
+      ? '<span style="color:var(--muted);">Enter noise data</span>'
+      : anySleepIssue
+        ? '<span class="nsw-sleep-warn">Detailed sleep disturbance assessment required</span>'
+        : '<span class="nsw-sleep-ok">Below screening thresholds</span>';
+    var sleepTr = document.createElement('tr');
+    sleepTr.className = 'nsw-sleep-row';
+    sleepTr.innerHTML =
+      '<td colspan="2" style="font-size:12px;"><b>Sleep disturbance screening (s. 2.5)</b><br>' +
+      '<span style="font-size:11px;">L<sub>Aeq,15min</sub> ' + Math.round(sleepLeqThreshold) + ' dB | L<sub>AFmax</sub> ' + Math.round(sleepLmaxThreshold) + ' dB</span></td>' +
+      '<td colspan="3">' + sleepMsg + '</td>';
+    tbNight.appendChild(sleepTr);
   }
+
+  // Show / hide Lmax table based on whether any receiver has an Lmax criterion
+  var lmaxLabelEl = document.getElementById('predLmaxLabel');
+  var lmaxTableEl = document.getElementById('predTableLmax');
+  if (lmaxLabelEl) lmaxLabelEl.style.display = _anyLmaxCrit ? '' : 'none';
+  if (lmaxTableEl) lmaxTableEl.style.display = _anyLmaxCrit ? '' : 'none';
 
   // Rural distance adjustment footnote
   var distFnEl = document.getElementById('vicRuralDistFootnote');
@@ -6562,143 +6955,227 @@ function updateOtherCritSelection() {
   render();
 }));
 
-function renderContribTable(tableId, prefix, numRows) {
-  const table = document.getElementById(tableId);
+function renderContributions() {
+  var table = document.getElementById('contribTable');
+  var periodBar = document.getElementById('contribPeriodBar');
   if (!table) return;
 
-  // Collect active receivers (with per-source distance support)
-  const receivers = [];
-  for (let r = 1; r <= 4; r++) {
-    // Use Source 0 distance as fallback display distance
-    var d0 = getDistanceForSourceReceiver(0, r - 1);
-    var distEl = document.getElementById('dist_r' + r);
-    var dist = Number.isFinite(d0) ? d0 : (distEl ? Number(distEl.value) : NaN);
-    if (Number.isFinite(dist) && dist > 0) {
-      receivers.push({ r: r, dist: dist });
-    }
-  }
+  var period = (typeof _globalPeriod !== 'undefined' && _globalPeriod) ? _globalPeriod : 'day';
+  var periodNames = { day: 'Day', eve: 'Evening', night: 'Night' };
+  if (periodBar) periodBar.innerHTML = (periodNames[period] || period) + ' L<sub>Aeq</sub> contributions at receivers (dB)';
 
-  // Collect source rows from ALL sources
-  const srcRows = [];
-  const isISO = (propagationMethod === 'iso9613' && prefix !== 'lmax');
-  const libFlat = (prefix === 'lmax') ? SOURCE_LIBRARY_LMAX : SOURCE_LIBRARY;
-
-  sources.forEach(function(src, si) {
-    var sp = srcPrefix(si);
-    var tbodyEl = prefix === 'lmax'
-      ? document.getElementById(sp + 'nightLmaxRows')
-      : document.getElementById(sp + prefix + 'SrcRows');
-    if (!tbodyEl) return;
-
-    var trs = tbodyEl.querySelectorAll('tr');
-    trs.forEach(function(tr, idx) {
-      var i = idx + 1;
-      var sel = tr.querySelector('select');
-      var lwEl = document.getElementById(sp + prefix + '_lw_' + i);
-      var name = sel ? sel.value : '';
-      var lw = lwEl ? Number(lwEl.textContent) : NaN;
-      if (name && Number.isFinite(lw) && lw > 0) {
-        var row = { name: name, lw: lw, _sourceIdx: si };
-        if (isISO) {
-          var picked = libFlat.find(function(s) { return s.name === name; });
-          row.spectrum = picked ? picked.spectrum : null;
-          row.height = picked && picked.height !== undefined ? picked.height : 1.5;
-          row.adjDB = picked ? (lw - picked.lw) : 0;
-          row.baseLw = picked ? picked.lw : lw;
-        }
-        srcRows.push(row);
-      }
-    });
-  });
-
-  // Build table HTML
   table.innerHTML = '';
 
-  // Header row
-  const thead = document.createElement('thead');
-  let hRow = '<tr><th style="width:42%;">Source</th><th class="num">Source Lw (dB)</th>';
-  if (receivers.length === 0) {
-    hRow += '<th class="num" style="color:var(--muted);">— enter distances above —</th>';
-  } else {
-    receivers.forEach(function(rv) {
-      hRow += '<th class="num">R' + rv.r + '<br><span style="font-weight:400;font-size:11px;">' + Math.round(rv.dist) + ' m</span></th>';
-    });
-  }
-  hRow += '</tr>';
-  thead.innerHTML = hRow;
-  table.appendChild(thead);
+  // Active source pins for this period
+  var activePins = sourcePins.filter(function(pin) {
+    if (pin.lat === null) return false;
+    if (pin.activeInPeriod && pin.activeInPeriod[period] === false) return false;
+    return pin.lw && Number.isFinite(pin.lw[period]) && pin.lw[period] > 0;
+  });
 
-  const tbodyOut = document.createElement('tbody');
-
-  if (srcRows.length === 0) {
-    const cols = 2 + Math.max(receivers.length, 1);
-    tbodyOut.innerHTML = '<tr><td colspan="' + cols + '" class="center" style="color:var(--muted);">No sources selected</td></tr>';
-    table.appendChild(tbodyOut);
+  if (activePins.length === 0) {
+    table.innerHTML = '<tbody><tr><td colspan="3" style="color:var(--muted);font-size:12px;padding:8px;">No active sources for ' + period + ' period.</td></tr></tbody>';
+    // NSW derivation table
+    if (currentState === 'NSW') renderNSWDerivTable();
+    // SA emergency equipment criteria
+    if (currentState === 'SA') renderEmergencyEquipCriteria();
     return;
   }
 
-  // Per-receiver predicted levels per source (for totaling)
-  // Use unrounded values for total to avoid intermediate-rounding error
-  const recvTotals = receivers.map(function() { return 0; });
+  // Header
+  var thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th style="width:44%;">Receiver / Source</th><th class="num">Distance (m)</th><th class="num">L<sub>p</sub> (dB)</th></tr>';
+  table.appendChild(thead);
 
-  srcRows.forEach(function(s) {
-    const tr = document.createElement('tr');
-    const tdName = document.createElement('td');
-    tdName.textContent = s.name;
-    tr.appendChild(tdName);
-    const tdLw = document.createElement('td');
-    tdLw.className = 'num';
-    tdLw.textContent = Math.round(s.lw);
-    tr.appendChild(tdLw);
-    receivers.forEach(function(rv, ri) {
-      // Per-source distance from distance matrix
-      var dist = getDistanceForSourceReceiver(s._sourceIdx, rv.r - 1);
-      if (!Number.isFinite(dist) || dist <= 0) dist = rv.dist; // fallback
-      var predRaw, predDisplay;
-      if (isISO && s.spectrum) {
-        predRaw = calcISO9613single(s.spectrum, s.height, dist, s.adjDB);
-        if (!Number.isFinite(predRaw)) predRaw = attenuatePoint(s.lw, dist);
-        predDisplay = Math.round(predRaw);
-      } else {
-        predRaw = attenuatePoint(s.lw, dist);
-        predDisplay = Math.round(predRaw);
+  var tbody = document.createElement('tbody');
+
+  ['r1','r2','r3','r4'].forEach(function(rid, ri) {
+    // Check if receiver has a placed position (distance > 0)
+    var d0 = getDistanceForSourceReceiver(0, ri);
+    var distEl = document.getElementById('dist_r' + (ri + 1));
+    var hasRecv = Number.isFinite(d0) && d0 > 0;
+    if (!hasRecv && distEl) {
+      var dv = Number(distEl.value);
+      hasRecv = Number.isFinite(dv) && dv > 0;
+    }
+    if (!hasRecv) return;
+
+    var nameInput = document.getElementById('recvName' + (ri + 1));
+    var recvLabel = nameInput && nameInput.value.trim() ? nameInput.value.trim() : ('Receiver ' + (ri + 1));
+
+    // Receiver subheader row (click opens ISO breakdown)
+    var recvHdr = document.createElement('tr');
+    recvHdr.className = 'contrib-recv-hdr';
+    recvHdr.innerHTML = '<td colspan="3" style="cursor:pointer;" title="Click for per-band ISO 9613-2 breakdown"><b>' + escapeHTML(recvLabel) + ' \u2014 click for ISO breakdown</b></td>';
+    (function(recvIdx) {
+      recvHdr.addEventListener('click', function() {
+        var firstSrcIdx = 0;
+        for (var si = 0; si < sourcePins.length; si++) {
+          if (sourcePins[si].lat !== null) { firstSrcIdx = si; break; }
+        }
+        showISOBreakdown(firstSrcIdx, recvIdx);
+      });
+    })(ri);
+    tbody.appendChild(recvHdr);
+
+    // Pre-compute barrier + terrain info for this receiver — mirrors calcPredAtReceiver
+    var screenable = (window._getScreenableBuildings) ? window._getScreenableBuildings() : (window._buildings || []);
+    var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+    var recLL = allLL[rid];
+    var rawContributions = []; // unrounded Lp values for energy-sum total
+
+    activePins.forEach(function(pin) {
+      var si = sourcePins.indexOf(pin);
+      var d = getDistanceForSourceReceiver(si, ri);
+      if (!Number.isFinite(d) || d <= 0) {
+        if (si === 0 && distEl) d = Number(distEl.value);
       }
-      recvTotals[ri] += Math.pow(10, predRaw / 10);
-      const tdPred = document.createElement('td');
-      tdPred.className = 'num';
-      tdPred.textContent = predDisplay;
-      tr.appendChild(tdPred);
+      var distStr = (Number.isFinite(d) && d > 0) ? String(Math.round(d)) : '\u2014';
+      var lpStr = '\u2014';
+      if (Number.isFinite(d) && d > 0) {
+        var lpRaw;
+        if (propagationMethod === 'iso9613' && period !== 'lmax') {
+          // ISO 9613-2 path — calcISO9613forSourcePin handles opAdj, barriers, terrain, atm absorption
+          lpRaw = calcISO9613forSourcePin(si, period, d, ri);
+        } else {
+          // Simple path — mirrors calcPredAtReceiver simple logic
+          var opAdj = 10 * Math.log10((pin.operationalTime_min || 15) / 15);
+          lpRaw = attenuatePoint(pin.lw[period] + opAdj, d);
+
+          // Building barrier IL — same logic as calcPredAtReceiver simple path
+          var buildingIL = 0;
+          if (screenable.length > 0 && recLL && pin.lat !== null) {
+            var srcLL = { lat: pin.lat, lng: pin.lng };
+            var srcHt = pin.height_m || 1.5;
+            var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : 1.5;
+            var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+            if (barrier && (barrier.pathLengthDiff > 0 || (barrier.endDeltaLeft || 0) > 0 || (barrier.endDeltaRight || 0) > 0)) {
+              var Abar = SharedCalc.calcBarrierWithEndDiffraction(
+                barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
+              );
+              buildingIL = Math.min(Abar[0], 20);
+            }
+          }
+          // Terrain IL — same logic as calcPredAtReceiver simple path
+          var terrainIL = 0;
+          if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][ri]) {
+            terrainIL = _terrainIL[si][ri].insertionLoss_dB || 0;
+          }
+          lpRaw -= Math.max(buildingIL, terrainIL);
+        }
+
+        if (Number.isFinite(lpRaw)) {
+          lpStr = String(Math.round(lpRaw));
+          rawContributions.push(lpRaw); // unrounded — used for energy sum
+        }
+      }
+      var srcTr = document.createElement('tr');
+      srcTr.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + escapeHTML(pin.name || 'Source') + '</td>' +
+        '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
+        '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
+      tbody.appendChild(srcTr);
     });
-    tbodyOut.appendChild(tr);
+
+    // Total = energy sum of raw (unrounded) contributions, then round — identical to calcPredAtReceiver
+    var totalTr = document.createElement('tr');
+    totalTr.className = 'contrib-total-row';
+    var totalStr = rawContributions.length > 0
+      ? String(Math.round(SharedCalc.energySum(rawContributions)))
+      : '\u2014';
+    totalTr.innerHTML = '<td style="padding-left:16px;font-size:12px;"><b>Total</b></td>' +
+      '<td class="num" style="font-size:12px;">\u2014</td>' +
+      '<td class="num" style="font-size:12px;"><b>' + totalStr + '</b></td>';
+    tbody.appendChild(totalTr);
   });
 
-  // Total row
-  const allLw = srcRows.map(function(s){ return s.lw; });
-  const totalLw = energeticSum(allLw);
-  const totalRow = document.createElement('tr');
-  const thLabel = document.createElement('th');
-  thLabel.textContent = 'TOTAL';
-  totalRow.appendChild(thLabel);
-  const thLw = document.createElement('th');
-  thLw.className = 'num';
-  thLw.textContent = Math.round(totalLw);
-  totalRow.appendChild(thLw);
-  receivers.forEach(function(rv, ri) {
-    const totalPred = recvTotals[ri] > 0 ? Math.round(10 * log10(recvTotals[ri])) : 0;
-    const thPred = document.createElement('th');
-    thPred.className = 'num';
-    thPred.textContent = totalPred;
-    totalRow.appendChild(thPred);
-  });
-  tbodyOut.appendChild(totalRow);
+  table.appendChild(tbody);
 
-  table.appendChild(tbodyOut);
-}
+  // ── Night Lmax contributions ────────────────────────────────────────────
+  // Simple propagation only: Lw,max − 20·log10(d) − 8, no barriers/terrain
+  var lmaxSection = document.getElementById('contribLmaxSection');
+  if (lmaxSection) {
+    lmaxSection.innerHTML = '';
+    var lmaxActivePins = sourcePins.filter(function(pin) {
+      if (pin.lat === null) return false;
+      if (!pin.activeInPeriod || pin.activeInPeriod.lmax !== true) return false;
+      var lwm = Number.isFinite(pin.lw_max) ? pin.lw_max : null;
+      return Number.isFinite(lwm);
+    });
 
-function renderContributions() {
-  renderContribTable('contribDayTable',   'day',   5);
-  if (currentState === 'VIC' || currentState === 'NSW' || currentState === 'OTHER') renderContribTable('contribEveTable', 'eve', 5);
-  renderContribTable('contribNightTable', 'night', 5);
+    if (lmaxActivePins.length > 0) {
+      lmaxSection.style.display = '';
+      var lmaxHdrEl = document.createElement('div');
+      lmaxHdrEl.className = 'contrib-sub-h';
+      lmaxHdrEl.style.marginBottom = '6px';
+      lmaxHdrEl.innerHTML = 'Night L<sub>max</sub> contributions at receivers (dB)';
+      lmaxSection.appendChild(lmaxHdrEl);
+
+      var lmaxTable = document.createElement('table');
+      lmaxTable.style.width = '100%';
+      var lmaxThead = document.createElement('thead');
+      lmaxThead.innerHTML = '<tr><th style="width:44%;">Receiver / Source</th><th class="num">Distance (m)</th><th class="num">L<sub>max</sub> (dB)</th></tr>';
+      lmaxTable.appendChild(lmaxThead);
+      var lmaxTbody = document.createElement('tbody');
+
+      ['r1','r2','r3','r4'].forEach(function(rid, ri) {
+        var d0 = getDistanceForSourceReceiver(0, ri);
+        var distElLmax = document.getElementById('dist_r' + (ri + 1));
+        var hasRecvLmax = Number.isFinite(d0) && d0 > 0;
+        if (!hasRecvLmax && distElLmax) {
+          var dv2 = Number(distElLmax.value);
+          hasRecvLmax = Number.isFinite(dv2) && dv2 > 0;
+        }
+        if (!hasRecvLmax) return;
+
+        var nameInputLmax = document.getElementById('recvName' + (ri + 1));
+        var recvLabelLmax = nameInputLmax && nameInputLmax.value.trim() ? nameInputLmax.value.trim() : ('Receiver ' + (ri + 1));
+
+        var recvHdrLmax = document.createElement('tr');
+        recvHdrLmax.className = 'contrib-recv-hdr';
+        recvHdrLmax.innerHTML = '<td colspan="3"><b>' + escapeHTML(recvLabelLmax) + '</b></td>';
+        lmaxTbody.appendChild(recvHdrLmax);
+
+        var rawLmax = [];
+        lmaxActivePins.forEach(function(pin) {
+          var si = sourcePins.indexOf(pin);
+          var d = getDistanceForSourceReceiver(si, ri);
+          if (!Number.isFinite(d) || d <= 0) {
+            if (si === 0 && distElLmax) d = Number(distElLmax.value);
+          }
+          var distStr = (Number.isFinite(d) && d > 0) ? String(Math.round(d)) : '\u2014';
+          var lpStr = '\u2014';
+          if (Number.isFinite(d) && d > 0) {
+            var lwm = Number.isFinite(pin.lw_max) ? pin.lw_max : null;
+            if (Number.isFinite(lwm)) {
+              var lpRaw = attenuatePoint(lwm, d); // no opAdj, no barriers, no terrain
+              if (Number.isFinite(lpRaw)) {
+                lpStr = String(Math.round(lpRaw));
+                rawLmax.push(lpRaw);
+              }
+            }
+          }
+          var srcTrLmax = document.createElement('tr');
+          srcTrLmax.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + escapeHTML(pin.name || 'Source') + '</td>' +
+            '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
+            '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
+          lmaxTbody.appendChild(srcTrLmax);
+        });
+
+        var totalLmaxTr = document.createElement('tr');
+        totalLmaxTr.className = 'contrib-total-row';
+        var totalLmaxStr = rawLmax.length > 0 ? String(Math.round(SharedCalc.energySum(rawLmax))) : '\u2014';
+        totalLmaxTr.innerHTML = '<td style="padding-left:16px;font-size:12px;"><b>Total</b></td>' +
+          '<td class="num" style="font-size:12px;">\u2014</td>' +
+          '<td class="num" style="font-size:12px;"><b>' + totalLmaxStr + '</b></td>';
+        lmaxTbody.appendChild(totalLmaxTr);
+      });
+
+      lmaxTable.appendChild(lmaxTbody);
+      lmaxSection.appendChild(lmaxTable);
+    } else {
+      lmaxSection.style.display = 'none';
+    }
+  }
 
   // NSW derivation table
   if (currentState === 'NSW') renderNSWDerivTable();
@@ -6879,18 +7356,33 @@ initCollapse();
         data.currentState = currentState;
         data.vicAreaType = vicAreaType;
 
-        // TODO Chunk F: update save to serialise sourcePins[] with lw/spectrum per period.
-        // For now, save sourcePins metadata (lat/lng/name/height/lw) without spectrum.
         data.sourcePins = sourcePins.map(function(pin) {
+          var bh  = pin.buildingHeight_m || 0;
+          var eff = (pin.height_m || 1.5) + bh;
           return {
-            id: pin.id, name: pin.name,
-            lat: pin.lat, lng: pin.lng,
-            height_m: pin.height_m,
-            operationalTime_min: pin.operationalTime_min,
-            lw: pin.lw ? JSON.parse(JSON.stringify(pin.lw)) : {},
-            spectrum: pin.spectrum ? JSON.parse(JSON.stringify(pin.spectrum)) : {}
+            id:                   pin.id,
+            name:                 pin.name,
+            lat:                  pin.lat,
+            lng:                  pin.lng,
+            lw:                   pin.lw     ? JSON.parse(JSON.stringify(pin.lw))     : { day: 85, eve: 85, night: 85 },
+            lw_max:               Number.isFinite(pin.lw_max) ? pin.lw_max : null,
+            spectrum:             pin.spectrum ? JSON.parse(JSON.stringify(pin.spectrum)) : { day: null, eve: null, night: null },
+            spectrum_max:         Array.isArray(pin.spectrum_max) ? pin.spectrum_max.slice() : null,
+            height_m:             pin.height_m            || 1.5,
+            buildingHeight_m:     bh,
+            effectiveHeight_m:    parseFloat(eff.toFixed(2)),
+            groundElevation_m:    pin.groundElevation_m   || null,
+            operationalTime_min:  pin.operationalTime_min || 15,
+            activeInPeriod:       (function() {
+              var ap = pin.activeInPeriod ? JSON.parse(JSON.stringify(pin.activeInPeriod)) : { day: true, eve: true, night: true };
+              if (!ap.hasOwnProperty('lmax')) ap.lmax = false;
+              return ap;
+            })()
           };
         });
+        // Subject site (SA) — first source lat/lng and detected zone
+        data._subjectSiteLatlng = window._subjectSiteLatlng || null;
+        data._subjectSiteZone   = window._subjectSiteZone   || null;
         // Legacy field (empty) — old save/load compatibility
         data.sourceTable = {};
 
@@ -7015,6 +7507,7 @@ initCollapse();
         data.buildingsOn = window._getBuildingsOn ? window._getBuildingsOn() : true;
         data.noiseMapOn = window._getNoiseMapOn ? window._getNoiseMapOn() : false;
         data.noiseMapPeriod = window._getNoiseMapPeriod ? window._getNoiseMapPeriod() : 'day';
+        data.lmaxMethod = window._getLmaxMethod ? window._getLmaxMethod() : 'simple';
         data.noiseMapHeight = window._getNoiseMapHeight ? window._getNoiseMapHeight() : 1.5;
         var legendSettings = window._getLegendSettings ? window._getLegendSettings() : { min: 25, max: 70, interval: 5 };
         data.legendMin = legendSettings.min;
@@ -7157,16 +7650,16 @@ initCollapse();
 
     function buildGISMetadata() {
       return {
-        project_address: getExportAddress(),
-        exported: new Date().toISOString(),
-        method: propagationMethod === 'iso9613' ? 'ISO 9613-2:1996' : 'Simple (geometric spreading)',
-        tool: 'Resonate SA EPA Noise Calculator',
-        tool_version: 'v2.0',
-        periods_exported: ['day', 'evening', 'night'],
+        project_address:  getExportAddress(),
+        exported:         new Date().toISOString(),
+        method:           propagationMethod === 'iso9613' ? 'ISO 9613-2:1996' : 'Simple (geometric spreading)',
+        tool:             'Resonate SA EPA Noise Calculator',
+        tool_version:     'v2.0',
+        source_count:     sourcePins.filter(function(p) { return p.lat !== null; }).length,
         receiver_height_m: iso_receiverHeight || 1.5,
-        ground_factor: iso_groundFactor,
-        temperature_c: iso_temperature,
-        humidity_pct: iso_humidity,
+        ground_factor:    iso_groundFactor,
+        temperature_c:    iso_temperature,
+        humidity_pct:     iso_humidity,
         notes: 'Predictions based on user-entered equipment Lw values. Verify against site measurements before relying on results for compliance purposes.'
       };
     }
@@ -7175,18 +7668,28 @@ initCollapse();
       var features = [];
       sourcePins.forEach(function(pin, si) {
         if (pin.lat === null || pin.lng === null) return;
+        var slug = typeof slugify === 'function'
+          ? slugify(pin.name || 'source-' + (si + 1))
+          : 'source-' + (si + 1);
+        var bh  = pin.buildingHeight_m || 0;
+        var eff = parseFloat(((pin.height_m || 1.5) + bh).toFixed(2));
         features.push({
           type: 'Feature',
-          id: 'source-' + (typeof slugify === 'function' ? slugify(pin.name || 'source-' + (si + 1)) : 'source-' + (si + 1)),
+          id: 'source-' + slug,
           geometry: { type: 'Point', coordinates: [pin.lng, pin.lat] },
           properties: {
-            feature_type: 'source',
-            name: pin.name || 'Source ' + (si + 1),
-            height_m: pin.height_m || 1.5,
-            operationalTime_min: pin.operationalTime_min || 15,
-            lw_day: pin.lw ? pin.lw.day : null,
-            lw_eve: pin.lw ? pin.lw.eve : null,
-            lw_night: pin.lw ? pin.lw.night : null
+            feature_type:          'source',
+            id:                    'source-' + slug,
+            name:                  pin.name || 'Source ' + (si + 1),
+            lw_day:                pin.lw ? pin.lw.day   : null,
+            lw_eve:                pin.lw ? pin.lw.eve   : null,
+            lw_night:              pin.lw ? pin.lw.night : null,
+            lw_max_dba:            Number.isFinite(pin.lw_max) ? pin.lw_max : null,
+            height_m:              pin.height_m            || 1.5,
+            building_height_m:     bh,
+            effective_height_m:    eff,
+            ground_elevation_m:    pin.groundElevation_m   || null,
+            operational_time_min:  pin.operationalTime_min || 15
           }
         });
       });
@@ -7321,10 +7824,18 @@ initCollapse();
       // Sources folder
       kml += '<Folder><name>Sources</name>\n';
       buildSourceFeatures().forEach(function(f) {
-        kml += '<Placemark><name>' + escapeXML(f.properties.name) + '</name>\n';
+        var p = f.properties;
+        kml += '<Placemark><name>' + escapeXML(p.name) + '</name>\n';
         kml += '<Point><coordinates>' + f.geometry.coordinates[0] + ',' + f.geometry.coordinates[1] + ',0</coordinates></Point>\n';
         kml += '<ExtendedData>';
-        kml += '<Data name="source_height_m"><value>' + f.properties.source_height_m + '</value></Data>';
+        kml += '<Data name="lw_day_dba"><value>'   + (p.lw_day   !== null ? p.lw_day   : '') + '</value></Data>';
+        kml += '<Data name="lw_eve_dba"><value>'   + (p.lw_eve   !== null ? p.lw_eve   : '') + '</value></Data>';
+        kml += '<Data name="lw_night_dba"><value>' + (p.lw_night !== null ? p.lw_night : '') + '</value></Data>';
+        kml += '<Data name="height_m"><value>'              + p.height_m              + '</value></Data>';
+        kml += '<Data name="building_height_m"><value>'     + p.building_height_m     + '</value></Data>';
+        kml += '<Data name="effective_height_m"><value>'    + p.effective_height_m    + '</value></Data>';
+        if (p.ground_elevation_m !== null) kml += '<Data name="ground_elevation_m"><value>' + p.ground_elevation_m + '</value></Data>';
+        kml += '<Data name="operational_time_min"><value>'  + p.operational_time_min  + '</value></Data>';
         kml += '</ExtendedData>\n';
         kml += '</Placemark>\n';
       });
@@ -7366,11 +7877,34 @@ initCollapse();
       }
     });
 
-    // ── CSV export (receivers only) ──
+    // ── CSV export (sources + receivers) ──
     var csvBtn = document.getElementById('exportCsvBtn');
     if (csvBtn) csvBtn.addEventListener('click', function() {
       var meta = buildGISMetadata();
       var csv = '# Noise Assessment Export | ' + meta.project_address + ' | ' + meta.exported + ' | Method: ' + meta.method + '\n';
+
+      // ── Sources section ──
+      csv += '\n# SOURCES\n';
+      csv += 'Name,Lat,Lng,Lw_day_dBA,Lw_eve_dBA,Lw_night_dBA,Height_m,Building_height_m,Effective_height_m,Ground_elev_m,Operational_time_min\n';
+      buildSourceFeatures().forEach(function(f) {
+        var p = f.properties;
+        var c = f.geometry.coordinates;
+        csv += [
+          '"' + (p.name || '') + '"',
+          c[1].toFixed(6), c[0].toFixed(6),
+          p.lw_day   !== null ? p.lw_day   : '',
+          p.lw_eve   !== null ? p.lw_eve   : '',
+          p.lw_night !== null ? p.lw_night : '',
+          p.height_m,
+          p.building_height_m,
+          p.effective_height_m,
+          p.ground_elevation_m !== null ? p.ground_elevation_m : '',
+          p.operational_time_min
+        ].join(',') + '\n';
+      });
+
+      // ── Receivers section ──
+      csv += '\n# RECEIVERS\n';
       csv += 'Receiver,Lat,Lng,Zone,Type,Day_pred,Eve_pred,Night_pred,Lmax_pred,Day_crit,Eve_crit,Night_crit,Day_exceed,Eve_exceed,Night_exceed,Compliant\n';
       buildReceiverFeatures().forEach(function(f) {
         var p = f.properties;
@@ -7380,16 +7914,21 @@ initCollapse();
         csv += [
           '"' + (p.name || '') + '"', c[1].toFixed(6), c[0].toFixed(6),
           p.zone || '', p.recv_type || '',
-          p.predicted_day !== null ? p.predicted_day : '', p.predicted_eve !== null ? p.predicted_eve : '',
-          p.predicted_night !== null ? p.predicted_night : '', p.predicted_lmax !== null ? p.predicted_lmax : '',
-          p.criteria_day !== null ? p.criteria_day : '', p.criteria_eve !== null ? p.criteria_eve : '',
-          p.criteria_night !== null ? p.criteria_night : '',
-          p.exceedance_day !== null ? p.exceedance_day : '', p.exceedance_eve !== null ? p.exceedance_eve : '',
+          p.predicted_day   !== null ? p.predicted_day   : '',
+          p.predicted_eve   !== null ? p.predicted_eve   : '',
+          p.predicted_night !== null ? p.predicted_night : '',
+          p.predicted_lmax  !== null ? p.predicted_lmax  : '',
+          p.criteria_day    !== null ? p.criteria_day    : '',
+          p.criteria_eve    !== null ? p.criteria_eve    : '',
+          p.criteria_night  !== null ? p.criteria_night  : '',
+          p.exceedance_day  !== null ? p.exceedance_day  : '',
+          p.exceedance_eve  !== null ? p.exceedance_eve  : '',
           p.exceedance_night !== null ? p.exceedance_night : '',
           comply
         ].join(',') + '\n';
       });
-      downloadBlob(csv, getExportFilename('csv').replace('noise-assessment', 'receivers'), 'text/csv');
+
+      downloadBlob(csv, getExportFilename('csv'), 'text/csv');
     });
 
     function escapeXML(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -7454,29 +7993,86 @@ initCollapse();
         setVicAreaType(data.vicAreaType);
       }
 
-      // 2b. Restore sourcePins array
-      // TODO Chunk F: full restore of spectrum and lw per period.
+      // 2b. Restore sourcePins array — detect format and migrate if legacy
+      var _legacyMigrated = false;
       if (data.sourcePins && Array.isArray(data.sourcePins) && data.sourcePins.length > 0) {
+        // ── New format (v2+) ────────────────────────────────────────────────
         sourcePins.length = 0;
         data.sourcePins.forEach(function(s) {
           sourcePins.push({
-            id: s.id || _newPinId(),
-            name: s.name || 'Source',
-            lat: s.lat || null, lng: s.lng || null,
-            lw: s.lw || { day: 85, eve: 85, night: 85 },
-            spectrum: s.spectrum || { day: null, eve: null, night: null },
-            height_m: s.height_m || 1.5,
-            buildingHeight_m: 0,
-            groundElevation_m: null,
-            operationalTime_min: s.operationalTime_min || 15
+            id:                   s.id || _newPinId(),
+            name:                 s.name || 'Source',
+            lat:                  s.lat  || null,
+            lng:                  s.lng  || null,
+            lw:                   s.lw   || { day: 85, eve: 85, night: 85 },
+            lw_max:               Number.isFinite(s.lw_max) ? s.lw_max : null,
+            spectrum:             s.spectrum || { day: null, eve: null, night: null },
+            spectrum_max:         Array.isArray(s.spectrum_max) ? s.spectrum_max.slice() : null,
+            height_m:             s.height_m            || 1.5,
+            buildingHeight_m:     s.buildingHeight_m    || 0,
+            groundElevation_m:    s.groundElevation_m   || null,
+            operationalTime_min:  s.operationalTime_min || 15,
+            activeInPeriod:       (function() {
+              var ap = s.activeInPeriod || { day: true, eve: true, night: true };
+              if (!ap.hasOwnProperty('lmax')) ap.lmax = false;
+              return ap;
+            })()
           });
         });
+      } else if (data.sources && Array.isArray(data.sources) && data.sources.length > 0) {
+        // ── Legacy format — migrate each old source to a sourcePin ─────────
+        sourcePins.length = 0;
+        data.sources.forEach(function(s, si) {
+          var lwDay = Number(s.lw_day || s.lw || 85);
+          var lwEve = Number(s.lw_eve || lwDay);
+          var lwNight = Number(s.lw_night || lwDay);
+          var specDay = (s.spectrum && typeof s.spectrum === 'object')
+            ? JSON.parse(JSON.stringify(s.spectrum)) : null;
+          sourcePins.push({
+            id:                   s.id || _newPinId(),
+            name:                 s.name || ('Source ' + (si + 1)),
+            lat:                  s.lat  || null,
+            lng:                  s.lng  || null,
+            lw:                   { day: lwDay, eve: lwEve, night: lwNight },
+            lw_max:               null,
+            spectrum:             { day: specDay, eve: specDay ? JSON.parse(JSON.stringify(specDay)) : null, night: specDay ? JSON.parse(JSON.stringify(specDay)) : null },
+            spectrum_max:         specDay ? JSON.parse(JSON.stringify(specDay)) : null,
+            height_m:             s.heightM || s.height_m || 1.5,
+            buildingHeight_m:     0,
+            groundElevation_m:    null,
+            operationalTime_min:  s.operationalTime_min || 15,
+            activeInPeriod:       { day: true, eve: true, night: true, lmax: false }
+          });
+        });
+        _legacyMigrated = true;
       }
       // Re-render source pins UI
       if (typeof renderSourcePins === 'function') renderSourcePins();
 
-      // 3. Legacy source table data — no-op in Chunk A (equipment model removed)
-      // TODO Chunk F: remove this block
+      // Restore subject site reference (SA)
+      if (data._subjectSiteLatlng) {
+        window._subjectSiteLatlng = data._subjectSiteLatlng;
+      } else {
+        var _firstPlaced = sourcePins.filter(function(p) { return p.lat !== null; })[0];
+        window._subjectSiteLatlng = _firstPlaced
+          ? { lat: _firstPlaced.lat, lng: _firstPlaced.lng } : null;
+      }
+      if (data._subjectSiteZone) {
+        window._subjectSiteZone = data._subjectSiteZone;
+        setTimeout(function() {
+          var ind = document.getElementById('src-zone-autodetect');
+          if (ind) ind.style.display = '';
+        }, 600);
+      }
+
+      // Show one-time legacy-migration notice
+      if (_legacyMigrated && typeof showToast === 'function') {
+        setTimeout(function() {
+          showToast('Legacy assessment format detected \u2014 converted to new source pin format. Please review source levels.', 6000);
+        }, 800);
+      }
+
+      // 3. Legacy source table data — no-op (equipment model removed)
 
       // 4. Receiver names
       if (data.receiverNames) {
@@ -7688,17 +8284,13 @@ initCollapse();
       if (data.markers && window._placeMarker) {
         setTimeout(function() {
           var map = window._getMapRef ? window._getMapRef() : null;
-          // Place all source markers
-          if (data.markers.source) {
-            window._placeMarker('source', data.markers.source);
-          }
-          // Place source_1, source_2, etc.
-          sources.forEach(function(src, si) {
-            if (si === 0) return; // source_0 handled by 'source' above
+          // Place all source markers (source_0 may be saved as 'source_0' or legacy 'source')
+          sourcePins.forEach(function(src, si) {
             var key = 'source_' + si;
-            if (data.markers[key]) {
-              window._placeMarker(key, data.markers[key]);
-            }
+            var markerData = data.markers[key] ||
+                             (si === 0 ? data.markers['source'] : null) ||
+                             (src.lat !== null ? { lat: src.lat, lng: src.lng } : null);
+            if (markerData) window._placeMarker(key, markerData);
           });
           // Place receivers
           for (var mi = 1; mi <= 4; mi++) {
@@ -7761,6 +8353,18 @@ initCollapse();
         document.querySelectorAll('[data-nmperiod]').forEach(function(b) {
           b.classList.toggle('active', b.dataset.nmperiod === data.noiseMapPeriod);
         });
+      }
+      if (data.lmaxMethod) {
+        if (window._setLmaxMethod) window._setLmaxMethod(data.lmaxMethod);
+        var _restoredLmaxMethod = data.lmaxMethod || 'simple';
+        document.querySelectorAll('[name="lmaxMethod"]').forEach(function(r) {
+          r.checked = (r.value === _restoredLmaxMethod);
+        });
+        // Sync note/row visibility if Lmax period is already active
+        var _lmaxMR = document.getElementById('noiseMapLmaxMethodRow');
+        if (_lmaxMR) _lmaxMR.style.display = (data.noiseMapPeriod === 'lmax') ? 'flex' : 'none';
+        var _lmaxN = document.getElementById('noiseMapLmaxNote');
+        if (_lmaxN) _lmaxN.style.display = (data.noiseMapPeriod === 'lmax' && _restoredLmaxMethod === 'simple') ? '' : 'none';
       }
       if (data.noiseMapHeight && window._setNoiseMapHeight) {
         window._setNoiseMapHeight(data.noiseMapHeight);
@@ -8234,7 +8838,6 @@ initCollapse();
 
     var markers = {};   /* key -> L.marker  */
     var latlngs = {};   /* key -> {lat,lng} */
-    var lines   = {};   /* key -> L.polyline */
     var labelMarkers = {}; /* key -> L.marker (source dot label, separate from dot) */
     var currentMode = null;
     var _drawingActive = false; // true while Leaflet.draw polygon is being drawn
@@ -9088,6 +9691,12 @@ initCollapse();
               setTimeout(function() { sel.classList.remove('zone-detect-flash'); }, 1600);
               // Re-render criteria after zone detection sets dropdown value
               if (typeof render === 'function') render();
+            }
+            /* For SA source mode: store detected zone and show auto-detect indicator */
+            if (isSourceMode(mode) && currentState === 'SA') {
+              window._subjectSiteZone = key;
+              var indEl = document.getElementById('src-zone-autodetect');
+              if (indEl) indEl.style.display = '';
             }
           }
 
@@ -10112,31 +10721,22 @@ initCollapse();
     /* ---- custom pin icon (SVG data URL — uses L.icon, not divIcon) ---- */
     function makeIcon(cfg) {
       var c = cfg.color;
-      var t = cfg.initial;
-
-      // Teardrop SVG: circle (r=9, centre y=11) with pointed tip at bottom
-      // Canvas 26×30; shoulder points where sides meet the circle at y=17
-      // shoulderDX = √(9²−6²) ≈ 6.7
-      var W = 26, H = 30, cx = 13;
-      var fs = t.length > 1 ? 8 : 10;
-      var svg =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' +
-        '<defs><filter id="ds" x="-40%" y="-30%" width="180%" height="160%">' +
-        '<feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.35"/>' +
-        '</filter></defs>' +
-        '<path d="M ' + cx + ' 28 L 6.3 17 A 9 9 0 1 1 19.7 17 Z"' +
-        ' fill="#fff" stroke="' + c + '" stroke-width="1.5" stroke-linejoin="round"' +
-        ' filter="url(#ds)"/>' +
-        '<text x="' + cx + '" y="11" text-anchor="middle" dominant-baseline="central"' +
-        ' fill="' + c + '" font-family="sans-serif" font-size="' + fs + '" font-weight="700"' +
-        ' pointer-events="none">' + t + '</text>' +
-        '</svg>';
-
-      return L.icon({
-        iconUrl: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg),
-        iconSize: [W, H],
-        iconAnchor: [cx, H - 1],
-        popupAnchor: [0, -(H - 1)]
+      var n = cfg.initial; // '1', '2', '3', '4'
+      var D = 14;          // total diameter (border-box)
+      return L.divIcon({
+        className: '',
+        html: '<div style="' +
+          'width:' + D + 'px;height:' + D + 'px;box-sizing:border-box;' +
+          'border-radius:50%;background:#fff;' +
+          'border:2px solid ' + c + ';' +
+          'box-shadow:0 1px 3px rgba(0,0,0,0.4);' +
+          'display:flex;align-items:center;justify-content:center;' +
+          'font-size:9px;font-weight:700;font-family:sans-serif;' +
+          'color:' + c + ';line-height:1;pointer-events:none;' +
+          '">' + n + '</div>',
+        iconSize:     [D, D],
+        iconAnchor:   [D / 2, D / 2],
+        popupAnchor:  [0, -(D / 2 + 4)]
       });
     }
 
@@ -10182,7 +10782,7 @@ initCollapse();
       if (zoneLabel) el.appendChild(zoneLabel);
     }
 
-    /* ---- redraw dashed lines + update distance inputs ---- */
+    /* ---- update distance inputs ---- */
     function updateAll() {
       // Build sourceDistances matrix for all sourcePins × all receivers
       var numSources = sourcePins.length;
@@ -10202,28 +10802,6 @@ initCollapse();
 
       // Primary source for legacy distance inputs (Source 0)
       var src = latlngs['source_0'] || latlngs['source'];
-
-      // Remove old lines for all sources and receivers
-      Object.keys(lines).forEach(function(k) {
-        map.removeLayer(lines[k]);
-        delete lines[k];
-      });
-
-      // Draw lines from each source to each receiver
-      var lineOpacity = (typeof arePinsVisible !== 'undefined' && !arePinsVisible) ? 0 : 0.75;
-      for (var si2 = 0; si2 < numSources; si2++) {
-        var srcLL2 = latlngs['source_' + si2] || (si2 === 0 ? latlngs['source'] : null);
-        if (!srcLL2) continue;
-        var srcCfg = getModeCfg('source_' + si2);
-        ['r1','r2','r3','r4'].forEach(function(rid, ri) {
-          var recLL = latlngs[rid];
-          if (!recLL) return;
-          var lineKey = 'source_' + si2 + '_' + rid;
-          lines[lineKey] = L.polyline([srcLL2, recLL], {
-            color: srcCfg.color, weight: 2, dashArray: '7,5', opacity: lineOpacity
-          }).addTo(map);
-        });
-      }
 
       // Update legacy distance inputs (Source 0 → each receiver) for backward compat
       ['r1','r2','r3','r4'].forEach(function(id, ri) {
@@ -10253,6 +10831,10 @@ initCollapse();
 
       // Clear and redraw ray lines so they always reflect current pin positions
       if (typeof window._updateRayLines === 'function') window._updateRayLines();
+
+      // Update results table — dist_r1–r4 inputs don't exist in the map-first UI,
+      // so we call render() directly rather than relying on input-change events.
+      if (typeof render === 'function') render();
     }
 
     /* ---- place or move a marker ---- */
@@ -10640,8 +11222,7 @@ initCollapse();
             if (typeof openSrcPanel === 'function') openSrcPanel(capturedSi, cx, cy);
           };
         })(si));
-        /* Hide label with dot if pins are toggled off */
-        if (typeof arePinsVisible !== 'undefined' && !arePinsVisible) lbl.setOpacity(0);
+        /* Source dot labels always remain visible regardless of receiver toggle */
         /* Set _subjectSiteLatlng when source_0 is placed */
         if (si === 0) window._subjectSiteLatlng = latlng;
       } else {
@@ -10661,8 +11242,8 @@ initCollapse();
       console.log('Zone detect triggered:', mode, latlng);
       queryAndSetZone(mode, latlng);
 
-      /* Hide pin if pins are toggled off */
-      if (typeof arePinsVisible !== 'undefined' && !arePinsVisible) {
+      /* Hide receiver pin if receivers are toggled off (sources always visible) */
+      if (typeof arePinsVisible !== 'undefined' && !arePinsVisible && mode.indexOf('source') === -1) {
         m.setOpacity(0);
       }
 
@@ -10690,6 +11271,9 @@ initCollapse();
         if (isSourceMode(mode)) {
           detectStateFromCoords(ll);
           querySourceParcel(ll);
+          if (typeof detectBuildingUnderSource === 'function') {
+            detectBuildingUnderSource(sourceIdxFromMode(mode));
+          }
         }
         if (!isSourceMode(mode)) {
           // Receiver moved — update concentric circles and auto-IF for this receiver
@@ -10718,6 +11302,11 @@ initCollapse();
 
       /* Query and draw source parcel boundary (SA, VIC, NSW, QLD) */
       if (isSourceMode(mode)) querySourceParcel(latlng);
+
+      /* Building detection for source pins (after lat/lng is set via syncSourceLatLng) */
+      if (isSourceMode(mode) && typeof detectBuildingUnderSource === 'function') {
+        detectBuildingUnderSource(sourceIdxFromMode(mode));
+      }
 
       /* Expand 'Receivers & criteria' and 'Predicted noise levels' cards when any marker is placed */
       document.querySelectorAll('.card').forEach(function(c) {
@@ -10773,11 +11362,14 @@ initCollapse();
         name: 'Source ' + (idx + 1),
         lat: null, lng: null,
         lw: { day: 85, eve: 85, night: 85 },
+        lw_max: null,
         spectrum: { day: null, eve: null, night: null },
+        spectrum_max: null,
         height_m: 1.5,
         buildingHeight_m: 0,
         groundElevation_m: null,
-        operationalTime_min: 15
+        operationalTime_min: 15,
+        activeInPeriod: { day: true, eve: true, night: true, lmax: false }
       });
       var mode = 'source_' + idx;
       placeMarker(mode, latlng);
@@ -10806,7 +11398,6 @@ initCollapse();
       delete markers[mode];
       if (labelMarkers[mode]) { map.removeLayer(labelMarkers[mode]); delete labelMarkers[mode]; }
       delete latlngs[mode];
-      if (lines[mode]) { map.removeLayer(lines[mode]); delete lines[mode]; }
 
       // Reset distance input
       var cfg = CFG[mode];
@@ -10869,19 +11460,12 @@ initCollapse();
     if (pinsToggleBtn) {
       pinsToggleBtn.addEventListener('click', function() {
         arePinsVisible = !arePinsVisible;
+        /* Only toggle receiver markers (r1–r4) — source pins always remain visible */
         ORDER.forEach(function(mode) {
+          if (mode.indexOf('source') !== -1) return; // skip source modes
           if (markers[mode]) {
             markers[mode].setOpacity(arePinsVisible ? 1 : 0);
           }
-          if (lines[mode]) {
-            lines[mode].setStyle({ opacity: arePinsVisible ? 0.75 : 0 });
-          }
-        });
-        /* Also toggle source_N dot and label markers */
-        sourcePins.forEach(function(pin, idx) {
-          var smode = 'source_' + idx;
-          if (markers[smode]) markers[smode].setOpacity(arePinsVisible ? 1 : 0);
-          if (labelMarkers[smode]) labelMarkers[smode].setOpacity(arePinsVisible ? 1 : 0);
         });
         if (arePinsVisible) {
           pinsToggleBtn.classList.add('active');
@@ -11063,10 +11647,7 @@ initCollapse();
         Object.keys(markers).forEach(function (k) {
           if (markers[k]) map.removeLayer(markers[k]);
         });
-        Object.keys(lines).forEach(function (k) {
-          if (lines[k]) map.removeLayer(lines[k]);
-        });
-        markers = {}; latlngs = {}; lines = {};
+        markers = {}; latlngs = {};
         removeParcelOutlines();
         updateConcentricCircles();
         if (typeof clearAutoIF === 'function') clearAutoIF();
@@ -11850,54 +12431,7 @@ initCollapse();
     var rayLayer = L.layerGroup().addTo(map);
 
     function updateRayLines() {
-      rayLayer.clearLayers();
-      if (!window._geometry || !window._buildings) return;
-      var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
-      var recIds = ['r1', 'r2', 'r3', 'r4'];
-
-      // Collect all placed source positions
-      var srcPositions = [];
-      sourcePins.forEach(function(src) {
-        if (src.lat !== null && src.lng !== null) {
-          srcPositions.push({ lat: src.lat, lng: src.lng, heightM: src.height_m || 1.5 });
-        }
-      });
-      if (srcPositions.length === 0 && allLL.source) {
-        srcPositions.push({ lat: allLL.source.lat, lng: allLL.source.lng, heightM: 1.5 });
-      }
-
-      recIds.forEach(function(rid, ri) {
-        var recLL = allLL[rid];
-        if (!recLL) return;
-        var rec = { lat: recLL.lat, lng: recLL.lng };
-        var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : (iso_receiverHeight || 1.5);
-
-        srcPositions.forEach(function(src) {
-          var screenable = getScreenableBuildings();
-          var edges = window._geometry.getIntersectingEdges(src, rec, screenable);
-          var barrier = edges.length > 0
-            ? window._geometry.getDominantBarrier(src, rec, src.heightM || 1.5, recHt, screenable)
-            : null;
-          var colour, tip, dashed;
-          if (edges.length === 0) {
-            colour = '#22c55e'; dashed = null; tip = 'Clear line of sight';
-          } else if (barrier && barrier.pathLengthDiff > 0) {
-            colour = '#f59e0b'; dashed = '6 4';
-            tip = edges.length + ' edge' + (edges.length > 1 ? 's' : '') + ' — screening \u03b4=' + barrier.pathLengthDiff.toFixed(2) + 'm';
-          } else {
-            colour = '#ef4444'; dashed = '6 4';
-            tip = 'Building intersected but no net screening (\u03b4 \u2264 0)';
-          }
-          var line = L.polyline([[src.lat, src.lng], [rec.lat, rec.lng]], {
-            color: colour,
-            weight: 2,
-            opacity: 0.7,
-            dashArray: dashed
-          });
-          line.bindTooltip(tip);
-          rayLayer.addLayer(line);
-        });
-      });
+      rayLayer.clearLayers(); // source-to-receiver lines removed
     }
 
     // Update rays on marker move/place
@@ -11914,6 +12448,7 @@ initCollapse();
     var _noiseLegend = null;
     var _terrainWarningBanner = null;
     var _noiseMapPeriod = 'day';
+    var _lmaxMethod = 'simple'; // 'simple' | 'iso9613_g0' | 'iso9613_g_sel'
     var _noiseMapHeight = 1.5;
     var _noiseMapGridSize = 'auto'; // 'auto' or fixed metres as number string
     var _noiseRecomputeTimer = null;
@@ -12018,11 +12553,35 @@ initCollapse();
       var result = [];
       sourcePins.forEach(function(pin, si) {
         if (pin.lat === null) return;
-        var lwVal = pin.lw ? pin.lw[period] : null;
+        // Respect activeInPeriod — same guard as calcPredAtReceiver
+        if (period === 'lmax') {
+          if (!pin.activeInPeriod || pin.activeInPeriod.lmax !== true) return;
+        } else {
+          if (pin.activeInPeriod && pin.activeInPeriod[period] === false) return;
+        }
+
+        // For Lmax: use lw_max (no fallback — null if not set), no opAdj
+        var lwVal, opAdj;
+        if (period === 'lmax') {
+          lwVal = Number.isFinite(pin.lw_max) ? pin.lw_max : null;
+          opAdj = 0; // No operational time weighting for Lmax
+        } else {
+          lwVal = pin.lw ? pin.lw[period] : null;
+          opAdj = 10 * Math.log10((pin.operationalTime_min || 15) / 15);
+        }
         if (!Number.isFinite(lwVal)) return;
 
-        var opAdj = 10 * Math.log10((pin.operationalTime_min || 15) / 15);
-        var spec = (pin.spectrum && pin.spectrum[period]) ? pin.spectrum[period] : null;
+        var spec = null;
+        if (period !== 'lmax' && pin.spectrum && pin.spectrum[period]) {
+          spec = pin.spectrum[period];
+        } else if (period === 'lmax' && _lmaxMethod !== 'simple' && Array.isArray(pin.spectrum_max)) {
+          spec = pin.spectrum_max;
+        }
+
+        var specAdj = 0;
+        if (period === 'lmax' && spec) {
+          specAdj = lwVal - SharedCalc.energySum(spec);
+        }
 
         result.push({
           lat: pin.lat, lng: pin.lng,
@@ -12030,7 +12589,7 @@ initCollapse();
           // Worker-compatible: use equipment array with single item
           equipment: [{ name: pin.name || '', Lw: lwVal + opAdj, quantity: 1 }],
           spectrum: spec,
-          spectrumAdj: 0
+          spectrumAdj: specAdj
         });
       });
       return result;
@@ -12418,7 +12977,9 @@ initCollapse();
         demCache: demEntries,
         demSpacing: demSpacing,
         terrainEnabled: _terrainEnabled,
-        debugTerrain: !!window._debugTerrain
+        debugTerrain: !!window._debugTerrain,
+        period: _noiseMapPeriod || 'day',
+        lmaxMethod: _lmaxMethod || 'simple'
       });
 
       // Diagnostic: confirm DEM cache contents reaching worker
@@ -12496,13 +13057,44 @@ initCollapse();
       });
     }
 
-    // Period selector pills
+    // Period selector pills — drive both noise map AND _globalPeriod / results table
     document.querySelectorAll('[data-nmperiod]').forEach(function(btn) {
       btn.addEventListener('click', function() {
         _noiseMapPeriod = this.dataset.nmperiod;
         document.querySelectorAll('[data-nmperiod]').forEach(function(b) { b.classList.remove('active'); });
         this.classList.add('active');
-        debouncedRecompute();
+        // Sync _globalPeriod for day/eve/night (lmax keeps the last valid period)
+        var p = this.dataset.nmperiod;
+        if (p === 'day' || p === 'eve' || p === 'night') {
+          _globalPeriod = p;
+          if (typeof render === 'function') render();
+        }
+        // Show Lmax method row when Lmax period active
+        var _lmaxMethodRow = document.getElementById('noiseMapLmaxMethodRow');
+        if (_lmaxMethodRow) _lmaxMethodRow.style.display = (p === 'lmax') ? 'flex' : 'none';
+        // Show simple-propagation note only when Lmax + simple method active
+        var _lmaxNote = document.getElementById('noiseMapLmaxNote');
+        if (_lmaxNote) _lmaxNote.style.display = (p === 'lmax' && _lmaxMethod === 'simple') ? '' : 'none';
+        // Immediately regenerate noise map using the new period's Lw values
+        if (_noiseMapOn) computeNoiseMap();
+        else debouncedRecompute();
+      });
+    });
+
+    // Lmax method radio buttons
+    document.querySelectorAll('[name="lmaxMethod"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        if (!this.checked) return;
+        _lmaxMethod = this.value;
+        // Show/hide simple propagation note (only when lmax period is active)
+        var _lmaxNote2 = document.getElementById('noiseMapLmaxNote');
+        if (_lmaxNote2) _lmaxNote2.style.display = (_noiseMapPeriod === 'lmax' && _lmaxMethod === 'simple') ? '' : 'none';
+        // Recompute if Lmax is the active period
+        if (_noiseMapPeriod === 'lmax') {
+          if (_noiseMapOn) computeNoiseMap();
+          else debouncedRecompute();
+        }
+        if (typeof render === 'function') render();
       });
     });
 
@@ -12570,13 +13162,31 @@ initCollapse();
     }
 
     // Save/load noise map state
+    window.updateAll = updateAll;
+
+    /** Re-query the SAPPA zone for the current subject site (source_0) location.
+     *  Called after source_0 is deleted and another pin becomes the new source_0.
+     *  If no source is placed or state is not SA, clears the stored zone + indicator. */
+    window._requerySubjectSiteZone = function() {
+      var ll = window._subjectSiteLatlng;
+      if (ll && currentState === 'SA') {
+        queryAndSetZone('source_0', ll);
+      } else {
+        window._subjectSiteZone = null;
+        var ind = document.getElementById('src-zone-autodetect');
+        if (ind) ind.style.display = 'none';
+      }
+    };
+
     window._getNoiseMapOn = function() { return _noiseMapOn; };
     window._getNoiseMapPeriod = function() { return _noiseMapPeriod; };
     window._getNoiseMapHeight = function() { return _noiseMapHeight; };
     window._getLegendSettings = function() { return { min: _legendMin, max: _legendMax, interval: _legendInterval }; };
     window._getNoiseContourLayer = function() { return _noiseContourLayer; };
+    window._getLmaxMethod = function() { return _lmaxMethod; };
     window._setNoiseMapPeriod = function(v) { _noiseMapPeriod = v; };
     window._setNoiseMapHeight = function(v) { _noiseMapHeight = v; };
+    window._setLmaxMethod = function(v) { _lmaxMethod = v || 'simple'; };
     window._setNoiseMapGridSize = function(v) {
       _noiseMapGridSize = v || 'auto';
       var sel = document.getElementById('noiseMapGridSel');

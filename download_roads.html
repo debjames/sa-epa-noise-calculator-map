@@ -8,71 +8,83 @@
 <div id="status" style="margin-top:12px;font-family:monospace;white-space:pre-wrap;"></div>
 
 <script>
-var SAPPA_URL = 'https://geohub.sa.gov.au/server/rest/services/SAPPA/PropertyPlanningAtlasV18/MapServer/210/query';
+var SAPPA_URL = 'https://lsa2.geohub.sa.gov.au/arcgis/rest/services/SAPPA/PropertyPlanningAtlasV18/MapServer/210/query';
 
 function log(msg) {
   document.getElementById('status').textContent += msg + '\n';
 }
 
-function downloadFile(data, filename) {
-  var blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+function downloadFile(text, filename) {
+  var blob = new Blob([text], {type: 'application/geo+json'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
 }
 
-async function queryAll() {
-  // Query all features - may need pagination
-  var allFeatures = [];
-  var offset = 0;
-  var batchSize = 1000;
+async function downloadType(rdType) {
+  var letter = rdType.split(' ')[1].toLowerCase();
+  var filename = 'road_type_' + letter + '.geojson';
+  log('Fetching ' + rdType + '...');
 
-  while (true) {
-    log('Querying offset ' + offset + '...');
-    var url = SAPPA_URL + '?where=1%3D1&outFields=designatedroad&returnGeometry=true&outSR=4326&f=geojson&resultOffset=' + offset + '&resultRecordCount=' + batchSize;
-    var resp = await fetch(url);
-    var data = await resp.json();
+  var url = SAPPA_URL + '?where=' + encodeURIComponent("designatedroad='" + rdType + "'") +
+    '&outFields=*&returnGeometry=true&outSR=4326&f=geojson&resultRecordCount=2000';
+  var resp = await fetch(url);
+  var text = await resp.text();
+  var data = JSON.parse(text);
 
-    if (!data.features || data.features.length === 0) break;
-    allFeatures = allFeatures.concat(data.features);
-    log('Got ' + data.features.length + ' features (total: ' + allFeatures.length + ')');
+  log(rdType + ': ' + (data.features ? data.features.length : 0) + ' feature(s), ' +
+    Math.round(text.length / 1024) + ' KB');
 
-    if (data.features.length < batchSize) break;
-    offset += batchSize;
+  if (data.features && data.features.length > 0) {
+    downloadFile(text, filename);
+    log('Downloaded: ' + filename);
+  } else {
+    log('WARNING: No features found for ' + rdType);
   }
 
-  return allFeatures;
+  return data;
 }
 
 async function downloadAll() {
   document.getElementById('btn').disabled = true;
   log('Starting download from SAPPA GeoHub layer 210...');
+  log('Endpoint: ' + SAPPA_URL);
+  log('');
 
   try {
-    var allFeatures = await queryAll();
-    log('Total features: ' + allFeatures.length);
+    // Download each type separately (avoids pagination issues)
+    for (var rdType of ['Type A', 'Type B', 'Type R']) {
+      await downloadType(rdType);
+      // Small delay between downloads so Chrome doesn't block them
+      await new Promise(r => setTimeout(r, 500));
+    }
 
-    // Split by road type
+    log('\nDone! Move the downloaded files to your project folder.');
+    log('Note: If Chrome blocked some downloads, click the individual');
+    log('buttons below to download them one at a time.');
+
+    // Create individual download buttons as backup
+    var btnDiv = document.createElement('div');
+    btnDiv.style.marginTop = '12px';
     ['Type A', 'Type B', 'Type R'].forEach(function(rdType) {
-      var features = allFeatures.filter(function(f) {
-        return f.properties && f.properties.designatedroad === rdType;
-      });
-      log(rdType + ': ' + features.length + ' features');
-
-      if (features.length) {
-        var fc = { type: 'FeatureCollection', features: features };
-        var filename = 'road_type_' + rdType.split(' ')[1].toLowerCase() + '.geojson';
-        downloadFile(fc, filename);
-        log('Downloaded: ' + filename);
-      }
+      var letter = rdType.split(' ')[1].toLowerCase();
+      var btn = document.createElement('button');
+      btn.textContent = 'Download road_type_' + letter + '.geojson';
+      btn.style.cssText = 'padding:8px 16px;margin:4px;cursor:pointer;';
+      btn.onclick = function() { downloadType(rdType); };
+      btnDiv.appendChild(btn);
     });
-
-    log('\nDone! Move the downloaded files to:\n  ' + 'sa-epa-noise-calculator-map/');
+    document.getElementById('status').after(btnDiv);
   } catch(err) {
     log('ERROR: ' + err.message);
-    log('Make sure you can access sappa.plan.sa.gov.au');
+    log('');
+    log('If opening from file://, try instead:');
+    log('  1. Run the PowerShell script: .\\download_roads.ps1');
+    log('  2. Or open this file via a local server (e.g. python -m http.server)');
   }
 
   document.getElementById('btn').disabled = false;

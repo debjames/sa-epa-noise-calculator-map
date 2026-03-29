@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 $outDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-$baseUrl = "https://geohub.sa.gov.au/server/rest/services/SAPPA/PropertyPlanningAtlasV18/MapServer/210/query"
+$baseUrl = "https://lsa2.geohub.sa.gov.au/arcgis/rest/services/SAPPA/PropertyPlanningAtlasV18/MapServer/210/query"
 
 Write-Host "Downloading designated road polygons from SAPPA GeoHub layer 210..." -ForegroundColor Cyan
 
@@ -12,18 +12,29 @@ $batchSize = 1000
 
 while ($true) {
     Write-Host "  Querying offset $offset..."
-    $url = "$baseUrl`?where=1%3D1&outFields=designatedroad&returnGeometry=true&outSR=4326&f=geojson&resultOffset=$offset&resultRecordCount=$batchSize"
+    $url = "$baseUrl`?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson&resultOffset=$offset&resultRecordCount=$batchSize"
 
     try {
         $response = Invoke-RestMethod -Uri $url -TimeoutSec 30
     } catch {
         Write-Host "ERROR: $_" -ForegroundColor Red
         Write-Host ""
-        Write-Host "Cannot reach geohub.sa.gov.au. Trying alternative..." -ForegroundColor Yellow
+        Write-Host "Cannot reach lsa2.geohub.sa.gov.au. Trying alternative..." -ForegroundColor Yellow
 
-        # Try alternative: use ogr2ogr if available
-        $ogr = "C:\Program Files\QGIS 3.40.8\bin\ogr2ogr.exe"
-        if (Test-Path $ogr) {
+        # Try alternative: use ogr2ogr if available (check multiple QGIS versions)
+        $ogr = $null
+        foreach ($candidate in @(
+            "C:\Program Files\QGIS 4.0.0\bin\ogr2ogr.exe",
+            "C:\Program Files\QGIS 3.40.8\bin\ogr2ogr.exe",
+            "C:\OSGeo4W\bin\ogr2ogr.exe"
+        )) {
+            if (Test-Path $candidate) { $ogr = $candidate; break }
+        }
+        if (-not $ogr) {
+            # Try to find ogr2ogr on PATH
+            $ogr = (Get-Command ogr2ogr -ErrorAction SilentlyContinue).Source
+        }
+        if ($ogr) {
             Write-Host "Using ogr2ogr to download..." -ForegroundColor Cyan
             foreach ($type in @("Type A", "Type B", "Type R")) {
                 $letter = $type.Split(" ")[1].ToLower()
@@ -31,7 +42,7 @@ while ($true) {
                 $where = "designatedroad='$type'"
                 Write-Host "  Downloading $type roads..."
                 & $ogr -f GeoJSON $outFile `
-                    "ESRIJSON:$baseUrl`?where=$([uri]::EscapeDataString($where))&outFields=designatedroad&returnGeometry=true&outSR=4326&f=json" `
+                    "ESRIJSON:$baseUrl`?where=$([uri]::EscapeDataString($where))&outFields=*&returnGeometry=true&outSR=4326&f=json" `
                     -t_srs EPSG:4326 -lco COORDINATE_PRECISION=5 2>&1
                 if (Test-Path $outFile) {
                     $size = (Get-Item $outFile).Length / 1KB
