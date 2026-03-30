@@ -3004,7 +3004,8 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   if (!Number.isFinite(lwVal)) return NaN;
 
   var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
-  var adjDB = opAdj;
+  var quantityAdj = 10 * log10(pin.numUnits || 1);
+  var adjDB = opAdj + quantityAdj;
 
   var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
   var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
@@ -3103,7 +3104,7 @@ function calcISO9613reflectedLevel(si, prefix, reflDistM, receiverIdx) {
   var lwVal = pin.lw ? pin.lw[prefix] : null;
   if (!Number.isFinite(lwVal)) return NaN;
 
-  var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
+  var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15) + 10 * log10(pin.numUnits || 1);
   var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
   var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
 
@@ -3150,14 +3151,15 @@ function calcISO9613reflectedLmax(si, reflDistM, receiverIdx, gf) {
 
   var spectrumMax = Array.isArray(pin.spectrum_max) ? pin.spectrum_max : null;
   var hasSpec = spectrumMax && spectrumMax.some(function(v) { return v !== null && Number.isFinite(v) && v !== 0; });
+  var quantityAdjReflLmax = 10 * Math.log10(pin.numUnits || 1);
 
   if (hasSpec) {
-    var specAdj = lwMax - SharedCalc.energySum(spectrumMax);
+    var specAdj = lwMax - SharedCalc.energySum(spectrumMax) + quantityAdjReflLmax;
     return SharedCalc.calcISOatPoint(spectrumMax, srcHeight, reflDistM, specAdj, 0, recHeight, isoP, 0, 0, null);
   } else {
     var flat = [];
     for (var b = 0; b < 8; b++) flat.push(lwMax - 9.03);
-    return SharedCalc.calcISOatPoint(flat, srcHeight, reflDistM, 0, 0, recHeight, isoP, 0, 0, null);
+    return SharedCalc.calcISOatPoint(flat, srcHeight, reflDistM, quantityAdjReflLmax, 0, recHeight, isoP, 0, 0, null);
   }
 }
 
@@ -3276,10 +3278,11 @@ function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
     var hasSpectrum = spectrumMax && spectrumMax.some(function(v) {
       return v !== null && Number.isFinite(v) && v !== 0;
     });
+    var quantityAdjLmax = 10 * Math.log10(pin.numUnits || 1);
 
     var lp;
     if (hasSpectrum) {
-      var specAdj = lwMax - SharedCalc.energySum(spectrumMax);
+      var specAdj = lwMax - SharedCalc.energySum(spectrumMax) + quantityAdjLmax;
       if (_bBaseHLmax > 0 && _bGapDltLmax > 0) {
         if (_bInGapLmax) {
           lp = SharedCalc.calcISOatPoint(spectrumMax, srcHeight, d, specAdj,
@@ -3301,18 +3304,18 @@ function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
       for (var b = 0; b < 8; b++) flatSpec.push(lwMax - 9.03);
       if (_bBaseHLmax > 0 && _bGapDltLmax > 0) {
         if (_bInGapLmax) {
-          lp = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, 0,
+          lp = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, quantityAdjLmax,
             _bGapDltLmax, recHeight, isoParamsLmax, 0, 0, terrainPerBand);
         } else {
-          var lp_topL2 = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, 0,
+          var lp_topL2 = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, quantityAdjLmax,
             barrierDelta, recHeight, isoParamsLmax, endDeltaL, endDeltaR, terrainPerBand);
-          var lp_gapL2 = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, 0,
+          var lp_gapL2 = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, quantityAdjLmax,
             _bGapDltLmax, recHeight, isoParamsLmax, 0, 0, terrainPerBand);
           lp = (!isFinite(lp_topL2)) ? lp_gapL2 : (!isFinite(lp_gapL2)) ? lp_topL2
              : 10 * Math.log10(Math.pow(10, lp_topL2 / 10) + Math.pow(10, lp_gapL2 / 10));
         }
       } else {
-        lp = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, 0,
+        lp = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, quantityAdjLmax,
           barrierDelta, recHeight, isoParamsLmax, endDeltaL, endDeltaR, terrainPerBand);
       }
     }
@@ -3362,6 +3365,7 @@ var sourcePins = [{
   buildingHeight_m: 0,
   groundElevation_m: null,
   operationalTime_min: 15,
+  numUnits: 1,
   activeInPeriod: { day: true, eve: true, night: true, lmax: false }
 }];
 // TODO Chunk F: remove this alias once save/load is updated to use sourcePins
@@ -4191,8 +4195,9 @@ function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDi
     }
 
     var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
-    // For Lmax: no operational time weighting
-    var lwW = (prefix === 'lmax') ? lwVal : lwVal + opAdj;
+    var quantityAdjSimple = 10 * log10(pin.numUnits || 1);
+    // For Lmax: no operational time weighting, but quantity still applies
+    var lwW = (prefix === 'lmax') ? lwVal + quantityAdjSimple : lwVal + opAdj + quantityAdjSimple;
     var lp = attenuatePoint(lwW, d);
     if (!isFinite(lp)) continue;
 
@@ -4728,8 +4733,9 @@ function buildSrcPanelHTML(pin, pinIdx) {
       srcPanelPeriodSectionHTML(pin, 'night', 'Night') +
       srcPanelLmaxSectionHTML(pin) +
     '</div>' +
-    '<div style="display:flex;gap:8px;margin-bottom:4px;padding:0 14px;">' +
+    '<div style="display:flex;gap:8px;margin-bottom:4px;padding:0 14px;flex-wrap:wrap;">' +
       '<label style="font-size:11px;white-space:nowrap;">Ht (m): <input type="number" class="sfp-height" value="' + (pin.height_m || 1.5) + '" min="0" step="0.1" style="width:52px;text-align:center;font-size:12px;"></label>' +
+      '<label style="font-size:11px;white-space:nowrap;">No. units: <input type="number" class="sfp-units" value="' + (pin.numUnits || 1) + '" min="1" step="1" style="width:42px;text-align:center;font-size:12px;"></label>' +
       '<label style="font-size:11px;white-space:nowrap;">Op time (min): <input type="number" class="sfp-optime" value="' + (pin.operationalTime_min || 15) + '" style="width:52px;text-align:center;font-size:12px;"></label>' +
     '</div>' +
     '<div class="sfp-bldg-info" style="font-size:11px;color:#6b7280;padding:2px 14px 8px;min-height:16px;">' + bldgInfoHTML + '</div>' +
@@ -4793,6 +4799,14 @@ function attachSrcPanelListeners(pin, pinIdx) {
   var otEl = panel.querySelector('.sfp-optime');
   if (otEl) otEl.addEventListener('change', function() {
     pin.operationalTime_min = parseFloat(this.value) || 15;
+    if (typeof window.updateAll === 'function') window.updateAll();
+  });
+
+  // Number of units
+  var unitsEl = panel.querySelector('.sfp-units');
+  if (unitsEl) unitsEl.addEventListener('change', function() {
+    pin.numUnits = Math.max(1, parseInt(this.value) || 1);
+    this.value = pin.numUnits;
     if (typeof window.updateAll === 'function') window.updateAll();
   });
 
@@ -5159,6 +5173,7 @@ document.addEventListener('DOMContentLoaded', function() {
         buildingHeight_m: 0,
         groundElevation_m: null,
         operationalTime_min: 15,
+        numUnits: 1,
         activeInPeriod: { day: true, eve: true, night: true, lmax: false }
       });
       renderSourcePins();
@@ -7290,7 +7305,8 @@ function renderContributions() {
         } else {
           // Simple path — mirrors calcPredAtReceiver simple logic
           var opAdj = 10 * Math.log10((pin.operationalTime_min || 15) / 15);
-          lpRaw = attenuatePoint(pin.lw[period] + opAdj, d);
+          var quantityAdjContrib = 10 * Math.log10(pin.numUnits || 1);
+          lpRaw = attenuatePoint(pin.lw[period] + opAdj + quantityAdjContrib, d);
 
           // Building barrier IL — same logic as calcPredAtReceiver simple path
           var buildingIL = 0;
@@ -7315,7 +7331,8 @@ function renderContributions() {
         }
       }
       var srcTr = document.createElement('tr');
-      srcTr.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + escapeHTML(pin.name || 'Source') + '</td>' +
+      var pinDisplayName = escapeHTML(pin.name || 'Source') + ((pin.numUnits && pin.numUnits > 1) ? ' \u00d7 ' + pin.numUnits : '');
+      srcTr.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + pinDisplayName + '</td>' +
         '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
         '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
       tbody.appendChild(srcTr);
@@ -7618,6 +7635,7 @@ initCollapse();
             effectiveHeight_m:    parseFloat(eff.toFixed(2)),
             groundElevation_m:    pin.groundElevation_m   || null,
             operationalTime_min:  pin.operationalTime_min || 15,
+            numUnits:             pin.numUnits || 1,
             activeInPeriod:       (function() {
               var ap = pin.activeInPeriod ? JSON.parse(JSON.stringify(pin.activeInPeriod)) : { day: true, eve: true, night: true };
               if (!ap.hasOwnProperty('lmax')) ap.lmax = false;
@@ -7934,7 +7952,8 @@ initCollapse();
             building_height_m:     bh,
             effective_height_m:    eff,
             ground_elevation_m:    pin.groundElevation_m   || null,
-            operational_time_min:  pin.operationalTime_min || 15
+            operational_time_min:  pin.operationalTime_min || 15,
+            num_units:             pin.numUnits            || 1
           }
         });
       });
@@ -8257,6 +8276,7 @@ initCollapse();
             buildingHeight_m:     s.buildingHeight_m    || 0,
             groundElevation_m:    s.groundElevation_m   || null,
             operationalTime_min:  s.operationalTime_min || 15,
+            numUnits:             s.numUnits            || 1,
             activeInPeriod:       (function() {
               var ap = s.activeInPeriod || { day: true, eve: true, night: true };
               if (!ap.hasOwnProperty('lmax')) ap.lmax = false;
@@ -8286,6 +8306,7 @@ initCollapse();
             buildingHeight_m:     0,
             groundElevation_m:    null,
             operationalTime_min:  s.operationalTime_min || 15,
+            numUnits:             s.numUnits || 1,
             activeInPeriod:       { day: true, eve: true, night: true, lmax: false }
           });
         });
@@ -12929,16 +12950,17 @@ initCollapse();
           spec = pin.spectrum_max;
         }
 
+        var quantityAdjWorker = 10 * Math.log10(pin.numUnits || 1);
         var specAdj = 0;
         if (period === 'lmax' && spec) {
-          specAdj = lwVal - SharedCalc.energySum(spec);
+          specAdj = lwVal - SharedCalc.energySum(spec) + quantityAdjWorker;
         }
 
         result.push({
           lat: pin.lat, lng: pin.lng,
           heightM: pin.height_m || 1.5,
           // Worker-compatible: use equipment array with single item
-          equipment: [{ name: pin.name || '', Lw: lwVal + opAdj, quantity: 1 }],
+          equipment: [{ name: pin.name || '', Lw: lwVal + opAdj + quantityAdjWorker, quantity: 1 }],
           spectrum: spec,
           spectrumAdj: specAdj
         });
