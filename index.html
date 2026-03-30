@@ -4835,7 +4835,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
     }
     function _buildLmaxDropdown(q) {
       lmaxLibDrop.innerHTML = '';
-      var totalItems = 0, hasAny = false;
+      var hasAny = false;
       if (typeof SOURCE_LIBRARY_GROUPED_LMAX !== 'undefined') {
         var groups = Object.keys(SOURCE_LIBRARY_GROUPED_LMAX);
         for (var gi = 0; gi < groups.length; gi++) {
@@ -4844,9 +4844,6 @@ function attachSrcPanelListeners(pin, pinIdx) {
             return !q || s.name.toLowerCase().indexOf(q) !== -1;
           });
           if (!grpItems.length) continue;
-          var remaining = 20 - totalItems;
-          if (remaining <= 0) break;
-          grpItems = grpItems.slice(0, remaining);
           var hdr = document.createElement('div');
           hdr.textContent = grp;
           hdr.style.cssText = 'padding:4px 8px 2px;font-size:10px;font-weight:bold;color:#888;background:#f5f5f5;text-transform:uppercase;letter-spacing:0.5px;pointer-events:none;';
@@ -4864,7 +4861,6 @@ function attachSrcPanelListeners(pin, pinIdx) {
               _applyLmaxEntry(s);
             });
             lmaxLibDrop.appendChild(item);
-            totalItems++;
           });
           hasAny = true;
         }
@@ -4949,7 +4945,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
     }
     function _buildLeqDropdown(q) {
       libDrop.innerHTML = '';
-      var totalItems = 0, hasAny = false;
+      var hasAny = false;
       if (typeof SOURCE_LIBRARY_GROUPED_NON_LMAX !== 'undefined') {
         var groups = Object.keys(SOURCE_LIBRARY_GROUPED_NON_LMAX);
         for (var gi = 0; gi < groups.length; gi++) {
@@ -4958,9 +4954,6 @@ function attachSrcPanelListeners(pin, pinIdx) {
             return !q || s.name.toLowerCase().indexOf(q) !== -1;
           });
           if (!grpItems.length) continue;
-          var remaining = 20 - totalItems;
-          if (remaining <= 0) break;
-          grpItems = grpItems.slice(0, remaining);
           var hdr = document.createElement('div');
           hdr.textContent = grp;
           hdr.style.cssText = 'padding:4px 8px 2px;font-size:10px;font-weight:bold;color:#888;background:#f5f5f5;text-transform:uppercase;letter-spacing:0.5px;pointer-events:none;';
@@ -4978,7 +4971,6 @@ function attachSrcPanelListeners(pin, pinIdx) {
               _applyLeqEntry(s);
             });
             libDrop.appendChild(item);
-            totalItems++;
           });
           hasAny = true;
         }
