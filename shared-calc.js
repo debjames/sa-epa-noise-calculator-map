@@ -339,6 +339,8 @@ var SharedCalc = (function() {
     }
 
     var barrierH = (best.building.heightM != null) ? best.building.heightM : 3.0;
+    var baseH    = (best.building.baseHeightM != null) ? best.building.baseHeightM : 0.0;
+    var topH     = baseH + barrierH; // height of barrier top above ground
     var d1 = best.distFromSrc;
     var d2 = flatDistM(best.intersection, recLL);
 
@@ -346,50 +348,55 @@ var SharedCalc = (function() {
     var t = (dDirect > 0) ? d1 / dDirect : 0;
     var losHeight = srcHeightM + t * (recHeightM - srcHeightM);
 
+    // Check if ray passes through the gap beneath a floating barrier
+    var rayInGap = (baseH > 0) && (losHeight < baseH);
+
     // If barrier top is below the line of sight, no screening
-    if (barrierH <= losHeight) {
+    if (topH <= losHeight) {
       return {
         building: best.building,
         edgeStart: best.edgeStart,
         edgeEnd: best.edgeEnd,
         intersection: best.intersection,
         barrierHeightM: barrierH,
-        pathLengthDiff: 0
+        baseHeightM: baseH,
+        pathLengthDiff: 0,
+        gapPathLengthDiff: 0,
+        rayInGap: false
       };
     }
 
+    // --- Over-top path (δ_top) — skipped when ray passes through gap ---
     // Path length difference δ — ISO 9613-2 §7.4 Fresnel approach
-    // Uses perpendicular distance from diffraction point to the 3D S-R line.
-    // This correctly handles barriers at any angle to the propagation path.
-    // For perpendicular barriers: reduces to 2·h_eff²/(dss+dsr) where h_eff = H - LOS_height
-    var h_eff = barrierH - losHeight; // effective height above line of sight
-    var dss_3d = Math.sqrt(d1 * d1 + (barrierH - srcHeightM) * (barrierH - srcHeightM));
-    var dsr_3d = Math.sqrt(d2 * d2 + (barrierH - recHeightM) * (barrierH - recHeightM));
-    // Fresnel zone path-length difference: z = 2·a²/(dss+dsr)
-    // where a is the perpendicular distance from barrier top to the 3D S→R line
-    // For a barrier in the vertical S-R plane, a ≈ h_eff (height above LOS)
-    var a_perp = h_eff; // perpendicular distance to 3D line (vertical component dominates)
-    var delta = (dss_3d + dsr_3d > 0) ? 2 * a_perp * a_perp / (dss_3d + dsr_3d) : 0;
+    var delta = 0;
+    if (!rayInGap) {
+      var h_eff = topH - losHeight; // effective height above line of sight
+      var dss_3d = Math.sqrt(d1 * d1 + (topH - srcHeightM) * (topH - srcHeightM));
+      var dsr_3d = Math.sqrt(d2 * d2 + (topH - recHeightM) * (topH - recHeightM));
+      delta = (dss_3d + dsr_3d > 0) ? 2 * h_eff * h_eff / (dss_3d + dsr_3d) : 0;
+    }
+
+    // --- Gap path (δ_bot) — floating barriers only ---
+    // h_eff_gap is +ve when ray is in the gap, -ve when ray hits the panel.
+    // Squaring means gapDelta is always ≥ 0; Maekawa applied as a reduction.
+    var gapDelta = 0;
+    if (baseH > 0) {
+      var h_eff_gap = baseH - losHeight;
+      var dss_gap = Math.sqrt(d1 * d1 + (baseH - srcHeightM) * (baseH - srcHeightM));
+      var dsr_gap = Math.sqrt(d2 * d2 + (baseH - recHeightM) * (baseH - recHeightM));
+      gapDelta = (dss_gap + dsr_gap > 0) ? 2 * h_eff_gap * h_eff_gap / (dss_gap + dsr_gap) : 0;
+    }
 
     // Horizontal end diffraction — around each endpoint of the barrier edge
-    var endDeltaLeft = 0;
-    var endDeltaRight = 0;
-
-    // Left end = edgeStart, Right end = edgeEnd
+    // Only applies to the over-top path (not the gap path)
     var ends = [best.edgeStart, best.edgeEnd];
     var endDeltas = [];
     for (var ei = 0; ei < 2; ei++) {
       var endPt = ends[ei];
-      // Check if receiver is in the horizontal shadow zone of this end:
-      // The receiver must be on the opposite side of the barrier line from the source
-      // relative to this endpoint. We check by seeing if the direct source→receiver
-      // ray is blocked by the barrier near this end.
       var dSrcEnd = flatDistM(srcLL, endPt);
       var dEndRec = flatDistM(endPt, recLL);
       var horizontalDelta = dSrcEnd + dEndRec - dDirect;
-      // Only apply end diffraction if δ_end > 0 (receiver is in shadow zone of that end)
-      // and if the horizontal detour is meaningful (> 0.01m to avoid noise)
-      endDeltas.push(horizontalDelta > 0.01 ? horizontalDelta : 0);
+      endDeltas.push((!rayInGap && horizontalDelta > 0.01) ? horizontalDelta : 0);
     }
 
     return {
@@ -398,7 +405,10 @@ var SharedCalc = (function() {
       edgeEnd: best.edgeEnd,
       intersection: best.intersection,
       barrierHeightM: barrierH,
+      baseHeightM: baseH,
       pathLengthDiff: delta,
+      gapPathLengthDiff: gapDelta,
+      rayInGap: rayInGap,
       endDeltaLeft: endDeltas[0],
       endDeltaRight: endDeltas[1]
     };

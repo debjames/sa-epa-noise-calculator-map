@@ -372,19 +372,39 @@ self.onmessage = function(e) {
 
           // Building / structural barrier IL — applied for all periods including simple Lmax
           var barrierDelta = 0, endDeltaLeft = 0, endDeltaRight = 0;
+          var _barrierW = null;
           if (buildings.length > 0) {
-            var barrier = getDominantBarrier(srcLL, pt, src.heightM, recvHeight, buildings);
-            if (barrier) {
-              barrierDelta = barrier.pathLengthDiff;
-              endDeltaLeft = barrier.endDeltaLeft || 0;
-              endDeltaRight = barrier.endDeltaRight || 0;
+            _barrierW = getDominantBarrier(srcLL, pt, src.heightM, recvHeight, buildings);
+            if (_barrierW) {
+              barrierDelta  = _barrierW.pathLengthDiff;
+              endDeltaLeft  = _barrierW.endDeltaLeft  || 0;
+              endDeltaRight = _barrierW.endDeltaRight || 0;
             }
           }
 
           var buildingIL_broadband = 0;
-          if (barrierDelta > 0 || endDeltaLeft > 0 || endDeltaRight > 0) {
-            var Abar_bb = calcBarrierWithEndDiffraction(barrierDelta, endDeltaLeft, endDeltaRight, [1000]);
-            buildingIL_broadband = Math.min(Abar_bb[0], 20);
+          if (_barrierW) {
+            var _bBaseW  = _barrierW.baseHeightM        || 0;
+            var _bGapW   = _barrierW.gapPathLengthDiff  || 0;
+            var _bInGapW = !!_barrierW.rayInGap;
+            if (_bInGapW && _bBaseW > 0) {
+              // Ray passes through gap — gap IL only
+              if (_bGapW > 0) {
+                var gapArrW = calcBarrierWithEndDiffraction(_bGapW, 0, 0, [1000]);
+                buildingIL_broadband = Math.min(gapArrW[0], 20);
+              }
+            } else if (barrierDelta > 0 || endDeltaLeft > 0 || endDeltaRight > 0) {
+              var topArrW = calcBarrierWithEndDiffraction(barrierDelta, endDeltaLeft, endDeltaRight, [1000]);
+              var topILW  = topArrW[0];
+              if (_bBaseW > 0 && _bGapW > 0) {
+                // Floating barrier: energy-combine over-top and gap paths
+                var gapArrW2 = calcBarrierWithEndDiffraction(_bGapW, 0, 0, [1000]);
+                var combined = -10 * Math.log10(Math.pow(10, -topILW / 10) + Math.pow(10, -gapArrW2[0] / 10));
+                buildingIL_broadband = Math.max(0, combined);
+              } else {
+                buildingIL_broadband = Math.min(topILW, 20);
+              }
+            }
           }
 
           // Smoothed terrain IL from pre-computed grid — applied for all periods including simple Lmax
@@ -403,8 +423,19 @@ self.onmessage = function(e) {
               temperature: isoParams.temperature || 10,
               humidity: isoParams.humidity || 70
             };
-            lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-              barrierDelta, recvHeight, isoParamsLmax, endDeltaLeft, endDeltaRight);
+            var _bBaseWL = _barrierW ? (_barrierW.baseHeightM || 0) : 0;
+            var _bGapWL  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
+            if (_bBaseWL > 0 && _bGapWL > 0 && !(_barrierW && _barrierW.rayInGap)) {
+              var lp_tL = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
+                barrierDelta, recvHeight, isoParamsLmax, endDeltaLeft, endDeltaRight);
+              var lp_gL = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
+                _bGapWL, recvHeight, isoParamsLmax, 0, 0);
+              lp = (!isFinite(lp_tL)) ? lp_gL : (!isFinite(lp_gL)) ? lp_tL
+                 : 10 * Math.log10(Math.pow(10, lp_tL / 10) + Math.pow(10, lp_gL / 10));
+            } else {
+              lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
+                barrierDelta, recvHeight, isoParamsLmax, endDeltaLeft, endDeltaRight);
+            }
             if (terrIL > buildingIL_broadband && isFinite(lp)) {
               lp -= (terrIL - buildingIL_broadband);
             }
@@ -414,8 +445,19 @@ self.onmessage = function(e) {
             lp = attenuatePoint(src.combinedLw, dist) - effectiveIL_lmax;
           } else if (method === 'iso9613' && src.spectrum) {
             // ISO: compute propagation level, then apply terrain excess over building IL
-            lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-              barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight);
+            var _bBaseWI = _barrierW ? (_barrierW.baseHeightM || 0) : 0;
+            var _bGapWI  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
+            if (_bBaseWI > 0 && _bGapWI > 0 && !(_barrierW && _barrierW.rayInGap)) {
+              var lp_tI = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
+                barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight);
+              var lp_gI = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
+                _bGapWI, recvHeight, isoParams, 0, 0);
+              lp = (!isFinite(lp_tI)) ? lp_gI : (!isFinite(lp_gI)) ? lp_tI
+                 : 10 * Math.log10(Math.pow(10, lp_tI / 10) + Math.pow(10, lp_gI / 10));
+            } else {
+              lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
+                barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight);
+            }
             // Apply smoothed terrain IL where it exceeds the already-applied building IL
             if (terrIL > buildingIL_broadband && isFinite(lp)) {
               lp -= (terrIL - buildingIL_broadband);

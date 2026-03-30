@@ -3009,22 +3009,26 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
   var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
 
-  // Barrier delta for this source-receiver pair
+  // Barrier for this source-receiver pair
   var barrierDelta = 0, endDeltaL = 0, endDeltaR = 0;
+  var _barrierObj = null;
   if (window._geometry && window._buildings && window._buildings.length > 0 && receiverIdx !== undefined) {
     var srcLL = { lat: pin.lat, lng: pin.lng };
     var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
     var recLL = allLL['r' + (receiverIdx + 1)];
     if (recLL) {
       var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : window._buildings;
-      var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeight, recHeight, screenable);
-      if (barrier) {
-        barrierDelta = barrier.pathLengthDiff;
-        endDeltaL = barrier.endDeltaLeft || 0;
-        endDeltaR = barrier.endDeltaRight || 0;
+      _barrierObj = window._geometry.getDominantBarrier(srcLL, recLL, srcHeight, recHeight, screenable);
+      if (_barrierObj) {
+        barrierDelta = _barrierObj.pathLengthDiff;
+        endDeltaL = _barrierObj.endDeltaLeft || 0;
+        endDeltaR = _barrierObj.endDeltaRight || 0;
       }
     }
   }
+  var _barrierBaseH  = _barrierObj ? (_barrierObj.baseHeightM  || 0) : 0;
+  var _barrierGapDlt = _barrierObj ? (_barrierObj.gapPathLengthDiff || 0) : 0;
+  var _barrierInGap  = _barrierObj ? !!_barrierObj.rayInGap : false;
 
   // Per-band terrain IL
   var terrainPerBand = null;
@@ -3039,25 +3043,44 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
 
   if (hasSpectrum) {
     // Normalise spectrum to match the entered broadband Lw for this period.
-    // specAdj = lwVal - energySum(spectrum):
-    //   = 0   when spectrum already sums to lwVal (no change to existing results)
-    //   < 0   when lw[period] < energySum(spectrum), e.g. lw.night=75 with the
-    //          same spectral shape as lw.day=85 — correctly reduces night by 10 dB
-    // Same normalisation approach as calcTotalISO9613Lmax.
     var specEnergyLin = 0;
     for (var b = 0; b < spectrumA.length; b++) {
       if (Number.isFinite(spectrumA[b])) specEnergyLin += Math.pow(10, spectrumA[b] / 10);
     }
     var specAdj = (specEnergyLin > 0) ? (lwVal - 10 * log10(specEnergyLin)) : 0;
-    // Full octave-band ISO 9613-2 using normalised A-weighted spectrum
+
+    if (_barrierBaseH > 0 && _barrierGapDlt > 0) {
+      // Floating barrier: energy-combine over-top and gap paths
+      if (_barrierInGap) {
+        // Ray passes through gap — gap path only
+        return calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, _barrierGapDlt, recHeight, 0, 0, terrainPerBand);
+      }
+      var lp_top = calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
+      var lp_gap = calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, _barrierGapDlt, recHeight, 0, 0, terrainPerBand);
+      if (!isFinite(lp_top)) return lp_gap;
+      if (!isFinite(lp_gap)) return lp_top;
+      return 10 * Math.log10(Math.pow(10, lp_top / 10) + Math.pow(10, lp_gap / 10));
+    }
+    // Ground-mounted or no floating: standard
     return calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
   } else {
     // No spectrum: simple point source propagation with opTime weighting
     var lwW = lwVal + adjDB;
-    if (barrierDelta > 0 || endDeltaL > 0 || endDeltaR > 0 || terrainPerBand) {
+    if (barrierDelta > 0 || endDeltaL > 0 || endDeltaR > 0 || terrainPerBand || _barrierInGap) {
       // Flat A-weighted spectrum: distribute lwW equally across 8 bands
       var flatSpec = [];
       for (var b = 0; b < 8; b++) flatSpec.push(lwW - 9.03); // -9.03 so sum = lwW
+
+      if (_barrierBaseH > 0 && _barrierGapDlt > 0) {
+        if (_barrierInGap) {
+          return calcISO9613single(flatSpec, srcHeight, distM, 0, _barrierGapDlt, recHeight, 0, 0, terrainPerBand);
+        }
+        var lp_top2 = calcISO9613single(flatSpec, srcHeight, distM, 0, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
+        var lp_gap2 = calcISO9613single(flatSpec, srcHeight, distM, 0, _barrierGapDlt, recHeight, 0, 0, terrainPerBand);
+        if (!isFinite(lp_top2)) return lp_gap2;
+        if (!isFinite(lp_gap2)) return lp_top2;
+        return 10 * Math.log10(Math.pow(10, lp_top2 / 10) + Math.pow(10, lp_gap2 / 10));
+      }
       return calcISO9613single(flatSpec, srcHeight, distM, 0, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
     }
     return attenuatePoint(lwW, distM);
@@ -3214,22 +3237,26 @@ function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
     var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
     var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
 
-    // Barrier delta for this source-receiver pair
+    // Barrier for this source-receiver pair
     var barrierDelta = 0, endDeltaL = 0, endDeltaR = 0;
+    var _bObjLmax = null;
     if (window._geometry && window._buildings && window._buildings.length > 0) {
       var srcLL = { lat: pin.lat, lng: pin.lng };
       var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
       var recLL = allLL['r' + (receiverIdx + 1)];
       if (recLL) {
         var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : window._buildings;
-        var barrier = window._geometry.getDominantBarrier(srcLL, recLL, srcHeight, recHeight, screenable);
-        if (barrier) {
-          barrierDelta = barrier.pathLengthDiff;
-          endDeltaL = barrier.endDeltaLeft || 0;
-          endDeltaR = barrier.endDeltaRight || 0;
+        _bObjLmax = window._geometry.getDominantBarrier(srcLL, recLL, srcHeight, recHeight, screenable);
+        if (_bObjLmax) {
+          barrierDelta = _bObjLmax.pathLengthDiff;
+          endDeltaL = _bObjLmax.endDeltaLeft || 0;
+          endDeltaR = _bObjLmax.endDeltaRight || 0;
         }
       }
     }
+    var _bBaseHLmax  = _bObjLmax ? (_bObjLmax.baseHeightM        || 0) : 0;
+    var _bGapDltLmax = _bObjLmax ? (_bObjLmax.gapPathLengthDiff  || 0) : 0;
+    var _bInGapLmax  = _bObjLmax ? !!_bObjLmax.rayInGap           : false;
 
     // Per-band terrain IL
     var terrainPerBand = null;
@@ -3252,16 +3279,42 @@ function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
 
     var lp;
     if (hasSpectrum) {
-      // Normalize spectrum to match lw_max total level
       var specAdj = lwMax - SharedCalc.energySum(spectrumMax);
-      lp = SharedCalc.calcISOatPoint(spectrumMax, srcHeight, d, specAdj,
-        barrierDelta, recHeight, isoParamsLmax, endDeltaL, endDeltaR, terrainPerBand);
+      if (_bBaseHLmax > 0 && _bGapDltLmax > 0) {
+        if (_bInGapLmax) {
+          lp = SharedCalc.calcISOatPoint(spectrumMax, srcHeight, d, specAdj,
+            _bGapDltLmax, recHeight, isoParamsLmax, 0, 0, terrainPerBand);
+        } else {
+          var lp_topL = SharedCalc.calcISOatPoint(spectrumMax, srcHeight, d, specAdj,
+            barrierDelta, recHeight, isoParamsLmax, endDeltaL, endDeltaR, terrainPerBand);
+          var lp_gapL = SharedCalc.calcISOatPoint(spectrumMax, srcHeight, d, specAdj,
+            _bGapDltLmax, recHeight, isoParamsLmax, 0, 0, terrainPerBand);
+          lp = (!isFinite(lp_topL)) ? lp_gapL : (!isFinite(lp_gapL)) ? lp_topL
+             : 10 * Math.log10(Math.pow(10, lp_topL / 10) + Math.pow(10, lp_gapL / 10));
+        }
+      } else {
+        lp = SharedCalc.calcISOatPoint(spectrumMax, srcHeight, d, specAdj,
+          barrierDelta, recHeight, isoParamsLmax, endDeltaL, endDeltaR, terrainPerBand);
+      }
     } else {
-      // No spectrum: flat A-weighted spectrum, energy sum = lwMax
       var flatSpec = [];
       for (var b = 0; b < 8; b++) flatSpec.push(lwMax - 9.03);
-      lp = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, 0,
-        barrierDelta, recHeight, isoParamsLmax, endDeltaL, endDeltaR, terrainPerBand);
+      if (_bBaseHLmax > 0 && _bGapDltLmax > 0) {
+        if (_bInGapLmax) {
+          lp = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, 0,
+            _bGapDltLmax, recHeight, isoParamsLmax, 0, 0, terrainPerBand);
+        } else {
+          var lp_topL2 = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, 0,
+            barrierDelta, recHeight, isoParamsLmax, endDeltaL, endDeltaR, terrainPerBand);
+          var lp_gapL2 = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, 0,
+            _bGapDltLmax, recHeight, isoParamsLmax, 0, 0, terrainPerBand);
+          lp = (!isFinite(lp_topL2)) ? lp_gapL2 : (!isFinite(lp_gapL2)) ? lp_topL2
+             : 10 * Math.log10(Math.pow(10, lp_topL2 / 10) + Math.pow(10, lp_gapL2 / 10));
+        }
+      } else {
+        lp = SharedCalc.calcISOatPoint(flatSpec, srcHeight, d, 0,
+          barrierDelta, recHeight, isoParamsLmax, endDeltaL, endDeltaR, terrainPerBand);
+      }
     }
 
     if (Number.isFinite(lp)) {
@@ -4050,6 +4103,42 @@ function buildSourceEquipment(prefix, sourceIdx) {
   return [];
 }
 
+/**
+ * Compute broadband barrier insertion loss from a getDominantBarrier result.
+ * Handles ground-mounted (base=0) and floating (base>0) barriers.
+ * For floating barriers: energy-combines over-top and gap paths (ISO floating barrier model).
+ * @param {object|null} barrier - result from getDominantBarrier, or null
+ * @returns {number} broadband IL in dB (≥ 0)
+ */
+function calcBarrierIL_broadband(barrier) {
+  if (!barrier) return 0;
+  var baseH    = barrier.baseHeightM || 0;
+  var topDelta = barrier.pathLengthDiff || 0;
+  var gapDelta = barrier.gapPathLengthDiff || 0;
+  var endL     = barrier.endDeltaLeft  || 0;
+  var endR     = barrier.endDeltaRight || 0;
+
+  if (barrier.rayInGap && baseH > 0) {
+    // Ray passes through gap — gap path only
+    if (gapDelta <= 0) return 0;
+    var gapArr = SharedCalc.calcBarrierWithEndDiffraction(gapDelta, 0, 0, [1000]);
+    return Math.min(gapArr[0], 20);
+  }
+
+  if (topDelta <= 0 && endL <= 0 && endR <= 0) return 0;
+  var topArr = SharedCalc.calcBarrierWithEndDiffraction(topDelta, endL, endR, [1000]);
+  var topIL  = topArr[0];
+
+  if (baseH > 0 && gapDelta > 0) {
+    // Floating barrier: combine over-top and gap paths by energy addition
+    var gapArr2  = SharedCalc.calcBarrierWithEndDiffraction(gapDelta, 0, 0, [1000]);
+    var combined = -10 * Math.log10(Math.pow(10, -topIL / 10) + Math.pow(10, -gapArr2[0] / 10));
+    return Math.max(0, combined);
+  }
+
+  return Math.min(topIL, 20);
+}
+
 /* Predicted level at receiver from all sources.
  * @param {string} prefix - period ('day'/'eve'/'night'/'lmax')
  * @param {Array<{equipment: Array, _sourceIdx: number}>} sourcesForPeriod
@@ -4115,12 +4204,7 @@ function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDi
       var srcHt = pin.height_m || 1.5;
       var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
       var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
-      if (barrier && (barrier.pathLengthDiff > 0 || (barrier.endDeltaLeft || 0) > 0 || (barrier.endDeltaRight || 0) > 0)) {
-        var Abar = SharedCalc.calcBarrierWithEndDiffraction(
-          barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
-        );
-        buildingIL = Math.min(Abar[0], 20);
-      }
+      buildingIL = calcBarrierIL_broadband(barrier);
     }
     if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][receiverIdx]) {
       var til = _terrainIL[si][receiverIdx];
@@ -6019,14 +6103,15 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
   var screenable = (window._getScreenableBuildings) ? window._getScreenableBuildings() : (window._buildings || []);
   var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
   var recLL = allLL['r' + (receiverIdx + 1)];
+  var _barrierDisp = null;
   if (screenable.length > 0 && recLL) {
     var srcLL = { lat: src.lat, lng: src.lng };
-    var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
-    if (barrier) {
-      barrierDelta = barrier.pathLengthDiff || 0;
-      endDeltaL = barrier.endDeltaLeft || 0;
-      endDeltaR = barrier.endDeltaRight || 0;
-      screenedBy = barrier.building ? (barrier.building.name || 'Building ' + (barrier.building.id || '')) : '';
+    _barrierDisp = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+    if (_barrierDisp) {
+      barrierDelta = _barrierDisp.pathLengthDiff || 0;
+      endDeltaL = _barrierDisp.endDeltaLeft || 0;
+      endDeltaR = _barrierDisp.endDeltaRight || 0;
+      screenedBy = _barrierDisp.building ? (_barrierDisp.building.name || 'Building ' + (_barrierDisp.building.id || '')) : '';
     }
   }
 
@@ -7222,12 +7307,7 @@ function renderContributions() {
             var srcHt = pin.height_m || 1.5;
             var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : 1.5;
             var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
-            if (barrier && (barrier.pathLengthDiff > 0 || (barrier.endDeltaLeft || 0) > 0 || (barrier.endDeltaRight || 0) > 0)) {
-              var Abar = SharedCalc.calcBarrierWithEndDiffraction(
-                barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
-              );
-              buildingIL = Math.min(Abar[0], 20);
-            }
+            buildingIL = calcBarrierIL_broadband(barrier);
           }
           // Terrain IL — same logic as calcPredAtReceiver simple path
           var terrainIL = 0;
@@ -7730,7 +7810,8 @@ initCollapse();
         var barriers = window._getUserBarriers ? window._getUserBarriers() : [];
         if (barriers.length > 0) {
           data.userBarriers = barriers.map(function(ub) {
-            return { id: ub.id, vertices: ub.vertices, heightM: ub.heightM, name: ub.name };
+            return { id: ub.id, vertices: ub.vertices, heightM: ub.heightM,
+                     baseHeightM: ub.baseHeightM || 0, suppressed: !!ub.suppressed, name: ub.name };
           });
         }
 
@@ -11893,10 +11974,12 @@ initCollapse();
     function getScreenableBuildings() {
       var osm = buildings.filter(function(b) { return !b.excluded && !b.demolished; });
       var result = (typeof customBuildings !== 'undefined') ? osm.concat(customBuildings) : osm;
-      // Include user-drawn barriers as pseudo-buildings
+      // Include user-drawn barriers as pseudo-buildings (suppressed barriers excluded)
       if (typeof userBarriers !== 'undefined') {
         userBarriers.forEach(function(ub) {
-          result.push({ polygon: ub.vertices, heightM: ub.heightM, isBarrier: true });
+          if (!ub.suppressed) {
+            result.push({ polygon: ub.vertices, heightM: ub.heightM, baseHeightM: ub.baseHeightM || 0, isBarrier: true });
+          }
         });
       }
       return result;
@@ -12223,14 +12306,19 @@ initCollapse();
     var BARRIER_STYLE = {
       color: '#e67e22', weight: 3, dashArray: '8 4', opacity: 0.9
     };
+    var BARRIER_SUPPRESSED_STYLE = {
+      color: '#999', weight: 2, dashArray: '4 4', opacity: 0.35
+    };
 
     /** Rebuild the combined window._buildings array from OSM + custom + drawn barriers */
     function rebuildBuildingsIndex() {
       var combined = buildings.filter(function(b) { return !b.demolished && !b.excluded; });
       customBuildings.forEach(function(cb) { combined.push(cb); });
-      // Inject user-drawn barriers as pseudo-buildings (Option C: no shared-calc.js changes)
+      // Inject user-drawn barriers as pseudo-buildings (suppressed barriers excluded)
       userBarriers.forEach(function(ub) {
-        combined.push({ polygon: ub.vertices, heightM: ub.heightM, isBarrier: true });
+        if (!ub.suppressed) {
+          combined.push({ polygon: ub.vertices, heightM: ub.heightM, baseHeightM: ub.baseHeightM || 0, isBarrier: true });
+        }
       });
       window._buildings = combined;
       if (typeof updateRayLines === 'function') updateRayLines();
@@ -12243,38 +12331,73 @@ initCollapse();
     function renderUserBarriers() {
       barrierLayer.clearLayers();
       userBarriers.forEach(function(ub) {
-        var line = L.polyline(ub.vertices, BARRIER_STYLE);
-        var htStr = ub.heightM ? ub.heightM.toFixed(1) + 'm' : '2.0m';
-        line.bindTooltip((ub.name ? '<b>' + escapeHTML(ub.name) + '</b><br>' : '') + 'Height: ' + htStr);
+        var style = ub.suppressed ? BARRIER_SUPPRESSED_STYLE : BARRIER_STYLE;
+        var line = L.polyline(ub.vertices, style);
+        var baseH = ub.baseHeightM || 0;
+        var topH  = baseH + (ub.heightM || 2);
+        var htStr = baseH > 0
+          ? 'Base: ' + baseH.toFixed(1) + 'm, Panel: ' + (ub.heightM || 2).toFixed(1) + 'm, Top: ' + topH.toFixed(1) + 'm'
+          : 'Height: ' + (ub.heightM || 2).toFixed(1) + 'm';
+        var suppStr = ub.suppressed ? ' <i>(suppressed)</i>' : '';
+        line.bindTooltip((ub.name ? '<b>' + escapeHTML(ub.name) + '</b><br>' : '') + htStr + suppStr);
 
         // Click popup for edit/delete (only when not in placement or drawing mode)
         line.on('click', function(e) {
           if (_drawingActive) return;
           if (currentMode) return;
           L.DomEvent.stopPropagation(e);
-          var html = '<div style="min-width:200px;font-size:13px;">';
+          var curBase = ub.baseHeightM || 0;
+          var curTop  = curBase + (ub.heightM || 2);
+          var html = '<div style="min-width:220px;font-size:13px;">';
           html += '<b>' + escapeHTML(ub.name || 'Barrier') + '</b><br>';
           html += '<div style="margin:6px 0;">';
-          html += 'Name: <input type="text" id="editBarName" value="' + escapeHTML(ub.name || '') + '" style="width:120px;padding:2px 4px;font-size:12px;"><br>';
-          html += 'Height: <input type="number" id="editBarHeight" value="' + (ub.heightM || 2) + '" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;"> m';
+          html += 'Name: <input type="text" id="editBarName" value="' + escapeHTML(ub.name || '') + '" style="width:130px;padding:2px 4px;font-size:12px;"><br>';
+          html += '<table style="border-collapse:collapse;margin-top:4px;">';
+          html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;">Base height (m):</td>';
+          html += '<td><input type="number" id="editBarBase" value="' + curBase.toFixed(1) + '" step="0.1" min="0" style="width:55px;padding:2px 4px;font-size:12px;"></td></tr>';
+          html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;">Height (m):</td>';
+          html += '<td><input type="number" id="editBarHeight" value="' + (ub.heightM || 2).toFixed(1) + '" step="0.1" min="0.1" style="width:55px;padding:2px 4px;font-size:12px;"></td></tr>';
+          html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;color:#555;">Top of barrier:</td>';
+          html += '<td id="editBarTopDisplay" style="font-size:12px;color:#555;">' + curTop.toFixed(1) + 'm above ground</td></tr>';
+          html += '</table>';
+          html += '<div id="editBarFloatNote" style="font-size:11px;color:#e67e22;margin-top:2px;display:' + (curBase > 0 ? 'block' : 'none') + ';">⚠ Floating barrier</div>';
+          html += '<label style="font-size:12px;cursor:pointer;display:block;margin-top:6px;">';
+          html += '<input type="checkbox" id="editBarSuppressed"' + (ub.suppressed ? ' checked' : '') + '> Suppressed (excluded from calculations)</label>';
           html += '</div>';
           html += '<button id="editBarApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
           html += '<button id="editBarShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#2980b9;">Edit shape</button> ';
           html += '<button id="editBarDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#c0392b;">Delete</button>';
           html += '</div>';
 
-          L.popup({ maxWidth: 280 })
+          L.popup({ maxWidth: 300 })
             .setLatLng(e.latlng)
             .setContent(html)
             .openOn(map);
 
           setTimeout(function() {
+            // Live "Top of barrier" update
+            function updateTopDisplay() {
+              var b = parseFloat(document.getElementById('editBarBase').value) || 0;
+              var h = parseFloat(document.getElementById('editBarHeight').value) || 0;
+              var topEl = document.getElementById('editBarTopDisplay');
+              var noteEl = document.getElementById('editBarFloatNote');
+              if (topEl) topEl.textContent = (b + h).toFixed(1) + 'm above ground';
+              if (noteEl) noteEl.style.display = b > 0 ? 'block' : 'none';
+            }
+            var baseInp = document.getElementById('editBarBase');
+            var htInp   = document.getElementById('editBarHeight');
+            if (baseInp) baseInp.addEventListener('input', updateTopDisplay);
+            if (htInp)   htInp.addEventListener('input', updateTopDisplay);
+
             var applyBtn = document.getElementById('editBarApply');
             var deleteBtn = document.getElementById('editBarDelete');
             if (applyBtn) applyBtn.addEventListener('click', function() {
+              var baseVal = parseFloat(document.getElementById('editBarBase').value);
               var ht = parseFloat(document.getElementById('editBarHeight').value);
+              if (Number.isFinite(baseVal) && baseVal >= 0) ub.baseHeightM = baseVal;
               if (Number.isFinite(ht) && ht > 0) ub.heightM = ht;
               ub.name = document.getElementById('editBarName').value || 'Barrier';
+              ub.suppressed = !!document.getElementById('editBarSuppressed').checked;
               map.closePopup();
               renderUserBarriers();
               rebuildBuildingsIndex();
@@ -12421,32 +12544,58 @@ initCollapse();
           var latLngs = e.layer.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
           var center = e.layer.getBounds().getCenter();
 
-          var html = '<div style="min-width:200px;font-size:13px;">';
+          var html = '<div style="min-width:220px;font-size:13px;">';
           html += '<b>New barrier</b><br>';
           html += '<div style="margin:6px 0;">';
-          html += 'Height: <input type="number" id="newBarHeight" value="2.0" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;" autofocus> m<br>';
-          html += 'Label: <input type="text" id="newBarName" placeholder="e.g. Acoustic fence" style="width:140px;padding:2px 4px;font-size:12px;">';
+          html += 'Label: <input type="text" id="newBarName" placeholder="e.g. Acoustic fence" style="width:140px;padding:2px 4px;font-size:12px;"><br>';
+          html += '<table style="border-collapse:collapse;margin-top:4px;">';
+          html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;">Base height (m):</td>';
+          html += '<td><input type="number" id="newBarBase" value="0.0" step="0.1" min="0" style="width:55px;padding:2px 4px;font-size:12px;" autofocus></td></tr>';
+          html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;">Height (m):</td>';
+          html += '<td><input type="number" id="newBarHeight" value="2.0" step="0.1" min="0.1" style="width:55px;padding:2px 4px;font-size:12px;"></td></tr>';
+          html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;color:#555;">Top of barrier:</td>';
+          html += '<td id="newBarTopDisplay" style="font-size:12px;color:#555;">2.0m above ground</td></tr>';
+          html += '</table>';
+          html += '<div id="newBarFloatNote" style="font-size:11px;color:#e67e22;margin-top:2px;display:none;">⚠ Floating barrier</div>';
           html += '</div>';
           html += '<button id="newBarAdd" style="font-size:11px;padding:2px 8px;cursor:pointer;">Add Barrier</button> ';
           html += '<button id="newBarCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button>';
           html += '</div>';
 
-          L.popup({ maxWidth: 280, closeOnClick: false })
+          L.popup({ maxWidth: 300, closeOnClick: false })
             .setLatLng(center)
             .setContent(html)
             .openOn(map);
 
           setTimeout(function() {
+            // Live "Top of barrier" update
+            function updateNewBarTop() {
+              var b = parseFloat(document.getElementById('newBarBase').value) || 0;
+              var h = parseFloat(document.getElementById('newBarHeight').value) || 0;
+              var topEl = document.getElementById('newBarTopDisplay');
+              var noteEl = document.getElementById('newBarFloatNote');
+              if (topEl) topEl.textContent = (b + h).toFixed(1) + 'm above ground';
+              if (noteEl) noteEl.style.display = b > 0 ? 'block' : 'none';
+            }
+            var baseInpN = document.getElementById('newBarBase');
+            var htInpN   = document.getElementById('newBarHeight');
+            if (baseInpN) baseInpN.addEventListener('input', updateNewBarTop);
+            if (htInpN)   htInpN.addEventListener('input', updateNewBarTop);
+
             var addBtn = document.getElementById('newBarAdd');
             var cancelBtn = document.getElementById('newBarCancel');
             if (addBtn) addBtn.addEventListener('click', function() {
+              var baseVal = parseFloat(document.getElementById('newBarBase').value);
               var ht = parseFloat(document.getElementById('newBarHeight').value);
               var name = document.getElementById('newBarName').value || 'Barrier';
-              if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid height.'); return; }
+              if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid barrier height.'); return; }
+              if (!Number.isFinite(baseVal) || baseVal < 0) baseVal = 0;
               userBarriers.push({
                 id: 'barrier_' + Date.now(),
                 vertices: latLngs,
                 heightM: ht,
+                baseHeightM: baseVal,
+                suppressed: false,
                 name: name
               });
               map.closePopup();
@@ -12591,7 +12740,12 @@ initCollapse();
     window._getUserBarriers = function() { return userBarriers; };
     window._setUserBarriers = function(arr) {
       userBarriers.length = 0;
-      arr.forEach(function(ub) { userBarriers.push(ub); });
+      arr.forEach(function(ub) {
+        // Legacy load: default missing fields
+        if (ub.baseHeightM == null) ub.baseHeightM = 0;
+        if (ub.suppressed == null)  ub.suppressed  = false;
+        userBarriers.push(ub);
+      });
       renderUserBarriers();
       rebuildBuildingsIndex();
     };
@@ -13170,7 +13324,7 @@ initCollapse();
         gridResolutionM: gridRes,
         sources: workerSources,
         buildings: screenable.map(function(b) {
-          return { polygon: b.polygon, heightM: b.heightM, isBarrier: !!b.isBarrier };
+          return { polygon: b.polygon, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier };
         }),
         propagationMethod: propagationMethod || 'simple',
         isoParams: {
