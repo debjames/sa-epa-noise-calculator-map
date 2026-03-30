@@ -13012,8 +13012,12 @@ initCollapse();
 
         var quantityAdjWorker = 10 * Math.log10(_getNumUnits(pin, period));
         var specAdj = 0;
-        if (period === 'lmax' && spec) {
-          specAdj = lwVal - SharedCalc.energySum(spec) + quantityAdjWorker;
+        if (spec) {
+          // Normalise spectrum to Lw and apply time/quantity adjustments for all periods.
+          // Matches calcISO9613forSourcePin: adjDB + specAdj where adjDB = opAdj + quantityAdj.
+          // For lmax: opAdj = 0, so specAdj = lwVal - energySum + quantityAdjWorker (unchanged).
+          // For Leq:  opAdj > 0, so specAdj includes time and numUnits adjustments.
+          specAdj = lwVal - SharedCalc.energySum(spec) + opAdj + quantityAdjWorker;
         }
 
         result.push({
