@@ -12032,12 +12032,14 @@ initCollapse();
       return (dLat > oldH * 0.2) || (dLng > oldW * 0.2);
     }
 
-    /** Get buildings eligible for barrier screening (not excluded) */
-    /** Get buildings eligible for barrier screening (combined OSM + custom, minus excluded/demolished) */
+    /** Get buildings eligible for barrier screening (combined OSM + custom, minus excluded/demolished).
+     *  OSM and custom buildings are only included when the buildings layer is active (_buildingsOn).
+     *  User-drawn barriers are always included (they have their own suppressed flag). */
     function getScreenableBuildings() {
-      var osm = buildings.filter(function(b) { return !b.excluded && !b.demolished; });
-      var result = (typeof customBuildings !== 'undefined') ? osm.concat(customBuildings) : osm;
-      // Include user-drawn barriers as pseudo-buildings (suppressed barriers excluded)
+      // OSM + custom buildings: only when buildings layer is active
+      var osm = _buildingsOn ? buildings.filter(function(b) { return !b.excluded && !b.demolished; }) : [];
+      var result = (_buildingsOn && typeof customBuildings !== 'undefined') ? osm.concat(customBuildings) : osm;
+      // User-drawn barriers are independent of the buildings layer toggle
       if (typeof userBarriers !== 'undefined') {
         userBarriers.forEach(function(ub) {
           if (!ub.suppressed) {
@@ -12263,7 +12265,12 @@ initCollapse();
           });
           console.log('Applied ' + overrides.length + ' building override(s) from saved assessment');
         }
-        if (_buildingsOn) renderBuildings();
+        if (_buildingsOn) {
+          renderBuildings();
+          // Buildings data is now available — recalculate to apply barrier attenuation
+          if (typeof updateAll === 'function') updateAll();
+          if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+        }
       }).catch(function(err) {
         var msg = (err.message && err.message.indexOf('429') !== -1)
           ? 'Overpass API rate limit exceeded \u2014 try again in a moment'
@@ -12308,6 +12315,9 @@ initCollapse();
         } else {
           map.removeLayer(buildingLayer);
         }
+        // Recalculate results and noise map to reflect changed building attenuation
+        if (typeof updateAll === 'function') updateAll();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
       });
     }
 
@@ -13008,7 +13018,7 @@ initCollapse();
 
         result.push({
           lat: pin.lat, lng: pin.lng,
-          heightM: pin.height_m || 1.5,
+          heightM: (pin.height_m || 1.5) + (pin.buildingHeight_m || 0),  // match calcISO9613forSourcePin effective height
           // Worker-compatible: use equipment array with single item
           equipment: [{ name: pin.name || '', Lw: lwVal + opAdj + quantityAdjWorker, quantity: 1 }],
           spectrum: spec,
