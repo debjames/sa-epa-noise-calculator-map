@@ -574,6 +574,121 @@ var SharedCalc = (function() {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //  Facade reflection — ISO 9613-2 §7.5 image source method
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Convert {lat, lng} to local metric [x, y] (metres) relative to ref.
+   * x = east (positive), y = north (positive).
+   */
+  function latLngToLocal2D(pt, ref) {
+    var cosLat = Math.cos(ref.lat * Math.PI / 180);
+    return [
+      (pt.lng - ref.lng) * 111320 * cosLat,
+      (pt.lat - ref.lat) * 111320
+    ];
+  }
+
+  /**
+   * Mirror point P = [px, py] in the infinite line through A and B (2-D metric).
+   * Returns mirrored [mx, my] or null if A === B.
+   */
+  function mirrorPoint2D(P, A, B) {
+    var dx = B[0] - A[0], dy = B[1] - A[1];
+    var lenSq = dx * dx + dy * dy;
+    if (lenSq < 1e-12) return null;
+    var t = ((P[0] - A[0]) * dx + (P[1] - A[1]) * dy) / lenSq;
+    return [2 * (A[0] + t * dx) - P[0], 2 * (A[1] + t * dy) - P[1]];
+  }
+
+  /**
+   * Find the dominant facade reflection for a source-receiver pair.
+   * ISO 9613-2 §7.5 image source method, 2-D horizontal plane.
+   *
+   * Considers all building/barrier edges within 50 m of the receiver.
+   * Applies grazing-incidence cutoff at 80°.
+   * Returns the single dominant reflection (shortest reflected path =
+   * highest level contribution).
+   *
+   * @param {Object} srcLL    {lat, lng} source position
+   * @param {Object} recLL    {lat, lng} receiver position
+   * @param {number} srcH     source height m (reserved — 2-D method)
+   * @param {number} recH     receiver height m (reserved)
+   * @param {Array}  buildings  [{polygon, heightM, isBarrier}]
+   * @returns {{reflectedDistM: number, imageSourceLL: {lat,lng}}|null}
+   */
+  function getDominantReflection(srcLL, recLL, srcH, recH, buildings) {
+    if (!buildings || buildings.length === 0) return null;
+    var MAX_EDGE_DIST = 50;  // metres from receiver
+    var MAX_INC_DEG   = 80;  // grazing incidence cutoff (degrees)
+    var cosRef = Math.cos(recLL.lat * Math.PI / 180);
+
+    // Source in local metric coords centred on receiver (receiver = origin)
+    var S = latLngToLocal2D(srcLL, recLL);
+    var best = null;
+
+    for (var bi = 0; bi < buildings.length; bi++) {
+      var bld = buildings[bi];
+      if (!bld.polygon) continue;
+      var edges = getBuildingEdges(bld.polygon, !!bld.isBarrier);
+
+      for (var ei = 0; ei < edges.length; ei++) {
+        var ev = edges[ei];
+        var Av = ev[0], Bv = ev[1];
+        var A_ll = Array.isArray(Av) ? { lat: Av[0], lng: Av[1] } : Av;
+        var B_ll = Array.isArray(Bv) ? { lat: Bv[0], lng: Bv[1] } : Bv;
+
+        // Quick distance filter — skip edges far from receiver
+        var midD = flatDistM(
+          { lat: (A_ll.lat + B_ll.lat) * 0.5, lng: (A_ll.lng + B_ll.lng) * 0.5 },
+          recLL
+        );
+        if (midD > MAX_EDGE_DIST) continue;
+
+        var A = latLngToLocal2D(A_ll, recLL);
+        var B = latLngToLocal2D(B_ll, recLL);
+
+        // Mirror source in this edge
+        var Sm = mirrorPoint2D(S, A, B);
+        if (!Sm) continue;
+
+        // Reflected path length = distance from image source to receiver (origin)
+        var reflDist = Math.sqrt(Sm[0] * Sm[0] + Sm[1] * Sm[1]);
+        if (reflDist < 0.5) continue;
+
+        // Image source in lat/lng (needed for segmentsIntersect)
+        var Sm_ll = {
+          lat: recLL.lat + Sm[1] / 111320,
+          lng: recLL.lng + Sm[0] / (111320 * cosRef)
+        };
+
+        // Validate: line from image source to receiver must intersect the edge
+        var hit = segmentsIntersect(Sm_ll, recLL, A_ll, B_ll);
+        if (!hit) continue;
+
+        // Angle of incidence: between incident ray S→P and the edge normal
+        var P = latLngToLocal2D(hit, recLL);
+        var edX = B[0] - A[0], edY = B[1] - A[1];
+        var edLen = Math.sqrt(edX * edX + edY * edY);
+        if (edLen < 0.01) continue;
+        var iX = P[0] - S[0], iY = P[1] - S[1];
+        var iLen = Math.sqrt(iX * iX + iY * iY);
+        if (iLen < 0.01) continue;
+        // Unit normal to edge; abs handles both face orientations
+        var cosTheta = Math.abs((-edY / edLen) * (iX / iLen) + (edX / edLen) * (iY / iLen));
+        var incDeg = Math.acos(Math.min(1.0, cosTheta)) * 180 / Math.PI;
+        if (incDeg > MAX_INC_DEG) continue;
+
+        // Keep dominant reflection (shortest path = strongest contribution)
+        if (!best || reflDist < best.reflectedDistM) {
+          best = { reflectedDistM: reflDist, imageSourceLL: Sm_ll };
+        }
+      }
+    }
+    return best;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //  Public API
   // ═══════════════════════════════════════════════════════════════
 
@@ -599,7 +714,9 @@ var SharedCalc = (function() {
     flatDistM: flatDistM,
     pointInPolygonLatLng: pointInPolygonLatLng,
     getIntersectingEdges: getIntersectingEdges,
-    getDominantBarrier: getDominantBarrier
+    getDominantBarrier: getDominantBarrier,
+    // Facade reflection
+    getDominantReflection: getDominantReflection
   };
 })();
 

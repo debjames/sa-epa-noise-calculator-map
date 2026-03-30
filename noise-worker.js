@@ -25,6 +25,7 @@ var calcAlphaAtm         = SharedCalc.calcAlphaAtm;
 var calcBarrierAttenuation = SharedCalc.calcBarrierAttenuation;
 var calcBarrierWithEndDiffraction = SharedCalc.calcBarrierWithEndDiffraction;
 var calcISOatPoint        = SharedCalc.calcISOatPoint;
+var getDominantReflection = SharedCalc.getDominantReflection;
 var ISO_FREQS            = SharedCalc.OCT_FREQ;
 
 /* ─── Main grid computation ─── */
@@ -45,6 +46,7 @@ self.onmessage = function(e) {
     var period = opts.period || 'day';     // 'day'|'eve'|'night'|'lmax'
     var lmaxMethod = opts.lmaxMethod || 'simple'; // 'simple'|'iso9613_g0'|'iso9613_g_sel'
     var isLmaxSimple = (period === 'lmax') && (lmaxMethod === 'simple');
+    var reflectionsEnabled = !!opts.reflectionsEnabled;
 
     if (debugTerrain) {
       if (terrainEnabled && demCache && demCache.length > 0) {
@@ -422,6 +424,39 @@ self.onmessage = function(e) {
             // Simple: max of building IL and terrain IL
             var effectiveIL = Math.max(buildingIL_broadband, terrIL);
             lp = attenuatePoint(src.combinedLw, dist) - effectiveIL;
+          }
+
+          // Facade reflection §7.5: energy-add dominant reflected contribution
+          if (reflectionsEnabled && isFinite(lp) && buildings.length > 0) {
+            var refl_w = getDominantReflection(srcLL, pt, src.heightM, recvHeight, buildings);
+            if (refl_w) {
+              var lpRefl_w;
+              var rd = refl_w.reflectedDistM;
+              if (isLmaxSimple || (period === 'lmax' && !src.spectrum)) {
+                // Simple/no-spectrum Lmax: pure 1/r² at reflected distance
+                lpRefl_w = attenuatePoint(src.combinedLw, rd);
+              } else if (period === 'lmax' && src.spectrum) {
+                // ISO Lmax with spectrum: no A_gr, no barrier
+                var isoRLmax = {
+                  receiverHeight: recvHeight,
+                  groundFactor: 0,
+                  temperature: isoParams.temperature || 10,
+                  humidity: isoParams.humidity || 70
+                };
+                lpRefl_w = calcISOatPoint(src.spectrum, src.heightM, rd, src.spectrumAdj,
+                  0, recvHeight, isoRLmax, 0, 0);
+              } else if (method === 'iso9613' && src.spectrum) {
+                // ISO Leq: same params as direct but no barrier, no terrain
+                lpRefl_w = calcISOatPoint(src.spectrum, src.heightM, rd, src.spectrumAdj,
+                  0, recvHeight, isoParams, 0, 0);
+              } else {
+                // Simple Leq: 1/r² at reflected distance
+                lpRefl_w = attenuatePoint(src.combinedLw, rd);
+              }
+              if (isFinite(lpRefl_w)) {
+                lp = 10 * Math.log10(Math.pow(10, lp / 10) + Math.pow(10, lpRefl_w / 10));
+              }
+            }
           }
 
           if (isFinite(lp)) contributions.push(lp);

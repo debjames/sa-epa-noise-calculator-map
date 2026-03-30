@@ -416,6 +416,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <button class="tool-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
           <button class="tool-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 5v14M5 12h14"/></svg> Draw Building</button>
           <button class="tool-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h4l4-8 4 4h6"/></svg> Draw Barrier</button>
+          <button class="tool-btn" id="reflectionsBtn" title="Apply ISO 9613-2 §7.5 image source facade reflections to receiver predictions and noise map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections</button>
+          <span id="reflectionsBuildingWarning" style="display:none;font-size:10px;color:#b45309;white-space:nowrap;">&#9888; Enable Buildings layer to apply reflections to noise map</span>
           <button class="tool-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Add Point Source</button>
           <button class="tool-btn" id="noiseMapBtn" title="Compute and display noise contour map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map</button>
           <span id="noiseMapControls" style="display:none;font-size:11px;align-items:center;gap:4px;flex-wrap:nowrap;white-space:nowrap;">
@@ -1182,12 +1184,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       <div style="padding:4px 14px;"><button id="terrainProfileLink" class="tool-btn" style="font-size:11px;padding:4px 10px;" onclick="showTerrainProfile();return false;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:3px;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg>Terrain profile</button></div>
       <div id="terrainProfileContainer" style="display:none;padding:4px 14px;"></div>
     </div>
-    <div id="facadeCorrectionRow" style="padding:6px 14px 0;">
-      <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;font-weight:600;white-space:nowrap;">
-        <input type="checkbox" id="facadeCorrectionCb" onchange="facadeCorrection=this.checked?2.5:0;render()">
-        +2.5 dB facade reflection (free-field to facade)
-      </label>
-    </div>
     <div id="vicRuralDistFootnote" style="display:none;padding:4px 14px 0;font-size:11px;color:#4b5563;"></div>
     <div style="padding:12px 14px;">
       <span class="badge">Δ = Predicted − Criterion (≤ 0 is compliant)</span>
@@ -1257,6 +1253,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. The tool uses the Maekawa diffraction formula based on path-length difference to determine insertion loss. For ISO 9613-2, attenuation is applied per octave band and capped at 20 dB. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.</div>
     <div class="h2" style="font-size:13px;">L<sub>Amax</sub> barrier and terrain screening</div>
     <div class="p">L<sub>Amax</sub> barrier and building attenuation is calculated using the Maekawa diffraction formula applied per octave band to the source L<sub>max</sub> spectrum. Ground effect (A<sub>gr</sub>) is not applied to L<sub>Amax</sub> predictions. Terrain screening is applied where enabled. Barrier and terrain screening is applied regardless of whether the simple or ISO 9613-2 propagation method is selected.</div>
+    <div class="h2" style="font-size:13px;">Facade reflections</div>
+    <div class="p">Facade reflections are calculated using the image source method per ISO 9613-2 &sect;7.5. For each source&ndash;receiver pair, building and barrier edges within 50&thinsp;m of the receiver are tested as reflecting surfaces. The reflected contribution from the dominant surface is calculated as a separate propagation path (using the same propagation method as the direct path) and energy-added to the direct path. A single dominant reflection is considered per source&ndash;receiver pair. Grazing incidence is excluded (incidence angle &gt;80&deg; relative to surface normal). Hard surface reflection (0&thinsp;dB loss) is assumed for all buildings and barriers. Reflections are enabled via the Reflections toolbar button and apply to both receiver predictions and the noise map.</div>
     <div class="h2" style="font-size:13px;">Operational time</div>
     <div class="p" id="opTimeNote">The calculation provides an option to input the expected operational time during a 15 minute assessment period. This will provide a 10&middot;log time weighting to the source level to account for the contribution during the assessment period.</div>
     <div class="h2" style="font-size:13px;">Multiple sources &mdash; energy summation</div>
@@ -1340,7 +1338,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 </div>
 
 <!-- Load shared calculation and geometry functions (single canonical source) -->
-<script src="shared-calc.js"></script>
+<script src="shared-calc.js?v=2"></script>
 <script>
   // Bridge SharedCalc to window._calc and window._geometry for existing code
   window._calc = {
@@ -2916,8 +2914,8 @@ function parseCSVLine(line) {
 /** refreshAllSourceDropdowns — REMOVED in Chunk A. TODO Chunk F: delete. */
 function refreshAllSourceDropdowns() {}
 
-// Facade reflection correction (0 or 2.5 dB, free-field to facade)
-var facadeCorrection = 0;
+// Facade reflection state — toggled by the Reflections toolbar button
+var _reflectionsOn = false;
 
 // Characteristic penalty state (dB added to predicted Leq before comparison)
 // Per-receiver characteristic penalties {r1:{day:0,eve:0,night:0}, r2:..., r3:..., r4:...}
@@ -3066,6 +3064,97 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   }
 }
 
+// ── Facade reflection helpers (ISO 9613-2 §7.5) ─────────────────────────────
+
+/** Compute ISO 9613-2 Leq level for sourcePin si at reflected-path distance.
+ *  No barrier, no terrain — reflected path propagates free-field.
+ *  @param {number} si          sourcePin index
+ *  @param {string} prefix      'day'|'eve'|'night'
+ *  @param {number} reflDistM   reflected path distance (m)
+ *  @param {number} receiverIdx 0-based receiver index
+ *  @returns {number} unrounded LAeq or NaN */
+function calcISO9613reflectedLevel(si, prefix, reflDistM, receiverIdx) {
+  if (!Number.isFinite(reflDistM) || reflDistM <= 0) return NaN;
+  var pin = sourcePins[si];
+  if (!pin || pin.lat === null) return NaN;
+  var lwVal = pin.lw ? pin.lw[prefix] : null;
+  if (!Number.isFinite(lwVal)) return NaN;
+
+  var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
+  var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
+  var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
+
+  var spectrumA = pin.spectrum ? pin.spectrum[prefix] : null;
+  var hasSpectrum = spectrumA && Array.isArray(spectrumA) &&
+    spectrumA.some(function(v) { return v !== null && Number.isFinite(v) && v !== 0; });
+
+  if (hasSpectrum) {
+    var specEnergyLin = 0;
+    for (var b = 0; b < spectrumA.length; b++) {
+      if (Number.isFinite(spectrumA[b])) specEnergyLin += Math.pow(10, spectrumA[b] / 10);
+    }
+    var specAdj = (specEnergyLin > 0) ? (lwVal - 10 * log10(specEnergyLin)) : 0;
+    // No barrier (0), no terrain (null) for reflected path
+    return calcISO9613single(spectrumA, srcHeight, reflDistM, opAdj + specAdj, 0, recHeight, 0, 0, null);
+  } else {
+    return attenuatePoint(lwVal + opAdj, reflDistM);
+  }
+}
+
+/** Compute ISO 9613-2 Lmax level for sourcePin si at reflected-path distance.
+ *  No barrier, no terrain, no ground effect (A_gr = 0).
+ *  @param {number} si          sourcePin index
+ *  @param {number} reflDistM   reflected path distance (m)
+ *  @param {number} receiverIdx 0-based receiver index
+ *  @param {number} [gf]        ground factor override (defaults to 0)
+ *  @returns {number} unrounded LAmax or NaN */
+function calcISO9613reflectedLmax(si, reflDistM, receiverIdx, gf) {
+  if (!Number.isFinite(reflDistM) || reflDistM <= 0) return NaN;
+  var pin = sourcePins[si];
+  if (!pin || pin.lat === null) return NaN;
+  if (!pin.activeInPeriod || pin.activeInPeriod.lmax !== true) return NaN;
+  var lwMax = Number.isFinite(pin.lw_max) ? pin.lw_max : null;
+  if (!Number.isFinite(lwMax)) return NaN;
+
+  var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
+  var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
+  var isoP = {
+    receiverHeight: recHeight,
+    groundFactor: (Number.isFinite(gf) ? gf : 0),
+    temperature: iso_temperature,
+    humidity: iso_humidity
+  };
+
+  var spectrumMax = Array.isArray(pin.spectrum_max) ? pin.spectrum_max : null;
+  var hasSpec = spectrumMax && spectrumMax.some(function(v) { return v !== null && Number.isFinite(v) && v !== 0; });
+
+  if (hasSpec) {
+    var specAdj = lwMax - SharedCalc.energySum(spectrumMax);
+    return SharedCalc.calcISOatPoint(spectrumMax, srcHeight, reflDistM, specAdj, 0, recHeight, isoP, 0, 0, null);
+  } else {
+    var flat = [];
+    for (var b = 0; b < 8; b++) flat.push(lwMax - 9.03);
+    return SharedCalc.calcISOatPoint(flat, srcHeight, reflDistM, 0, 0, recHeight, isoP, 0, 0, null);
+  }
+}
+
+/** Find the dominant facade reflection for a source pin at a receiver.
+ *  Returns null when reflections are off, receiver not placed, or no buildings.
+ *  @param {Object} pin         sourcePin object
+ *  @param {number} receiverIdx 0-based receiver index
+ *  @returns {{reflectedDistM, imageSourceLL}|null} */
+function getSourceReflection(pin, receiverIdx) {
+  if (!_reflectionsOn || !pin || pin.lat === null) return null;
+  var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+  var recLL = allLL['r' + (receiverIdx + 1)];
+  if (!recLL) return null;
+  var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : (window._buildings || []);
+  if (!screenable.length) return null;
+  var srcH = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
+  var recH = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
+  return SharedCalc.getDominantReflection({ lat: pin.lat, lng: pin.lng }, recLL, srcH, recH, screenable);
+}
+
 /** ISO 9613-2 prediction for total Leq from all sourcePins at a receiver.
  *  Loops over sourcePins[], calls calcISO9613forSourcePin per pin with per-source distance.
  *  @param {string} prefix - 'day', 'eve', or 'night'
@@ -3082,6 +3171,16 @@ function calcTotalISO9613(prefix, receiverIdx) {
 
     var srcPred = calcISO9613forSourcePin(si, prefix, d, receiverIdx);
     if (Number.isFinite(srcPred)) {
+      // Facade reflection §7.5: energy-add dominant reflected contribution
+      if (_reflectionsOn) {
+        var refl = getSourceReflection(pin, receiverIdx);
+        if (refl) {
+          var lpRefl = calcISO9613reflectedLevel(si, prefix, refl.reflectedDistM, receiverIdx);
+          if (Number.isFinite(lpRefl)) {
+            srcPred = 10 * Math.log10(Math.pow(10, srcPred / 10) + Math.pow(10, lpRefl / 10));
+          }
+        }
+      }
       totalLin += Math.pow(10, srcPred / 10);
       anySrc = true;
     }
@@ -3166,6 +3265,16 @@ function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
     }
 
     if (Number.isFinite(lp)) {
+      // Facade reflection §7.5: energy-add dominant reflected contribution
+      if (_reflectionsOn) {
+        var reflLmax = getSourceReflection(pin, receiverIdx);
+        if (reflLmax) {
+          var lpReflMax = calcISO9613reflectedLmax(si, reflLmax.reflectedDistM, receiverIdx, gf);
+          if (Number.isFinite(lpReflMax)) {
+            lp = 10 * Math.log10(Math.pow(10, lp / 10) + Math.pow(10, lpReflMax / 10));
+          }
+        }
+      }
       totalLin += Math.pow(10, lp / 10);
       anySrc = true;
     }
@@ -4019,6 +4128,21 @@ function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDi
     }
 
     lp -= Math.max(buildingIL, terrainIL);
+
+    // Facade reflection §7.5: energy-add dominant reflected contribution
+    if (_reflectionsOn && recLL) {
+      var srcLL_r = { lat: pin.lat, lng: pin.lng };
+      var srcHt_r = pin.height_m || 1.5;
+      var recHt_r = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
+      var refl_s = SharedCalc.getDominantReflection(srcLL_r, recLL, srcHt_r, recHt_r, screenable);
+      if (refl_s) {
+        var lpRefl_s = attenuatePoint(lwW, refl_s.reflectedDistM);
+        if (isFinite(lpRefl_s)) {
+          lp = 10 * Math.log10(Math.pow(10, lp / 10) + Math.pow(10, lpRefl_s / 10));
+        }
+      }
+    }
+
     contributions.push(lp);
   }
 
@@ -6245,11 +6369,10 @@ function render() {
     if (!hasLmax  && predLmax  !== '' && predLmax  < 0) predLmax  = '';
 
     const rp = recvPenalties[`r${i+1}`] || { day: 0, eve: 0, night: 0 };
-    const fc = facadeCorrection || 0;
-    const predDayPenalised   = (predDay   !== '' && predDay   != null) ? predDay   + rp.day   + fc : predDay;
-    const predEvePenalised   = (predEve   !== '' && predEve   != null) ? predEve   + rp.eve   + fc : predEve;
-    const predNightPenalised = (predNight !== '' && predNight != null) ? predNight + rp.night + fc : predNight;
-    const predLmaxAdj        = (predLmax  !== '' && predLmax  != null) ? predLmax  + fc            : predLmax;
+    const predDayPenalised   = (predDay   !== '' && predDay   != null) ? predDay   + rp.day   : predDay;
+    const predEvePenalised   = (predEve   !== '' && predEve   != null) ? predEve   + rp.eve   : predEve;
+    const predNightPenalised = (predNight !== '' && predNight != null) ? predNight + rp.night : predNight;
+    const predLmaxAdj        = predLmax;
 
     const day   = compCell(predDayPenalised,   dayCrit);
     const eve   = compCell(predEvePenalised,   eveCrit);
@@ -6310,9 +6433,8 @@ function render() {
       if (!hasNight && predN    !== '' && predN    < 0) predN    = '';
       if (!hasLmax  && predLmax !== '' && predLmax < 0) predLmax = '';
       var rpSleep = recvPenalties['r' + (i + 1)] || { night: 0 };
-      var fcSleep = facadeCorrection || 0;
-      var penN    = (predN    !== '' && predN    != null) ? predN    + rpSleep.night + fcSleep : '';
-      var predLmaxFC = (predLmax !== '' && predLmax != null) ? predLmax + fcSleep : predLmax;
+      var penN    = (predN !== '' && predN != null) ? predN + rpSleep.night : '';
+      var predLmaxFC = predLmax;
       sleepResults.push({
         leqExceeds:  penN !== '' && penN > sleepLeqThreshold,
         lmaxExceeds: predLmaxFC !== '' && predLmaxFC > sleepLmaxThreshold,
@@ -7472,7 +7594,6 @@ initCollapse();
 
         // Characteristic penalties
         data.recvPenalties = JSON.parse(JSON.stringify(recvPenalties));
-        data.facadeCorrection = facadeCorrection;
 
         // Per-receiver heights (only save non-null overrides)
         var rh = {};
@@ -8221,12 +8342,7 @@ initCollapse();
         });
       }
 
-      // 8b. Facade correction
-      if (data.facadeCorrection !== undefined) {
-        facadeCorrection = data.facadeCorrection;
-        var fcCb = document.getElementById('facadeCorrectionCb');
-        if (fcCb) fcCb.checked = facadeCorrection > 0;
-      }
+      // 8b. (facade correction removed — replaced by image source reflections button)
 
       // 9. Propagation settings
       if (data.propagation) {
@@ -12441,6 +12557,36 @@ initCollapse();
     // Clear selection when popup closes
     map.on('popupclose', function() { _selectedBarrier = null; });
 
+    /* ═══ Reflections button ═══ */
+    var reflectionsBtn = document.getElementById('reflectionsBtn');
+    var reflectionsBuildingWarning = document.getElementById('reflectionsBuildingWarning');
+
+    function _updateReflectionWarning() {
+      var buildingsActive = document.getElementById('buildingsToggleBtn') &&
+                            document.getElementById('buildingsToggleBtn').classList.contains('active');
+      if (reflectionsBuildingWarning) {
+        reflectionsBuildingWarning.style.display =
+          (_reflectionsOn && !buildingsActive) ? '' : 'none';
+      }
+    }
+
+    if (reflectionsBtn) {
+      reflectionsBtn.addEventListener('click', function() {
+        _reflectionsOn = !_reflectionsOn;
+        reflectionsBtn.classList.toggle('active', _reflectionsOn);
+        _updateReflectionWarning();
+        if (typeof render === 'function') render();
+        if (_noiseMapOn && typeof debouncedRecompute === 'function') debouncedRecompute();
+      });
+    }
+
+    // Also update warning when buildings toggle changes
+    if (buildingsToggleBtn) {
+      buildingsToggleBtn.addEventListener('click', function() {
+        _updateReflectionWarning();
+      });
+    }
+
     /* ═══ Save/load barrier API ═══ */
     window._getUserBarriers = function() { return userBarriers; };
     window._setUserBarriers = function(arr) {
@@ -13038,7 +13184,8 @@ initCollapse();
         terrainEnabled: _terrainEnabled,
         debugTerrain: !!window._debugTerrain,
         period: _noiseMapPeriod || 'day',
-        lmaxMethod: _lmaxMethod || 'simple'
+        lmaxMethod: _lmaxMethod || 'simple',
+        reflectionsEnabled: !!_reflectionsOn
       });
 
       // Diagnostic: confirm DEM cache contents reaching worker
