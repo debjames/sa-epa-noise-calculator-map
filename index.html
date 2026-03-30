@@ -447,7 +447,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
             <input type="number" id="legendInterval" value="5" min="1" max="20" step="1" style="width:30px;font-size:11px;padding:1px 2px;text-align:center;" title="Contour interval dB">
             <span id="legendError" style="color:#c0392b;font-size:10px;display:none;"></span>
           </span>
-          <span id="noiseMapLmaxNote" style="display:none;font-size:10px;color:#4b6e9e;flex-basis:100%;margin-top:2px;">&#x2139; Simple propagation &mdash; no ground, atmospheric, or terrain corrections applied</span>
+          <span id="noiseMapLmaxNote" style="display:none;font-size:10px;color:#4b6e9e;flex-basis:100%;margin-top:2px;">&#x2139; Simple propagation &mdash; no ground or atmospheric corrections applied; barrier and terrain screening applied</span>
           <div id="noiseMapLmaxMethodRow" style="display:none;font-size:11px;flex-basis:100%;margin-top:4px;align-items:center;gap:8px;flex-wrap:wrap;">
             <span style="color:#555;font-weight:600;">L<sub>Amax</sub> method:</span>
             <label style="cursor:pointer;display:flex;align-items:center;gap:2px;"><input type="radio" name="lmaxMethod" value="simple" checked style="margin:0 2px 0 0;"> Simple</label>
@@ -1255,6 +1255,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Two propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), and ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity). It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
     <div class="h2" style="font-size:13px;">Barrier attenuation</div>
     <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. The tool uses the Maekawa diffraction formula based on path-length difference to determine insertion loss. For ISO 9613-2, attenuation is applied per octave band and capped at 20 dB. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.</div>
+    <div class="h2" style="font-size:13px;">L<sub>Amax</sub> barrier and terrain screening</div>
+    <div class="p">L<sub>Amax</sub> barrier and building attenuation is calculated using the Maekawa diffraction formula applied per octave band to the source L<sub>max</sub> spectrum. Ground effect (A<sub>gr</sub>) is not applied to L<sub>Amax</sub> predictions. Terrain screening is applied where enabled. Barrier and terrain screening is applied regardless of whether the simple or ISO 9613-2 propagation method is selected.</div>
     <div class="h2" style="font-size:13px;">Operational time</div>
     <div class="p" id="opTimeNote">The calculation provides an option to input the expected operational time during a 15 minute assessment period. This will provide a 10&middot;log time weighting to the source level to account for the contribution during the assessment period.</div>
     <div class="h2" style="font-size:13px;">Multiple sources &mdash; energy summation</div>
@@ -3996,26 +3998,24 @@ function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDi
     var lp = attenuatePoint(lwW, d);
     if (!isFinite(lp)) continue;
 
-    // Building/barrier screening and terrain — NOT applied for Lmax (simple propagation only)
+    // Building/barrier screening and terrain — applied for all periods including Lmax
     var buildingIL = 0;
     var terrainIL = 0;
-    if (prefix !== 'lmax') {
-      if (screenable.length > 0 && recLL && pin.lat !== null) {
-        var srcLL = { lat: pin.lat, lng: pin.lng };
-        var srcHt = pin.height_m || 1.5;
-        var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
-        var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
-        if (barrier && (barrier.pathLengthDiff > 0 || (barrier.endDeltaLeft || 0) > 0 || (barrier.endDeltaRight || 0) > 0)) {
-          var Abar = SharedCalc.calcBarrierWithEndDiffraction(
-            barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
-          );
-          buildingIL = Math.min(Abar[0], 20);
-        }
+    if (screenable.length > 0 && recLL && pin.lat !== null) {
+      var srcLL = { lat: pin.lat, lng: pin.lng };
+      var srcHt = pin.height_m || 1.5;
+      var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
+      var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+      if (barrier && (barrier.pathLengthDiff > 0 || (barrier.endDeltaLeft || 0) > 0 || (barrier.endDeltaRight || 0) > 0)) {
+        var Abar = SharedCalc.calcBarrierWithEndDiffraction(
+          barrier.pathLengthDiff, barrier.endDeltaLeft || 0, barrier.endDeltaRight || 0, [1000]
+        );
+        buildingIL = Math.min(Abar[0], 20);
       }
-      if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][receiverIdx]) {
-        var til = _terrainIL[si][receiverIdx];
-        terrainIL = til.insertionLoss_dB || 0;
-      }
+    }
+    if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][receiverIdx]) {
+      var til = _terrainIL[si][receiverIdx];
+      terrainIL = til.insertionLoss_dB || 0;
     }
 
     lp -= Math.max(buildingIL, terrainIL);
@@ -12632,7 +12632,8 @@ initCollapse();
         var spec = null;
         if (period !== 'lmax' && pin.spectrum && pin.spectrum[period]) {
           spec = pin.spectrum[period];
-        } else if (period === 'lmax' && _lmaxMethod !== 'simple' && Array.isArray(pin.spectrum_max)) {
+        } else if (period === 'lmax' && Array.isArray(pin.spectrum_max)) {
+          // Send spectrum_max for all Lmax methods — worker uses it for per-band barrier calc
           spec = pin.spectrum_max;
         }
 

@@ -279,7 +279,7 @@ self.onmessage = function(e) {
      */
     var terrainSmoothed = null; // terrainSmoothed[si] = Float32Array(rows * cols), 0-based
 
-    if (terrainEnabled && demCache && demCache.length > 0 && !isLmaxSimple) {
+    if (terrainEnabled && demCache && demCache.length > 0) {
       // Build separable Gaussian kernel: radius=2, σ=1.0, kernel size=5
       var _KR = 2, _SIGMA = 1.0, _KS = 5;
       var _kernel = new Float32Array(_KS);
@@ -368,9 +368,9 @@ self.onmessage = function(e) {
           var dist = flatDistM(srcLL, pt);
           if (dist < 0.1) dist = 0.1;
 
-          // Building / structural barrier IL (skipped for simple Lmax)
+          // Building / structural barrier IL — applied for all periods including simple Lmax
           var barrierDelta = 0, endDeltaLeft = 0, endDeltaRight = 0;
-          if (!isLmaxSimple && buildings.length > 0) {
+          if (buildings.length > 0) {
             var barrier = getDominantBarrier(srcLL, pt, src.heightM, recvHeight, buildings);
             if (barrier) {
               barrierDelta = barrier.pathLengthDiff;
@@ -385,13 +385,14 @@ self.onmessage = function(e) {
             buildingIL_broadband = Math.min(Abar_bb[0], 20);
           }
 
-          // Smoothed terrain IL from pre-computed grid (skipped for simple Lmax)
-          var terrIL = (!isLmaxSimple && terrainSmoothed) ? (terrainSmoothed[si][r * cols + c] || 0) : 0;
+          // Smoothed terrain IL from pre-computed grid — applied for all periods including simple Lmax
+          var terrIL = terrainSmoothed ? (terrainSmoothed[si][r * cols + c] || 0) : 0;
 
           var lp;
           if (isLmaxSimple) {
-            // Lmax simple: −20 log₁₀d − 8 only — no barriers, terrain, ground, or atm
-            lp = attenuatePoint(src.combinedLw, dist);
+            // Lmax simple: 1/r² propagation + barrier + terrain; no A_gr or A_atm
+            var effectiveIL_simple = Math.max(buildingIL_broadband, terrIL);
+            lp = attenuatePoint(src.combinedLw, dist) - effectiveIL_simple;
           } else if (period === 'lmax' && src.spectrum) {
             // Lmax ISO: full ISO 9613-2 with optional groundFactor override
             var isoParamsLmax = {
