@@ -351,6 +351,76 @@ var SharedCalc = (function() {
     // Check if ray passes through the gap beneath a floating barrier
     var rayInGap = (baseH > 0) && (losHeight < baseH);
 
+    // When the direct ray passes freely through the gap, the floating barrier
+    // provides no attenuation on the direct path.  Prefer a ground-mounted
+    // barrier (e.g. the building the parapet sits on) that actually blocks
+    // the ray.  If one is found, also check whether the originally-selected
+    // floating barrier sits on top of that building; if so, extend topH to
+    // the composite top so the parapet's contribution is included.
+    if (rayInGap) {
+      var bestGnd = null, bestGndDiff = Infinity;
+      for (var gi = 0; gi < edges.length; gi++) {
+        var giBase = (edges[gi].building.baseHeightM != null) ? edges[gi].building.baseHeightM : 0;
+        if (giBase > 0) continue; // skip other floating barriers
+        var giDiff = Math.abs(edges[gi].distFromSrc - midDist);
+        if (giDiff < bestGndDiff) { bestGndDiff = giDiff; bestGnd = edges[gi]; }
+      }
+      if (bestGnd) {
+        // Switch to the ground-mounted barrier
+        best    = bestGnd;
+        barrierH = (best.building.heightM != null) ? best.building.heightM : 3.0;
+        baseH    = 0;
+        topH     = barrierH;
+        d1 = best.distFromSrc;
+        d2 = flatDistM(best.intersection, recLL);
+        t  = (dDirect > 0) ? d1 / dDirect : 0;
+        losHeight = srcHeightM + t * (recHeightM - srcHeightM);
+        rayInGap  = false;
+        // Composite: if a floating barrier in the path sits on top of this
+        // building (its base ≥ building top), extend topH to its top.
+        for (var ci = 0; ci < edges.length; ci++) {
+          var cbk = edges[ci].building;
+          var cbkBase = (cbk.baseHeightM != null) ? cbk.baseHeightM : 0;
+          if (cbkBase > 0 && cbkBase >= barrierH) {
+            var cbkTop = cbkBase + ((cbk.heightM != null) ? cbk.heightM : 3.0);
+            if (cbkTop > topH) topH = cbkTop;
+          }
+        }
+        barrierH = topH; // barrierH now equals composite top height (baseH=0)
+      } else {
+        // No ground-mounted barrier: direct ray passes freely under all
+        // floating barriers in the path — no insertion loss.
+        return {
+          building: best.building,
+          edgeStart: best.edgeStart,
+          edgeEnd: best.edgeEnd,
+          intersection: best.intersection,
+          barrierHeightM: barrierH,
+          baseHeightM: baseH,
+          pathLengthDiff: 0,
+          gapPathLengthDiff: 0,
+          rayInGap: true,
+          endDeltaLeft: 0,
+          endDeltaRight: 0
+        };
+      }
+    }
+
+    // Composite extension for ground-mounted barriers: if any floating barrier
+    // in the path sits on top of the selected barrier (its base ≥ barrier top),
+    // raise topH to include the parapet so its contribution is not lost.
+    if (!rayInGap && baseH === 0) {
+      for (var xi = 0; xi < edges.length; xi++) {
+        var xbk = edges[xi].building;
+        var xbkBase = (xbk.baseHeightM != null) ? xbk.baseHeightM : 0;
+        if (xbkBase > 0 && xbkBase >= barrierH) {
+          var xbkTop = xbkBase + ((xbk.heightM != null) ? xbk.heightM : 3.0);
+          if (xbkTop > topH) topH = xbkTop;
+        }
+      }
+      barrierH = topH; // update to composite top height
+    }
+
     // If barrier top is below the line of sight, no screening
     if (topH <= losHeight) {
       return {
