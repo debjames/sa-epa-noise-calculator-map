@@ -2141,6 +2141,8 @@ function estimateAreaFractions(centerLat, centerLng, radiusM, zoneFeatures) {
 // Per Pub 1826.5 Figure 1, IF is derived from zones around the RECEIVER (NSA), not the source.
 var autoIFPerReceiver = {r1: null, r2: null, r3: null, r4: null};
 var autoIFDataPerReceiver = {r1: null, r2: null, r3: null, r4: null};
+// Clause 20 (rural) distance-adjustment cache: null=not computed, 'pending'=in-flight, {adj,rule,detail}=result
+var _clause20Cache = {r1: null, r2: null, r3: null, r4: null};
 // Legacy aliases for backward compat (used by detected-zones display, etc.)
 let autoIF = null;
 var autoIFData = null; // stores {zones140, zones400, fracs140, fracs400, IF}
@@ -4031,6 +4033,10 @@ function setVicAreaType(type) {
     if (type === 'urban') {
       triggerAutoIFAllReceivers();
     }
+    // Trigger Clause 20 ray queries when switching to rural
+    if (type === 'rural') {
+      triggerClause20AllReceivers();
+    }
   }
 }
 
@@ -5752,6 +5758,26 @@ function _buildVicNoiseLimitTableHTML(recvId) {
   PERIODS.forEach(function(p) { h += '<td style="' + valSt(p, 'font-weight:600;') + '">' + fmtN(zoning[p]) + '</td>'; });
   h += '</tr>';
 
+  // Row 1b: Clause 20 distance adjustment (rural only)
+  if (vicAreaType === 'rural') {
+    var c20 = _clause20Cache[recvId];
+    var c20Pending = (c20 === 'pending');
+    var c20Adj = (c20 && c20 !== 'pending' && typeof c20.adj === 'number') ? c20.adj : null;
+    var c20Detail = (c20 && c20 !== 'pending' && c20.detail) ? c20.detail : '';
+    var c20Cell = c20Pending
+      ? '<span style="color:#6b7280;font-style:italic;">Calculating\u2026</span>'
+      : (c20Adj !== null ? (c20Adj === 0 ? '0\u202fdB' : '\u2212' + c20Adj + '\u202fdB') : '\u2014');
+    h += '<tr>';
+    h += '<td style="' + LBL + '">Distance adj. (Cl.&nbsp;20)</td>';
+    PERIODS.forEach(function(p) { h += '<td style="' + valSt(p) + '">' + c20Cell + '</td>'; });
+    h += '</tr>';
+    if (c20Detail) {
+      h += '<tr><td colspan="4" style="padding:2px 8px 4px 8px;border-bottom:1px solid #e5e7eb;'
+         + 'background:#f9fafb;font-size:10px;color:#6b7280;font-style:italic;">'
+         + escapeHTML(c20Detail) + '</td></tr>';
+    }
+  }
+
   // Row 2: Background LA90
   h += '<tr>';
   h += '<td style="' + LBL + '">Background level L<sub>A90</sub></td>';
@@ -5917,6 +5943,7 @@ function clearAutoIF() {
   autoIFData = null;
   autoIFPerReceiver = {r1: null, r2: null, r3: null, r4: null};
   autoIFDataPerReceiver = {r1: null, r2: null, r3: null, r4: null};
+  _clause20Cache = {r1: null, r2: null, r3: null, r4: null};
   _vicRecvMapVisible = {r1: false, r2: false, r3: false, r4: false};
   if (typeof clearVicZonePolygons === 'function') clearVicZonePolygons();
   if (typeof updateRecvMapLegends === 'function') updateRecvMapLegends();
@@ -5924,6 +5951,144 @@ function clearAutoIF() {
   if (el) { el.innerHTML = ''; el.style.display = 'none'; }
   var ifInput = document.getElementById('vicIF');
   if (ifInput) ifInput.placeholder = 'auto';
+}
+
+/* ===== VIC Clause 20 distance adjustment (rural only) ===== */
+
+/** Road/rail zone codes treated as transparent per Clause 20 Rule D */
+var CLAUSE20_ROAD_RAIL = ['TRZ1','TRZ2','TRZ3','TRZ4','PZ'];
+
+/** Strip trailing schedule digits from a zone code for base comparison.
+ *  "GRZ1"→"GRZ", "TRZ2"→"TRZ", "IN1Z"→"IN1Z", "FZ"→"FZ" */
+function _vicZoneBase(code) {
+  if (!code) return '';
+  return code.replace(/\d+$/, '');
+}
+
+/** Pure Clause 20 calculation.
+ *  @param {string} srcCode - source zone (from dropdown, e.g. "FZ")
+ *  @param {string} recCode - receiver zone (from dropdown, e.g. "GRZ")
+ *  @param {string[]} interveningCodes - zone codes sampled along the ray
+ *  @param {number} distM - source-to-receiver distance in metres
+ *  @returns {{adj:number, rule:string, detail:string}}
+ */
+function calcClause20Adjustment(srcCode, recCode, interveningCodes, distM) {
+  var srcBase = _vicZoneBase(srcCode);
+  var recBase = _vicZoneBase(recCode);
+  // Filter intervening: exclude road/rail (Rule D) and the source zone itself
+  var nonRoad = interveningCodes.filter(function(z) {
+    var zRaw  = (z || '').replace(/-SCHEDULE-\d+$/i, '');
+    var zBase = _vicZoneBase(zRaw);
+    return CLAUSE20_ROAD_RAIL.indexOf(zRaw) === -1 && CLAUSE20_ROAD_RAIL.indexOf(zBase) === -1;
+  });
+  var nonSrcNonRoad = nonRoad.filter(function(z) {
+    return _vicZoneBase((z || '').replace(/-SCHEDULE-\d+$/i, '')) !== srcBase;
+  });
+  // Rule A: same base zone, no foreign intervening zones → 0 dB
+  if (srcBase === recBase && nonSrcNonRoad.length === 0) {
+    return { adj: 0, rule: 'A', detail: 'Rule A \u2014 same contiguous zone (' + srcCode + ')' };
+  }
+  var adj = Math.min(Math.round(distM / 100), 9);
+  if (srcBase !== recBase) {
+    // Rule B: different zone codes
+    return {
+      adj: adj,
+      rule: 'B',
+      detail: 'Rule B \u2014 different zones (' + srcCode + ' \u2192 ' + recCode + '), '
+              + Math.round(distM) + '\u202fm \u2192 \u2212' + adj + '\u202fdB'
+    };
+  }
+  // Rule C: same zone code but an intervening different zone exists
+  var unique = [];
+  nonSrcNonRoad.forEach(function(z) { if (unique.indexOf(z) === -1) unique.push(z); });
+  return {
+    adj: adj,
+    rule: 'C',
+    detail: 'Rule C \u2014 intervening ' + unique.join(', ') + ', '
+            + Math.round(distM) + '\u202fm \u2192 \u2212' + adj + '\u202fdB'
+  };
+}
+
+/** Inline haversine for use outside the initMap IIFE */
+function _haversineM(lat1, lng1, lat2, lng2) {
+  var R = 6371000, r = Math.PI / 180;
+  var f1 = lat1 * r, f2 = lat2 * r;
+  var df = (lat2 - lat1) * r, dl = (lng2 - lng1) * r;
+  var s = Math.sin(df/2)*Math.sin(df/2) + Math.cos(f1)*Math.cos(f2)*Math.sin(dl/2)*Math.sin(dl/2);
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
+/** Query Clause 20 ray zones for one receiver, then update cache and re-render. */
+function runClause20ForReceiver(recvId) {
+  if (currentState !== 'VIC' || vicAreaType !== 'rural') return;
+  var srcLL = window._subjectSiteLatlng;
+  var recvLL = window.getReceiverLatLng ? window.getReceiverLatLng(recvId) : null;
+  if (!srcLL || !recvLL) { _clause20Cache[recvId] = null; return; }
+
+  var srcEl = document.getElementById('src');
+  var recEl = document.getElementById(recvId);
+  var srcCode = getVicDropdownZoneCode(srcEl ? srcEl.value : '');
+  var recCode = getVicDropdownZoneCode(recEl ? recEl.value : '');
+  if (!srcCode || !recCode) { _clause20Cache[recvId] = null; return; }
+
+  _clause20Cache[recvId] = 'pending';
+  render();
+
+  var qFn = window.queryVicZoningAtPoint;
+  if (!qFn) { _clause20Cache[recvId] = null; render(); return; }
+
+  var N = 10;
+  var points = [];
+  for (var i = 1; i < N; i++) {
+    var t = i / N;
+    points.push({ lat: srcLL.lat + t * (recvLL.lat - srcLL.lat),
+                  lng: srcLL.lng + t * (recvLL.lng - srcLL.lng) });
+  }
+
+  // Capture for stale-check
+  var capSrcLat = srcLL.lat, capSrcLng = srcLL.lng;
+  var capRecLat = recvLL.lat, capRecLng = recvLL.lng;
+  var capSrc = srcCode, capRec = recCode;
+
+  Promise.all(points.map(function(pt) {
+    return qFn(pt.lat, pt.lng)
+      .then(function(r) { return r && r.zoneCode ? r.zoneCode : null; })
+      .catch(function() { return null; });
+  })).then(function(codes) {
+    // Stale check — discard if source/receiver moved since query fired
+    var curSrc = window._subjectSiteLatlng;
+    var curRecv = window.getReceiverLatLng ? window.getReceiverLatLng(recvId) : null;
+    var srcEl2 = document.getElementById('src');
+    var recEl2 = document.getElementById(recvId);
+    var nowSrc = getVicDropdownZoneCode(srcEl2 ? srcEl2.value : '');
+    var nowRec = getVicDropdownZoneCode(recEl2 ? recEl2.value : '');
+    if (!curSrc || !curRecv
+        || Math.abs(curSrc.lat - capSrcLat) > 0.0001 || Math.abs(curSrc.lng - capSrcLng) > 0.0001
+        || Math.abs(curRecv.lat - capRecLat) > 0.0001 || Math.abs(curRecv.lng - capRecLng) > 0.0001
+        || nowSrc !== capSrc || nowRec !== capRec) {
+      return; // result is stale — a new query is already in-flight
+    }
+    var distM = _haversineM(capSrcLat, capSrcLng, capRecLat, capRecLng);
+    var interveningCodes = codes.filter(function(c) { return c !== null; });
+    _clause20Cache[recvId] = calcClause20Adjustment(capSrc, capRec, interveningCodes, distM);
+    render();
+    renderDetectedZones();
+  }).catch(function(err) {
+    console.warn('[Cl.20] Ray query failed for ' + recvId + ':', err);
+    _clause20Cache[recvId] = null;
+    render();
+  });
+}
+
+/** Trigger Clause 20 computation for all placed receivers (rural mode only). */
+function triggerClause20AllReceivers() {
+  if (currentState !== 'VIC' || vicAreaType !== 'rural') return;
+  var getLL = window.getReceiverLatLng;
+  ['r1','r2','r3','r4'].forEach(function(id) {
+    var ll = getLL ? getLL(id) : null;
+    if (ll) runClause20ForReceiver(id);
+    else _clause20Cache[id] = null;
+  });
 }
 
 /** Handle manual IF input — show/hide reset link, re-render */
@@ -5993,25 +6158,25 @@ function calcCriteriaVIC_Rural(srcVal, recVal, recvId) {
     nightLevel += 3;
   }
 
-  // Distance adjustment: −1 dB per 100 m (Clause 20). Max 9 dB.
-  // Rural: use source-to-receiver distance automatically
+  // Distance adjustment — Clause 20. Read from cache (populated async by runClause20ForReceiver).
   var distAdj = 0;
-  var distM = NaN;
-  if (recvId) {
-    var recvIdx = parseInt(recvId.replace('r', ''), 10);
-    if (recvIdx >= 1 && recvIdx <= 4) {
-      distM = getReceiverDistance(recvIdx);
+  var _c20 = recvId ? _clause20Cache[recvId] : null;
+  if (_c20 && _c20 !== 'pending' && typeof _c20.adj === 'number') {
+    distAdj = _c20.adj;
+  } else if (!_c20 || _c20 === 'pending') {
+    // Cache not yet ready — fall back to raw distance heuristic so table shows a value
+    var distM = NaN;
+    if (recvId) {
+      var recvIdx = parseInt(recvId.replace('r', ''), 10);
+      if (recvIdx >= 1 && recvIdx <= 4) distM = getReceiverDistance(recvIdx);
     }
-  }
-  // Fall back to manual input if no auto distance
-  if (!Number.isFinite(distM) || distM <= 0) {
-    var distInput = document.getElementById('vicDistToZoneBoundary');
-    if (distInput && distInput.value) {
-      distM = Number(distInput.value);
+    if (!Number.isFinite(distM) || distM <= 0) {
+      var distInput = document.getElementById('vicDistToZoneBoundary');
+      if (distInput && distInput.value) distM = Number(distInput.value);
     }
-  }
-  if (Number.isFinite(distM) && distM > 0) {
-    distAdj = Math.min(Math.floor(distM / 100), 9);
+    if (Number.isFinite(distM) && distM > 0) {
+      distAdj = Math.min(Math.floor(distM / 100), 9);
+    }
   }
   dayLevel -= distAdj;
   eveLevel -= distAdj;
@@ -8448,6 +8613,15 @@ function updateOtherCritSelection() {
   if (id === "r3") clearPredRow(3);
   if (id === "r4") clearPredRow(4);
   render();
+  // Re-trigger Clause 20 when zone code changes in rural VIC mode
+  if (currentState === 'VIC' && vicAreaType === 'rural') {
+    if (id === 'src') {
+      triggerClause20AllReceivers();
+    } else {
+      _clause20Cache[id] = null;
+      runClause20ForReceiver(id);
+    }
+  }
 }));
 
 function renderContributions() {
@@ -11986,6 +12160,7 @@ initCollapse();
     }
     /* Expose for calcAutoInfluencingFactor and switchToState (outside IIFE) */
     window.queryVicZonesInCircle = queryVicZonesInCircle;
+    window.queryVicZoningAtPoint = queryVicZoningAtPoint;
     window.updateConcentricCircles = updateConcentricCircles;
 
     function queryAndSetZoneVIC(mode, latlng) {
@@ -12817,6 +12992,12 @@ initCollapse();
           // Receiver moved — update concentric circles and auto-IF for this receiver
           updateConcentricCircles();
           triggerAutoIF(mode, ll);
+          // Clause 20 ray re-query for this receiver (rural only)
+          if (currentState === 'VIC' && vicAreaType === 'rural') runClause20ForReceiver(mode);
+        }
+        if (isSourceMode(mode) && currentState === 'VIC' && vicAreaType === 'rural') {
+          // Source moved — re-query Clause 20 for all receivers
+          triggerClause20AllReceivers();
         }
       });
 
@@ -12833,6 +13014,11 @@ initCollapse();
       if (!isSourceMode(mode)) {
         updateConcentricCircles();
         triggerAutoIF(mode, latlng);
+        // Clause 20 ray query for this receiver (rural only)
+        if (currentState === 'VIC' && vicAreaType === 'rural') runClause20ForReceiver(mode);
+      }
+      if (isSourceMode(mode) && currentState === 'VIC' && vicAreaType === 'rural') {
+        triggerClause20AllReceivers();
       }
 
       /* Auto-detect state from coordinates when source is placed */
