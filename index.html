@@ -5402,24 +5402,27 @@ function hasNsaBgData(recvId) {
 }
 
 function calcCriteriaVICForReceiver(recSelectId) {
+  console.log('[VIC] calcCriteriaVICForReceiver called —', recSelectId, 'vicAreaType:', vicAreaType);
   var srcVal = document.getElementById('src') ? document.getElementById('src').value : '';
   var recVal = document.getElementById(recSelectId) ? document.getElementById(recSelectId).value : '';
 
-  // Don't show criteria until background data is provided for this NSA
-  if (!hasNsaBgData(recSelectId)) {
-    console.log('[VIC] calcCriteriaVICForReceiver', recSelectId, '— blank: no background data (hasNsaBgData=false)');
-    return {day:"", evening:"", night:"", lmax:""};
-  }
-
   if (vicAreaType === 'urban') {
+    // Urban: require background data before showing criteria (classification is essential to urban calc)
+    if (!hasNsaBgData(recSelectId)) {
+      console.log('[VIC urban] blank — no background data for', recSelectId);
+      return {day:"", evening:"", night:"", lmax:""};
+    }
     // In urban mode with auto-IF, dropdowns are optional — criteria can be derived from IF alone
-    var recvId = recSelectId; // e.g. 'r1', 'r2', etc.
+    var recvId = recSelectId;
     var hasAutoIF = autoIFPerReceiver[recvId] !== null;
     if (!srcVal && !recVal && !hasAutoIF) return {day:"", evening:"", night:"", lmax:""};
     return calcCriteriaVIC_Urban(srcVal, recVal, recvId);
   } else {
-    // Rural mode requires both source and receiver zone selections
-    if (!srcVal || !recVal) return {day:"", evening:"", night:"", lmax:""};
+    // Rural: criteria derive from zone table — background data optional (neutral classification used if absent)
+    if (!srcVal || !recVal) {
+      console.log('[VIC rural] blank — missing src or rec zone code. src:', srcVal, 'rec:', recVal);
+      return {day:"", evening:"", night:"", lmax:""};
+    }
     return calcCriteriaVIC_Rural(srcVal, recVal, recSelectId);
   }
 }
