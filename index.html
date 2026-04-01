@@ -5708,6 +5708,72 @@ function _buildZoneAreaTableHTML(recvId, data) {
   return h;
 }
 
+/** Build VIC noise limit summary table for one receiver (urban mode) */
+function _buildVicNoiseLimitTableHTML(recvId) {
+  var COL = { day: '#27ae60', evening: '#2980b9', night: '#2c3e50' };
+  var PERIODS = ['day', 'evening', 'night'];
+  var LABELS  = { day: 'Day', evening: 'Evening', night: 'Night' };
+
+  // Gather data via existing functions
+  var zoning = {};
+  try { zoning = getVicBaseZoningLevels(recvId) || {}; } catch(e) {}
+
+  var bgLevels = {}, bgClass = {};
+  PERIODS.forEach(function(p) {
+    bgLevels[p] = getVicBgLevel(p, recvId);
+    try { bgClass[p] = getEffectiveBgClass(p, zoning[p] || NaN, recvId); }
+    catch(e) { bgClass[p] = 'neutral'; }
+  });
+
+  var limits = {};
+  try { limits = calcCriteriaVICForReceiver(recvId) || {}; } catch(e) {}
+
+  function fmtN(v) { return (Number.isFinite(v)) ? String(Math.round(v)) : '\u2014'; }
+  function fmtL(v) { if (v === '' || v === undefined || v === null) return '\u2014'; var n = Number(v); return Number.isFinite(n) ? String(Math.round(n)) : '\u2014'; }
+
+  var LBL = 'padding:4px 8px;border-bottom:1px solid #e5e7eb;border-right:1px solid #e5e7eb;background:#f9fafb;font-size:11px;text-align:left;';
+  function valSt(p, extra) { return 'padding:4px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:11px;color:' + COL[p] + ';' + (extra || ''); }
+
+  var h = '<div style="margin-top:8px;">';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+
+  // Header
+  h += '<thead><tr>';
+  h += '<th style="padding:4px 8px;border-bottom:2px solid #d1d5db;border-right:1px solid #e5e7eb;background:#f9fafb;font-size:11px;width:48%;"></th>';
+  PERIODS.forEach(function(p) {
+    h += '<th style="padding:4px 8px;border-bottom:2px solid #d1d5db;text-align:right;font-size:11px;font-weight:700;color:' + COL[p] + ';background:#f9fafb;">' + LABELS[p] + '</th>';
+  });
+  h += '</tr></thead><tbody>';
+
+  // Row 1: Zoning Level
+  h += '<tr>';
+  h += '<td style="' + LBL + 'font-weight:600;">Zoning Level</td>';
+  PERIODS.forEach(function(p) { h += '<td style="' + valSt(p, 'font-weight:600;') + '">' + fmtN(zoning[p]) + '</td>'; });
+  h += '</tr>';
+
+  // Row 2: Background LA90
+  h += '<tr>';
+  h += '<td style="' + LBL + '">Background level L<sub>A90</sub></td>';
+  PERIODS.forEach(function(p) { h += '<td style="' + valSt(p) + '">' + fmtN(bgLevels[p]) + '</td>'; });
+  h += '</tr>';
+
+  // Row 3: Background classification
+  h += '<tr>';
+  h += '<td style="' + LBL + '">Background classification</td>';
+  PERIODS.forEach(function(p) { h += '<td style="' + valSt(p) + '">' + (bgClass[p] || '\u2014') + '</td>'; });
+  h += '</tr>';
+
+  // Row 4: Noise Limit — bold, with thicker top border as divider
+  var DIV = 'border-top:2px solid #d1d5db;border-bottom:none;';
+  h += '<tr>';
+  h += '<td style="' + LBL + DIV + 'font-weight:700;">Noise Limit L<sub>Aeq,30min</sub></td>';
+  PERIODS.forEach(function(p) { h += '<td style="' + valSt(p, 'font-weight:700;' + DIV) + '">' + fmtL(limits[p]) + '</td>'; });
+  h += '</tr>';
+
+  h += '</tbody></table></div>';
+  return h;
+}
+
 /** Toggle a receiver's zone analysis display on/off on the map */
 function toggleRecvMapView(recvId) {
   _vicRecvMapVisible[recvId] = !_vicRecvMapVisible[recvId];
@@ -5812,6 +5878,7 @@ function renderDetectedZones() {
     var data = autoIFDataPerReceiver[id];
     if (!data) return;
     h += _buildZoneAreaTableHTML(id, data);
+    h += _buildVicNoiseLimitTableHTML(id);
   });
 
   el.innerHTML = h;
