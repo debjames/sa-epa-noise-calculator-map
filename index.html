@@ -483,8 +483,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <div>
             <label class="h2" style="font-size:12px;">Area type</label>
             <div style="display:flex;gap:8px;margin-top:4px;">
-              <button type="button" class="penalty-btn active" id="vicAreaUrban" onclick="setVicAreaType('urban');document.getElementById('vicAreaUrban').classList.add('active');document.getElementById('vicAreaRural').classList.remove('active');">Major urban (&gt;7,000)</button>
-              <button type="button" class="penalty-btn" id="vicAreaRural" onclick="setVicAreaType('rural');document.getElementById('vicAreaRural').classList.add('active');document.getElementById('vicAreaUrban').classList.remove('active');">Rural</button>
+              <button type="button" class="penalty-btn active" id="vicAreaUrban" onclick="setVicAreaTypeManual('urban');document.getElementById('vicAreaUrban').classList.add('active');document.getElementById('vicAreaRural').classList.remove('active');">Major urban (&gt;7,000)</button>
+              <button type="button" class="penalty-btn" id="vicAreaRural" onclick="setVicAreaTypeManual('rural');document.getElementById('vicAreaRural').classList.add('active');document.getElementById('vicAreaUrban').classList.remove('active');">Rural</button>
             </div>
           </div>
           <div class="vic-rural-only">
@@ -3566,6 +3566,7 @@ function refreshAllTerrainIL() {
 // State detection: 'SA' | 'VIC' | 'NSW' | 'OTHER' | null
 let currentState = null;
 let vicAreaType = 'urban'; // 'urban' | 'rural' (VIC only)
+let _vicAreaTypeManuallySet = false; // true when user clicked Major urban/Rural button — blocks auto-detection override
 var _lastDetectedZones = {}; // {src:'GRZ1', r1:'FZ', ...} — last detected raw zone codes for urban↔rural conversion
 var _lastDetectedZoneLabels = {}; // {src:'GRZ1 — GENERAL RESIDENTIAL ZONE', r1:'FZ — FARMING ZONE', ...}
 let detectedStateName = ''; // e.g. 'NSW', 'QLD' — for badge display in OTHER mode
@@ -3805,6 +3806,8 @@ function switchToState(state) {
 
   // Clear auto-IF when switching states
   clearAutoIF();
+  // Reset manual area type lock so auto-detection works fresh on next VIC session
+  _vicAreaTypeManuallySet = false;
 
   // Reset penalties to 0 on state switch (each state sets its own)
   dayPenalty = 0;
@@ -4017,6 +4020,12 @@ function rebuildZoneSelects() {
     fillSelect('r3');
     fillSelect('r4');
   }
+}
+
+/** Called when user explicitly clicks Major urban / Rural button. Locks area type. */
+function setVicAreaTypeManual(type) {
+  _vicAreaTypeManuallySet = true;
+  setVicAreaType(type);
 }
 
 function setVicAreaType(type) {
@@ -12200,7 +12209,8 @@ initCollapse();
           if (result.zoneDesc) label += ' \u2014 ' + result.zoneDesc;
 
           // Auto-detect urban/rural from source zone (immediate zone-code pass)
-          if (isSourceMode(mode) && zoneCode) {
+          // Skipped if user has manually set the area type via the buttons.
+          if (isSourceMode(mode) && zoneCode && !_vicAreaTypeManuallySet) {
             var zoneBasedArea = detectVicAreaType(zoneCode);
             if (zoneBasedArea && zoneBasedArea !== vicAreaType) {
               setVicAreaType(zoneBasedArea);
@@ -12213,11 +12223,17 @@ initCollapse();
             }
             // Override with MUA polygon check (authoritative, async)
             checkVicMuaAreaType(queryLat, queryLng).then(function(muaArea) {
+              console.log('[VIC MUA] check result:', muaArea, 'for lat/lng:', queryLat, queryLng, '| manuallySet:', _vicAreaTypeManuallySet);
               var currentLl2 = latlngs[mode];
               if (!currentLl2 ||
                   Math.abs(currentLl2.lat - queryLat) > 0.0001 ||
                   Math.abs(currentLl2.lng - queryLng) > 0.0001) return;
               if (muaArea === null) return;
+              // Respect manual override — do not change if user has set area type explicitly
+              if (_vicAreaTypeManuallySet) {
+                console.log('[VIC MUA] manual override active (' + vicAreaType + ') — ignoring MUA result:', muaArea);
+                return;
+              }
               if (muaArea !== vicAreaType) {
                 setVicAreaType(muaArea);
                 var urbanBtn = document.getElementById('vicAreaUrban');
@@ -12228,6 +12244,8 @@ initCollapse();
                 }
               }
             });
+          } else if (isSourceMode(mode) && zoneCode && _vicAreaTypeManuallySet) {
+            console.log('[VIC] area type auto-detection skipped — manually set to:', vicAreaType);
           }
 
           // Store raw detected zone code and full label for urban↔rural conversion
