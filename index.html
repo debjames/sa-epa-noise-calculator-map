@@ -5406,7 +5406,10 @@ function calcCriteriaVICForReceiver(recSelectId) {
   var recVal = document.getElementById(recSelectId) ? document.getElementById(recSelectId).value : '';
 
   // Don't show criteria until background data is provided for this NSA
-  if (!hasNsaBgData(recSelectId)) return {day:"", evening:"", night:"", lmax:""};
+  if (!hasNsaBgData(recSelectId)) {
+    console.log('[VIC] calcCriteriaVICForReceiver', recSelectId, '— blank: no background data (hasNsaBgData=false)');
+    return {day:"", evening:"", night:"", lmax:""};
+  }
 
   if (vicAreaType === 'urban') {
     // In urban mode with auto-IF, dropdowns are optional — criteria can be derived from IF alone
@@ -6032,10 +6035,9 @@ function runClause20ForReceiver(recvId) {
   if (!srcCode || !recCode) { _clause20Cache[recvId] = null; return; }
 
   _clause20Cache[recvId] = 'pending';
-  render();
 
   var qFn = window.queryVicZoningAtPoint;
-  if (!qFn) { _clause20Cache[recvId] = null; render(); return; }
+  if (!qFn) { _clause20Cache[recvId] = null; return; }
 
   var N = 10;
   var points = [];
@@ -6110,8 +6112,12 @@ function handleIFInput() {
 function calcCriteriaVIC_Rural(srcVal, recVal, recvId) {
   var srcCode = getVicDropdownZoneCode(srcVal);
   var recCode = getVicDropdownZoneCode(recVal);
+  console.log('[VIC Rural] calcCriteriaVIC_Rural called —', recvId, 'src:', srcCode, 'rec:', recCode, 'cl20cache:', JSON.stringify(_clause20Cache[recvId]));
 
-  if (!srcCode || !recCode) return {day:"", evening:"", night:"", lmax:""};
+  if (!srcCode || !recCode) {
+    console.log('[VIC Rural] returning blank — missing srcCode or recCode');
+    return {day:"", evening:"", night:"", lmax:""};
+  }
 
   // Check utility sources first (Clauses 29-32)
   var isUtility = document.getElementById('vicIsUtility');
@@ -6140,11 +6146,17 @@ function calcCriteriaVIC_Rural(srcVal, recVal, recvId) {
   // Rural zone lookup via group mapping (Table B.1, Annex B)
   var genGroup = VIC_RURAL_GEN_GROUPS[srcCode];
   var recGroup = VIC_RURAL_REC_GROUPS[recCode];
-  if (!genGroup || !recGroup) return {day:"", evening:"", night:"", lmax:""};
+  if (!genGroup || !recGroup) {
+    console.log('[VIC Rural] returning blank — no group mapping for src:', srcCode, '(genGroup:', genGroup, ') rec:', recCode, '(recGroup:', recGroup, ')');
+    return {day:"", evening:"", night:"", lmax:""};
+  }
 
   var key = genGroup + '_' + recGroup;
   var levels = VIC_RURAL_ZONE_LEVELS[key];
-  if (!levels) return {day:"", evening:"", night:"", lmax:""};
+  if (!levels) {
+    console.log('[VIC Rural] returning blank — no levels for key:', key);
+    return {day:"", evening:"", night:"", lmax:""};
+  }
 
   var dayLevel = levels.day;
   var eveLevel = levels.evening;
@@ -6159,25 +6171,13 @@ function calcCriteriaVIC_Rural(srcVal, recVal, recvId) {
   }
 
   // Distance adjustment — Clause 20. Read from cache (populated async by runClause20ForReceiver).
+  // While pending or not yet computed, use 0 dB as fallback; render() fires again when async resolves.
   var distAdj = 0;
   var _c20 = recvId ? _clause20Cache[recvId] : null;
   if (_c20 && _c20 !== 'pending' && typeof _c20.adj === 'number') {
     distAdj = _c20.adj;
-  } else if (!_c20 || _c20 === 'pending') {
-    // Cache not yet ready — fall back to raw distance heuristic so table shows a value
-    var distM = NaN;
-    if (recvId) {
-      var recvIdx = parseInt(recvId.replace('r', ''), 10);
-      if (recvIdx >= 1 && recvIdx <= 4) distM = getReceiverDistance(recvIdx);
-    }
-    if (!Number.isFinite(distM) || distM <= 0) {
-      var distInput = document.getElementById('vicDistToZoneBoundary');
-      if (distInput && distInput.value) distM = Number(distInput.value);
-    }
-    if (Number.isFinite(distM) && distM > 0) {
-      distAdj = Math.min(Math.floor(distM / 100), 9);
-    }
   }
+  // null or 'pending' → distAdj stays 0 (safe default; render re-fires when cache resolves)
   dayLevel -= distAdj;
   eveLevel -= distAdj;
   nightLevel -= distAdj;
@@ -6214,7 +6214,9 @@ function calcCriteriaVIC_Rural(srcVal, recVal, recvId) {
   // Apply night cap (reg 118(3))
   nightLevel = Math.min(nightLevel, VIC_NIGHT_CAP);
 
-  return {day: dayLevel, evening: eveLevel, night: nightLevel, lmax: VIC_LMAX_NIGHT, distAdj: distAdj};
+  var _ruralResult = {day: dayLevel, evening: eveLevel, night: nightLevel, lmax: VIC_LMAX_NIGHT, distAdj: distAdj};
+  console.log('[VIC Rural] result for', recvId, ':', _ruralResult);
+  return _ruralResult;
 }
 
 /* Helper functions for VIC background inputs */
