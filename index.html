@@ -5645,14 +5645,16 @@ function _buildZoneAreaTableHTML(recvId, data) {
   h += '<div style="overflow-x:auto;">';
   h += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
   // Header
-  h += '<thead><tr style="background:#e5e7eb;">';
+  h += '<thead><tr>';
   h += '<th style="padding:3px 5px;text-align:center;border:1px solid #d1d5db;width:34px;">Type</th>';
   h += '<th style="padding:3px 5px;text-align:left;border:1px solid #d1d5db;width:50px;">Zone</th>';
   h += '<th style="padding:3px 5px;text-align:left;border:1px solid #d1d5db;">Description</th>';
   h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:60px;">140m (m\u00B2)</th>';
-  h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:58px;background:#d1d5db;">Subtotal</th>';
+  h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:52px;">Subtotal</th>';
+  h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:32px;">%</th>';
   h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:60px;">400m (m\u00B2)</th>';
-  h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:58px;background:#d1d5db;">Subtotal</th>';
+  h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:52px;">Subtotal</th>';
+  h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:32px;">%</th>';
   h += '</tr></thead><tbody>';
 
   [1, 2, 3].forEach(function(t) {
@@ -5682,19 +5684,19 @@ function _buildZoneAreaTableHTML(recvId, data) {
         h += '<span style="font-size:10px;padding:1px 5px;border-radius:3px;font-weight:600;background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;">' + t + '</span>';
         h += '</td>';
       }
-      h += '<td style="padding:3px 5px;border:1px solid #d1d5db;font-family:monospace;font-size:10px;white-space:nowrap;">' + escapeHTML(z.zoneCode) + '</td>';
-      h += '<td style="padding:3px 5px;border:1px solid #d1d5db;color:#374151;">' + escapeHTML(desc) + '</td>';
+      h += '<td style="padding:3px 5px;border:1px solid #d1d5db;font-size:11px;white-space:nowrap;">' + escapeHTML(z.zoneCode) + '</td>';
+      h += '<td style="padding:3px 5px;border:1px solid #d1d5db;font-size:11px;color:#374151;">' + escapeHTML(desc) + '</td>';
       h += '<td style="padding:3px 5px;border:1px solid #d1d5db;text-align:right;">' + (a140 > 0 ? a140.toLocaleString() : '0') + '</td>';
-      // 140m subtotal — rowspan on first row
+      // 140m subtotal + % — two separate rowspan cells on first row of group
       if (zi === 0) {
-        h += '<td rowspan="' + n + '" style="padding:4px 5px;border:1px solid #d1d5db;text-align:right;vertical-align:middle;background:#f3f4f6;font-weight:600;white-space:nowrap;">';
-        h += Math.round(sub140).toLocaleString() + '<br><span style="font-weight:400;color:#6b7280;font-size:10px;">' + pct140 + '%</span></td>';
+        h += '<td rowspan="' + n + '" style="padding:4px 5px;border:1px solid #d1d5db;text-align:right;vertical-align:middle;background:#f3f4f6;font-weight:600;white-space:nowrap;">' + Math.round(sub140).toLocaleString() + '</td>';
+        h += '<td rowspan="' + n + '" style="padding:4px 5px;border:1px solid #d1d5db;text-align:right;vertical-align:middle;background:#f3f4f6;color:#6b7280;white-space:nowrap;">' + pct140 + '%</td>';
       }
       h += '<td style="padding:3px 5px;border:1px solid #d1d5db;text-align:right;">' + (a400 > 0 ? a400.toLocaleString() : '0') + '</td>';
-      // 400m subtotal — rowspan on first row
+      // 400m subtotal + % — two separate rowspan cells on first row of group
       if (zi === 0) {
-        h += '<td rowspan="' + n + '" style="padding:4px 5px;border:1px solid #d1d5db;text-align:right;vertical-align:middle;background:#f3f4f6;font-weight:600;white-space:nowrap;">';
-        h += Math.round(sub400).toLocaleString() + '<br><span style="font-weight:400;color:#6b7280;font-size:10px;">' + pct400 + '%</span></td>';
+        h += '<td rowspan="' + n + '" style="padding:4px 5px;border:1px solid #d1d5db;text-align:right;vertical-align:middle;background:#f3f4f6;font-weight:600;white-space:nowrap;">' + Math.round(sub400).toLocaleString() + '</td>';
+        h += '<td rowspan="' + n + '" style="padding:4px 5px;border:1px solid #d1d5db;text-align:right;vertical-align:middle;background:#f3f4f6;color:#6b7280;white-space:nowrap;">' + pct400 + '%</td>';
       }
       h += '</tr>';
     });
