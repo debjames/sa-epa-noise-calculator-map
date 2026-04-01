@@ -5865,15 +5865,13 @@ function renderDetectedZones() {
       h += '</div>';
     });
     var nsaClassVal = nsaBg.class || 'auto';
+    var isNeutralOverride = (nsaClassVal === 'neutral');
+    var btnStyle = isNeutralOverride
+      ? 'font-size:9px;padding:2px 6px;border-radius:4px;cursor:pointer;border:1.5px solid #6b7280;background:#6b7280;color:#fff;font-weight:600;'
+      : 'font-size:9px;padding:2px 6px;border-radius:4px;cursor:pointer;border:1.5px solid #6b7280;background:transparent;color:#6b7280;font-weight:600;';
     h += '<div style="text-align:center;">';
     h += '<div style="font-size:8px;font-weight:600;margin-bottom:1px;">Override</div>';
-    h += '<select id="vicNsaBgClass_' + id + '" style="font-size:8px;padding:1px 2px;width:56px;" ' +
-         'onchange="updatePerNsaBgClass(\'' + id + '\')">';
-    h += '<option value="auto"' + (nsaClassVal === 'auto' ? ' selected' : '') + '>Auto</option>';
-    h += '<option value="neutral"' + (nsaClassVal === 'neutral' ? ' selected' : '') + '>Neutral</option>';
-    h += '<option value="low"' + (nsaClassVal === 'low' ? ' selected' : '') + '>Low</option>';
-    h += '<option value="high"' + (nsaClassVal === 'high' ? ' selected' : '') + '>High</option>';
-    h += '</select>';
+    h += '<button id="vicNsaBgClass_' + id + '" onclick="toggleNsaBgNeutral(\'' + id + '\')" style="' + btnStyle + '">' + (isNeutralOverride ? 'Neutral \u2713' : 'Neutral') + '</button>';
     h += '</div>';
     h += '</div></div>';
     } catch(bgErr) { console.warn('BG section error for ' + id + ':', bgErr); }
@@ -6132,15 +6130,20 @@ function updatePerNsaBg(recvId, period) {
   _refreshNoiseLimitTables();
 }
 
-/** Update per-NSA classification override */
-function updatePerNsaBgClass(recvId) {
-  var el = document.getElementById('vicNsaBgClass_' + recvId);
-  if (el) {
-    _vicPerNsaBg[recvId].class = el.value;
-  }
+/** Toggle per-NSA classification override between auto and neutral */
+function toggleNsaBgNeutral(recvId) {
+  _vicPerNsaBg[recvId].class = (_vicPerNsaBg[recvId].class === 'neutral') ? 'auto' : 'neutral';
   render();
   _updateNsaBgClassLabels(recvId);
   _refreshNoiseLimitTables();
+  // Update button appearance in place without full re-render
+  var btn = document.getElementById('vicNsaBgClass_' + recvId);
+  if (btn) {
+    var active = (_vicPerNsaBg[recvId].class === 'neutral');
+    btn.style.background = active ? '#6b7280' : 'transparent';
+    btn.style.color = active ? '#fff' : '#6b7280';
+    btn.textContent = active ? 'Neutral \u2713' : 'Neutral';
+  }
 }
 
 /** Update the classification labels for a specific NSA without rebuilding the panel */
