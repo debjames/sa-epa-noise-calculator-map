@@ -5734,7 +5734,7 @@ function _buildVicNoiseLimitTableHTML(recvId) {
   var LBL = 'padding:4px 8px;border-bottom:1px solid #e5e7eb;border-right:1px solid #e5e7eb;background:#f9fafb;font-size:11px;text-align:left;';
   function valSt(p, extra) { return 'padding:4px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:11px;color:' + COL[p] + ';' + (extra || ''); }
 
-  var h = '<div style="margin-top:8px;">';
+  var h = '<div id="vicNoiseLimitTable_' + recvId + '" style="margin-top:8px;">';
   h += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
 
   // Header
@@ -5772,6 +5772,14 @@ function _buildVicNoiseLimitTableHTML(recvId) {
 
   h += '</tbody></table></div>';
   return h;
+}
+
+/** Refresh all rendered VIC noise limit tables in place (called when background data changes) */
+function _refreshNoiseLimitTables() {
+  ['r1','r2','r3','r4'].forEach(function(id) {
+    var el = document.getElementById('vicNoiseLimitTable_' + id);
+    if (el) el.outerHTML = _buildVicNoiseLimitTableHTML(id);
+  });
 }
 
 /** Toggle a receiver's zone analysis display on/off on the map */
@@ -6121,6 +6129,7 @@ function updatePerNsaBg(recvId, period) {
   }
   render();
   _updateNsaBgClassLabels(recvId);
+  _refreshNoiseLimitTables();
 }
 
 /** Update per-NSA classification override */
@@ -6131,6 +6140,7 @@ function updatePerNsaBgClass(recvId) {
   }
   render();
   _updateNsaBgClassLabels(recvId);
+  _refreshNoiseLimitTables();
 }
 
 /** Update the classification labels for a specific NSA without rebuilding the panel */
