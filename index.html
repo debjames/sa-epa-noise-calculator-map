@@ -657,12 +657,13 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div class="table-scroll">
         <table>
           <tr>
-            <th style="width:16%;">Location</th><th class="num" style="width:6%;" title="Receiver height above ground (m). Leave blank to use global ISO 9613-2 value.">Height, m</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
+            <th style="width:16%;">Location</th><th class="num" style="width:6%;" title="Receiver height above ground (m). Leave blank to use global ISO 9613-2 value.">Height, m</th><th class="num dist-s1-col" style="width:7%;" title="Straight-line horizontal distance from S1 to receiver">Dist. S1 (m)</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
           </tr>
 
           <tr>
             <td><b>Subject site</b></td>
             <td class="num"></td>
+            <td class="num dist-s1-col">—</td>
             <td class="zone-col"><select id="src"></select><div id="src-zone-autodetect" style="display:none;font-size:10px;color:#6b7280;font-style:italic;margin-top:2px;line-height:1.3;">Auto-detected from source location</div></td>
             <td id="src_viczone" class="vic-only vic-zone-col"></td>
             <td id="src_land" class="left landuse-col"></td>
@@ -676,6 +677,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"><br><span id="groundElev_r1" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="num"><input type="number" id="recvHt1" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
+            <td id="r1_dist_s1" class="num dist-s1-col">—</td>
             <td class="zone-col"><select id="r1"></select></td>
             <td id="r1_viczone" class="vic-only vic-zone-col"></td>
             <td id="r1_land" class="left landuse-col"></td>
@@ -688,6 +690,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"><br><span id="groundElev_r2" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="num"><input type="number" id="recvHt2" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
+            <td id="r2_dist_s1" class="num dist-s1-col">—</td>
             <td class="zone-col"><select id="r2"></select></td>
             <td id="r2_viczone" class="vic-only vic-zone-col"></td>
             <td id="r2_land" class="left landuse-col"></td>
@@ -700,6 +703,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"><br><span id="groundElev_r3" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="num"><input type="number" id="recvHt3" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
+            <td id="r3_dist_s1" class="num dist-s1-col">—</td>
             <td class="zone-col"><select id="r3"></select></td>
             <td id="r3_viczone" class="vic-only vic-zone-col"></td>
             <td id="r3_land" class="left landuse-col"></td>
@@ -712,6 +716,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"><br><span id="groundElev_r4" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="num"><input type="number" id="recvHt4" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
+            <td id="r4_dist_s1" class="num dist-s1-col">—</td>
             <td class="zone-col"><select id="r4"></select></td>
             <td id="r4_viczone" class="vic-only vic-zone-col"></td>
             <td id="r4_land" class="left landuse-col"></td>
@@ -1974,6 +1979,50 @@ const VIC_ZONE_TYPE_MAP = {
   'TRZ2':3, 'PZ':3
 };
 
+/* VIC zone descriptions — used in zone area summary table */
+var VIC_ZONE_DESCRIPTIONS = {
+  // Type 1 — Residential, rural, open space
+  'LDRZ':'Low Density Residential Zone',   'TZ':'Township Zone',
+  'RGZ':'Residential Growth Zone',          'GRZ':'General Residential Zone',
+  'NRZ':'Neighbourhood Residential Zone',   'RLZ':'Rural Living Zone',
+  'GWZ':'Green Wedge Zone',                 'GWAZ':'Green Wedge A Zone',
+  'RCZ':'Rural Conservation Zone',          'PPRZ':'Public Park & Recreation Zone',
+  'PCRZ':'Public Conservation & Resource Zone',
+  'PUZ2':'Public Use Zone - Education',     'PUZ5':'Public Use Zone - Cemetery/Crematorium',
+  'UFZ':'Urban Floodway Zone',              'UGZ':'Urban Growth Zone',
+  // Type 2 — Commercial, business, light industry
+  'MUZ':'Mixed Use Zone',                   'IN3Z':'Industrial 3 Zone',
+  'C1Z':'Commercial 1 Zone',                'B1Z':'Business 1 Zone',
+  'B2Z':'Business 2 Zone',                  'B5Z':'Business 5 Zone',
+  'FZ':'Farming Zone',                      'RAZ':'Rural Activity Zone',
+  'PUZ1':'Public Use Zone - Service & Utility',
+  'PUZ3':'Public Use Zone - Health & Community',
+  'PUZ6':'Public Use Zone - Local Government',
+  'PUZ7':'Public Use Zone - Other Public Use',
+  'TRZ1':'Transport Zone 1 - Air',          'TRZ3':'Transport Zone 3 - Port',
+  'TRZ4':'Transport Zone 4 - Rail',         'CDZ':'Comprehensive Development Zone',
+  'CCZ':'Capital City Zone',                'DZ':'Docklands Zone',
+  'PDZ':'Priority Development Zone',        'ACZ':'Activity Centre Zone',
+  // Type 3 — General industry, major roads
+  'IN1Z':'Industrial 1 Zone',               'IN2Z':'Industrial 2 Zone',
+  'C2Z':'Commercial 2 Zone',                'B3Z':'Business 3 Zone',
+  'B4Z':'Business 4 Zone',                  'C3Z':'Commercial 3 Zone',
+  'TRZ2':'Transport Zone 2 - Principal Road','PZ':'Public Acquisition Zone',
+  // Rural-only
+  'RAZ':'Rural Activity Zone'
+};
+
+/** Return the full description for a VIC zone code, handling schedule suffixes (e.g. GRZ2 → "General Residential Zone - Sch 2") */
+function getVicZoneDescription(code) {
+  if (!code) return '';
+  if (VIC_ZONE_DESCRIPTIONS[code]) return VIC_ZONE_DESCRIPTIONS[code];
+  var base = code.replace(/\d+$/, '');
+  var desc = VIC_ZONE_DESCRIPTIONS[base];
+  if (!desc) return code;
+  var sched = code.slice(base.length);
+  return desc + (sched ? ' - Sch ' + sched : '');
+}
+
 /* VIC Urban Zoning Levels — Figure 1 of Pub 1826.5
    The urban method uses an Influencing Factor (IF) from 0 to 1.
    IF = 0.25 × (sum of Type 2 fractions for 140m+400m circles) + 0.5 × (sum of Type 3 fractions)
@@ -2042,6 +2091,7 @@ function estimateAreaFractions(centerLat, centerLng, radiusM, zoneFeatures) {
   const step = 2 / gridN; // grid from -1 to +1
   let total = 0;
   const counts = {1: 0, 2: 0, 3: 0};
+  var countsByZone = {}; // per-zone-code counts for area breakdown table
 
   for (let iy = 0; iy < gridN; iy++) {
     for (let ix = 0; ix < gridN; ix++) {
@@ -2068,17 +2118,21 @@ function estimateAreaFractions(centerLat, centerLng, radiusM, zoneFeatures) {
         }
         if (found && feat.type) {
           counts[feat.type] = (counts[feat.type] || 0) + 1;
+          if (feat.zoneCode) { countsByZone[feat.zoneCode] = (countsByZone[feat.zoneCode] || 0) + 1; }
           break; // first match wins
         }
       }
     }
   }
 
-  if (total === 0) return {1: 1, 2: 0, 3: 0}; // default to Type 1
+  if (total === 0) return {1: 1, 2: 0, 3: 0, byZone: {}}; // default to Type 1
+  var byZone = {};
+  Object.keys(countsByZone).forEach(function(zc) { byZone[zc] = countsByZone[zc] / total; });
   return {
     1: counts[1] / total,
     2: counts[2] / total,
-    3: counts[3] / total
+    3: counts[3] / total,
+    byZone: byZone
   };
 }
 
@@ -5548,6 +5602,110 @@ function _buildZoneListHTML(zones, fracs, label) {
   return html;
 }
 
+/** Build zone area summary table HTML for one receiver */
+function _buildZoneAreaTableHTML(recvId, data) {
+  var CIRCLE_AREA_140 = Math.PI * 140 * 140; // ≈ 61,575 m²
+  var CIRCLE_AREA_400 = Math.PI * 400 * 400; // ≈ 502,655 m²
+  var TYPE_COLORS = {1: '#059669', 2: '#d97706', 3: '#dc2626'};
+  var NSA_LABELS = {r1: 'Receiver 1', r2: 'Receiver 2', r3: 'Receiver 3', r4: 'Receiver 4'};
+
+  var fracs140 = data.fracs140 || {};
+  var fracs400 = data.fracs400 || {};
+  var byZone140 = fracs140.byZone || {};
+  var byZone400 = fracs400.byZone || {};
+
+  // Collect all unique zone entries from both circles, keyed by code
+  var zoneMap = {};
+  (data.zones140 || []).concat(data.zones400 || []).forEach(function(z) {
+    if (!zoneMap[z.zoneCode]) zoneMap[z.zoneCode] = { zoneCode: z.zoneCode, type: z.type || 0 };
+  });
+
+  // Filter to zones with detected area > 0 in either circle
+  var zoneList = Object.keys(zoneMap).map(function(c) { return zoneMap[c]; }).filter(function(z) {
+    return (byZone140[z.zoneCode] || 0) > 0 || (byZone400[z.zoneCode] || 0) > 0;
+  });
+  if (zoneList.length === 0) return '';
+
+  // Group by type
+  var byType = {1: [], 2: [], 3: []};
+  zoneList.forEach(function(z) { if (byType[z.type]) byType[z.type].push(z); });
+
+  // Total detected area (for percentages — sum of all zones, not full circle area)
+  var totDet140 = 0, totDet400 = 0;
+  zoneList.forEach(function(z) {
+    totDet140 += (byZone140[z.zoneCode] || 0) * CIRCLE_AREA_140;
+    totDet400 += (byZone400[z.zoneCode] || 0) * CIRCLE_AREA_400;
+  });
+
+  var nameEl = document.getElementById('name_' + recvId);
+  var recvLabel = (nameEl && nameEl.value) ? escapeHTML(nameEl.value) : NSA_LABELS[recvId];
+
+  var h = '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);">';
+  h += '<div style="font-size:11px;font-weight:600;margin-bottom:5px;color:var(--heading);">' + recvLabel + ' \u2014 IF:&nbsp;' + data.IF.toFixed(3) + '</div>';
+  h += '<div style="overflow-x:auto;">';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+  // Header
+  h += '<thead><tr style="background:#e5e7eb;">';
+  h += '<th style="padding:3px 5px;text-align:center;border:1px solid #d1d5db;width:34px;">Type</th>';
+  h += '<th style="padding:3px 5px;text-align:left;border:1px solid #d1d5db;width:50px;">Zone</th>';
+  h += '<th style="padding:3px 5px;text-align:left;border:1px solid #d1d5db;">Description</th>';
+  h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:60px;">140m (m\u00B2)</th>';
+  h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:58px;background:#d1d5db;">Subtotal</th>';
+  h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:60px;">400m (m\u00B2)</th>';
+  h += '<th style="padding:3px 5px;text-align:right;border:1px solid #d1d5db;width:58px;background:#d1d5db;">Subtotal</th>';
+  h += '</tr></thead><tbody>';
+
+  [1, 2, 3].forEach(function(t) {
+    var zones = byType[t];
+    if (!zones || zones.length === 0) return;
+    var col = TYPE_COLORS[t];
+    var n = zones.length;
+
+    // Group subtotals
+    var sub140 = 0, sub400 = 0;
+    zones.forEach(function(z) {
+      sub140 += (byZone140[z.zoneCode] || 0) * CIRCLE_AREA_140;
+      sub400 += (byZone400[z.zoneCode] || 0) * CIRCLE_AREA_400;
+    });
+    var pct140 = totDet140 > 0 ? Math.round(sub140 / totDet140 * 100) : 0;
+    var pct400 = totDet400 > 0 ? Math.round(sub400 / totDet400 * 100) : 0;
+
+    zones.forEach(function(z, zi) {
+      var a140 = Math.round((byZone140[z.zoneCode] || 0) * CIRCLE_AREA_140);
+      var a400 = Math.round((byZone400[z.zoneCode] || 0) * CIRCLE_AREA_400);
+      var desc = getVicZoneDescription(z.zoneCode);
+      var rowBg = t === 1 ? '' : (t === 2 ? '' : '');
+      h += '<tr style="border-bottom:1px solid #e5e7eb;">';
+      // Type badge — rowspan on first row of group
+      if (zi === 0) {
+        h += '<td rowspan="' + n + '" style="padding:3px 5px;text-align:center;border:1px solid #d1d5db;vertical-align:middle;">';
+        h += '<span style="font-size:10px;padding:1px 5px;border-radius:3px;font-weight:600;background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;">' + t + '</span>';
+        h += '</td>';
+      }
+      h += '<td style="padding:3px 5px;border:1px solid #d1d5db;font-family:monospace;font-size:10px;white-space:nowrap;">' + escapeHTML(z.zoneCode) + '</td>';
+      h += '<td style="padding:3px 5px;border:1px solid #d1d5db;color:#374151;">' + escapeHTML(desc) + '</td>';
+      h += '<td style="padding:3px 5px;border:1px solid #d1d5db;text-align:right;">' + (a140 > 0 ? a140.toLocaleString() : '0') + '</td>';
+      // 140m subtotal — rowspan on first row
+      if (zi === 0) {
+        h += '<td rowspan="' + n + '" style="padding:4px 5px;border:1px solid #d1d5db;text-align:right;vertical-align:middle;background:#f3f4f6;font-weight:600;white-space:nowrap;">';
+        h += Math.round(sub140).toLocaleString() + '<br><span style="font-weight:400;color:#6b7280;font-size:10px;">' + pct140 + '%</span></td>';
+      }
+      h += '<td style="padding:3px 5px;border:1px solid #d1d5db;text-align:right;">' + (a400 > 0 ? a400.toLocaleString() : '0') + '</td>';
+      // 400m subtotal — rowspan on first row
+      if (zi === 0) {
+        h += '<td rowspan="' + n + '" style="padding:4px 5px;border:1px solid #d1d5db;text-align:right;vertical-align:middle;background:#f3f4f6;font-weight:600;white-space:nowrap;">';
+        h += Math.round(sub400).toLocaleString() + '<br><span style="font-weight:400;color:#6b7280;font-size:10px;">' + pct400 + '%</span></td>';
+      }
+      h += '</tr>';
+    });
+  });
+
+  h += '</tbody></table></div>';
+  h += '<div style="margin-top:4px;font-size:11px;color:var(--heading);">Influencing Factor: <b>' + data.IF.toFixed(3) + '</b></div>';
+  h += '</div>';
+  return h;
+}
+
 /** Toggle a receiver's zone analysis display on/off on the map */
 function toggleRecvMapView(recvId) {
   _vicRecvMapVisible[recvId] = !_vicRecvMapVisible[recvId];
@@ -5646,6 +5804,13 @@ function renderDetectedZones() {
     h += '</div>';
   });
   h += '</div>';
+
+  // Zone area summary tables — one per placed receiver, below the badge grid
+  ['r1','r2','r3','r4'].forEach(function(id) {
+    var data = autoIFDataPerReceiver[id];
+    if (!data) return;
+    h += _buildZoneAreaTableHTML(id, data);
+  });
 
   el.innerHTML = h;
 }
@@ -12104,9 +12269,27 @@ initCollapse();
       // Clear and redraw ray lines so they always reflect current pin positions
       if (typeof window._updateRayLines === 'function') window._updateRayLines();
 
+      // Update Dist. S1 column in Receivers & criteria table
+      updateDistS1();
+
       // Update results table — dist_r1–r4 inputs don't exist in the map-first UI,
       // so we call render() directly rather than relying on input-change events.
       if (typeof render === 'function') render();
+    }
+
+    /* ---- Dist. S1 column: update distances in Receivers & criteria table ---- */
+    function updateDistS1() {
+      var s1 = latlngs['source_0'] || latlngs['source'];
+      ['r1', 'r2', 'r3', 'r4'].forEach(function(id) {
+        var cell = document.getElementById(id + '_dist_s1');
+        if (!cell) return;
+        var rec = latlngs[id];
+        if (s1 && rec) {
+          cell.textContent = haversine(s1, rec).toFixed(1) + ' m';
+        } else {
+          cell.textContent = '—';
+        }
+      });
     }
 
     /* ---- place or move a marker ---- */
