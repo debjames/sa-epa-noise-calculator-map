@@ -2229,6 +2229,11 @@ const VIC_RURAL_ZONE_LEVELS = {
   'D_C':  {day:56,evening:51,night:46}, 'D_F':  {day:57,evening:52,night:47},
   'D_D':  {day:58,evening:53,night:48}
 };
+// Debug: expose VIC rural lookup tables to window for console inspection
+window._VIC_RURAL_GEN_GROUPS  = VIC_RURAL_GEN_GROUPS;
+window._VIC_RURAL_REC_GROUPS  = VIC_RURAL_REC_GROUPS;
+window._VIC_RURAL_ZONE_LEVELS = VIC_RURAL_ZONE_LEVELS;
+
 /* Earth resources levels — Clause 35 */
 const VIC_EARTH_RESOURCES = {
   'GWAZ': {day:45,evening:38,night:33}, 'RCZ': {day:45,evening:38,night:33}, 'RLZ': {day:45,evening:38,night:33},
@@ -5445,9 +5450,9 @@ function hasNsaBgData(recvId) {
 }
 
 function calcCriteriaVICForReceiver(recSelectId) {
-  console.log('[VIC] calcCriteriaVICForReceiver called —', recSelectId, 'vicAreaType:', vicAreaType);
   var srcVal = document.getElementById('src') ? document.getElementById('src').value : '';
   var recVal = document.getElementById(recSelectId) ? document.getElementById(recSelectId).value : '';
+  console.log('[VIC criteria] path:', vicAreaType, '| recv:', recSelectId, '| src zone:', srcVal, '| rec zone:', recVal);
 
   if (vicAreaType === 'urban') {
     // Urban: require background data before showing criteria (classification is essential to urban calc)
@@ -5463,7 +5468,7 @@ function calcCriteriaVICForReceiver(recSelectId) {
   } else {
     // Rural: criteria derive from zone table — background data optional (neutral classification used if absent)
     if (!srcVal || !recVal) {
-      console.log('[VIC rural] blank — missing src or rec zone code. src:', srcVal, 'rec:', recVal);
+      console.log('[VIC rural] BLANK — missing zone. src:', srcVal, 'rec:', recVal);
       return {day:"", evening:"", night:"", lmax:""};
     }
     return calcCriteriaVIC_Rural(srcVal, recVal, recSelectId);
@@ -6158,10 +6163,10 @@ function handleIFInput() {
 function calcCriteriaVIC_Rural(srcVal, recVal, recvId) {
   var srcCode = getVicDropdownZoneCode(srcVal);
   var recCode = getVicDropdownZoneCode(recVal);
-  console.log('[VIC Rural] calcCriteriaVIC_Rural called —', recvId, 'src:', srcCode, 'rec:', recCode, 'cl20cache:', JSON.stringify(_clause20Cache[recvId]));
+  console.log('[VIC Rural] called — recv:', recvId, 'srcCode:', srcCode, 'recCode:', recCode);
 
   if (!srcCode || !recCode) {
-    console.log('[VIC Rural] returning blank — missing srcCode or recCode');
+    console.log('[VIC Rural] BLANK — missing srcCode or recCode after VIC_ strip');
     return {day:"", evening:"", night:"", lmax:""};
   }
 
@@ -6192,19 +6197,22 @@ function calcCriteriaVIC_Rural(srcVal, recVal, recvId) {
   // Strip trailing schedule numbers for group lookup (e.g. RCZ3 → RCZ, GRZ1 → GRZ)
   var srcBase = srcCode.replace(/\d+$/, '');
   var recBase = recCode.replace(/\d+$/, '');
+  console.log('[VIC Rural] srcBase:', srcBase, 'recBase:', recBase);
 
   // Rural zone lookup via group mapping (Table B.1, Annex B)
   var genGroup = VIC_RURAL_GEN_GROUPS[srcCode] || VIC_RURAL_GEN_GROUPS[srcBase];
   var recGroup = VIC_RURAL_REC_GROUPS[recCode] || VIC_RURAL_REC_GROUPS[recBase];
+  console.log('[VIC Rural] genGroup:', genGroup, 'recGroup:', recGroup);
   if (!genGroup || !recGroup) {
-    console.log('[VIC Rural] returning blank — no group mapping for src:', srcCode, '(srcBase:', srcBase, ', genGroup:', genGroup, ') rec:', recCode, '(recBase:', recBase, ', recGroup:', recGroup, ')');
+    console.log('[VIC Rural] BLANK — no group mapping. src:', srcCode, '/', srcBase, '→', genGroup, '| rec:', recCode, '/', recBase, '→', recGroup);
     return {day:"", evening:"", night:"", lmax:""};
   }
 
   var key = genGroup + '_' + recGroup;
   var levels = VIC_RURAL_ZONE_LEVELS[key];
+  console.log('[VIC Rural] levelKey:', key, '→', levels);
   if (!levels) {
-    console.log('[VIC Rural] returning blank — no levels for key:', key);
+    console.log('[VIC Rural] BLANK — no levels for key:', key);
     return {day:"", evening:"", night:"", lmax:""};
   }
 
