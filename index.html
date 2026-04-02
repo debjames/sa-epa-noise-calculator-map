@@ -1149,6 +1149,10 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       <div class="card span2">
         <h2>Predicted noise levels</h2>
       <div class="table-scroll">
+    <!-- VIC rural criteria table (replaces period tables in rural mode) -->
+    <div id="vicRuralCritTable" style="display:none;overflow-x:auto;"></div>
+    <!-- Standard period tables (hidden in VIC rural mode) -->
+    <div id="vicStdPeriodTables">
     <!-- Day Leq results -->
     <div class="pred-period-lbl">Day L<sub>eq</sub></div>
     <table id="predTableDay" style="width:100%;"><thead id="predTableDayHead"></thead><tbody id="rowsDay"></tbody></table>
@@ -1161,6 +1165,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <!-- Night Lmax results (hidden when no lmax criteria) -->
     <div id="predLmaxLabel" class="pred-period-lbl" style="margin-top:14px;display:none;">Night L<sub>max</sub></div>
     <table id="predTableLmax" style="width:100%;display:none;"><thead id="predTableLmaxHead"></thead><tbody id="rowsLmax"></tbody></table>
+    </div>
 
     <!-- Per-band calculation breakdown panel (ISO 17534-1 §5.2.2) -->
     <div id="isoBreakdownPanel" style="display:none;border-top:2px solid #3498db;margin-top:8px;padding:10px 0;">
@@ -7679,6 +7684,136 @@ window.runUAT = async function() {
   return out;
 };
 
+/** Return raw zone-table levels (day/evening/night) for a rural source→receiver pair,
+ *  BEFORE Clause 20 distance adjustment. Includes intensive farming +3 dB if applicable.
+ *  Returns null if the source or receiver group mapping is missing. */
+function _getVicRuralBaseZoneLevels(srcCode, recCode) {
+  var genGroup = VIC_RURAL_GEN_GROUPS[srcCode];
+  var recGroup = VIC_RURAL_REC_GROUPS[recCode];
+  if (!genGroup || !recGroup) return null;
+  var key = genGroup + '_' + recGroup;
+  var levels = VIC_RURAL_ZONE_LEVELS[key];
+  if (!levels) return null;
+  var day = levels.day;
+  var eve = levels.evening;
+  var night = levels.night;
+  var isIntensive = document.getElementById('vicIsIntensiveFarming');
+  if (isIntensive && isIntensive.checked && srcCode === 'FZ') {
+    day += 3; eve += 3; night += 3;
+  }
+  return { day: day, evening: eve, night: night };
+}
+
+/** Build the EPA Pub 1826.5 Table 6-style auditable criteria table for VIC rural assessments.
+ *  Shows one row per period (Day / Evening / Night) per placed receiver, with rowspan
+ *  cells for NSA, Height, Distance, and Zone description. */
+function _buildVicRuralCritTableHTML(recs, ids) {
+  var srcVal = document.getElementById('src') ? document.getElementById('src').value : '';
+  var srcCode = getVicDropdownZoneCode(srcVal);
+
+  var PERIODS    = ['Day', 'Evening', 'Night'];
+  var PERIOD_KEYS = ['day', 'evening', 'night'];
+  var PCOL = { Day: '#27ae60', Evening: '#2980b9', Night: '#2c3e50' };
+
+  var TH  = 'padding:5px 7px;font-size:11px;text-align:left;border-right:1px solid #e5e7eb;border-bottom:2px solid #d1d5db;white-space:nowrap;';
+  var THR = 'padding:5px 7px;font-size:11px;text-align:right;border-right:1px solid #e5e7eb;border-bottom:2px solid #d1d5db;white-space:nowrap;';
+  var THC = 'padding:5px 7px;font-size:11px;text-align:center;border-right:1px solid #e5e7eb;border-bottom:2px solid #d1d5db;white-space:nowrap;';
+  var TD  = 'padding:4px 7px;font-size:11px;border-right:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;vertical-align:top;';
+  var TDR = 'padding:4px 7px;font-size:11px;text-align:right;border-right:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;vertical-align:top;';
+  var TDC = 'padding:4px 7px;font-size:11px;text-align:center;border-right:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;vertical-align:top;';
+
+  var h = '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+  h += '<thead><tr>';
+  h += '<th style="' + TH  + '">NSA</th>';
+  h += '<th style="' + THR + '">Height (m)</th>';
+  h += '<th style="' + THR + '">Distance S1 (m)</th>';
+  h += '<th style="' + TH  + '">NSA zone (vs source zone)</th>';
+  h += '<th style="' + TH  + '">Period</th>';
+  h += '<th style="' + THR + '">Zone level L<sub>Aeq</sub> (dB)</th>';
+  h += '<th style="' + THR + '">Distance adjustment (dB)</th>';
+  h += '<th style="' + THC + '">Background relevant area</th>';
+  h += '<th style="' + THR + '">Noise limit L<sub>Aeq</sub> (dB)</th>';
+  h += '</tr></thead><tbody>';
+
+  var anyRecv = false;
+
+  ids.forEach(function(recvId, i) {
+    var recVal  = document.getElementById(recvId) ? document.getElementById(recvId).value : '';
+    var recCode = getVicDropdownZoneCode(recVal);
+    if (!recCode || !srcCode) return;
+
+    anyRecv = true;
+
+    var nameEl   = document.getElementById('recvName' + (i + 1));
+    var recvName = (nameEl && nameEl.value.trim()) ? nameEl.value.trim() : ('NSA ' + (i + 1));
+    var htEl     = document.getElementById('recvHt' + (i + 1));
+    var htStr    = (htEl && htEl.value !== '') ? htEl.value : '1.5';
+    var dist     = getReceiverDistance(i + 1);
+    var distNum  = Number(dist);
+    var distStr  = Number.isFinite(distNum) ? String(Math.round(distNum)) : '\u2014';
+
+    // Clause 20 zone relationship and adjustment
+    var c20 = _clause20Cache[recvId];
+    var zoneDesc, adjStr, adjTitle;
+    if (c20 === 'pending') {
+      var relSpan = '<span style="color:#9ca3af;font-style:italic;font-size:10px;"> (detecting\u2026)</span>';
+      zoneDesc = escapeHTML(recCode) + relSpan;
+      adjStr   = '<span style="color:#9ca3af;font-style:italic;">\u2026</span>';
+      adjTitle = '';
+    } else if (c20 && typeof c20.adj === 'number') {
+      var relText = c20.rule === 'A' ? 'same contiguous zone' :
+                    c20.rule === 'B' ? 'different zone' :
+                    c20.rule === 'C' ? 'same zone, non-contiguous' : '';
+      var relSpan = relText
+        ? '<span style="color:#6b7280;font-size:10px;"> (' + relText + ')</span>'
+        : '';
+      zoneDesc = escapeHTML(recCode) + relSpan;
+      adjStr   = c20.adj > 0 ? '\u2212' + c20.adj : '0';
+      adjTitle = c20.detail || '';
+    } else {
+      zoneDesc = escapeHTML(recCode);
+      adjStr   = '0';
+      adjTitle = '';
+    }
+
+    var baseLevels = _getVicRuralBaseZoneLevels(srcCode, recCode);
+    var crit       = calcCriteriaVICForReceiver(recvId);
+
+    PERIODS.forEach(function(period, pi) {
+      var pKey   = PERIOD_KEYS[pi];
+      var pColor = PCOL[period];
+      var baseV  = baseLevels ? baseLevels[pKey] : null;
+      var baseStr = (baseV !== null && baseV !== undefined) ? String(baseV) : '\u2014';
+      var limitV  = crit[pKey];
+      var limitStr = (limitV !== '' && limitV !== null && limitV !== undefined)
+        ? String(Math.round(Number(limitV))) : '\u2014';
+
+      h += '<tr>';
+      if (pi === 0) {
+        var rs = ' rowspan="3"';
+        h += '<td' + rs + ' style="' + TD + 'font-weight:600;">' + escapeHTML(recvName) + '</td>';
+        h += '<td' + rs + ' style="' + TDR + '">' + escapeHTML(htStr) + '</td>';
+        h += '<td' + rs + ' style="' + TDR + '">' + distStr + '</td>';
+        h += '<td' + rs + ' style="' + TD + '">' + zoneDesc + '</td>';
+      }
+      h += '<td style="' + TD + 'font-weight:600;color:' + pColor + ';white-space:nowrap;">' + period + '</td>';
+      h += '<td style="' + TDR + '">' + baseStr + '</td>';
+      h += '<td style="' + TDR + '"' + (adjTitle ? ' title="' + escapeHTML(adjTitle) + '"' : '') + '>' + adjStr + '</td>';
+      h += '<td style="' + TDC + '">No</td>';
+      h += '<td style="' + TDR + 'font-weight:600;">' + limitStr + '</td>';
+      h += '</tr>';
+    });
+  });
+
+  if (!anyRecv) {
+    h += '<tr><td colspan="9" style="padding:14px;text-align:center;color:#9ca3af;font-size:11px;">' +
+         'Place a noise sensitive area (NSA) and source to calculate criteria</td></tr>';
+  }
+
+  h += '</tbody></table>';
+  return h;
+}
+
 // Debounced render — use renderDebounced() for input events to avoid
 // multiple full table rebuilds per keystroke. Direct render() is still
 // used for immediate updates (button clicks, pin placement).
@@ -7785,6 +7920,25 @@ function render() {
   var hasNight = hasLwForPeriod('night');
   var hasLmax  = hasLwForPeriod('night');
 
+  // ── VIC rural: show auditable Table 6-style criteria table; hide standard period tables ──
+  var isVicRural = isVIC && vicAreaType === 'rural';
+  var vicRuralCritEl = document.getElementById('vicRuralCritTable');
+  var vicStdTablesEl = document.getElementById('vicStdPeriodTables');
+  if (vicRuralCritEl) {
+    if (isVicRural) {
+      vicRuralCritEl.innerHTML = _buildVicRuralCritTableHTML(recs, ids);
+      vicRuralCritEl.style.display = '';
+    } else {
+      vicRuralCritEl.style.display = 'none';
+    }
+  }
+  if (vicStdTablesEl) vicStdTablesEl.style.display = isVicRural ? 'none' : '';
+
+  if (isVicRural) {
+    // Skip standard period table rendering — rural table handles it
+    // Still update the rural distance footnote and contributions/spectrum below
+  }
+
   // ── Build simple 5-col header for each period table ───────────────────────
   function buildPeriodHead(headId) {
     var h = document.getElementById(headId);
@@ -7797,25 +7951,29 @@ function render() {
       '<th class="center">OK?</th>' +
       '</tr>';
   }
+  var tbDay, tbEve, tbNight, tbLmax;
+  var _vicRuralDistNotes = null;
+  var _anyLmaxCrit = false;
+
+  if (!isVicRural) {
   buildPeriodHead('predTableDayHead');
   buildPeriodHead('predTableEveHead');
   buildPeriodHead('predTableNightHead');
   buildPeriodHead('predTableLmaxHead');
 
   // ── Clear period tbodies ──────────────────────────────────────────────────
-  var tbDay   = document.getElementById('rowsDay');
-  var tbEve   = document.getElementById('rowsEve');
-  var tbNight = document.getElementById('rowsNight');
-  var tbLmax  = document.getElementById('rowsLmax');
+  tbDay   = document.getElementById('rowsDay');
+  tbEve   = document.getElementById('rowsEve');
+  tbNight = document.getElementById('rowsNight');
+  tbLmax  = document.getElementById('rowsLmax');
   if (tbDay)   tbDay.innerHTML   = '';
   if (tbEve)   tbEve.innerHTML   = '';
   if (tbNight) tbNight.innerHTML = '';
   if (tbLmax)  tbLmax.innerHTML  = '';
-
-  var _vicRuralDistNotes = null;
-  var _anyLmaxCrit = false;
+  } // end !isVicRural standard period table setup
 
   recs.forEach((rec, i) => {
+    if (isVicRural) return; // rural mode uses _buildVicRuralCritTableHTML instead
     const keyText = rKeys[i] || '';
     const nameInput = document.getElementById(`recvName${i+1}`);
     const recvLabel = escapeHTML(nameInput && nameInput.value.trim() ? nameInput.value.trim() : `Receiver ${i+1}`);
@@ -7958,26 +8116,17 @@ function render() {
     tbNight.appendChild(sleepTr);
   }
 
-  // Show / hide Lmax table based on whether any receiver has an Lmax criterion
-  var lmaxLabelEl = document.getElementById('predLmaxLabel');
-  var lmaxTableEl = document.getElementById('predTableLmax');
-  if (lmaxLabelEl) lmaxLabelEl.style.display = _anyLmaxCrit ? '' : 'none';
-  if (lmaxTableEl) lmaxTableEl.style.display = _anyLmaxCrit ? '' : 'none';
-
-  // Rural distance adjustment footnote
-  var distFnEl = document.getElementById('vicRuralDistFootnote');
-  if (distFnEl) {
-    if (isVIC && vicAreaType === 'rural' && _vicRuralDistNotes && _vicRuralDistNotes.length > 0) {
-      var fnHtml = '<strong>*</strong> Criteria include distance adjustment (Clause 20: \u22121 dB per 100 m, max 9 dB): ';
-      fnHtml += _vicRuralDistNotes.map(function(n) {
-        return n.name + ' = ' + Math.round(n.dist) + ' m (\u2212' + n.adj + ' dB)';
-      }).join('; ');
-      distFnEl.innerHTML = fnHtml;
-      distFnEl.style.display = '';
-    } else {
-      distFnEl.style.display = 'none';
-    }
+  // Show / hide Lmax table based on whether any receiver has an Lmax criterion (not in rural mode)
+  if (!isVicRural) {
+    var lmaxLabelEl = document.getElementById('predLmaxLabel');
+    var lmaxTableEl = document.getElementById('predTableLmax');
+    if (lmaxLabelEl) lmaxLabelEl.style.display = _anyLmaxCrit ? '' : 'none';
+    if (lmaxTableEl) lmaxTableEl.style.display = _anyLmaxCrit ? '' : 'none';
   }
+
+  // Rural distance adjustment footnote (legacy — hidden in rural mode since table shows adj inline)
+  var distFnEl = document.getElementById('vicRuralDistFootnote');
+  if (distFnEl) distFnEl.style.display = 'none';
 
   // Update source contribution tables whenever results re-render
   if (typeof renderContributions === 'function') renderContributions();
