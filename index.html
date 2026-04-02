@@ -3027,6 +3027,8 @@ let iso_humidity = 70;        // % RH
 // Per-receiver height overrides (null = inherit global iso_receiverHeight)
 var recvHeights = { r1: null, r2: null, r3: null, r4: null };
 var recvDistToBoundary = { r1: null, r2: null, r3: null, r4: null };
+/* Zone HTML snippet per receiver — set by zone-detection callbacks, embedded in popup */
+var _recvZoneHTML = { r1: '', r2: '', r3: '', r4: '' };
 var recvGroundElevations = { r1: null, r2: null, r3: null, r4: null };
 
 /** Get effective receiver height for a specific receiver (0-based index) */
@@ -11596,14 +11598,10 @@ initCollapse();
           /* Update marker popup with zone info */
           var m = markers[mode];
           if (m && result.zone) {
-            var cfg = getModeCfg(mode);
             var zoneLabel = result.zone;
             if (result.subzone) zoneLabel += ' / ' + result.subzone;
-            m.setPopupContent(
-              '<b>' + escapeHTML(cfg.label) + '</b><br>' +
-              queryLat.toFixed(6) + ', ' + queryLng.toFixed(6) +
-              '<br><i style="color:#059669;">' + zoneLabel + '</i>'
-            );
+            _recvZoneHTML[mode] = '<br><i style="color:#059669;">' + escapeHTML(zoneLabel) + '</i>';
+            m.setPopupContent(buildRecvPopupHTML(mode, latlngs[mode]));
           }
 
           /* Update status label */
@@ -12432,13 +12430,9 @@ initCollapse();
           // Update marker popup
           var m = markers[mode];
           if (m && zoneCode) {
-            var cfg = getModeCfg(mode);
-            m.setPopupContent(
-              '<b>' + escapeHTML(cfg.label) + '</b><br>' +
-              queryLat.toFixed(6) + ', ' + queryLng.toFixed(6) +
-              '<br><i style="color:#059669;">' + label + '</i>' +
-              (zoneType ? '<br><span style="font-size:11px;">Type ' + zoneType + '</span>' : '')
-            );
+            _recvZoneHTML[mode] = '<br><i style="color:#059669;">' + escapeHTML(label) + '</i>' +
+              (zoneType ? '<br><span style="font-size:11px;">Type ' + zoneType + '</span>' : '');
+            m.setPopupContent(buildRecvPopupHTML(mode, latlngs[mode]));
           }
 
           if (statusEl) {
@@ -12549,12 +12543,8 @@ initCollapse();
           // Update marker popup
           var m = markers[mode];
           if (m) {
-            var cfg = getModeCfg(mode);
-            m.setPopupContent(
-              '<b>' + escapeHTML(cfg.label) + '</b><br>' +
-              queryLat.toFixed(6) + ', ' + queryLng.toFixed(6) +
-              (zoneCode ? '<br><i style="color:#1e3a5f;">' + label + '</i>' : '')
-            );
+            _recvZoneHTML[mode] = zoneCode ? '<br><i style="color:#1e3a5f;">' + escapeHTML(label) + '</i>' : '';
+            m.setPopupContent(buildRecvPopupHTML(mode, latlngs[mode]));
           }
 
           if (statusEl) {
@@ -13014,6 +13004,10 @@ initCollapse();
           ll.lat.toFixed(6) + ', ' + ll.lng.toFixed(6) +
         '</span>';
 
+      // Zone line (set by zone-detection callbacks; empty string if not yet detected)
+      var zoneSnippet = (typeof _recvZoneHTML !== 'undefined') ? (_recvZoneHTML[mode] || '') : '';
+      if (zoneSnippet) html += zoneSnippet;
+
       // Editable height input
       html += '<div style="margin-top:8px;font-size:12px;">' +
         '<label style="white-space:nowrap;">Height above ground: ' +
@@ -13376,6 +13370,9 @@ initCollapse();
       delete markers[mode];
       if (labelMarkers[mode]) { map.removeLayer(labelMarkers[mode]); delete labelMarkers[mode]; }
       delete latlngs[mode];
+      if (typeof _recvZoneHTML !== 'undefined' && _recvZoneHTML[mode] !== undefined) {
+        _recvZoneHTML[mode] = '';
+      }
 
       // Reset distance input
       var cfg = CFG[mode];
@@ -13409,9 +13406,14 @@ initCollapse();
       render();
     }
 
-    /* ── Receiver popup: wire up height input and live-update terrain section ── */
-    map.on('popupopen', function() {
+    /* ── Receiver popup: rebuild with fresh values on every open, then wire up input ── */
+    map.on('popupopen', function(e) {
       ['r1','r2','r3','r4'].forEach(function(mode) {
+        // Rebuild popup content with current height and terrain values each time it opens
+        if (markers[mode] && markers[mode].getPopup && markers[mode].getPopup() === e.popup) {
+          markers[mode].setPopupContent(buildRecvPopupHTML(mode, latlngs[mode]));
+        }
+        // Wire up the height input (the element was just (re)created by setPopupContent above)
         var inp = document.getElementById('recv-popup-ht-' + mode);
         if (!inp) return;
         inp.addEventListener('change', function() {
