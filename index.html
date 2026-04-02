@@ -2156,33 +2156,42 @@ var autoIFData = null; // stores {zones140, zones400, fracs140, fracs400, IF}
    Generating zones grouped into rows, receiving zones grouped into columns.
    Key: 'genGroup_recGroup' → { day, evening, night } in dB(A) */
 const VIC_RURAL_GEN_GROUPS = {
-  // Group E: Residential receiving zones
+  // Group E: Residential/rural/conservation zones (Annex B Gen Group E)
   'LDRZ':'E','PCRZ':'E','PPRZ':'E','GRZ':'E','NRZ':'E','RGZ':'E','UFZ':'E',
-  // Group B: Rural/farming zones
-  'FZ':'B','GWZ':'B','GWAZ':'B','PUZ2':'B','PUZ5':'B','RAZ':'B','RCZ':'B','RLZ':'B',
-  // Group A: Commercial/mixed zones
-  'C1Z':'A','MUZ':'A','ACZ':'A','PUZ1':'A','PUZ3':'A','PUZ6':'A','PUZ7':'A','TZ':'A',
+  'RCZ':'E','RAZ':'E','RFZ':'E','GWAZ':'E','GWZ':'E','RLZ':'E',
+  // FZ without intensive farming also falls in Group E; FZ with intensive farming
+  // is Group C — the code handles this via the +3 dB intensive farming adjustment.
+  'FZ':'E',
+  // Group A: Commercial/business/mixed-use zones
+  'C1Z':'A','C2Z':'A','C3Z':'A','MUZ':'A','ACZ':'A','CDZ':'A','CCZ':'A',
+  'B1Z':'A','B2Z':'A','B3Z':'A','B4Z':'A','B5Z':'A',
+  'PUZ1':'A','PUZ2':'A','PUZ3':'A','PUZ5':'A','PUZ6':'A','PUZ7':'A','TZ':'A',
   'TRZ1':'A','TRZ2':'A','TRZ3':'A','TRZ4':'A',
   // Group C: Light industrial
   'IN3Z':'C',
-  // Group F: Commercial/office 2-3
-  'C2Z':'F','C3Z':'F',
   // Group D: Heavy industrial
   'IN1Z':'D','IN2Z':'D','PZ':'D',
-  // UGZ before incorporated precinct structure plan defaults to Group B (Table B.1)
-  'UGZ':'B'
+  // UGZ before incorporated precinct structure plan defaults to Group E (rural/low-impact)
+  'UGZ':'E'
 };
-/* Same groups apply to receiving zones */
+/* Receiving (NSA) zone groups — Annex B Rec Groups */
 const VIC_RURAL_REC_GROUPS = {
-  'GWAZ':'E','RCZ':'E','RLZ':'E',
-  'LDRZ':'E2','PCRZ':'E2','PPRZ':'E2','PUZ2':'E2','PUZ5':'E2','UFZ':'E2',
+  // Group E (most sensitive): rural conservation / floodway
+  'GWAZ':'E','RCZ':'E','RLZ':'E','RFZ':'E',
+  // Group E2 (residential/low-density): LDRZ, public conservation, recreation, residential
+  'LDRZ':'E2','PCRZ':'E2','PPRZ':'E2','PUZ2':'E2','PUZ4':'E2','PUZ5':'E2','UFZ':'E2',
+  // Group B (farming/general residential)
   'FZ':'B','GWZ':'B','GRZ':'B','NRZ':'B','RGZ':'B','RAZ':'B','TZ':'B',
-  'C1Z':'A','MUZ':'A','ACZ':'A','PUZ1':'A','PUZ3':'A','PUZ6':'A','PUZ7':'A',
+  // Group A: Commercial/mixed/business/transport
+  'C1Z':'A','C2Z':'A','C3Z':'A','MUZ':'A','ACZ':'A','CDZ':'A','CCZ':'A',
+  'B1Z':'A','B2Z':'A','B3Z':'A','B4Z':'A','B5Z':'A',
+  'PUZ1':'A','PUZ3':'A','PUZ6':'A','PUZ7':'A',
   'TRZ1':'A','TRZ2':'A','TRZ3':'A','TRZ4':'A',
+  // Group C: Light industrial
   'IN3Z':'C',
-  'C2Z':'F','C3Z':'A',
+  // Group D: Heavy industrial
   'IN1Z':'D','IN2Z':'D','PZ':'D',
-  // UGZ before incorporated precinct structure plan defaults to Group B (Table B.1)
+  // UGZ defaults to Group B
   'UGZ':'B'
 };
 /* Table B.1 zone levels: genGroup → recGroup → {day,evening,night}
@@ -3624,6 +3633,7 @@ function fillSelectVIC(id) {
       {key:'VIC_GWZ', label:'Green Wedge Zone (GWZ)'},
       {key:'VIC_GWAZ', label:'Green Wedge A Zone (GWAZ)'},
       {key:'VIC_RCZ', label:'Rural Conservation Zone (RCZ)'},
+      {key:'VIC_RFZ', label:'Rural Floodway Zone (RFZ)'},
       {key:'VIC_PCRZ', label:'Public Conservation & Resource Zone (PCRZ)'},
       {key:'VIC_PPRZ', label:'Public Park & Recreation Zone (PPRZ)'},
       {key:'VIC_PUZ2', label:'Public Use Zone 2 — Education (PUZ2)'},
@@ -3829,6 +3839,8 @@ function switchToState(state) {
     // Placed here (not at top of switchToState) so exiting VIC to SA and back
     // does NOT preserve a stale manual override from the previous session.
     _vicAreaTypeManuallySet = false;
+    window._vicAreaTypeManuallySet = false;
+    window._vicAreaType = vicAreaType;
     body.classList.add('state-vic', vicAreaType === 'rural' ? 'area-rural' : 'area-urban');
     badge.textContent = 'VIC';
     badge.className = 'state-badge state-badge-vic';
@@ -4032,11 +4044,13 @@ function rebuildZoneSelects() {
 /** Called when user explicitly clicks Major urban / Rural button. Locks area type. */
 function setVicAreaTypeManual(type) {
   _vicAreaTypeManuallySet = true;
+  window._vicAreaTypeManuallySet = true;
   setVicAreaType(type);
 }
 
 function setVicAreaType(type) {
   vicAreaType = type;
+  window._vicAreaType = type;
   document.body.classList.remove('area-urban', 'area-rural');
   document.body.classList.add(type === 'rural' ? 'area-rural' : 'area-urban');
   if (type === 'rural') {
@@ -6162,11 +6176,15 @@ function calcCriteriaVIC_Rural(srcVal, recVal, recvId) {
     };
   }
 
+  // Strip trailing schedule numbers for group lookup (e.g. RCZ3 → RCZ, GRZ1 → GRZ)
+  var srcBase = srcCode.replace(/\d+$/, '');
+  var recBase = recCode.replace(/\d+$/, '');
+
   // Rural zone lookup via group mapping (Table B.1, Annex B)
-  var genGroup = VIC_RURAL_GEN_GROUPS[srcCode];
-  var recGroup = VIC_RURAL_REC_GROUPS[recCode];
+  var genGroup = VIC_RURAL_GEN_GROUPS[srcCode] || VIC_RURAL_GEN_GROUPS[srcBase];
+  var recGroup = VIC_RURAL_REC_GROUPS[recCode] || VIC_RURAL_REC_GROUPS[recBase];
   if (!genGroup || !recGroup) {
-    console.log('[VIC Rural] returning blank — no group mapping for src:', srcCode, '(genGroup:', genGroup, ') rec:', recCode, '(recGroup:', recGroup, ')');
+    console.log('[VIC Rural] returning blank — no group mapping for src:', srcCode, '(srcBase:', srcBase, ', genGroup:', genGroup, ') rec:', recCode, '(recBase:', recBase, ', recGroup:', recGroup, ')');
     return {day:"", evening:"", night:"", lmax:""};
   }
 
@@ -7690,8 +7708,10 @@ window.runUAT = async function() {
  *  BEFORE Clause 20 distance adjustment. Includes intensive farming +3 dB if applicable.
  *  Returns null if the source or receiver group mapping is missing. */
 function _getVicRuralBaseZoneLevels(srcCode, recCode) {
-  var genGroup = VIC_RURAL_GEN_GROUPS[srcCode];
-  var recGroup = VIC_RURAL_REC_GROUPS[recCode];
+  var srcBase = srcCode ? srcCode.replace(/\d+$/, '') : srcCode;
+  var recBase = recCode ? recCode.replace(/\d+$/, '') : recCode;
+  var genGroup = VIC_RURAL_GEN_GROUPS[srcCode] || VIC_RURAL_GEN_GROUPS[srcBase];
+  var recGroup = VIC_RURAL_REC_GROUPS[recCode] || VIC_RURAL_REC_GROUPS[recBase];
   if (!genGroup || !recGroup) return null;
   var key = genGroup + '_' + recGroup;
   var levels = VIC_RURAL_ZONE_LEVELS[key];
