@@ -13590,6 +13590,33 @@ initCollapse();
           if (markers[k]) map.removeLayer(markers[k]);
         });
         markers = {}; latlngs = {};
+
+        /* Bug 1 fix — remove source label markers (stored separately from dot markers) */
+        Object.keys(labelMarkers).forEach(function (k) {
+          if (labelMarkers[k]) map.removeLayer(labelMarkers[k]);
+        });
+        labelMarkers = {};
+
+        /* Bug 2 fix — reset sourcePins to a single fresh unplaced placeholder so the
+           next placed pin is always S1.  addNewSourcePin() detects length===1 + lat===null
+           and reuses index 0 (S1) rather than pushing a new entry. */
+        sourcePins.splice(0, sourcePins.length, {
+          id: _newPinId(),
+          name: 'Source 1',
+          lat: null, lng: null,
+          lw: { day: null, eve: null, night: null },
+          lw_max: null,
+          spectrum: { day: null, eve: null, night: null },
+          spectrum_max: null,
+          height_m: 1.5,
+          buildingHeight_m: 0,
+          groundElevation_m: null,
+          operationalTime_min: 15,
+          numUnits: { day: 1, eve: 1, night: 1, lmax: 1 },
+          activeInPeriod: { day: true, eve: true, night: true, lmax: false }
+        });
+        if (typeof renderSourcePins === 'function') renderSourcePins();
+
         removeParcelOutlines();
         updateConcentricCircles();
         if (typeof clearAutoIF === 'function') clearAutoIF();
