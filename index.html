@@ -14034,42 +14034,111 @@ initCollapse();
     }
 
     function _addRulerMeasurement(lat1, lng1, lat2, lng2) {
-      var distM = haversine({lat: lat1, lng: lng1}, {lat: lat2, lng: lng2});
-      var distLabel = distM >= 1000
-        ? (distM / 1000).toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + ' km'
-        : distM.toFixed(1) + ' m';
-
       var id = 'ruler_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
       var lg = L.layerGroup();
 
+      // Mutable endpoint positions — updated live during drag
+      var p1 = { lat: lat1, lng: lng1 };
+      var p2 = { lat: lat2, lng: lng2 };
+
+      // Format distance string
+      function _fmtDist(m) {
+        return m >= 1000
+          ? (m / 1000).toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + ' km'
+          : m.toFixed(1) + ' m';
+      }
+
+      // Endpoint dot icon (DivIcon so the marker is draggable)
+      function _dotIcon() {
+        return L.divIcon({
+          className: '',
+          html: '<div style="width:10px;height:10px;border-radius:50%;background:#555;border:1.5px solid #fff;box-sizing:border-box;cursor:grab;"></div>',
+          iconSize:   [10, 10],
+          iconAnchor: [5,  5]
+        });
+      }
+
       // Dashed measurement line
-      var line = L.polyline([[lat1, lng1], [lat2, lng2]], {
+      var line = L.polyline([[p1.lat, p1.lng], [p2.lat, p2.lng]], {
         color: '#555', weight: 2, dashArray: '4 4', opacity: 0.9, interactive: true
       });
 
-      // Start dot
-      var dot1 = L.circleMarker([lat1, lng1], {
-        radius: 4, color: '#fff', weight: 1.5,
-        fillColor: '#555', fillOpacity: 1, interactive: false
+      // Draggable start marker
+      var dot1 = L.marker([p1.lat, p1.lng], {
+        icon: _dotIcon(), draggable: true, interactive: true, zIndexOffset: 600
       });
 
-      // End dot
-      var dot2 = L.circleMarker([lat2, lng2], {
-        radius: 4, color: '#fff', weight: 1.5,
-        fillColor: '#555', fillOpacity: 1, interactive: false
+      // Draggable end marker
+      var dot2 = L.marker([p2.lat, p2.lng], {
+        icon: _dotIcon(), draggable: true, interactive: true, zIndexOffset: 600
       });
 
-      // Midpoint distance label (positioned via CSS transform)
-      var midLat = (lat1 + lat2) / 2;
-      var midLng = (lng1 + lng2) / 2;
-      var labelIcon = L.divIcon({
-        className: '',
-        html: '<div class="ruler-label" title="Click to delete">' + distLabel + '</div>',
-        iconSize: [0, 0],
-        iconAnchor: [0, 0]
+      // Distance label at midpoint
+      var midLat0 = (p1.lat + p2.lat) / 2;
+      var midLng0 = (p1.lng + p2.lng) / 2;
+      var labelMarker = L.marker([midLat0, midLng0], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div class="ruler-label" title="Click to delete">' + _fmtDist(haversine(p1, p2)) + '</div>',
+          iconSize: [0, 0], iconAnchor: [0, 0]
+        }),
+        interactive: true, zIndexOffset: 500
       });
-      var labelMarker = L.marker([midLat, midLng], {
-        icon: labelIcon, interactive: true, zIndexOffset: 500
+
+      // Live update: redraw line, reposition label, update stored data
+      var _labelEl = null; // cached DOM reference for flicker-free text updates
+
+      function _updateMeasurement() {
+        var distM = haversine(p1, p2);
+        var distLabel = _fmtDist(distM);
+
+        // Update polyline
+        line.setLatLngs([[p1.lat, p1.lng], [p2.lat, p2.lng]]);
+
+        // Move label to new midpoint
+        var midLat = (p1.lat + p2.lat) / 2;
+        var midLng = (p1.lng + p2.lng) / 2;
+        labelMarker.setLatLng([midLat, midLng]);
+
+        // Update label text — direct DOM write avoids icon flicker during fast drag
+        if (!_labelEl) {
+          var el = labelMarker.getElement();
+          _labelEl = el ? el.querySelector('.ruler-label') : null;
+        }
+        if (_labelEl) {
+          _labelEl.textContent = distLabel;
+        }
+
+        // Keep rulerMeasurements[] in sync
+        for (var i = 0; i < rulerMeasurements.length; i++) {
+          if (rulerMeasurements[i].id === id) {
+            rulerMeasurements[i].lat1 = p1.lat; rulerMeasurements[i].lng1 = p1.lng;
+            rulerMeasurements[i].lat2 = p2.lat; rulerMeasurements[i].lng2 = p2.lng;
+            rulerMeasurements[i].distanceM = distM;
+            break;
+          }
+        }
+      }
+
+      // Drag handlers — live update on every mouse move
+      dot1.on('drag', function(e) {
+        p1 = { lat: e.latlng.lat, lng: e.latlng.lng };
+        _updateMeasurement();
+      });
+      dot1.on('dragend', function(e) {
+        var ll = e.target.getLatLng();
+        p1 = { lat: ll.lat, lng: ll.lng };
+        _updateMeasurement();
+      });
+
+      dot2.on('drag', function(e) {
+        p2 = { lat: e.latlng.lat, lng: e.latlng.lng };
+        _updateMeasurement();
+      });
+      dot2.on('dragend', function(e) {
+        var ll = e.target.getLatLng();
+        p2 = { lat: ll.lat, lng: ll.lng };
+        _updateMeasurement();
       });
 
       // Click line or label → delete measurement
@@ -14093,8 +14162,8 @@ initCollapse();
       rulerLayer.addLayer(lg);
 
       rulerMeasurements.push({
-        id: id, lat1: lat1, lng1: lng1, lat2: lat2, lng2: lng2,
-        distanceM: distM, layerGroup: lg
+        id: id, lat1: p1.lat, lng1: p1.lng, lat2: p2.lat, lng2: p2.lng,
+        distanceM: haversine(p1, p2), layerGroup: lg
       });
     }
     // ─── End ruler ─────────────────────────────────────────────────────────────
