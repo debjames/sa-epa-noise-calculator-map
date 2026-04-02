@@ -3811,8 +3811,6 @@ function switchToState(state) {
 
   // Clear auto-IF when switching states
   clearAutoIF();
-  // Reset manual area type lock so auto-detection works fresh on next VIC session
-  _vicAreaTypeManuallySet = false;
 
   // Reset penalties to 0 on state switch (each state sets its own)
   dayPenalty = 0;
@@ -3827,6 +3825,10 @@ function switchToState(state) {
 
   const badge = document.getElementById('stateBadge');
   if (state === 'VIC') {
+    // Reset manual area type lock when entering VIC so auto-detection runs fresh.
+    // Placed here (not at top of switchToState) so exiting VIC to SA and back
+    // does NOT preserve a stale manual override from the previous session.
+    _vicAreaTypeManuallySet = false;
     body.classList.add('state-vic', vicAreaType === 'rural' ? 'area-rural' : 'area-urban');
     badge.textContent = 'VIC';
     badge.className = 'state-badge state-badge-vic';
