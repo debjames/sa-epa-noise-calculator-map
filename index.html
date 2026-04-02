@@ -676,13 +676,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div class="table-scroll">
         <table>
           <tr>
-            <th style="width:16%;">Location</th><th class="num" style="width:6%;" title="Receiver height above ground (m). Leave blank to use global ISO 9613-2 value.">Height, m</th><th class="num dist-s1-col" style="width:7%;" title="Straight-line horizontal distance from S1 to receiver">Dist. S1 (m)</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
+            <th style="width:16%;">Location</th><th class="num" style="width:9%;" title="Distance from receiver to nearest site boundary (m) — for reference only, not used in calculations">Dist. to site boundary (m)</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
           </tr>
 
           <tr>
             <td><b>Subject site</b></td>
-            <td class="num"></td>
-            <td class="num dist-s1-col">—</td>
+            <td class="num">—</td>
             <td class="zone-col"><select id="src"></select><div id="src-zone-autodetect" style="display:none;font-size:10px;color:#6b7280;font-style:italic;margin-top:2px;line-height:1.3;">Auto-detected from source location</div></td>
             <td id="src_viczone" class="vic-only vic-zone-col"></td>
             <td id="src_land" class="left landuse-col"></td>
@@ -695,8 +694,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"><br><span id="groundElev_r1" style="font-size:9px;color:#999;font-style:italic;"></span></td>
-            <td class="num"><input type="number" id="recvHt1" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
-            <td id="r1_dist_s1" class="num dist-s1-col">—</td>
+            <td class="num"><input type="number" id="r1_dist_boundary" min="0" max="99999" step="0.1" style="width:60px;font-size:12px;padding:2px;text-align:center;" placeholder="—" title="Distance to nearest site boundary (m) — reference only"></td>
             <td class="zone-col"><select id="r1"></select></td>
             <td id="r1_viczone" class="vic-only vic-zone-col"></td>
             <td id="r1_land" class="left landuse-col"></td>
@@ -708,8 +706,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"><br><span id="groundElev_r2" style="font-size:9px;color:#999;font-style:italic;"></span></td>
-            <td class="num"><input type="number" id="recvHt2" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
-            <td id="r2_dist_s1" class="num dist-s1-col">—</td>
+            <td class="num"><input type="number" id="r2_dist_boundary" min="0" max="99999" step="0.1" style="width:60px;font-size:12px;padding:2px;text-align:center;" placeholder="—" title="Distance to nearest site boundary (m) — reference only"></td>
             <td class="zone-col"><select id="r2"></select></td>
             <td id="r2_viczone" class="vic-only vic-zone-col"></td>
             <td id="r2_land" class="left landuse-col"></td>
@@ -721,8 +718,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"><br><span id="groundElev_r3" style="font-size:9px;color:#999;font-style:italic;"></span></td>
-            <td class="num"><input type="number" id="recvHt3" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
-            <td id="r3_dist_s1" class="num dist-s1-col">—</td>
+            <td class="num"><input type="number" id="r3_dist_boundary" min="0" max="99999" step="0.1" style="width:60px;font-size:12px;padding:2px;text-align:center;" placeholder="—" title="Distance to nearest site boundary (m) — reference only"></td>
             <td class="zone-col"><select id="r3"></select></td>
             <td id="r3_viczone" class="vic-only vic-zone-col"></td>
             <td id="r3_land" class="left landuse-col"></td>
@@ -734,8 +730,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"><br><span id="groundElev_r4" style="font-size:9px;color:#999;font-style:italic;"></span></td>
-            <td class="num"><input type="number" id="recvHt4" min="0.1" max="50" step="0.5" style="width:45px;font-size:12px;padding:2px;text-align:center;" title="Receiver height (m) — blank = global"></td>
-            <td id="r4_dist_s1" class="num dist-s1-col">—</td>
+            <td class="num"><input type="number" id="r4_dist_boundary" min="0" max="99999" step="0.1" style="width:60px;font-size:12px;padding:2px;text-align:center;" placeholder="—" title="Distance to nearest site boundary (m) — reference only"></td>
             <td class="zone-col"><select id="r4"></select></td>
             <td id="r4_viczone" class="vic-only vic-zone-col"></td>
             <td id="r4_land" class="left landuse-col"></td>
@@ -3031,6 +3026,7 @@ let iso_humidity = 70;        // % RH
 
 // Per-receiver height overrides (null = inherit global iso_receiverHeight)
 var recvHeights = { r1: null, r2: null, r3: null, r4: null };
+var recvDistToBoundary = { r1: null, r2: null, r3: null, r4: null };
 var recvGroundElevations = { r1: null, r2: null, r3: null, r4: null };
 
 /** Get effective receiver height for a specific receiver (0-based index) */
@@ -7808,8 +7804,8 @@ function _buildVicRuralCritTableHTML(recs, ids) {
 
     var nameEl   = document.getElementById('recvName' + (i + 1));
     var recvName = (nameEl && nameEl.value.trim()) ? nameEl.value.trim() : ('NSA ' + (i + 1));
-    var htEl     = document.getElementById('recvHt' + (i + 1));
-    var htStr    = (htEl && htEl.value !== '') ? htEl.value : '1.5';
+    var _recvHtVal = recvHeights['r' + (i + 1)];
+    var htStr    = (_recvHtVal !== null && Number.isFinite(_recvHtVal)) ? String(_recvHtVal) : '1.5';
     var dist     = getReceiverDistance(i + 1);
     var distNum  = Number(dist);
     var distStr  = Number.isFinite(distNum) ? String(Math.round(distNum)) : '\u2014';
@@ -8355,45 +8351,19 @@ function initPropagationMethod() {
     });
   }
 
-  // Per-receiver height inputs
+  // Per-receiver "dist to site boundary" inputs (reference only, not used in calculations)
   for (var ri = 1; ri <= 4; ri++) {
     (function(idx) {
-      var el = document.getElementById('recvHt' + idx);
+      var el = document.getElementById('r' + idx + '_dist_boundary');
       if (!el) return;
-      el.placeholder = iso_receiverHeight;
+      // Restore saved state
+      var saved = recvDistToBoundary['r' + idx];
+      if (saved !== null && Number.isFinite(saved)) el.value = saved;
       el.addEventListener('change', function() {
         var v = this.value.trim();
-        if (v === '') {
-          recvHeights['r' + idx] = null;
-          this.style.color = '';
-        } else {
-          var num = parseFloat(v);
-          if (Number.isFinite(num) && num >= 0.1) {
-            recvHeights['r' + idx] = num;
-            this.style.color = '#2563eb'; // blue for override
-          }
-        }
-        render();
+        recvDistToBoundary['r' + idx] = (v === '') ? null : (Number.isFinite(parseFloat(v)) ? parseFloat(v) : null);
       });
-      // Restore saved state
-      var saved = recvHeights['r' + idx];
-      if (saved !== null && Number.isFinite(saved)) {
-        el.value = saved;
-        el.style.color = '#2563eb';
-      }
     })(ri);
-  }
-
-  // Update placeholders when global changes
-  var _origIsoChange = recvHEl ? recvHEl.onchange : null;
-  if (recvHEl) {
-    var origHandler = recvHEl.onchange;
-    recvHEl.addEventListener('change', function() {
-      for (var i = 1; i <= 4; i++) {
-        var el = document.getElementById('recvHt' + i);
-        if (el) el.placeholder = iso_receiverHeight;
-      }
-    });
   }
 
   // Initial toggle of height columns
@@ -9319,6 +9289,17 @@ initCollapse();
         });
         if (anyRh) data.recvHeights = rh;
 
+        // Per-receiver site boundary distances (reference only)
+        var rdb = {};
+        var anyRdb = false;
+        ['r1','r2','r3','r4'].forEach(function(k) {
+          if (recvDistToBoundary[k] !== null && Number.isFinite(recvDistToBoundary[k])) {
+            rdb[k] = recvDistToBoundary[k];
+            anyRdb = true;
+          }
+        });
+        if (anyRdb) data.recvDistToBoundary = rdb;
+
         // Propagation method & ISO parameters
         data.propagation = {
           method: propagationMethod,
@@ -10059,16 +10040,21 @@ initCollapse();
         });
       }
 
-      // 8a2. Per-receiver heights
+      // 8a2. Per-receiver heights (stored in recvHeights{}; UI is now in the marker popup)
       if (data.recvHeights) {
         ['r1','r2','r3','r4'].forEach(function(k) {
           recvHeights[k] = (data.recvHeights[k] !== undefined) ? data.recvHeights[k] : null;
+        });
+      }
+
+      // 8a3. Per-receiver site boundary distances
+      if (data.recvDistToBoundary) {
+        ['r1','r2','r3','r4'].forEach(function(k) {
+          var v = data.recvDistToBoundary[k];
+          recvDistToBoundary[k] = (v !== undefined && Number.isFinite(v)) ? v : null;
           var idx = parseInt(k.charAt(1));
-          var el = document.getElementById('recvHt' + idx);
-          if (el && recvHeights[k] !== null) {
-            el.value = recvHeights[k];
-            el.style.color = '#2563eb';
-          }
+          var el = document.getElementById('r' + idx + '_dist_boundary');
+          if (el && recvDistToBoundary[k] !== null) el.value = recvDistToBoundary[k];
         });
       }
 
@@ -12713,27 +12699,9 @@ initCollapse();
       // Clear and redraw ray lines so they always reflect current pin positions
       if (typeof window._updateRayLines === 'function') window._updateRayLines();
 
-      // Update Dist. S1 column in Receivers & criteria table
-      updateDistS1();
-
       // Update results table — dist_r1–r4 inputs don't exist in the map-first UI,
       // so we call render() directly rather than relying on input-change events.
       if (typeof render === 'function') render();
-    }
-
-    /* ---- Dist. S1 column: update distances in Receivers & criteria table ---- */
-    function updateDistS1() {
-      var s1 = latlngs['source_0'] || latlngs['source'];
-      ['r1', 'r2', 'r3', 'r4'].forEach(function(id) {
-        var cell = document.getElementById(id + '_dist_s1');
-        if (!cell) return;
-        var rec = latlngs[id];
-        if (s1 && rec) {
-          cell.textContent = haversine(s1, rec).toFixed(1) + ' m';
-        } else {
-          cell.textContent = '—';
-        }
-      });
     }
 
     /* ---- place or move a marker ---- */
@@ -13032,6 +13000,69 @@ initCollapse();
       }
     };
 
+    /** Build the HTML content for a receiver marker popup.
+     *  Includes: name/coords, editable height input, terrain elevation context. */
+    function buildRecvPopupHTML(mode, latlng) {
+      var cfg = getModeCfg(mode);
+      var ll = latlng || latlngs[mode] || { lat: 0, lng: 0 };
+      var ht = (recvHeights[mode] !== null && Number.isFinite(recvHeights[mode]))
+        ? recvHeights[mode]
+        : (iso_receiverHeight || 1.5);
+
+      var html = '<b>' + escapeHTML(cfg.label) + '</b><br>' +
+        '<span style="font-size:11px;color:#888;">' +
+          ll.lat.toFixed(6) + ', ' + ll.lng.toFixed(6) +
+        '</span>';
+
+      // Editable height input
+      html += '<div style="margin-top:8px;font-size:12px;">' +
+        '<label style="white-space:nowrap;">Height above ground: ' +
+        '<input type="number" id="recv-popup-ht-' + mode + '" ' +
+          'min="0.1" max="50" step="0.1" value="' + ht.toFixed(1) + '" ' +
+          'style="width:58px;padding:2px 4px;text-align:center;border:1px solid #ccc;border-radius:3px;font-size:12px;' +
+          (recvHeights[mode] !== null ? 'color:#2563eb;' : '') + '"> m' +
+        '</label></div>';
+
+      // Terrain context (display-only)
+      html += '<div id="recv-popup-terrain-' + mode + '" style="font-size:11px;color:#666;margin-top:4px;">';
+      var groundElev = (typeof recvGroundElevations !== 'undefined') ? recvGroundElevations[mode] : null;
+      if (_terrainEnabled) {
+        if (groundElev !== null && Number.isFinite(groundElev)) {
+          var absHt = groundElev + ht;
+          html += 'Terrain elevation: ' + groundElev.toFixed(1) + ' m AHD<br>' +
+            'Receiver height: ' + ht.toFixed(1) + ' m above terrain (' + absHt.toFixed(1) + ' m AHD)';
+        } else {
+          html += 'Terrain elevation: fetching\u2026';
+        }
+      } else {
+        html += 'Receiver height: ' + ht.toFixed(1) + ' m above ground';
+      }
+      html += '</div>';
+
+      return html;
+    }
+
+    /** Refresh the terrain section of an open receiver popup (called after elevation fetch) */
+    function refreshRecvPopupTerrain(mode) {
+      var terrEl = document.getElementById('recv-popup-terrain-' + mode);
+      if (!terrEl) return;
+      var ht = (recvHeights[mode] !== null && Number.isFinite(recvHeights[mode]))
+        ? recvHeights[mode]
+        : (iso_receiverHeight || 1.5);
+      var groundElev = (typeof recvGroundElevations !== 'undefined') ? recvGroundElevations[mode] : null;
+      if (_terrainEnabled) {
+        if (groundElev !== null && Number.isFinite(groundElev)) {
+          var absHt = groundElev + ht;
+          terrEl.innerHTML = 'Terrain elevation: ' + groundElev.toFixed(1) + ' m AHD<br>' +
+            'Receiver height: ' + ht.toFixed(1) + ' m above terrain (' + absHt.toFixed(1) + ' m AHD)';
+        } else {
+          terrEl.innerHTML = 'Terrain elevation: fetching\u2026';
+        }
+      } else {
+        terrEl.innerHTML = 'Receiver height: ' + ht.toFixed(1) + ' m above ground';
+      }
+    }
+
     /** Check if mode is a source mode (source_0, source_1, etc. or legacy 'source') */
     function isSourceMode(mode) { return mode === 'source' || /^source_\d+$/.test(mode); }
     /** Extract source index from mode string, or 0 for legacy 'source' */
@@ -13080,6 +13111,8 @@ initCollapse();
           if (el2) {
             el2.textContent = (elev !== null) ? Math.round(elev) + 'm ASL' : 'unavailable';
           }
+          // Refresh popup terrain section if the popup is currently open
+          if (typeof refreshRecvPopupTerrain === 'function') refreshRecvPopupTerrain(mode);
         }
       }).catch(function(err) {
         console.warn('fetchPinElevation: elevation fetch failed for', mode, err);
@@ -13127,8 +13160,7 @@ initCollapse();
       } else {
         /* === Teardrop marker for receiver pins === */
         m = L.marker(latlng, { icon: makeIcon(cfg), draggable: true, title: cfg.label })
-          .bindPopup('<b>' + escapeHTML(cfg.label) + '</b><br>' +
-                     latlng.lat.toFixed(6) + ', ' + latlng.lng.toFixed(6))
+          .bindPopup(buildRecvPopupHTML(mode, latlng), { maxWidth: 300, minWidth: 220 })
           .addTo(map);
       }
 
@@ -13180,6 +13212,10 @@ initCollapse();
           triggerAutoIF(mode, ll);
           // Clause 20 ray re-query for this receiver (rural only)
           if (currentState === 'VIC' && vicAreaType === 'rural') runClause20ForReceiver(mode);
+          // Refresh popup coordinates (elevation will update via fetchPinElevation callback)
+          if (markers[mode] && markers[mode].getPopup && markers[mode].getPopup()) {
+            markers[mode].setPopupContent(buildRecvPopupHTML(mode, ll));
+          }
         }
         if (isSourceMode(mode) && currentState === 'VIC' && vicAreaType === 'rural') {
           // Source moved — re-query Clause 20 for all receivers
@@ -13372,6 +13408,26 @@ initCollapse();
       updateAll();
       render();
     }
+
+    /* ── Receiver popup: wire up height input and live-update terrain section ── */
+    map.on('popupopen', function() {
+      ['r1','r2','r3','r4'].forEach(function(mode) {
+        var inp = document.getElementById('recv-popup-ht-' + mode);
+        if (!inp) return;
+        inp.addEventListener('change', function() {
+          var v = parseFloat(this.value);
+          if (Number.isFinite(v) && v >= 0.1) {
+            recvHeights[mode] = v;
+            this.style.color = '#2563eb';
+          } else {
+            recvHeights[mode] = null;
+            this.style.color = '';
+          }
+          refreshRecvPopupTerrain(mode);
+          render();
+        });
+      });
+    });
 
     ORDER.forEach(function (mode) {
       var btn = document.getElementById('mapMode-' + mode);
