@@ -772,6 +772,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
         </div>
         </div>
+      <!-- VIC rural: auditable Table 6-style criteria table (shown below the receiver table in rural mode) -->
+      <div id="vicRuralCritTable" class="vic-only" style="display:none;overflow-x:auto;margin-top:14px;padding:0 2px;"></div>
       </div>
 
     </div>
@@ -1149,9 +1151,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       <div class="card span2">
         <h2>Predicted noise levels</h2>
       <div class="table-scroll">
-    <!-- VIC rural criteria table (replaces period tables in rural mode) -->
-    <div id="vicRuralCritTable" style="display:none;overflow-x:auto;"></div>
-    <!-- Standard period tables (hidden in VIC rural mode) -->
+    <!-- Standard period tables -->
     <div id="vicStdPeriodTables">
     <!-- Day Leq results -->
     <div class="pred-period-lbl">Day L<sub>eq</sub></div>
@@ -7942,10 +7942,9 @@ function render() {
   var hasNight = hasLwForPeriod('night');
   var hasLmax  = hasLwForPeriod('night');
 
-  // ── VIC rural: show auditable Table 6-style criteria table; hide standard period tables ──
+  // ── VIC rural: populate auditable Table 6-style criteria table in the Receivers & criteria panel ──
   var isVicRural = isVIC && vicAreaType === 'rural';
   var vicRuralCritEl = document.getElementById('vicRuralCritTable');
-  var vicStdTablesEl = document.getElementById('vicStdPeriodTables');
   if (vicRuralCritEl) {
     if (isVicRural) {
       vicRuralCritEl.innerHTML = _buildVicRuralCritTableHTML(recs, ids);
@@ -7953,12 +7952,6 @@ function render() {
     } else {
       vicRuralCritEl.style.display = 'none';
     }
-  }
-  if (vicStdTablesEl) vicStdTablesEl.style.display = isVicRural ? 'none' : '';
-
-  if (isVicRural) {
-    // Skip standard period table rendering — rural table handles it
-    // Still update the rural distance footnote and contributions/spectrum below
   }
 
   // ── Build simple 5-col header for each period table ───────────────────────
@@ -7977,7 +7970,6 @@ function render() {
   var _vicRuralDistNotes = null;
   var _anyLmaxCrit = false;
 
-  if (!isVicRural) {
   buildPeriodHead('predTableDayHead');
   buildPeriodHead('predTableEveHead');
   buildPeriodHead('predTableNightHead');
@@ -7992,10 +7984,8 @@ function render() {
   if (tbEve)   tbEve.innerHTML   = '';
   if (tbNight) tbNight.innerHTML = '';
   if (tbLmax)  tbLmax.innerHTML  = '';
-  } // end !isVicRural standard period table setup
 
   recs.forEach((rec, i) => {
-    if (isVicRural) return; // rural mode uses _buildVicRuralCritTableHTML instead
     const keyText = rKeys[i] || '';
     const nameInput = document.getElementById(`recvName${i+1}`);
     const recvLabel = escapeHTML(nameInput && nameInput.value.trim() ? nameInput.value.trim() : `Receiver ${i+1}`);
@@ -8138,13 +8128,11 @@ function render() {
     tbNight.appendChild(sleepTr);
   }
 
-  // Show / hide Lmax table based on whether any receiver has an Lmax criterion (not in rural mode)
-  if (!isVicRural) {
-    var lmaxLabelEl = document.getElementById('predLmaxLabel');
-    var lmaxTableEl = document.getElementById('predTableLmax');
-    if (lmaxLabelEl) lmaxLabelEl.style.display = _anyLmaxCrit ? '' : 'none';
-    if (lmaxTableEl) lmaxTableEl.style.display = _anyLmaxCrit ? '' : 'none';
-  }
+  // Show / hide Lmax table based on whether any receiver has an Lmax criterion
+  var lmaxLabelEl = document.getElementById('predLmaxLabel');
+  var lmaxTableEl = document.getElementById('predTableLmax');
+  if (lmaxLabelEl) lmaxLabelEl.style.display = _anyLmaxCrit ? '' : 'none';
+  if (lmaxTableEl) lmaxTableEl.style.display = _anyLmaxCrit ? '' : 'none';
 
   // Rural distance adjustment footnote (legacy — hidden in rural mode since table shows adj inline)
   var distFnEl = document.getElementById('vicRuralDistFootnote');
