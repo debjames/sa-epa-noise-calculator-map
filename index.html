@@ -7807,13 +7807,13 @@ function _buildVicRuralCritTableHTML(recs, ids) {
   var h = '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
   h += '<thead><tr>';
   h += '<th style="' + TH  + '">NSA</th>';
-  h += '<th style="' + THR + 'min-width:90px;">Dist. to site boundary (m)</th>';
+  h += '<th style="' + THC + 'width:84px;">Dist. to site boundary (m)</th>';
   h += '<th style="' + TH  + '">NSA zone (vs source zone)</th>';
   h += '<th style="' + TH  + '">Period</th>';
-  h += '<th style="' + THR + '">Zone level L<sub>Aeq</sub> (dB)</th>';
-  h += '<th style="' + THR + '">Distance adjustment (dB)</th>';
+  h += '<th style="' + THC + '">Zone level L<sub>Aeq</sub> (dB)</th>';
+  h += '<th style="' + THC + '">Distance adjustment (dB)</th>';
   h += '<th style="' + THC + '">Background relevant area</th>';
-  h += '<th style="' + THR + '">Noise limit L<sub>Aeq</sub> (dB)</th>';
+  h += '<th style="' + THC + '">Noise limit L<sub>Aeq</sub> (dB)</th>';
   h += '</tr></thead><tbody>';
 
   var anyRecv = false;
@@ -7900,21 +7900,21 @@ function _buildVicRuralCritTableHTML(recs, ids) {
       if (pi === 0) {
         var rs = ' rowspan="3"';
         h += '<td' + rs + ' style="' + TD + 'font-weight:600;">' + escapeHTML(recvName) + '</td>';
-        // Editable distance-to-boundary input
-        h += '<td' + rs + ' style="' + TDR + 'padding:3px 5px;vertical-align:middle;">' +
+        // Editable distance-to-boundary input — compact, centred, top-aligned
+        h += '<td' + rs + ' style="' + TDC + 'padding:4px 4px;vertical-align:top;width:84px;">' +
              '<input type="number" id="vic-rural-dist-' + recvKey + '" ' +
                'min="0" max="99999" step="1" ' +
                'value="' + escapeHTML(distInputVal) + '" placeholder="\u2014" ' +
-               'style="width:68px;font-size:11px;padding:2px 4px;text-align:right;' +
+               'style="width:62px;font-size:11px;padding:2px 3px;text-align:center;' +
                'border:1px solid #d1d5db;border-radius:3px;background:#fff;">' +
              '</td>';
         h += '<td' + rs + ' style="' + TD + '">' + zoneDesc + '</td>';
       }
       h += '<td style="' + TD + 'font-weight:600;color:' + pColor + ';white-space:nowrap;">' + period + '</td>';
-      h += '<td style="' + TDR + '">' + baseStr + '</td>';
-      h += '<td style="' + TDR + '"' + (adjTitle ? ' title="' + escapeHTML(adjTitle) + '"' : '') + '>' + adjStr + '</td>';
+      h += '<td style="' + TDC + '">' + baseStr + '</td>';
+      h += '<td style="' + TDC + '"' + (adjTitle ? ' title="' + escapeHTML(adjTitle) + '"' : '') + '>' + adjStr + '</td>';
       h += '<td style="' + TDC + '">No</td>';
-      h += '<td style="' + TDR + 'font-weight:600;">' + limitStr + '</td>';
+      h += '<td style="' + TDC + 'font-weight:600;">' + limitStr + '</td>';
       h += '</tr>';
     });
   });
