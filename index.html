@@ -7384,8 +7384,10 @@ window.runUAT = async function() {
 
   function _gridVal(data, lat, lng) {
     if (!data || !Array.isArray(data.grid) || !data.bounds) return NaN;
-    var row = Math.round((lat - data.bounds.south) / data.dLat);
-    var col = Math.round((lng - data.bounds.west)  / data.dLng);
+    var _sLat = (data.startLat !== undefined) ? data.startLat : data.bounds.south;
+    var _sLng = (data.startLng !== undefined) ? data.startLng : data.bounds.west;
+    var row = Math.round((lat - _sLat) / data.dLat);
+    var col = Math.round((lng - _sLng) / data.dLng);
     row = Math.max(0, Math.min(data.rows-1, row));
     col = Math.max(0, Math.min(data.cols-1, col));
     return data.grid[row * data.cols + col];
@@ -15186,6 +15188,8 @@ initCollapse();
       _noiseContourLayer = L.layerGroup();
 
       var rows = data.rows, cols = data.cols, grid = data.grid;
+      var _cSLat = (data.startLat !== undefined) ? data.startLat : data.bounds.south;
+      var _cSLng = (data.startLng !== undefined) ? data.startLng : data.bounds.west;
 
       function val(r, c) {
         if (r < 0 || r >= rows || c < 0 || c >= cols) return NaN;
@@ -15222,16 +15226,16 @@ initCollapse();
             // Edge midpoints (interpolated)
             // Top edge: between TL and TR
             var tFrac = interp(r + 1, c, r + 1, c + 1, threshold);
-            var top = [data.bounds.south + (r + 1) * data.dLat, data.bounds.west + (c + tFrac) * data.dLng];
+            var top = [_cSLat + (r + 1) * data.dLat, _cSLng + (c + tFrac) * data.dLng];
             // Right edge: between TR and BR
             var rFrac = interp(r + 1, c + 1, r, c + 1, threshold);
-            var right = [data.bounds.south + (r + 1 - rFrac) * data.dLat, data.bounds.west + (c + 1) * data.dLng];
+            var right = [_cSLat + (r + 1 - rFrac) * data.dLat, _cSLng + (c + 1) * data.dLng];
             // Bottom edge: between BL and BR
             var bFrac = interp(r, c, r, c + 1, threshold);
-            var bottom = [data.bounds.south + r * data.dLat, data.bounds.west + (c + bFrac) * data.dLng];
+            var bottom = [_cSLat + r * data.dLat, _cSLng + (c + bFrac) * data.dLng];
             // Left edge: between TL and BL
             var lFrac = interp(r + 1, c, r, c, threshold);
-            var left = [data.bounds.south + (r + 1 - lFrac) * data.dLat, data.bounds.west + c * data.dLng];
+            var left = [_cSLat + (r + 1 - lFrac) * data.dLat, _cSLng + c * data.dLng];
 
             // Marching squares lookup — which edges to connect
             switch (idx) {
@@ -15350,9 +15354,11 @@ initCollapse();
       }
 
       var imageUrl = canvas.toDataURL('image/png');
+      var _gridSouth = (data.startLat !== undefined) ? data.startLat : data.bounds.south;
+      var _gridWest  = (data.startLng !== undefined) ? data.startLng : data.bounds.west;
       var bounds = L.latLngBounds(
-        [data.bounds.south, data.bounds.west],
-        [data.bounds.north, data.bounds.east]
+        [_gridSouth, _gridWest],
+        [_gridSouth + data.rows * data.dLat, _gridWest + data.cols * data.dLng]
       );
       _noiseCanvasLayer = L.imageOverlay(imageUrl, bounds, {
         opacity: 0.8,

@@ -240,17 +240,38 @@ self.onmessage = function(e) {
     var dLat = res / 111320;
     var dLng = res / (111320 * Math.cos(midLat * Math.PI / 180));
 
-    var rows = Math.ceil((bounds.north - bounds.south) / dLat);
-    var cols = Math.ceil((bounds.east - bounds.west) / dLng);
-
     var validSources = sources.filter(function(s) {
       return s.lat !== null && s.lng !== null && s.equipment && s.equipment.length > 0;
     });
 
     if (validSources.length === 0) {
-      self.postMessage({ type: 'complete', grid: [], rows: rows, cols: cols });
+      var _defRows = Math.ceil((bounds.north - bounds.south) / dLat);
+      var _defCols = Math.ceil((bounds.east - bounds.west) / dLng);
+      self.postMessage({ type: 'complete', grid: [], rows: _defRows, cols: _defCols });
       return;
     }
+
+    // Snap grid origin so source positions fall exactly on grid nodes.
+    // For a single source this is exact; for multiple sources we snap to the
+    // centroid to minimise the maximum offset to any individual source.
+    var _refLat = 0, _refLng = 0;
+    validSources.forEach(function(s) { _refLat += s.lat; _refLng += s.lng; });
+    _refLat /= validSources.length;
+    _refLng /= validSources.length;
+
+    // startLat: largest value ≤ bounds.south such that _refLat is an exact
+    // integer multiple of dLat away from startLat.
+    var _nSouth = Math.ceil((_refLat - bounds.south) / dLat);
+    var startLat = _refLat - _nSouth * dLat;
+    if (startLat > bounds.south) startLat -= dLat; // floating-point safety
+
+    var _nWest = Math.ceil((_refLng - bounds.west) / dLng);
+    var startLng = _refLng - _nWest * dLng;
+    if (startLng > bounds.west) startLng -= dLng; // floating-point safety
+
+    // Rows/cols must cover the full map bounds from the snapped origin.
+    var rows = Math.ceil((bounds.north - startLat) / dLat) + 1;
+    var cols = Math.ceil((bounds.east - startLng) / dLng) + 1;
 
     var srcData = validSources.map(function(s) {
       return {
@@ -302,9 +323,9 @@ self.onmessage = function(e) {
         // Step 1: raw terrain IL for every grid cell (0 where no data or no obstruction)
         var _ilRaw = new Float32Array(rows * cols);
         for (var _pr = 0; _pr < rows; _pr++) {
-          var _plat = bounds.south + (_pr + 0.5) * dLat;
+          var _plat = startLat + _pr * dLat;
           for (var _pc = 0; _pc < cols; _pc++) {
-            var _plng = bounds.west + (_pc + 0.5) * dLng;
+            var _plng = startLng + _pc * dLng;
             var _ppt = { lat: _plat, lng: _plng };
             _ilRaw[_pr * cols + _pc] = terrainILBroadband(_psrcLL, _psrc.heightM, _ppt, recvHeight);
           }
@@ -345,9 +366,9 @@ self.onmessage = function(e) {
     var lastProgress = 0;
 
     for (var r = 0; r < rows; r++) {
-      var lat = bounds.south + (r + 0.5) * dLat;
+      var lat = startLat + r * dLat;
       for (var c = 0; c < cols; c++) {
-        var lng = bounds.west + (c + 0.5) * dLng;
+        var lng = startLng + c * dLng;
         var pt = { lat: lat, lng: lng };
 
         var insideBuilding = false;
@@ -521,7 +542,9 @@ self.onmessage = function(e) {
       cols: cols,
       bounds: bounds,
       dLat: dLat,
-      dLng: dLng
+      dLng: dLng,
+      startLat: startLat,
+      startLng: startLng
     });
   } catch (err) {
     self.postMessage({ type: 'error', message: err.message || String(err) });
