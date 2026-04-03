@@ -13196,6 +13196,8 @@ initCollapse();
         m = L.marker(latlng, { icon: makeIcon(cfg), draggable: true, title: cfg.label })
           .bindPopup(buildRecvPopupHTML(mode, latlng), { maxWidth: 300, minWidth: 220 })
           .addTo(map);
+        /* Auto-open popup immediately on user placement (not on load from JSON) */
+        if (_autoOpenRecvPopup) m.openPopup();
       }
 
       markers[mode] = m;
@@ -13400,7 +13402,9 @@ initCollapse();
         addNewSourcePin(e.latlng);
         return;
       }
+      _autoOpenRecvPopup = true;  // signal placeMarker to open popup on this user-initiated placement
       placeMarker(currentMode, e.latlng);
+      _autoOpenRecvPopup = false;
     });
 
     /* ---- mode buttons (click to select mode, click again to remove placed marker) ---- */
@@ -14123,6 +14127,7 @@ initCollapse();
 
     /* ═══ User-drawn Barriers ═══ */
     // ─── Ruler / distance measurement ─────────────────────────────────────────
+    var _autoOpenRecvPopup = false;      // true only during user-click placement (not JSON load)
     var rulerMeasurements = [];          // [{id, lat1,lng1,lat2,lng2,distanceM,layerGroup}]
     var rulerLayer        = L.layerGroup().addTo(map);
     var _rulerMode        = false;       // true while waiting for 2nd click
