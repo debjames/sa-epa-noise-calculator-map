@@ -170,10 +170,11 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .mp {
   background: rgba(26,32,44,.9);
   border-radius: 7px;
-  overflow: hidden;
+  overflow: visible;              /* must be visible so dropdown body overflows downward */
   box-shadow: 0 2px 12px rgba(0,0,0,.4);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  position: relative;            /* containing block for absolute dropdown body */
 }
 .mp-hdr {
   display: flex;
@@ -187,11 +188,31 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   user-select: none;
   gap: 4px;
   letter-spacing: .02em;
+  border-radius: 7px;            /* all corners rounded when panel is collapsed */
+  white-space: nowrap;
 }
-.mp-hdr:hover { background: rgba(255,255,255,.07); }
+.mp.mp-open .mp-hdr { border-radius: 7px 7px 0 0; } /* only top corners when open */
+.mp-hdr:hover { background: rgba(255,255,255,.07); border-radius: inherit; }
 .mp-arrow { font-size: 9px; opacity: .65; transition: transform .18s; flex-shrink: 0; }
 .mp.mp-open .mp-arrow { transform: rotate(180deg); }
-.mp-body { display: none; flex-direction: column; gap: 1px; padding: 4px; border-top: 1px solid rgba(255,255,255,.1); }
+/* Dropdown body: absolutely positioned below the header */
+.mp-body {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 200px;
+  z-index: 10;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  background: rgba(26,32,44,.95);
+  border-top: 1px solid rgba(255,255,255,.1);
+  border-radius: 0 4px 7px 7px;
+  box-shadow: 0 6px 16px rgba(0,0,0,.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
 .mp.mp-open .mp-body { display: flex; }
 .mp-btn {
   display: flex;
@@ -511,11 +532,24 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <!-- ── Floating collapsible panels (left side of map) ── -->
           <script>
             function toggleMapPanel(id) {
-              var p = document.getElementById(id);
-              if (p) p.classList.toggle('mp-open');
+              var all = ['mp-mapping', 'mp-tools', 'mp-modelling'];
+              all.forEach(function(pid) {
+                var p = document.getElementById(pid);
+                if (!p) return;
+                if (pid === id) { p.classList.toggle('mp-open'); }
+                else { p.classList.remove('mp-open'); }
+              });
             }
+            document.addEventListener('click', function(e) {
+              if (!e.target.closest('#mapPanelContainer')) {
+                ['mp-mapping','mp-tools','mp-modelling'].forEach(function(pid) {
+                  var p = document.getElementById(pid);
+                  if (p) p.classList.remove('mp-open');
+                });
+              }
+            });
           </script>
-          <div id="mapPanelContainer" style="position:absolute;top:8px;left:8px;z-index:800;width:200px;display:flex;flex-direction:column;gap:5px;pointer-events:none;">
+          <div id="mapPanelContainer" style="position:absolute;top:8px;left:8px;z-index:800;width:auto;display:flex;flex-direction:row;gap:5px;align-items:flex-start;pointer-events:none;">
 
             <!-- PANEL 1: MAPPING -->
             <div class="mp" id="mp-mapping" style="pointer-events:all;">
