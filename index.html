@@ -1248,12 +1248,20 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 </div>
     </div>
    
+    <!-- ═══ Scenarios panel ═══ -->
+    <div class="grid2 grid-full" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Scenarios</h2>
+        <div class="p">Summary of which assessment periods each source is active in, based on entered Lw data. A tick indicates the source has Lw data entered for that period.</div>
+        <div id="scenariosTableContainer"></div>
+      </div>
+    </div>
+
     <div class="grid2" style="padding-top:0;">
       <div class="card span2">
         <h2>Source contribution</h2>
         <div class="p">Predicted sound pressure level at each receiver from individual sources, using the selected propagation method. Levels include ground effect, atmospheric absorption, and terrain screening where applicable.</div>
-        <div id="contribPeriodBar" class="contrib-sub-h" style="margin-bottom:6px;"></div>
-        <div class="table-scroll"><table id="contribTable" style="width:100%;"></table></div>
+        <div id="contribTablesContainer"></div>
         <div id="contribLmaxSection" style="display:none;margin-top:14px;"></div>
       </div>
     </div>
@@ -8377,6 +8385,7 @@ function render() {
   if (distFnEl) distFnEl.style.display = 'none';
 
   // Update source contribution tables whenever results re-render
+  if (typeof renderScenariosTable === 'function') renderScenariosTable();
   if (typeof renderContributions === 'function') renderContributions();
 
   // Update octave band spectrum chart
@@ -8994,149 +9003,200 @@ function updateOtherCritSelection() {
   }
 }));
 
-function renderContributions() {
-  var table = document.getElementById('contribTable');
-  var periodBar = document.getElementById('contribPeriodBar');
-  if (!table) return;
+function renderScenariosTable() {
+  var container = document.getElementById('scenariosTableContainer');
+  if (!container) return;
 
-  var period = (typeof _globalPeriod !== 'undefined' && _globalPeriod) ? _globalPeriod : 'day';
-  var periodNames = { day: 'Day', eve: 'Evening', night: 'Night' };
-  if (periodBar) periodBar.innerHTML = (periodNames[period] || period) + ' L<sub>Aeq</sub> contributions at receivers (dB)';
-
-  table.innerHTML = '';
-
-  // Active source pins for this period
-  var activePins = sourcePins.filter(function(pin) {
-    if (pin.lat === null) return false;
-    if (pin.activeInPeriod && pin.activeInPeriod[period] === false) return false;
-    return pin.lw && Number.isFinite(pin.lw[period]) && pin.lw[period] > 0;
+  var allPins = sourcePins.filter(function(p) {
+    return p.name || (p.lw && (Number.isFinite(p.lw.day) || Number.isFinite(p.lw.eve) || Number.isFinite(p.lw.night))) || Number.isFinite(p.lw_max);
   });
 
-  if (activePins.length === 0) {
-    table.innerHTML = '<tbody><tr><td colspan="3" style="color:var(--muted);font-size:12px;padding:8px;">No active sources for ' + period + ' period.</td></tr></tbody>';
-    // NSW derivation table
-    if (currentState === 'NSW') renderNSWDerivTable();
-    // SA emergency equipment criteria
-    if (currentState === 'SA') renderEmergencyEquipCriteria();
+  if (allPins.length === 0) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:12px;margin:4px 0;">No sources defined.</p>';
     return;
   }
 
-  // Header
-  var thead = document.createElement('thead');
-  thead.innerHTML = '<tr><th style="width:44%;">Receiver / Source</th><th class="num">Distance (m)</th><th class="num">L<sub>p</sub> (dB)</th></tr>';
-  table.appendChild(thead);
+  var html = '<div class="table-scroll"><table style="width:100%;font-size:12px;">';
+  html += '<thead><tr>';
+  html += '<th style="text-align:left;">Source</th>';
+  html += '<th class="num">Day</th>';
+  html += '<th class="num">Evening</th>';
+  html += '<th class="num">Night</th>';
+  html += '<th class="num">L<sub>max</sub></th>';
+  html += '</tr></thead><tbody>';
 
-  var tbody = document.createElement('tbody');
-
-  ['r1','r2','r3','r4'].forEach(function(rid, ri) {
-    // Check if receiver has a placed position (distance > 0)
-    var d0 = getDistanceForSourceReceiver(0, ri);
-    var distEl = document.getElementById('dist_r' + (ri + 1));
-    var hasRecv = Number.isFinite(d0) && d0 > 0;
-    if (!hasRecv && distEl) {
-      var dv = Number(distEl.value);
-      hasRecv = Number.isFinite(dv) && dv > 0;
-    }
-    if (!hasRecv) return;
-
-    var nameInput = document.getElementById('recvName' + (ri + 1));
-    var recvLabel = nameInput && nameInput.value.trim() ? nameInput.value.trim() : ('Receiver ' + (ri + 1));
-
-    // Receiver subheader row (click opens ISO breakdown)
-    var recvHdr = document.createElement('tr');
-    recvHdr.className = 'contrib-recv-hdr';
-    recvHdr.innerHTML = '<td colspan="3" style="cursor:pointer;" title="Click for per-band ISO 9613-2 breakdown"><b>' + escapeHTML(recvLabel) + ' \u2014 click for ISO breakdown</b></td>';
-    (function(recvIdx) {
-      recvHdr.addEventListener('click', function() {
-        var firstSrcIdx = 0;
-        for (var si = 0; si < sourcePins.length; si++) {
-          if (sourcePins[si].lat !== null) { firstSrcIdx = si; break; }
-        }
-        showISOBreakdown(firstSrcIdx, recvIdx);
-      });
-    })(ri);
-    tbody.appendChild(recvHdr);
-
-    // Pre-compute barrier + terrain info for this receiver — mirrors calcPredAtReceiver
-    var screenable = (window._getScreenableBuildings) ? window._getScreenableBuildings() : (window._buildings || []);
-    var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
-    var recLL = allLL[rid];
-    var rawContributions = []; // unrounded Lp values for energy-sum total
-
-    activePins.forEach(function(pin) {
-      var si = sourcePins.indexOf(pin);
-      var d = getDistanceForSourceReceiver(si, ri);
-      if (!Number.isFinite(d) || d <= 0) {
-        if (si === 0 && distEl) d = Number(distEl.value);
+  allPins.forEach(function(pin) {
+    html += '<tr>';
+    html += '<td style="font-size:12px;">' + escapeHTML(pin.name || 'Source') + '</td>';
+    ['day', 'eve', 'night'].forEach(function(period) {
+      var lw = (pin.lw && Number.isFinite(pin.lw[period]) && pin.lw[period] > 0) ? pin.lw[period] : null;
+      if (lw !== null) {
+        html += '<td class="num" style="color:#16a34a;font-size:12px;">\u2713 ' + Math.round(lw) + ' dB</td>';
+      } else {
+        html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
       }
-      var distStr = (Number.isFinite(d) && d > 0) ? String(Math.round(d)) : '\u2014';
-      var lpStr = '\u2014';
-      if (Number.isFinite(d) && d > 0) {
-        var lpRaw;
-        if (propagationMethod === 'iso9613' && period !== 'lmax') {
-          // ISO 9613-2 path — calcISO9613forSourcePin handles opAdj, barriers, terrain, atm absorption
-          lpRaw = calcISO9613forSourcePin(si, period, d, ri);
-        } else {
-          // Simple path — mirrors calcPredAtReceiver simple logic
-          var opAdj = 10 * Math.log10((pin.operationalTime_min || 15) / 15);
-          var quantityAdjContrib = 10 * Math.log10(_getNumUnits(pin, period));
-          lpRaw = attenuatePoint(pin.lw[period] + opAdj + quantityAdjContrib, d);
-
-          // Building barrier IL — same logic as calcPredAtReceiver simple path
-          var buildingIL = 0;
-          if (screenable.length > 0 && recLL && pin.lat !== null) {
-            var srcLL = { lat: pin.lat, lng: pin.lng };
-            var srcHt = pin.height_m || 1.5;
-            var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : 1.5;
-            var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
-            buildingIL = calcBarrierIL_broadband(barrier);
-          }
-          // Terrain IL — same logic as calcPredAtReceiver simple path
-          var terrainIL = 0;
-          if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][ri]) {
-            terrainIL = _terrainIL[si][ri].insertionLoss_dB || 0;
-          }
-          lpRaw -= Math.max(buildingIL, terrainIL);
-        }
-
-        if (Number.isFinite(lpRaw)) {
-          lpStr = String(Math.round(lpRaw));
-          rawContributions.push(lpRaw); // unrounded — used for energy sum
-        }
-      }
-      var srcTr = document.createElement('tr');
-      var _pinUnits = _getNumUnits(pin, period);
-      var pinDisplayName = escapeHTML(pin.name || 'Source') + (_pinUnits > 1 ? ' \u00d7 ' + _pinUnits : '');
-      srcTr.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + pinDisplayName + '</td>' +
-        '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
-        '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
-      tbody.appendChild(srcTr);
     });
-
-    // Total = energy sum of raw (unrounded) contributions, then round — identical to calcPredAtReceiver
-    var totalTr = document.createElement('tr');
-    totalTr.className = 'contrib-total-row';
-    var totalStr = rawContributions.length > 0
-      ? String(Math.round(SharedCalc.energySum(rawContributions)))
-      : '\u2014';
-    totalTr.innerHTML = '<td style="padding-left:16px;font-size:12px;"><b>Total</b></td>' +
-      '<td class="num" style="font-size:12px;">\u2014</td>' +
-      '<td class="num" style="font-size:12px;"><b>' + totalStr + '</b></td>';
-    tbody.appendChild(totalTr);
+    if (Number.isFinite(pin.lw_max)) {
+      html += '<td class="num" style="color:#16a34a;font-size:12px;">\u2713 ' + Math.round(pin.lw_max) + ' dB</td>';
+    } else {
+      html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
+    }
+    html += '</tr>';
   });
 
-  table.appendChild(tbody);
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+function renderContributions() {
+  var container = document.getElementById('contribTablesContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  var screenable = (window._getScreenableBuildings) ? window._getScreenableBuildings() : (window._buildings || []);
+  var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+  var anyTable = false;
+
+  // ── LAeq tables for each period ────────────────────────────────────────
+  var LAeqPeriods = [
+    { key: 'day',   label: 'Day L<sub>Aeq</sub>' },
+    { key: 'eve',   label: 'Evening L<sub>Aeq</sub>' },
+    { key: 'night', label: 'Night L<sub>Aeq</sub>' }
+  ];
+
+  LAeqPeriods.forEach(function(pDef) {
+    var period = pDef.key;
+
+    var activePins = sourcePins.filter(function(pin) {
+      if (pin.lat === null) return false;
+      if (pin.activeInPeriod && pin.activeInPeriod[period] === false) return false;
+      return pin.lw && Number.isFinite(pin.lw[period]) && pin.lw[period] > 0;
+    });
+
+    if (activePins.length === 0) return; // no sources for this period — skip table
+    anyTable = true;
+
+    var sectionDiv = document.createElement('div');
+    sectionDiv.style.marginBottom = '14px';
+
+    var subHdr = document.createElement('div');
+    subHdr.className = 'contrib-sub-h';
+    subHdr.style.marginBottom = '6px';
+    subHdr.innerHTML = pDef.label + ' contributions at receivers (dB)';
+    sectionDiv.appendChild(subHdr);
+
+    var scrollDiv = document.createElement('div');
+    scrollDiv.className = 'table-scroll';
+
+    var table = document.createElement('table');
+    table.style.width = '100%';
+    var thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th style="width:44%;">Receiver / Source</th><th class="num">Distance (m)</th><th class="num">L<sub>p</sub> (dB)</th></tr>';
+    table.appendChild(thead);
+    var tbody = document.createElement('tbody');
+
+    ['r1','r2','r3','r4'].forEach(function(rid, ri) {
+      var d0 = getDistanceForSourceReceiver(0, ri);
+      var distEl = document.getElementById('dist_r' + (ri + 1));
+      var hasRecv = Number.isFinite(d0) && d0 > 0;
+      if (!hasRecv && distEl) {
+        var dv = Number(distEl.value);
+        hasRecv = Number.isFinite(dv) && dv > 0;
+      }
+      if (!hasRecv) return;
+
+      var nameInput = document.getElementById('recvName' + (ri + 1));
+      var recvLabel = nameInput && nameInput.value.trim() ? nameInput.value.trim() : ('Receiver ' + (ri + 1));
+      var recLL = allLL[rid];
+
+      var recvHdr = document.createElement('tr');
+      recvHdr.className = 'contrib-recv-hdr';
+      recvHdr.innerHTML = '<td colspan="3" style="cursor:pointer;" title="Click for per-band ISO 9613-2 breakdown"><b>' + escapeHTML(recvLabel) + ' \u2014 click for ISO breakdown</b></td>';
+      (function(recvIdx) {
+        recvHdr.addEventListener('click', function() {
+          var firstSrcIdx = 0;
+          for (var si = 0; si < sourcePins.length; si++) {
+            if (sourcePins[si].lat !== null) { firstSrcIdx = si; break; }
+          }
+          showISOBreakdown(firstSrcIdx, recvIdx);
+        });
+      })(ri);
+      tbody.appendChild(recvHdr);
+
+      var rawContributions = [];
+
+      activePins.forEach(function(pin) {
+        var si = sourcePins.indexOf(pin);
+        var d = getDistanceForSourceReceiver(si, ri);
+        if (!Number.isFinite(d) || d <= 0) {
+          if (si === 0 && distEl) d = Number(distEl.value);
+        }
+        var distStr = (Number.isFinite(d) && d > 0) ? String(Math.round(d)) : '\u2014';
+        var lpStr = '\u2014';
+        if (Number.isFinite(d) && d > 0) {
+          var lpRaw;
+          if (propagationMethod === 'iso9613') {
+            lpRaw = calcISO9613forSourcePin(si, period, d, ri);
+          } else {
+            var opAdj = 10 * Math.log10((pin.operationalTime_min || 15) / 15);
+            var quantityAdjContrib = 10 * Math.log10(_getNumUnits(pin, period));
+            lpRaw = attenuatePoint(pin.lw[period] + opAdj + quantityAdjContrib, d);
+            var buildingIL = 0;
+            if (screenable.length > 0 && recLL && pin.lat !== null) {
+              var srcLL = { lat: pin.lat, lng: pin.lng };
+              var srcHt = pin.height_m || 1.5;
+              var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : 1.5;
+              var barrier = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+              buildingIL = calcBarrierIL_broadband(barrier);
+            }
+            var terrainIL = 0;
+            if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][ri]) {
+              terrainIL = _terrainIL[si][ri].insertionLoss_dB || 0;
+            }
+            lpRaw -= Math.max(buildingIL, terrainIL);
+          }
+          if (Number.isFinite(lpRaw)) {
+            lpStr = String(Math.round(lpRaw));
+            rawContributions.push(lpRaw);
+          }
+        }
+        var srcTr = document.createElement('tr');
+        var _pinUnits = _getNumUnits(pin, period);
+        var pinDisplayName = escapeHTML(pin.name || 'Source') + (_pinUnits > 1 ? ' \u00d7 ' + _pinUnits : '');
+        srcTr.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + pinDisplayName + '</td>' +
+          '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
+          '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
+        tbody.appendChild(srcTr);
+      });
+
+      var totalTr = document.createElement('tr');
+      totalTr.className = 'contrib-total-row';
+      var totalStr = rawContributions.length > 0
+        ? String(Math.round(SharedCalc.energySum(rawContributions))) : '\u2014';
+      totalTr.innerHTML = '<td style="padding-left:16px;font-size:12px;"><b>Total</b></td>' +
+        '<td class="num" style="font-size:12px;">\u2014</td>' +
+        '<td class="num" style="font-size:12px;"><b>' + totalStr + '</b></td>';
+      tbody.appendChild(totalTr);
+    });
+
+    table.appendChild(tbody);
+    scrollDiv.appendChild(table);
+    sectionDiv.appendChild(scrollDiv);
+    container.appendChild(sectionDiv);
+  });
+
+  if (!anyTable) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:12px;margin:4px 0;">No active sources with placed markers.</p>';
+  }
 
   // ── Night Lmax contributions ────────────────────────────────────────────
-  // Simple propagation only: Lw,max − 20·log10(d) − 8, no barriers/terrain
   var lmaxSection = document.getElementById('contribLmaxSection');
   if (lmaxSection) {
     lmaxSection.innerHTML = '';
     var lmaxActivePins = sourcePins.filter(function(pin) {
       if (pin.lat === null) return false;
       if (!pin.activeInPeriod || pin.activeInPeriod.lmax !== true) return false;
-      var lwm = Number.isFinite(pin.lw_max) ? pin.lw_max : null;
-      return Number.isFinite(lwm);
+      return Number.isFinite(pin.lw_max);
     });
 
     if (lmaxActivePins.length > 0) {
@@ -9330,7 +9390,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation', 'Save & Export', 'How to use', 'Methodology', 'Custom sources'];
+    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Scenarios', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation', 'Save & Export', 'How to use', 'Methodology', 'Custom sources'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
@@ -9368,6 +9428,7 @@ initReceiverNames();
 initPropagationMethod();
 initPenaltyButtons();
 initPenaltyTable();
+renderScenariosTable();
 renderContributions();
 renderCustomSourceList();
 initCollapse();
