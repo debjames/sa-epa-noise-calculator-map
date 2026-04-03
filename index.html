@@ -237,6 +237,22 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 #noiseMapLmaxMethodRow { flex-direction: column; }
 /* noiseMapControls flows as column when shown (JS sets display:flex) */
 #noiseMapControls { flex-direction: column; }
+
+/* ── Save JPG map control ────────────────────────────────────────────── */
+.save-jpg-ctrl a {
+  width: auto !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  font-weight: 600;
+  line-height: 26px !important;
+  white-space: nowrap;
+  color: #444 !important;
+  text-decoration: none !important;
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+}
+.save-jpg-ctrl a:hover { background: #f0f5fa !important; color: #1a56db !important; }
 #mapClearBtn:hover { background: #fef2f2; }
 /* Ruler distance label */
 .ruler-label {
@@ -10781,12 +10797,14 @@ initCollapse();
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 22,
-      maxNativeZoom: 19
+      maxNativeZoom: 19,
+      crossOrigin: 'anonymous'  // required for html2canvas map export
     });
     var aerialLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
       maxZoom: 22,
-      maxNativeZoom: 20
+      maxNativeZoom: 20,
+      crossOrigin: 'anonymous'  // required for html2canvas map export
     });
     streetLayer.addTo(map);
     var isAerial = false;
@@ -15663,6 +15681,93 @@ initCollapse();
       showNoiseControls(_noiseMapOn);
       if (_noiseMapOn) computeNoiseMap();
     };
+
+    /* ── Save JPG control ────────────────────────────────────────────── */
+    (function() {
+      var SaveJpgControl = L.Control.extend({
+        options: { position: 'topright' },
+        onAdd: function() {
+          var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control save-jpg-ctrl');
+          var btn = L.DomUtil.create('a', 'save-jpg-btn', container);
+          btn.href = '#';
+          btn.title = 'Export current map view as JPEG';
+          btn.setAttribute('role', 'button');
+          btn.innerHTML =
+            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;">' +
+            '<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>' +
+            '<circle cx="12" cy="13" r="4"/></svg> Save JPG';
+          L.DomEvent
+            .on(btn, 'click', L.DomEvent.stopPropagation)
+            .on(btn, 'click', L.DomEvent.preventDefault)
+            .on(btn, 'click', function() { _doSaveJpg(btn); });
+          return container;
+        }
+      });
+      new SaveJpgControl().addTo(map);
+
+      function _doSaveJpg(btn) {
+        if (btn._saving) return;
+        btn._saving = true;
+        var origHTML = btn.innerHTML;
+        btn.innerHTML = 'Saving…';
+        btn.style.pointerEvents = 'none';
+
+        // Collect UI chrome to hide (panels, zoom, popups — NOT legends/layers)
+        var hideEls = [];
+        var panelsEl = document.getElementById('mapPanelContainer');
+        if (panelsEl) hideEls.push(panelsEl);
+        map.getContainer().querySelectorAll('.leaflet-top').forEach(function(el) {
+          hideEls.push(el); // hides zoom (topleft) and topright controls (this button, terrain warning)
+        });
+        var popupPane = map.getContainer().querySelector('.leaflet-popup-pane');
+        if (popupPane) hideEls.push(popupPane);
+
+        hideEls.forEach(function(el) { el.style.visibility = 'hidden'; });
+
+        var mapEl = document.getElementById('noise-map');
+
+        html2canvas(mapEl, {
+          useCORS: true,
+          allowTaint: false,
+          scale: window.devicePixelRatio || 1,
+          logging: false,
+          backgroundColor: '#ffffff',
+          imageTimeout: 20000
+        })
+        .then(function(canvas) {
+          return new Promise(function(resolve, reject) {
+            canvas.toBlob(function(blob) {
+              blob ? resolve(blob) : reject(new Error('toBlob returned null'));
+            }, 'image/jpeg', 0.92);
+          });
+        })
+        .then(function(blob) {
+          var d = new Date();
+          var dateStr = d.getFullYear() + '-' +
+            String(d.getMonth() + 1).padStart(2, '0') + '-' +
+            String(d.getDate()).padStart(2, '0');
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.download = 'noise-map-' + dateStr + '.jpg';
+          a.href = url;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function() { URL.revokeObjectURL(url); }, 4000);
+        })
+        .catch(function(err) {
+          console.error('[SaveJPG] Export failed:', err);
+          alert('Map export failed. See browser console for details.\n' + err.message);
+        })
+        .finally(function() {
+          hideEls.forEach(function(el) { el.style.visibility = ''; });
+          btn.innerHTML = origHTML;
+          btn.style.pointerEvents = '';
+          btn._saving = false;
+        });
+      }
+    })();
+    /* ── End Save JPG control ── */
 
   } /* end initMap */
 
