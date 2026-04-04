@@ -458,11 +458,42 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 .state-badge-vic { background:#fce7f3; color:#9d174d; }
 .state-badge-other { background:#fef3c7; color:#92400e; }
 
+/* Map right-click context menu */
+#mapCtxMenu {
+  position: fixed;
+  z-index: 99999;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  padding: 4px 0;
+  min-width: 130px;
+  font-size: 12px;
+  user-select: none;
+  display: none;
+}
+#mapCtxMenu .ctx-item {
+  padding: 7px 14px;
+  cursor: pointer;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+#mapCtxMenu .ctx-item:hover { background: #f3f4f6; }
+#mapCtxMenu .ctx-item.ctx-danger { color: #dc2626; }
+#mapCtxMenu .ctx-item.ctx-danger:hover { background: #fef2f2; }
+#mapCtxMenu .ctx-sep { height: 1px; background: #e5e7eb; margin: 3px 0; }
+
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" crossorigin="anonymous"/>
 </head>
 <body>
+
+<!-- Right-click context menu for map items -->
+<div id="mapCtxMenu"></div>
 
 <div id="pdfArea">
 
@@ -13782,6 +13813,45 @@ initCollapse();
             if (typeof openSrcPanel === 'function') openSrcPanel(capturedSi, cx, cy);
           };
         })(si));
+        /* Right-click context menu for source pins */
+        m.on('contextmenu', (function(capturedSi, capturedMode) {
+          return function(e) {
+            L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
+            var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
+            _showMapCtxMenu(cx, cy, [
+              { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
+                  if (sourcePins.length >= 20) { showToast('Maximum 20 sources reached.'); return; }
+                  var orig = sourcePins[capturedSi];
+                  var newPin = JSON.parse(JSON.stringify(orig));
+                  newPin.id = _newPinId();
+                  newPin.name = (orig.name || ('Source ' + (capturedSi + 1))) + ' (copy)';
+                  if (orig.lat !== null) {
+                    newPin.lat = orig.lat - 0.0002;
+                    newPin.lng = orig.lng + 0.0002;
+                  }
+                  sourcePins.push(newPin);
+                  window._refreshAllSourceMarkers();
+                  renderSourcePins();
+                  if (typeof updateAll === 'function') updateAll();
+                  if (typeof render === 'function') render();
+              }},
+              'sep',
+              { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
+                  if (sourcePins.length <= 1) { showToast('Cannot delete the only source.'); return; }
+                  if (!confirm('Delete source "' + (sourcePins[capturedSi].name || ('S' + (capturedSi + 1))) + '"?')) return;
+                  sourcePins.splice(capturedSi, 1);
+                  window._refreshAllSourceMarkers();
+                  window._subjectSiteLatlng = (sourcePins.length > 0 && sourcePins[0].lat !== null)
+                    ? { lat: sourcePins[0].lat, lng: sourcePins[0].lng } : null;
+                  if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
+                  renderSourcePins();
+                  if (typeof updateAll === 'function') updateAll();
+                  if (typeof render === 'function') render();
+              }}
+            ]);
+          };
+        })(si, mode));
         /* Source dot labels always remain visible regardless of receiver toggle */
         /* Set _subjectSiteLatlng when source_0 is placed */
         if (si === 0) window._subjectSiteLatlng = latlng;
@@ -15038,6 +15108,40 @@ initCollapse();
           _selectedBarrier = ub;
         });
 
+        // Right-click context menu for barriers
+        line.on('contextmenu', (function(capturedUb) {
+          return function(e) {
+            if (_drawingActive) return;
+            L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
+            var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
+            _showMapCtxMenu(cx, cy, [
+              { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
+                  var newUb = JSON.parse(JSON.stringify(capturedUb));
+                  newUb.id = 'barrier_' + Date.now();
+                  newUb.name = (capturedUb.name || 'Barrier') + ' (copy)';
+                  // Offset vertices by ~2m
+                  newUb.vertices = capturedUb.vertices.map(function(v) {
+                    return [v[0] - 0.00002, v[1] + 0.00002];
+                  });
+                  userBarriers.push(newUb);
+                  renderUserBarriers();
+                  rebuildBuildingsIndex();
+              }},
+              'sep',
+              { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
+                  if (!confirm('Delete barrier "' + (capturedUb.name || 'Barrier') + '"?')) return;
+                  var idx = userBarriers.indexOf(capturedUb);
+                  if (idx !== -1) userBarriers.splice(idx, 1);
+                  map.closePopup();
+                  _selectedBarrier = null;
+                  renderUserBarriers();
+                  rebuildBuildingsIndex();
+              }}
+            ]);
+          };
+        })(ub));
+
         line.addTo(barrierLayer);
       });
     }
@@ -15091,6 +15195,40 @@ initCollapse();
             });
           }, 50);
         });
+
+        // Right-click context menu for custom buildings
+        poly.on('contextmenu', (function(capturedCb) {
+          return function(e) {
+            if (_drawingActive) return;
+            L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
+            var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
+            _showMapCtxMenu(cx, cy, [
+              { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
+                  var newCb = JSON.parse(JSON.stringify(capturedCb));
+                  newCb.id = 'custom_' + Date.now();
+                  newCb.name = (capturedCb.name || 'Custom building') + ' (copy)';
+                  // Offset polygon vertices by ~2m
+                  newCb.polygon = capturedCb.polygon.map(function(v) {
+                    return [v[0] - 0.00002, v[1] + 0.00002];
+                  });
+                  customBuildings.push(newCb);
+                  renderCustomBuildings();
+                  rebuildBuildingsIndex();
+                  if (typeof render === 'function') render();
+              }},
+              'sep',
+              { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
+                  var idx = customBuildings.indexOf(capturedCb);
+                  if (idx !== -1) customBuildings.splice(idx, 1);
+                  map.closePopup();
+                  renderCustomBuildings();
+                  rebuildBuildingsIndex();
+                  if (typeof render === 'function') render();
+              }}
+            ]);
+          };
+        })(cb));
 
         customBuildingLayer.addLayer(poly);
       });
@@ -15438,6 +15576,43 @@ initCollapse();
           if (cancelBtn2) cancelBtn2.addEventListener('click', function() { map.closePopup(); });
         }, 50);
       });
+
+      // Right-click context menu for ground zones
+      poly.on('contextmenu', (function(capturedGz) {
+        return function(e) {
+          if (_drawingActive || _drawingGroundZone || _barrierDrawHandler) return;
+          L.DomEvent.stopPropagation(e);
+          L.DomEvent.preventDefault(e);
+          var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
+          _showMapCtxMenu(cx, cy, [
+            { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
+                var newGz = {
+                  id: 'gz_' + (++_gzIdCtr),
+                  name: (capturedGz.name || 'Ground zone') + ' (copy)',
+                  g: capturedGz.g,
+                  vertices: capturedGz.vertices.map(function(v) {
+                    return [v[0] - 0.00002, v[1] + 0.00002];
+                  })
+                };
+                _groundZones.push(newGz);
+                _renderGroundZone(newGz);
+                if (typeof render === 'function') render();
+                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+            }},
+            'sep',
+            { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
+                if (!confirm('Delete "' + (capturedGz.name || 'Ground zone') + '"?')) return;
+                var idx = _groundZones.indexOf(capturedGz);
+                if (idx !== -1) _groundZones.splice(idx, 1);
+                if (capturedGz._polygon) _groundZoneLayer.removeLayer(capturedGz._polygon);
+                map.closePopup();
+                if (typeof render === 'function') render();
+                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+            }}
+          ]);
+        };
+      })(gz));
+
       _groundZoneLayer.addLayer(poly);
       gz._polygon = poly;
     }
@@ -15494,6 +15669,65 @@ initCollapse();
         _renderGroundZone(obj);
       });
     };
+
+    /* ═══ Right-click context menu infrastructure ═══ */
+    var _ctxMenuEl = document.getElementById('mapCtxMenu');
+    var _ctxMenuOpen = false;
+    var _ctxMenuLastShown = 0; // timestamp — prevents map handler from hiding immediately
+
+    function _showMapCtxMenu(clientX, clientY, items) {
+      if (!_ctxMenuEl) return;
+      // Build inner HTML from items array [{label, icon, cls, action}]
+      var html = '';
+      items.forEach(function(item) {
+        if (item === 'sep') {
+          html += '<div class="ctx-sep"></div>';
+        } else {
+          html += '<div class="ctx-item' + (item.cls ? ' ' + item.cls : '') + '" data-action="' + item.id + '">';
+          if (item.icon) html += '<span style="font-size:13px;line-height:1;">' + item.icon + '</span>';
+          html += escapeHTML(item.label) + '</div>';
+        }
+      });
+      _ctxMenuEl.innerHTML = html;
+      _ctxMenuEl.style.display = 'block';
+
+      // Position near cursor, keeping inside viewport
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var menuW = 150, menuH = items.length * 32 + 8;
+      var left = Math.min(clientX, vw - menuW - 8);
+      var top  = Math.min(clientY, vh - menuH - 8);
+      _ctxMenuEl.style.left = left + 'px';
+      _ctxMenuEl.style.top  = top  + 'px';
+      _ctxMenuOpen = true;
+      _ctxMenuLastShown = Date.now();
+
+      // Wire up click actions
+      items.forEach(function(item) {
+        if (item === 'sep' || !item.action) return;
+        var el = _ctxMenuEl.querySelector('[data-action="' + item.id + '"]');
+        if (el) el.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          _hideMapCtxMenu();
+          item.action();
+        });
+      });
+    }
+
+    function _hideMapCtxMenu() {
+      if (_ctxMenuEl) _ctxMenuEl.style.display = 'none';
+      _ctxMenuOpen = false;
+    }
+
+    // Dismiss on any map click or Escape
+    map.on('click', function() { if (_ctxMenuOpen) _hideMapCtxMenu(); });
+    // Suppress native map context menu; guard against hiding a menu just opened by a layer
+    map.on('contextmenu', function() { if (Date.now() - _ctxMenuLastShown > 100) _hideMapCtxMenu(); });
+    document.addEventListener('click', function(e) {
+      if (_ctxMenuOpen && _ctxMenuEl && !_ctxMenuEl.contains(e.target)) _hideMapCtxMenu();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && _ctxMenuOpen) { e.stopPropagation(); _hideMapCtxMenu(); }
+    }, true);
 
     /* ═══ Keyboard Delete for selected barrier ═══ */
     document.addEventListener('keydown', function(e) {
