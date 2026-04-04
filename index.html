@@ -3427,7 +3427,7 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   } else {
     // No spectrum: simple point source propagation with opTime weighting
     var lwW = lwVal + adjDB;
-    if (barrierDelta > 0 || endDeltaL > 0 || endDeltaR > 0 || terrainPerBand || _barrierInGap) {
+    if (barrierDelta > 0 || endDeltaL > 0 || endDeltaR > 0 || terrainPerBand || _barrierInGap || _groundZones.length > 0) {
       var flatSpec = [];
       for (var b = 0; b < 8; b++) flatSpec.push(lwW - 9.03);
 

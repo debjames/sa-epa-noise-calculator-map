@@ -556,6 +556,29 @@ self.onmessage = function(e) {
             if (terrIL > buildingIL_broadband && isFinite(lp)) {
               lp -= (terrIL - buildingIL_broadband);
             }
+          } else if (method === 'iso9613' && groundZones.length > 0) {
+            // ISO without spectrum but with ground zones: use flat spectrum so G is applied
+            var flatWk = [];
+            for (var fb = 0; fb < 8; fb++) flatWk.push(src.combinedLw - 9.03);
+            var _pathGWS = _wkPathG(src.lat, src.lng, lat, lng, src.heightM, recvHeight, dist);
+            var isoParamsFlatWk = { receiverHeight: recvHeight, groundFactor: _pathGWS,
+                temperature: isoParams.temperature, humidity: isoParams.humidity };
+            var _bBaseWS = _barrierW ? (_barrierW.baseHeightM || 0) : 0;
+            var _bGapWS  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
+            if (_bBaseWS > 0 && _bGapWS > 0 && !(_barrierW && _barrierW.rayInGap)) {
+              var lp_tS = calcISOatPoint(flatWk, src.heightM, dist, 0,
+                barrierDelta, recvHeight, isoParamsFlatWk, endDeltaLeft, endDeltaRight);
+              var lp_gS = calcISOatPoint(flatWk, src.heightM, dist, 0,
+                _bGapWS, recvHeight, isoParamsFlatWk, 0, 0);
+              lp = (!isFinite(lp_tS)) ? lp_gS : (!isFinite(lp_gS)) ? lp_tS
+                 : 10 * Math.log10(Math.pow(10, lp_tS / 10) + Math.pow(10, lp_gS / 10));
+            } else {
+              lp = calcISOatPoint(flatWk, src.heightM, dist, 0,
+                barrierDelta, recvHeight, isoParamsFlatWk, endDeltaLeft, endDeltaRight);
+            }
+            if (terrIL > buildingIL_broadband && isFinite(lp)) {
+              lp -= (terrIL - buildingIL_broadband);
+            }
           } else {
             // Simple: max of building IL and terrain IL
             var effectiveIL = Math.max(buildingIL_broadband, terrIL);
