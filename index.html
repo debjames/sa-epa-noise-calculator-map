@@ -13827,8 +13827,8 @@ initCollapse();
                   newPin.id = _newPinId();
                   newPin.name = (orig.name || ('Source ' + (capturedSi + 1))) + ' (copy)';
                   if (orig.lat !== null) {
-                    newPin.lat = orig.lat - 0.0002;
-                    newPin.lng = orig.lng + 0.0002;
+                    newPin.lat = orig.lat - 0.00002;
+                    newPin.lng = orig.lng + 0.00002;
                   }
                   sourcePins.push(newPin);
                   window._refreshAllSourceMarkers();
