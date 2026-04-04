@@ -47,6 +47,73 @@ self.onmessage = function(e) {
     var lmaxMethod = opts.lmaxMethod || 'simple'; // 'simple'|'iso9613_g0'|'iso9613_g_sel'
     var isLmaxSimple = (period === 'lmax') && (lmaxMethod === 'simple');
     var reflectionsEnabled = !!opts.reflectionsEnabled;
+    var groundZones = opts.groundZones || []; // [{g, vertices:[[lat,lng],...]}]
+
+    /* ── Ground zone geometry helpers (mirror of index.html) ── */
+    function _wkPointInPoly(lat, lng, verts) {
+      var inside = false, n = verts.length;
+      for (var i = 0, j = n - 1; i < n; j = i++) {
+        var yi = verts[i][0], xi = verts[i][1];
+        var yj = verts[j][0], xj = verts[j][1];
+        if ((yi > lat) !== (yj > lat) &&
+            lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    }
+    function _wkSegCrossTs(lat0, lng0, lat1, lng1, verts) {
+      var ts = [], n = verts.length;
+      var dx = lat1 - lat0, dy = lng1 - lng0;
+      for (var i = 0, j = n - 1; i < n; j = i++) {
+        var ax = verts[j][0], ay = verts[j][1];
+        var bx = verts[i][0], by = verts[i][1];
+        var ex = bx - ax, ey = by - ay;
+        var denom = dx * ey - dy * ex;
+        if (Math.abs(denom) < 1e-15) continue;
+        var t = ((ax - lat0) * ey - (ay - lng0) * ex) / denom;
+        var s = ((ax - lat0) * dy - (ay - lng0) * dx) / denom;
+        if (t > 1e-10 && t < 1 - 1e-10 && s >= 0 && s <= 1) ts.push(t);
+      }
+      ts.sort(function(a, b) { return a - b; });
+      return ts;
+    }
+    function _wkWeightedG(lat0, lng0, lat1, lng1, t0, t1, defaultG) {
+      if (!groundZones.length || t1 <= t0) return defaultG;
+      var allTs = [t0, t1];
+      for (var zi = 0; zi < groundZones.length; zi++) {
+        var cts = _wkSegCrossTs(lat0, lng0, lat1, lng1, groundZones[zi].vertices);
+        for (var ci = 0; ci < cts.length; ci++) {
+          var ct = cts[ci];
+          if (ct > t0 && ct < t1) allTs.push(ct);
+        }
+      }
+      allTs.sort(function(a, b) { return a - b; });
+      var totalLen = 0, wG = 0;
+      for (var k = 0; k < allTs.length - 1; k++) {
+        var ta = allTs[k], tb = allTs[k + 1];
+        if (tb <= ta) continue;
+        var segLen = tb - ta;
+        var midT = (ta + tb) / 2;
+        var mLat = lat0 + midT * (lat1 - lat0);
+        var mLng = lng0 + midT * (lng1 - lng0);
+        var g = defaultG;
+        for (var z = 0; z < groundZones.length; z++) {
+          if (_wkPointInPoly(mLat, mLng, groundZones[z].vertices)) { g = groundZones[z].g; break; }
+        }
+        totalLen += segLen; wG += segLen * g;
+      }
+      return totalLen > 0 ? wG / totalLen : defaultG;
+    }
+    function _wkPathG(srcLat, srcLng, recLat, recLng, srcH, recH, distM) {
+      if (!groundZones.length) return isoParams.groundFactor || 0.5;
+      var dp = distM, dG = isoParams.groundFactor || 0.5;
+      var t_sEnd   = Math.max(0, Math.min(1, Math.min(30 * srcH, dp / 2) / dp));
+      var t_rStart = Math.max(0, Math.min(1, Math.max(dp - 30 * recH, dp / 2) / dp));
+      return {
+        Gs: _wkWeightedG(srcLat, srcLng, recLat, recLng, 0,        t_sEnd,   dG),
+        Gm: _wkWeightedG(srcLat, srcLng, recLat, recLng, t_sEnd,   t_rStart, dG),
+        Gr: _wkWeightedG(srcLat, srcLng, recLat, recLng, t_rStart, 1,        dG)
+      };
+    }
 
     if (debugTerrain) {
       if (terrainEnabled && demCache && demCache.length > 0) {
@@ -466,18 +533,24 @@ self.onmessage = function(e) {
             lp = attenuatePoint(src.combinedLw, dist) - effectiveIL_lmax;
           } else if (method === 'iso9613' && src.spectrum) {
             // ISO: compute propagation level, then apply terrain excess over building IL
+            // Compute per-region ground G from custom zones for this src→gridpoint path
+            var _pathGW = _wkPathG(src.lat, src.lng, lat, lng, src.heightM, recvHeight, dist);
+            var isoParamsSrc = (_pathGW === (isoParams.groundFactor || 0.5))
+              ? isoParams
+              : { receiverHeight: recvHeight, groundFactor: _pathGW,
+                  temperature: isoParams.temperature, humidity: isoParams.humidity };
             var _bBaseWI = _barrierW ? (_barrierW.baseHeightM || 0) : 0;
             var _bGapWI  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
             if (_bBaseWI > 0 && _bGapWI > 0 && !(_barrierW && _barrierW.rayInGap)) {
               var lp_tI = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight);
+                barrierDelta, recvHeight, isoParamsSrc, endDeltaLeft, endDeltaRight);
               var lp_gI = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                _bGapWI, recvHeight, isoParams, 0, 0);
+                _bGapWI, recvHeight, isoParamsSrc, 0, 0);
               lp = (!isFinite(lp_tI)) ? lp_gI : (!isFinite(lp_gI)) ? lp_tI
                  : 10 * Math.log10(Math.pow(10, lp_tI / 10) + Math.pow(10, lp_gI / 10));
             } else {
               lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight);
+                barrierDelta, recvHeight, isoParamsSrc, endDeltaLeft, endDeltaRight);
             }
             // Apply smoothed terrain IL where it exceeds the already-applied building IL
             if (terrIL > buildingIL_broadband && isFinite(lp)) {

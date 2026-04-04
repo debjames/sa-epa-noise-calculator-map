@@ -575,6 +575,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
                 <button class="mp-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
                 <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building</button>
                 <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier</button>
+                <button class="mp-btn" id="drawGroundZoneBtn" title="Draw a ground absorption zone polygon (overrides default G value for propagation paths passing through it)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17 Q8 11 12 14 Q16 17 21 11"/><path d="M3 21h18" stroke-dasharray="2 2"/></svg> Ground zone</button>
                 <div class="mp-sep"></div>
                 <button class="mp-btn" id="reflectionsBtn" title="Apply ISO 9613-2 §7.5 image source facade reflections to receiver predictions and noise map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections</button>
                 <span id="reflectionsBuildingWarning" style="display:none;font-size:10px;color:#fbbf24;padding:2px 8px;white-space:normal;line-height:1.4;">&#9888; Enable Buildings layer to apply reflections to noise map</span>
@@ -3169,6 +3170,106 @@ let propagationMethod = 'simple'; // 'simple' | 'iso9613'
 // ISO 9613-2 default parameters
 let iso_receiverHeight = 1.5; // metres (standard receiver height)
 let iso_groundFactor = 0.5;   // G: 0=hard, 0.5=mixed, 1.0=soft/porous
+
+// ── Ground absorption zones ──────────────────────────────────────────────────
+// Each zone: {id, name, g, vertices: [[lat,lng],...], _polygon (Leaflet ref)}
+var _groundZones = [];
+var _gzIdCtr = 0;
+
+/** Colour helpers — interpolate grey/blue (G=0, hard) → green (G=1, soft). */
+function _gzFillColor(g) {
+  var r  = Math.round(100 - g * 20);
+  var gr = Math.round(120 + g * 40);
+  var b  = Math.round(160 - g * 80);
+  return 'rgba(' + r + ',' + gr + ',' + b + ',0.25)';
+}
+function _gzBorderColor(g) {
+  var r  = Math.round(70  - g * 14);
+  var gr = Math.round(85  + g * 28);
+  var b  = Math.round(112 - g * 56);
+  return 'rgba(' + r + ',' + gr + ',' + b + ',0.75)';
+}
+
+/** Ray-casting point-in-polygon (lat/lng). verts = [[lat,lng],...] */
+function _gzPointInPoly(lat, lng, verts) {
+  var inside = false, n = verts.length;
+  for (var i = 0, j = n - 1; i < n; j = i++) {
+    var yi = verts[i][0], xi = verts[i][1];
+    var yj = verts[j][0], xj = verts[j][1];
+    if ((yi > lat) !== (yj > lat) &&
+        lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Return sorted t-values in (0,1) where segment (lat0,lng0)→(lat1,lng1)
+ *  crosses any edge of the polygon defined by verts. */
+function _gzSegCrossTs(lat0, lng0, lat1, lng1, verts) {
+  var ts = [];
+  var n = verts.length;
+  var dx = lat1 - lat0, dy = lng1 - lng0;
+  for (var i = 0, j = n - 1; i < n; j = i++) {
+    var ax = verts[j][0], ay = verts[j][1];
+    var bx = verts[i][0], by = verts[i][1];
+    var ex = bx - ax, ey = by - ay;
+    var denom = dx * ey - dy * ex;
+    if (Math.abs(denom) < 1e-15) continue;
+    var t = ((ax - lat0) * ey - (ay - lng0) * ex) / denom;
+    var s = ((ax - lat0) * dy - (ay - lng0) * dx) / denom;
+    if (t > 1e-10 && t < 1 - 1e-10 && s >= 0 && s <= 1) ts.push(t);
+  }
+  ts.sort(function(a, b) { return a - b; });
+  return ts;
+}
+
+/** Length-weighted average G for the path fraction [t0,t1] across all zones.
+ *  defaultG is used for any sub-segment not covered by a zone. */
+function _gzWeightedG(lat0, lng0, lat1, lng1, t0, t1, defaultG, zones) {
+  if (!zones || zones.length === 0 || t1 <= t0) return defaultG;
+  var allTs = [t0, t1];
+  for (var zi = 0; zi < zones.length; zi++) {
+    var crossTs = _gzSegCrossTs(lat0, lng0, lat1, lng1, zones[zi].vertices);
+    for (var ci = 0; ci < crossTs.length; ci++) {
+      var ct = crossTs[ci];
+      if (ct > t0 && ct < t1) allTs.push(ct);
+    }
+  }
+  allTs.sort(function(a, b) { return a - b; });
+  var totalLen = 0, weightedG = 0;
+  for (var i = 0; i < allTs.length - 1; i++) {
+    var ta = allTs[i], tb = allTs[i + 1];
+    if (tb <= ta) continue;
+    var segLen = tb - ta;
+    var midT = (ta + tb) / 2;
+    var midLat = lat0 + midT * (lat1 - lat0);
+    var midLng = lng0 + midT * (lng1 - lng0);
+    var g = defaultG;
+    for (var z = 0; z < zones.length; z++) {
+      if (_gzPointInPoly(midLat, midLng, zones[z].vertices)) {
+        g = zones[z].g; break; // first matching zone wins
+      }
+    }
+    totalLen += segLen;
+    weightedG += segLen * g;
+  }
+  return totalLen > 0 ? weightedG / totalLen : defaultG;
+}
+
+/** Compute {Gs, Gm, Gr} for a source→receiver path using the global ground zones.
+ *  Returns the scalar iso_groundFactor (fast path) when no zones are defined. */
+function _gzComputePathG(srcLat, srcLng, recLat, recLng, srcH, recH, distM) {
+  if (_groundZones.length === 0) return iso_groundFactor;
+  var dp = distM;
+  var t_sEnd = Math.max(0, Math.min(1, Math.min(30 * srcH, dp / 2) / dp));
+  var t_rStart = Math.max(0, Math.min(1, Math.max(dp - 30 * recH, dp / 2) / dp));
+  var dG = iso_groundFactor;
+  var Gs = _gzWeightedG(srcLat, srcLng, recLat, recLng, 0, t_sEnd, dG, _groundZones);
+  var Gm = _gzWeightedG(srcLat, srcLng, recLat, recLng, t_sEnd, t_rStart, dG, _groundZones);
+  var Gr = _gzWeightedG(srcLat, srcLng, recLat, recLng, t_rStart, 1, dG, _groundZones);
+  return { Gs: Gs, Gm: Gm, Gr: Gr };
+}
 let iso_temperature = 10;     // °C
 let iso_humidity = 70;        // % RH
 
@@ -3197,18 +3298,19 @@ function getReceiverHeight(receiverIdx) {
  *  @param {number} distM - distance source to receiver (m)
  *  @param {number} adjDB - adjustment to apply to each band (quantity + opTime + barrier, in dB)
  *  @returns {number} predicted LAeq at receiver */
-function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recvHeight, endDeltaLeft, endDeltaRight, terrainPerBand) {
+function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recvHeight, endDeltaLeft, endDeltaRight, terrainPerBand, groundFactorOverride) {
   var hR = (recvHeight !== undefined && Number.isFinite(recvHeight)) ? recvHeight : iso_receiverHeight;
+  var gf = (groundFactorOverride !== undefined && groundFactorOverride !== null) ? groundFactorOverride : iso_groundFactor;
   var result = SharedCalc.calcISOatPoint(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
     temperature: iso_temperature,
     humidity: iso_humidity,
-    groundFactor: iso_groundFactor
+    groundFactor: gf
   }, endDeltaLeft || 0, endDeltaRight || 0);
 
   // Apply per-band terrain IL where it exceeds building barrier IL
   if (terrainPerBand && Number.isFinite(result)) {
     var detailed = SharedCalc.calcISOatPointDetailed(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
-      temperature: iso_temperature, humidity: iso_humidity, groundFactor: iso_groundFactor
+      temperature: iso_temperature, humidity: iso_humidity, groundFactor: gf
     }, endDeltaLeft || 0, endDeltaRight || 0);
     if (detailed && detailed.bands) {
       var correctedLin = 0;
@@ -3288,6 +3390,16 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
     if (til.perBand && til.insertionLoss_dB > 0) terrainPerBand = til.perBand;
   }
 
+  // Per-region ground G from custom zones (falls back to scalar iso_groundFactor if none)
+  var _pathG = iso_groundFactor;
+  if (_groundZones.length > 0 && receiverIdx !== undefined) {
+    var _allLL2 = window._getAllLatLngs ? window._getAllLatLngs() : {};
+    var _recLL2 = _allLL2['r' + (receiverIdx + 1)];
+    if (_recLL2) {
+      _pathG = _gzComputePathG(pin.lat, pin.lng, _recLL2.lat, _recLL2.lng, srcHeight, recHeight, distM);
+    }
+  }
+
   var spectrumA = pin.spectrum ? pin.spectrum[prefix] : null;
   var hasSpectrum = spectrumA && Array.isArray(spectrumA) &&
     spectrumA.some(function(v) { return v !== null && Number.isFinite(v) && v !== 0; });
@@ -3303,36 +3415,33 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
     if (_barrierBaseH > 0 && _barrierGapDlt > 0) {
       // Floating barrier: energy-combine over-top and gap paths
       if (_barrierInGap) {
-        // Ray passes through gap — gap path only
-        return calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, _barrierGapDlt, recHeight, 0, 0, terrainPerBand);
+        return calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, _barrierGapDlt, recHeight, 0, 0, terrainPerBand, _pathG);
       }
-      var lp_top = calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
-      var lp_gap = calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, _barrierGapDlt, recHeight, 0, 0, terrainPerBand);
+      var lp_top = calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand, _pathG);
+      var lp_gap = calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, _barrierGapDlt, recHeight, 0, 0, terrainPerBand, _pathG);
       if (!isFinite(lp_top)) return lp_gap;
       if (!isFinite(lp_gap)) return lp_top;
       return 10 * Math.log10(Math.pow(10, lp_top / 10) + Math.pow(10, lp_gap / 10));
     }
-    // Ground-mounted or no floating: standard
-    return calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
+    return calcISO9613single(spectrumA, srcHeight, distM, adjDB + specAdj, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand, _pathG);
   } else {
     // No spectrum: simple point source propagation with opTime weighting
     var lwW = lwVal + adjDB;
     if (barrierDelta > 0 || endDeltaL > 0 || endDeltaR > 0 || terrainPerBand || _barrierInGap) {
-      // Flat A-weighted spectrum: distribute lwW equally across 8 bands
       var flatSpec = [];
-      for (var b = 0; b < 8; b++) flatSpec.push(lwW - 9.03); // -9.03 so sum = lwW
+      for (var b = 0; b < 8; b++) flatSpec.push(lwW - 9.03);
 
       if (_barrierBaseH > 0 && _barrierGapDlt > 0) {
         if (_barrierInGap) {
-          return calcISO9613single(flatSpec, srcHeight, distM, 0, _barrierGapDlt, recHeight, 0, 0, terrainPerBand);
+          return calcISO9613single(flatSpec, srcHeight, distM, 0, _barrierGapDlt, recHeight, 0, 0, terrainPerBand, _pathG);
         }
-        var lp_top2 = calcISO9613single(flatSpec, srcHeight, distM, 0, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
-        var lp_gap2 = calcISO9613single(flatSpec, srcHeight, distM, 0, _barrierGapDlt, recHeight, 0, 0, terrainPerBand);
+        var lp_top2 = calcISO9613single(flatSpec, srcHeight, distM, 0, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand, _pathG);
+        var lp_gap2 = calcISO9613single(flatSpec, srcHeight, distM, 0, _barrierGapDlt, recHeight, 0, 0, terrainPerBand, _pathG);
         if (!isFinite(lp_top2)) return lp_gap2;
         if (!isFinite(lp_gap2)) return lp_top2;
         return 10 * Math.log10(Math.pow(10, lp_top2 / 10) + Math.pow(10, lp_gap2 / 10));
       }
-      return calcISO9613single(flatSpec, srcHeight, distM, 0, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand);
+      return calcISO9613single(flatSpec, srcHeight, distM, 0, barrierDelta, recHeight, endDeltaL, endDeltaR, terrainPerBand, _pathG);
     }
     return attenuatePoint(lwW, distM);
   }
@@ -9679,6 +9788,14 @@ initCollapse();
           });
         }
 
+        // Ground absorption zones
+        var gzones = window._getGroundZones ? window._getGroundZones() : [];
+        if (gzones.length > 0) {
+          data.groundZones = gzones.map(function(gz) {
+            return { id: gz.id, name: gz.name, g: gz.g, vertices: gz.vertices };
+          });
+        }
+
         // Demolished OSM buildings (separate list for clarity)
         var demolished = [];
         if (window._buildings) {
@@ -10534,6 +10651,11 @@ initCollapse();
       // Restore user-drawn barriers
       if (data.userBarriers && data.userBarriers.length > 0 && window._setUserBarriers) {
         window._setUserBarriers(data.userBarriers);
+      }
+
+      // Restore ground absorption zones
+      if (data.groundZones && data.groundZones.length > 0 && window._setGroundZones) {
+        window._setGroundZones(data.groundZones);
       }
 
       // 16. Re-render detected zones panel for VIC
@@ -14325,6 +14447,7 @@ initCollapse();
     /* ═══ Custom Buildings (drawn by user) ═══ */
     var customBuildings = [];
     var customBuildingLayer = L.layerGroup().addTo(map);
+    var _groundZoneLayer = L.layerGroup().addTo(map); // ground absorption zones (below buildings)
 
     var CUSTOM_STYLE = {
       color: '#922b21', fillColor: '#c0392b', fillOpacity: 0.45,
@@ -14707,6 +14830,8 @@ initCollapse();
     // Draw Building button
     var drawBuildingBtn = document.getElementById('drawBuildingBtn');
     var _drawHandler = null;
+    var _gzDrawHandler = null;
+    var _drawingGroundZone = false;
     if (drawBuildingBtn && typeof L.Draw !== 'undefined') {
       function stopDrawing() {
         _drawingActive = false;
@@ -14817,6 +14942,74 @@ initCollapse();
           return;
         }
         if (e.layerType !== 'polygon') return;
+
+        // ── Ground zone branch ──────────────────────────────────────────────
+        if (_drawingGroundZone) {
+          _drawingGroundZone = false;
+          _gzDrawHandler = null;
+          _drawingActive = false;
+          var _gzBtn = document.getElementById('drawGroundZoneBtn');
+          if (_gzBtn) _gzBtn.classList.remove('active');
+
+          var gzVerts = e.layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+          var gzCtr   = e.layer.getBounds().getCenter();
+
+          var gzHtml = '<div style="min-width:220px;font-size:13px;">';
+          gzHtml += '<b>Ground zone</b><br>';
+          gzHtml += '<div style="margin:6px 0;">';
+          gzHtml += 'Name: <input type="text" id="newGzName" placeholder="e.g. Car park" style="width:140px;padding:2px 4px;font-size:12px;"><br><br>';
+          gzHtml += '<label style="font-size:12px;">Ground absorption G:</label><br>';
+          gzHtml += '<select id="newGzGSel" style="width:170px;font-size:12px;padding:2px 4px;margin-top:2px;">';
+          gzHtml += '<option value="0">0.0 — Hard (concrete, asphalt, water)</option>';
+          gzHtml += '<option value="0.5" selected>0.5 — Mixed</option>';
+          gzHtml += '<option value="1">1.0 — Soft (grass, soil, crops)</option>';
+          gzHtml += '<option value="custom">Custom…</option>';
+          gzHtml += '</select>';
+          gzHtml += '<div id="newGzCustomRow" style="display:none;margin-top:4px;">';
+          gzHtml += 'Custom G (0 – 1): <input type="number" id="newGzCustomG" min="0" max="1" step="0.05" value="0.5" style="width:60px;padding:2px 4px;font-size:12px;">';
+          gzHtml += '</div>';
+          gzHtml += '</div>';
+          gzHtml += '<button id="newGzAdd" style="font-size:11px;padding:2px 8px;cursor:pointer;">Add zone</button> ';
+          gzHtml += '<button id="newGzCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button>';
+          gzHtml += '</div>';
+
+          L.popup({ maxWidth: 300, closeOnClick: false })
+            .setLatLng(gzCtr).setContent(gzHtml).openOn(map);
+
+          setTimeout(function() {
+            var selEl = document.getElementById('newGzGSel');
+            var custRow = document.getElementById('newGzCustomRow');
+            if (selEl && custRow) {
+              selEl.addEventListener('change', function() {
+                custRow.style.display = this.value === 'custom' ? 'block' : 'none';
+              });
+            }
+            var addBtnGz = document.getElementById('newGzAdd');
+            var cancelBtnGz = document.getElementById('newGzCancel');
+            if (addBtnGz) addBtnGz.addEventListener('click', function() {
+              var selVal = document.getElementById('newGzGSel').value;
+              var gVal;
+              if (selVal === 'custom') {
+                gVal = parseFloat(document.getElementById('newGzCustomG').value);
+                if (!Number.isFinite(gVal)) gVal = 0.5;
+                gVal = Math.max(0, Math.min(1, gVal));
+              } else {
+                gVal = parseFloat(selVal);
+              }
+              var gzName = (document.getElementById('newGzName').value || '').trim() || ('Ground zone ' + (_gzIdCtr + 1));
+              var gz = { id: 'gz_' + (++_gzIdCtr), name: gzName, g: gVal, vertices: gzVerts };
+              _groundZones.push(gz);
+              _renderGroundZone(gz);
+              map.closePopup();
+              if (typeof render === 'function') render();
+              if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+            });
+            if (cancelBtnGz) cancelBtnGz.addEventListener('click', function() { map.closePopup(); });
+          }, 50);
+          return;
+        }
+
+        // ── Building branch ─────────────────────────────────────────────────
         stopDrawing();
 
         var latLngs = e.layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
@@ -14897,6 +15090,141 @@ initCollapse();
         drawBarrierBtn.classList.add('active');
       });
     }
+
+    /* ═══ Ground Zone rendering & button ═══ */
+
+    /** Render (or re-render) a ground zone polygon on the map. */
+    function _renderGroundZone(gz) {
+      // Remove existing polygon if re-rendering
+      if (gz._polygon) { _groundZoneLayer.removeLayer(gz._polygon); gz._polygon = null; }
+      var fillColor   = _gzFillColor(gz.g);
+      var strokeColor = _gzBorderColor(gz.g);
+      var poly = L.polygon(gz.vertices, {
+        color: strokeColor, weight: 1.5, dashArray: '6 4',
+        fillColor: fillColor, fillOpacity: 0.25, interactive: true
+      });
+      poly.bindTooltip(
+        '<b>' + (gz.name || 'Ground zone') + '</b><br>G = ' + gz.g.toFixed(2) +
+        '<br><span style="font-size:11px;color:#555;">' +
+        (gz.g === 0 ? 'Hard (concrete, asphalt)' : gz.g >= 1 ? 'Soft (grass, soil)' : 'Mixed') + '</span>',
+        { sticky: true, opacity: 0.9 }
+      );
+      poly.on('click', function(ev) {
+        if (_drawingActive || _drawingGroundZone || _barrierDrawHandler) return;
+        L.DomEvent.stopPropagation(ev);
+        var eHtml = '<div style="min-width:220px;font-size:13px;">';
+        eHtml += '<b>Edit ground zone</b><br>';
+        eHtml += '<div style="margin:6px 0;">';
+        eHtml += 'Name: <input type="text" id="editGzName" value="' + (gz.name || '').replace(/"/g,'&quot;') + '" style="width:140px;padding:2px 4px;font-size:12px;"><br><br>';
+        eHtml += '<label style="font-size:12px;">Ground absorption G:</label><br>';
+        eHtml += '<select id="editGzGSel" style="width:170px;font-size:12px;padding:2px 4px;margin-top:2px;">';
+        eHtml += '<option value="0"' + (gz.g===0?' selected':'') + '>0.0 — Hard</option>';
+        eHtml += '<option value="0.5"' + (gz.g===0.5?' selected':'') + '>0.5 — Mixed</option>';
+        eHtml += '<option value="1"' + (gz.g===1?' selected':'') + '>1.0 — Soft</option>';
+        var isCustom = gz.g !== 0 && gz.g !== 0.5 && gz.g !== 1;
+        eHtml += '<option value="custom"' + (isCustom?' selected':'') + '>Custom…</option>';
+        eHtml += '</select>';
+        eHtml += '<div id="editGzCustomRow" style="display:' + (isCustom?'block':'none') + ';margin-top:4px;">';
+        eHtml += 'Custom G (0–1): <input type="number" id="editGzCustomG" min="0" max="1" step="0.05" value="' + gz.g + '" style="width:60px;padding:2px 4px;font-size:12px;">';
+        eHtml += '</div></div>';
+        eHtml += '<button id="editGzSave" style="font-size:11px;padding:2px 8px;cursor:pointer;">Save</button> ';
+        eHtml += '<button id="editGzDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#dc2626;">Delete</button> ';
+        eHtml += '<button id="editGzCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button>';
+        eHtml += '</div>';
+        L.popup({ maxWidth: 300, closeOnClick: false })
+          .setLatLng(ev.latlng).setContent(eHtml).openOn(map);
+        setTimeout(function() {
+          var selEl2 = document.getElementById('editGzGSel');
+          var custRow2 = document.getElementById('editGzCustomRow');
+          if (selEl2 && custRow2) selEl2.addEventListener('change', function() {
+            custRow2.style.display = this.value === 'custom' ? 'block' : 'none';
+          });
+          var saveBtn = document.getElementById('editGzSave');
+          if (saveBtn) saveBtn.addEventListener('click', function() {
+            var sv = document.getElementById('editGzGSel').value;
+            var gv;
+            if (sv === 'custom') {
+              gv = parseFloat(document.getElementById('editGzCustomG').value);
+              if (!Number.isFinite(gv)) gv = 0.5;
+              gv = Math.max(0, Math.min(1, gv));
+            } else { gv = parseFloat(sv); }
+            gz.g = gv;
+            gz.name = (document.getElementById('editGzName').value || '').trim() || gz.name;
+            _renderGroundZone(gz);
+            map.closePopup();
+            if (typeof render === 'function') render();
+            if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+          });
+          var delBtn = document.getElementById('editGzDelete');
+          if (delBtn) delBtn.addEventListener('click', function() {
+            if (!confirm('Delete "' + gz.name + '"?')) return;
+            var idx = _groundZones.indexOf(gz);
+            if (idx !== -1) _groundZones.splice(idx, 1);
+            if (gz._polygon) _groundZoneLayer.removeLayer(gz._polygon);
+            map.closePopup();
+            if (typeof render === 'function') render();
+            if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+          });
+          var cancelBtn2 = document.getElementById('editGzCancel');
+          if (cancelBtn2) cancelBtn2.addEventListener('click', function() { map.closePopup(); });
+        }, 50);
+      });
+      _groundZoneLayer.addLayer(poly);
+      gz._polygon = poly;
+    }
+
+    /* Draw Ground Zone button */
+    var drawGroundZoneBtn = document.getElementById('drawGroundZoneBtn');
+    if (drawGroundZoneBtn && typeof L.Draw !== 'undefined') {
+      drawGroundZoneBtn.addEventListener('click', function() {
+        if (_gzDrawHandler) {
+          _gzDrawHandler.disable();
+          _gzDrawHandler = null;
+          _drawingGroundZone = false;
+          _drawingActive = false;
+          drawGroundZoneBtn.classList.remove('active');
+          return;
+        }
+        // Cancel any other drawing in progress
+        if (_drawHandler) { _drawHandler.disable(); stopDrawing(); }
+        if (_barrierDrawHandler) {
+          _barrierDrawHandler.disable(); _barrierDrawHandler = null;
+          _drawingActive = false;
+          var dbBtn = document.getElementById('drawBarrierBtn');
+          if (dbBtn) dbBtn.classList.remove('active');
+        }
+        _drawingActive = true;
+        _drawingGroundZone = true;
+        document.querySelectorAll('.map-mode-btn').forEach(function(b) { b.classList.remove('active'); });
+        _gzDrawHandler = new L.Draw.Polygon(map, {
+          shapeOptions: {
+            color: 'rgba(70,85,112,0.75)', weight: 1.5, dashArray: '6 4',
+            fillColor: 'rgba(100,120,160,0.2)', fillOpacity: 0.25
+          },
+          showArea: false
+        });
+        _gzDrawHandler.enable();
+        drawGroundZoneBtn.classList.add('active');
+      });
+    }
+
+    /* Window exports for ground zones */
+    window._getGroundZones = function() { return _groundZones; };
+    window._setGroundZones = function(arr) {
+      // Clear existing
+      _groundZoneLayer.clearLayers();
+      _groundZones.length = 0;
+      if (!arr) return;
+      arr.forEach(function(gz) {
+        var obj = { id: gz.id, name: gz.name, g: gz.g, vertices: gz.vertices };
+        _groundZones.push(obj);
+        if (gz.id) {
+          var num = parseInt(gz.id.replace('gz_',''));
+          if (Number.isFinite(num) && num > _gzIdCtr) _gzIdCtr = num;
+        }
+        _renderGroundZone(obj);
+      });
+    };
 
     /* ═══ Keyboard Delete for selected barrier ═══ */
     document.addEventListener('keydown', function(e) {
@@ -15556,7 +15884,10 @@ initCollapse();
         debugTerrain: !!window._debugTerrain,
         period: _noiseMapPeriod || 'day',
         lmaxMethod: _lmaxMethod || 'simple',
-        reflectionsEnabled: !!_reflectionsOn
+        reflectionsEnabled: !!_reflectionsOn,
+        groundZones: (window._getGroundZones ? window._getGroundZones() : []).map(function(gz) {
+          return { g: gz.g, vertices: gz.vertices };
+        })
       });
 
       // Diagnostic: confirm DEM cache contents reaching worker
