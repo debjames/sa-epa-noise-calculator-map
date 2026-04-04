@@ -572,6 +572,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
               </div>
               <div class="mp-body">
                 <button class="mp-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain</button>
+                <button class="mp-btn" id="terrainContourBtn" title="Show terrain elevation contour lines on map (requires Terrain ON)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 15 Q8 9 12 12 Q16 15 21 9"/><path d="M3 20 Q8 14 12 17 Q16 20 21 14"/></svg> Contours</button>
                 <button class="mp-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
                 <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building</button>
                 <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier</button>
@@ -1549,297 +1550,310 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     'Regression: totalAtReceiver single source should match attenuatePoint');
 </script>
 
-<!-- DEM (Digital Elevation Model) cache — infrastructure only, no UI -->
+<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js" crossorigin="anonymous"></script>
+
+<!-- DEM (Digital Elevation Model) cache — WCS LiDAR primary, Open-Elevation fallback -->
 <script>
 (function() {
   'use strict';
 
-  var OPEN_ELEVATION_URL = 'https://api.open-elevation.com/api/v1/lookup';
-  var CACHE_PRECISION = 4; // 4 decimal places ≈ 11m resolution
-  var SNAP_THRESHOLD = 0.0001; // degrees — reuse cached value within this distance
-  var _cache = {}; // "lat,lng" → elevation (m)
-  var _tileBounds = null; // { north, south, east, west } of last fetched tile
-  var _tileGrid = null;   // { lats[], lngs[], elevations[][] }
+  var WCS_ENDPOINT = 'https://services.ga.gov.au/gis/services/DEM_LiDAR_5m_2025/MapServer/WCSServer';
+  var WCS_NODATA   = -999; // values at or below this are NoData
+  var OE_URL       = 'https://api.open-elevation.com/api/v1/lookup';
+  var PREC         = 4;    // decimal places for cache key (~11m)
+  var SNAP         = 0.0001;
 
+  var _ptCache  = {};  // "lat,lng" → elev
+  var _wcsCache = [];  // WCS tile objects [{bounds,width,height,raster,validFrac,source}], max 4
+  var _curRaster = null;       // most recently used WCS tile (for terrain contours)
+  var _curSource = null;       // 'lidar' | 'open-elevation' | null
 
-  function roundKey(lat, lng) {
-    return lat.toFixed(CACHE_PRECISION) + ',' + lng.toFixed(CACHE_PRECISION);
-  }
+  function rk(lat, lng) { return lat.toFixed(PREC) + ',' + lng.toFixed(PREC); }
 
-  function findCached(lat, lng) {
-    var key = roundKey(lat, lng);
-    if (_cache[key] !== undefined) return _cache[key];
-    // Check nearby cached points within snap threshold
-    var rLat = parseFloat(lat.toFixed(CACHE_PRECISION));
-    var rLng = parseFloat(lng.toFixed(CACHE_PRECISION));
-    for (var k in _cache) {
-      var parts = k.split(',');
-      if (Math.abs(parseFloat(parts[0]) - rLat) <= SNAP_THRESHOLD &&
-          Math.abs(parseFloat(parts[1]) - rLng) <= SNAP_THRESHOLD) {
-        return _cache[k];
-      }
+  function findPt(lat, lng) {
+    var key = rk(lat, lng);
+    if (_ptCache[key] !== undefined) return _ptCache[key];
+    var rLat = parseFloat(lat.toFixed(PREC)), rLng = parseFloat(lng.toFixed(PREC));
+    for (var k in _ptCache) {
+      var p = k.split(',');
+      if (Math.abs(parseFloat(p[0]) - rLat) <= SNAP &&
+          Math.abs(parseFloat(p[1]) - rLng) <= SNAP) return _ptCache[k];
     }
     return undefined;
   }
 
-  function storeCache(lat, lng, elevation) {
-    _cache[roundKey(lat, lng)] = elevation;
+  function storePt(lat, lng, elev) { _ptCache[rk(lat, lng)] = elev; }
+
+  // Sample elevation from a WCS raster tile at (lat, lng) — bilinear nearest
+  function sampleRaster(tile, lat, lng) {
+    var b = tile.bounds;
+    if (lat < b.south || lat > b.north || lng < b.west || lng > b.east) return null;
+    var latSpan = b.north - b.south, lngSpan = b.east - b.west;
+    if (latSpan <= 0 || lngSpan <= 0) return null;
+    var row = Math.min(tile.height - 1, Math.max(0, Math.round((b.north - lat) / latSpan * tile.height)));
+    var col = Math.min(tile.width  - 1, Math.max(0, Math.round((lng - b.west) / lngSpan * tile.width)));
+    var v = tile.raster[row * tile.width + col];
+    return (v > WCS_NODATA && isFinite(v)) ? v : null;
   }
 
-  /**
-   * Fetch elevations from Open-Elevation API.
-   * @param {Array<{latitude:number, longitude:number}>} locations
-   * @returns {Promise<Array<number|null>>}
-   */
-  function fetchFromAPI(locations) {
-    if (locations.length === 0) return Promise.resolve([]);
-    // Batch in chunks of 100 (API limit)
-    var chunks = [];
-    for (var i = 0; i < locations.length; i += 100) {
-      chunks.push(locations.slice(i, i + 100));
+  function findWCSTileForPoint(lat, lng) {
+    for (var i = _wcsCache.length - 1; i >= 0; i--) {
+      var b = _wcsCache[i].bounds;
+      if (lat >= b.south && lat <= b.north && lng >= b.west && lng <= b.east) return _wcsCache[i];
     }
+    return null;
+  }
+
+  function findWCSTileForBounds(north, south, east, west) {
+    for (var i = _wcsCache.length - 1; i >= 0; i--) {
+      var b = _wcsCache[i].bounds;
+      if (b.north >= north && b.south <= south && b.east >= east && b.west <= west) return _wcsCache[i];
+    }
+    return null;
+  }
+
+  // Fetch a GeoTIFF tile from GA WCS
+  function fetchWCSTile(north, south, east, west) {
+    if (typeof GeoTIFF === 'undefined') return Promise.reject(new Error('geotiff.js not loaded'));
+    var latSpan = north - south, lngSpan = east - west;
+    var latMid  = (north + south) / 2;
+    var latM    = latSpan * 111320;
+    var lngM    = lngSpan * 111320 * Math.cos(latMid * Math.PI / 180);
+    // Max 100×100 pixels — GA WCS uses internal TIFF tiling at ≥128px which
+    // geotiff.js 2.x cannot parse. 100px gives ~10–50m resolution for typical
+    // noise assessment extents (1–5km) and ~100–300m for metro-scale views.
+    var pixH = Math.min(100, Math.max(20, Math.round(latM / 20)));
+    var pixW = Math.min(100, Math.max(20, Math.round(lngM / 20)));
+
+    var url = WCS_ENDPOINT +
+      '?SERVICE=WCS&VERSION=1.0.0&REQUEST=GetCoverage&COVERAGE=1' +
+      '&CRS=EPSG:4283' +
+      '&BBOX=' + west.toFixed(6) + ',' + south.toFixed(6) + ',' + east.toFixed(6) + ',' + north.toFixed(6) +
+      '&WIDTH=' + pixW + '&HEIGHT=' + pixH +
+      '&FORMAT=GeoTIFF';
+
+    return fetch(url, { mode: 'cors' })
+      .then(function(r) { if (!r.ok) throw new Error('WCS HTTP ' + r.status); return r.arrayBuffer(); })
+      .then(function(buf) { return GeoTIFF.fromArrayBuffer(buf); })
+      .then(function(tiff) { return tiff.getImage(); })
+      .then(function(image) {
+        return image.readRasters().then(function(rasters) {
+          var raw = rasters[0];
+          var arr = new Array(raw.length);
+          var valid = 0;
+          for (var i = 0; i < raw.length; i++) {
+            arr[i] = raw[i];
+            if (raw[i] > WCS_NODATA && isFinite(raw[i])) valid++;
+          }
+          return {
+            bounds: { north: north, south: south, east: east, west: west },
+            width: pixW, height: pixH, raster: arr,
+            validFrac: valid / raw.length, source: 'lidar'
+          };
+        });
+      });
+  }
+
+  // Build the {lats, lngs, elevations} grid structure from a WCS raster tile
+  function buildGridFromWCS(tile, north, south, east, west, spacing) {
+    var lats = [], lngs = [];
+    for (var lat = south; lat <= north + spacing * 0.01; lat += spacing)
+      lats.push(parseFloat(lat.toFixed(PREC)));
+    for (var lng = west; lng <= east + spacing * 0.01; lng += spacing)
+      lngs.push(parseFloat(lng.toFixed(PREC)));
+    var elevations = [], nullCount = 0;
+    for (var r = 0; r < lats.length; r++) {
+      var row = [];
+      for (var c = 0; c < lngs.length; c++) {
+        var e = sampleRaster(tile, lats[r], lngs[c]);
+        if (e !== null) storePt(lats[r], lngs[c], e); else nullCount++;
+        row.push(e);
+      }
+      elevations.push(row);
+    }
+    return {
+      lats: lats, lngs: lngs, elevations: elevations,
+      _partialWarning: nullCount > lats.length * lngs.length * 0.5,
+      source: tile.source
+    };
+  }
+
+  // Open-Elevation fallback tile fetch (sequential 500-pt chunks)
+  function fetchOETile(north, south, east, west, spacing, onProgress) {
+    var lats = [], lngs = [];
+    for (var lat = south; lat <= north + spacing * 0.01; lat += spacing)
+      lats.push(parseFloat(lat.toFixed(PREC)));
+    for (var lng = west; lng <= east + spacing * 0.01; lng += spacing)
+      lngs.push(parseFloat(lng.toFixed(PREC)));
+
+    var results = new Array(lats.length * lngs.length).fill(null);
+    var toFetch = [];
+    var idx = 0;
+    for (var r = 0; r < lats.length; r++) {
+      for (var c = 0; c < lngs.length; c++) {
+        var cached = findPt(lats[r], lngs[c]);
+        if (cached !== undefined) results[idx] = cached;
+        else toFetch.push({ apiPt: { latitude: lats[r], longitude: lngs[c] }, resultIdx: idx });
+        idx++;
+      }
+    }
+
+    function assemble(nullCount) {
+      var elevations = [];
+      var i2 = 0;
+      for (var r2 = 0; r2 < lats.length; r2++) {
+        var row = [];
+        for (var c2 = 0; c2 < lngs.length; c2++) row.push(results[i2++]);
+        elevations.push(row);
+      }
+      return { lats: lats, lngs: lngs, elevations: elevations,
+               _partialWarning: nullCount > results.length * 0.5, source: 'open-elevation' };
+    }
+
+    if (toFetch.length === 0) return Promise.resolve(assemble(0));
+
+    var CHUNK = 500, chunks = [], totalChunks, nullCount = 0;
+    for (var i = 0; i < toFetch.length; i += CHUNK) chunks.push(toFetch.slice(i, i + CHUNK));
+    totalChunks = chunks.length;
+
+    return chunks.reduce(function(pr, chunk, ci) {
+      return pr.then(function() {
+        return fetch(OE_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ locations: chunk.map(function(x) { return x.apiPt; }) })
+        })
+        .then(function(resp) { if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.json(); })
+        .then(function(data) {
+          var elevs = (data && data.results)
+            ? data.results.map(function(pt) { return (pt && pt.elevation !== undefined) ? pt.elevation : null; })
+            : chunk.map(function() { return null; });
+          for (var j = 0; j < chunk.length; j++) {
+            results[chunk[j].resultIdx] = elevs[j];
+            if (elevs[j] !== null) storePt(chunk[j].apiPt.latitude, chunk[j].apiPt.longitude, elevs[j]);
+            else nullCount++;
+          }
+        })
+        .catch(function(err) {
+          console.warn('DEMCache OE chunk ' + (ci + 1) + '/' + totalChunks + ' failed:', err.message || err);
+          for (var j = 0; j < chunk.length; j++) { results[chunk[j].resultIdx] = null; nullCount++; }
+        })
+        .then(function() { if (onProgress) onProgress(ci + 1, totalChunks); });
+      });
+    }, Promise.resolve()).then(function() { return assemble(nullCount); });
+  }
+
+  // Batch Open-Elevation for individual point lookups
+  function fetchFromOE(locations) {
+    if (!locations.length) return Promise.resolve([]);
+    var chunks = [];
+    for (var i = 0; i < locations.length; i += 100) chunks.push(locations.slice(i, i + 100));
     return Promise.all(chunks.map(function(chunk) {
-      return fetch(OPEN_ELEVATION_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      return fetch(OE_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ locations: chunk })
       })
-      .then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
+      .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(data) {
         if (!data || !data.results) return chunk.map(function() { return null; });
-        return data.results.map(function(r) {
-          return (r && r.elevation !== undefined) ? r.elevation : null;
-        });
+        return data.results.map(function(r) { return (r && r.elevation !== undefined) ? r.elevation : null; });
       })
       .catch(function(err) {
         console.warn('DEM fetch failed:', err.message || err);
         return chunk.map(function() { return null; });
       });
     })).then(function(results) {
-      // Flatten chunks
       var flat = [];
-      results.forEach(function(chunk) { flat = flat.concat(chunk); });
-      // Store in cache
-      for (var j = 0; j < locations.length; j++) {
-        if (flat[j] !== null) {
-          storeCache(locations[j].latitude, locations[j].longitude, flat[j]);
-        }
-      }
+      results.forEach(function(c) { flat = flat.concat(c); });
+      for (var j = 0; j < locations.length; j++)
+        if (flat[j] !== null) storePt(locations[j].latitude, locations[j].longitude, flat[j]);
       return flat;
     });
   }
 
-  /**
-   * Get elevation for a single point.
-   * @param {number} lat
-   * @param {number} lng
-   * @returns {Promise<number|null>}
-   */
+  // ── Public API ──────────────────────────────────────────────────────────────
+
   function getElevation(lat, lng) {
-    var cached = findCached(lat, lng);
+    var cached = findPt(lat, lng);
     if (cached !== undefined) return Promise.resolve(cached);
-    return fetchFromAPI([{ latitude: lat, longitude: lng }])
-      .then(function(results) { return results[0]; });
+    // Try cached WCS raster
+    var tile = findWCSTileForPoint(lat, lng);
+    if (tile) {
+      var e = sampleRaster(tile, lat, lng);
+      if (e !== null) { storePt(lat, lng, e); return Promise.resolve(e); }
+    }
+    return fetchFromOE([{ latitude: lat, longitude: lng }]).then(function(r) { return r[0]; });
   }
 
-  /**
-   * Get elevations for multiple points (batch).
-   * @param {Array<{lat:number, lng:number}>} points
-   * @returns {Promise<Array<number|null>>}
-   */
   function getElevations(points) {
     var results = new Array(points.length);
-    var toFetch = [];
-    var fetchIndices = [];
+    var toFetch = [], fetchIdx = [];
     for (var i = 0; i < points.length; i++) {
-      var cached = findCached(points[i].lat, points[i].lng);
-      if (cached !== undefined) {
-        results[i] = cached;
-      } else {
-        toFetch.push({ latitude: points[i].lat, longitude: points[i].lng });
-        fetchIndices.push(i);
+      var cached = findPt(points[i].lat, points[i].lng);
+      if (cached !== undefined) { results[i] = cached; continue; }
+      var tile = findWCSTileForPoint(points[i].lat, points[i].lng);
+      if (tile) {
+        var e = sampleRaster(tile, points[i].lat, points[i].lng);
+        if (e !== null) { results[i] = e; storePt(points[i].lat, points[i].lng, e); continue; }
       }
+      toFetch.push({ latitude: points[i].lat, longitude: points[i].lng });
+      fetchIdx.push(i);
     }
-    if (toFetch.length === 0) return Promise.resolve(results);
-    return fetchFromAPI(toFetch).then(function(fetched) {
-      for (var j = 0; j < fetchIndices.length; j++) {
-        results[fetchIndices[j]] = fetched[j];
-      }
+    if (!toFetch.length) return Promise.resolve(results);
+    return fetchFromOE(toFetch).then(function(fetched) {
+      for (var j = 0; j < fetchIdx.length; j++) results[fetchIdx[j]] = fetched[j];
       return results;
     });
   }
 
-  /**
-   * Fetch a grid of elevations covering the given bounds.
-   * Returns cached result if bounds are already covered.
-   * Sends sequential 500-point POST chunks to avoid API overload.
-   *
-   * @param {number} north
-   * @param {number} south
-   * @param {number} east
-   * @param {number} west
-   * @param {number} [gridSpacing=0.002] - degrees (~222m default, sufficient for ridge-scale terrain)
-   * @param {function} [onProgress] - called as onProgress(chunksDone, chunksTotal) after each chunk
-   * @returns {Promise<{lats, lngs, elevations, _partialWarning}>}
-   *   _partialWarning is true when >50% of elevations are null (API failure)
-   */
-  function getTileForBounds(north, south, east, west, gridSpacing, onProgress) {
-    // Default to 0.002° (~222m) — coarser than SRTM 30m but sufficient to detect ridgelines.
-    // Terrain effects operate over ridge-scale distances (100s of metres); higher DEM resolution
-    // does not meaningfully improve noise map terrain screening accuracy at grid sizes ≥ 5m.
-    gridSpacing = gridSpacing || 0.002;
+  function getTileForBounds(north, south, east, west, spacing, onProgress) {
+    spacing = spacing || 0.002;
 
-    // Check if existing tile covers the requested bounds
-    if (_tileBounds && _tileGrid &&
-        _tileBounds.north >= north && _tileBounds.south <= south &&
-        _tileBounds.east >= east && _tileBounds.west <= west) {
-      return Promise.resolve(_tileGrid);
+    // Check if cached WCS tile already covers the bounds
+    var existing = findWCSTileForBounds(north, south, east, west);
+    if (existing) {
+      _curRaster = existing; _curSource = existing.source;
+      if (window.onWCSRasterUpdated) window.onWCSRasterUpdated(existing);
+      return Promise.resolve(buildGridFromWCS(existing, north, south, east, west, spacing));
     }
 
-    // Expand bounds by 20% to reduce re-fetches on small pans
-    var latSpan = north - south;
-    var lngSpan = east - west;
-    var expandedNorth = north + latSpan * 0.1;
-    var expandedSouth = south - latSpan * 0.1;
-    var expandedEast = east + lngSpan * 0.1;
-    var expandedWest = west - lngSpan * 0.1;
+    // Expand 15% to reduce re-fetches on small pans
+    var dLat = (north - south) * 0.15, dLng = (east - west) * 0.15;
+    var eN = north + dLat, eS = south - dLat, eE = east + dLng, eW = west - dLng;
 
-    // Safety clamp: max 2000 points (4 sequential chunks of 500).
-    // Fix 2 in computeNoiseMap reduces demSpacing so this is rarely reached.
-    var latRange = expandedNorth - expandedSouth;
-    var lngRange = expandedEast - expandedWest;
-    var estPoints = Math.ceil(latRange / gridSpacing) * Math.ceil(lngRange / gridSpacing);
-    if (estPoints > 2000) {
-      var clampedSpacing = Math.sqrt((latRange * lngRange) / 2000);
-      if (window._debugTerrain) console.log('DEMCache: clamping DEM grid from ' +
-        Math.round(gridSpacing * 111320) + 'm to ~' + Math.round(clampedSpacing * 111320) + 'm (' +
-        estPoints + ' → ≤2000 points)');
-      gridSpacing = clampedSpacing;
-    }
-
-    var lats = [];
-    var lngs = [];
-    for (var lat = expandedSouth; lat <= expandedNorth; lat += gridSpacing) {
-      lats.push(parseFloat(lat.toFixed(CACHE_PRECISION)));
-    }
-    for (var lng = expandedWest; lng <= expandedEast; lng += gridSpacing) {
-      lngs.push(parseFloat(lng.toFixed(CACHE_PRECISION)));
-    }
-
-    // Build result array; fill from cache where available
-    var results = new Array(lats.length * lngs.length);
-    var toFetch = []; // { apiPt: {latitude, longitude}, resultIdx }
-    var idx = 0;
-    for (var r = 0; r < lats.length; r++) {
-      for (var c = 0; c < lngs.length; c++) {
-        var cached = findCached(lats[r], lngs[c]);
-        if (cached !== undefined) {
-          results[idx] = cached;
-        } else {
-          toFetch.push({ apiPt: { latitude: lats[r], longitude: lngs[c] }, resultIdx: idx });
-          results[idx] = null; // placeholder
+    return fetchWCSTile(eN, eS, eE, eW)
+      .then(function(tile) {
+        if (tile.validFrac < 0.05) {
+          console.warn('GA WCS: no LiDAR coverage (' + Math.round(tile.validFrac * 100) +
+            '% valid) — falling back to Open-Elevation');
+          _curRaster = null; _curSource = 'open-elevation';
+          if (window.onWCSRasterUpdated) window.onWCSRasterUpdated(null);
+          return fetchOETile(eN, eS, eE, eW, spacing, onProgress);
         }
-        idx++;
-      }
-    }
-
-    if (window._debugTerrain) console.log('DEMCache: tile ' + lats.length + '\u00d7' + lngs.length +
-      ' = ' + results.length + ' points (' + (results.length - toFetch.length) + ' cached, ' +
-      toFetch.length + ' to fetch)');
-
-    // Assemble final 2D elevation grid and cache the tile
-    function assembleTile(nullCount) {
-      var elevations = [];
-      var i2 = 0;
-      for (var r2 = 0; r2 < lats.length; r2++) {
-        var row = [];
-        for (var c2 = 0; c2 < lngs.length; c2++) {
-          row.push(results[i2++] !== undefined ? results[i2 - 1] : null);
-        }
-        elevations.push(row);
-      }
-      var partialWarning = (nullCount > results.length * 0.5);
-      if (partialWarning) {
-        console.warn('DEMCache: >' + Math.round(nullCount / results.length * 100) + '% of tile elevations null (' +
-          nullCount + '/' + results.length + ') — terrain screening may be unreliable');
-      }
-      _tileBounds = { north: expandedNorth, south: expandedSouth, east: expandedEast, west: expandedWest };
-      _tileGrid = { lats: lats, lngs: lngs, elevations: elevations, _partialWarning: partialWarning };
-      return _tileGrid;
-    }
-
-    // All served from cache — no network needed
-    if (toFetch.length === 0) {
-      return Promise.resolve(assembleTile(0));
-    }
-
-    // Sequential 500-point chunks — avoids overwhelming Open-Elevation API.
-    // Promise.all with 50 parallel chunks causes API to return all-null responses.
-    var CHUNK_SIZE = 500;
-    var chunks = [];
-    for (var i = 0; i < toFetch.length; i += CHUNK_SIZE) {
-      chunks.push(toFetch.slice(i, i + CHUNK_SIZE));
-    }
-    var totalChunks = chunks.length;
-    var nullCount = 0;
-
-    return chunks.reduce(function(promise, chunk, chunkIdx) {
-      return promise.then(function() {
-        var apiLocations = chunk.map(function(item) { return item.apiPt; });
-        return fetch(OPEN_ELEVATION_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ locations: apiLocations })
-        })
-        .then(function(resp) {
-          if (!resp.ok) throw new Error('HTTP ' + resp.status);
-          return resp.json();
-        })
-        .then(function(data) {
-          var elevs = (data && data.results)
-            ? data.results.map(function(pt) { return (pt && pt.elevation !== undefined) ? pt.elevation : null; })
-            : chunk.map(function() { return null; });
-          if (!data || !data.results) {
-            console.warn('DEMCache tile chunk ' + (chunkIdx + 1) + '/' + totalChunks + ': no results from API');
-          }
-          for (var j = 0; j < chunk.length; j++) {
-            var val = elevs[j];
-            results[chunk[j].resultIdx] = val;
-            if (val !== null) {
-              storeCache(chunk[j].apiPt.latitude, chunk[j].apiPt.longitude, val);
-            } else {
-              nullCount++;
-            }
-          }
-        })
-        .catch(function(err) {
-          console.warn('DEMCache tile chunk ' + (chunkIdx + 1) + '/' + totalChunks + ' failed:', err.message || err);
-          for (var j = 0; j < chunk.length; j++) {
-            results[chunk[j].resultIdx] = null;
-            nullCount++;
-          }
-        })
-        .then(function() {
-          if (onProgress) onProgress(chunkIdx + 1, totalChunks);
-        });
+        if (_wcsCache.length >= 4) _wcsCache.shift();
+        _wcsCache.push(tile);
+        _curRaster = tile; _curSource = 'lidar';
+        if (window.onWCSRasterUpdated) window.onWCSRasterUpdated(tile);
+        return buildGridFromWCS(tile, eN, eS, eE, eW, spacing);
+      })
+      .catch(function(err) {
+        console.warn('GA WCS fetch failed:', err.message || err, '— falling back to Open-Elevation');
+        _curRaster = null; _curSource = 'open-elevation';
+        if (window.onWCSRasterUpdated) window.onWCSRasterUpdated(null);
+        return fetchOETile(eN, eS, eE, eW, spacing, onProgress);
       });
-    }, Promise.resolve()).then(function() {
-      return assembleTile(nullCount);
-    });
   }
 
-  // Public API
   window.DEMCache = {
-    getElevation: getElevation,
-    getElevations: getElevations,
+    getElevation:    getElevation,
+    getElevations:   getElevations,
     getTileForBounds: getTileForBounds,
-    getCacheSize: function() { return Object.keys(_cache).length; }
+    getCacheSize:    function() { return Object.keys(_ptCache).length; },
+    getCurrentRaster: function() { return _curRaster; },
+    getRasterSource:  function() { return _curSource; },
+    clearWCSCache:   function() { _wcsCache.length = 0; _curRaster = null; _curSource = null; }
   };
 
-  // Temporary test — remove once confirmed working
+  // Self-test
   DEMCache.getElevation(-34.9285, 138.6007)
     .then(function(el) { console.log('DEM test elevation:', el, 'm (expected ~50m)'); });
 })();
@@ -8626,6 +8640,230 @@ function initPropagationMethod() {
     });
   });
 
+  // ── Terrain contour lines ────────────────────────────────────────────────
+  var _terrainContourOn = false;
+
+  function generateTerrainContours() {
+    if (window._terrainContourLayer) window._terrainContourLayer.clearLayers();
+    if (!_terrainContourOn || !_terrainEnabled) return;
+
+    var tile = window.DEMCache ? window.DEMCache.getCurrentRaster() : null;
+    if (!tile) return;
+
+    var data = tile.raster, W = tile.width, H = tile.height, b = tile.bounds;
+    var latSpan = b.north - b.south, lngSpan = b.east - b.west;
+
+    // Compute elevation range
+    var elevMin = Infinity, elevMax = -Infinity;
+    for (var i = 0; i < data.length; i++) {
+      if (data[i] > -999 && isFinite(data[i])) {
+        if (data[i] < elevMin) elevMin = data[i];
+        if (data[i] > elevMax) elevMax = data[i];
+      }
+    }
+    if (!isFinite(elevMin) || elevMax - elevMin < 2) return; // flat
+
+    var range = elevMax - elevMin;
+    var minorInt = range < 20 ? 2 : range <= 200 ? 5 : 10;
+    var majorInt = range < 20 ? 10 : range <= 200 ? 25 : 50;
+
+    var thresholds = [];
+    for (var t = Math.ceil(elevMin / minorInt) * minorInt; t <= elevMax; t += minorInt)
+      thresholds.push(t);
+
+    // WCS raster: row 0 = north. Build south-to-north grid for marching squares.
+    var ctGrid = new Float32Array(H * W);
+    for (var r = 0; r < H; r++) {
+      var geoRow = H - 1 - r; // flip: ctGrid row 0 = south
+      for (var c = 0; c < W; c++) {
+        var v = data[geoRow * W + c];
+        ctGrid[r * W + c] = (v > -999 && isFinite(v)) ? v : NaN;
+      }
+    }
+
+    var dLat = latSpan / H;
+    var dLng = lngSpan / W;
+    var startLat = b.south;
+    var startLng = b.west;
+
+    function ctVal(r2, c2) {
+      if (r2 < 0 || r2 >= H || c2 < 0 || c2 >= W) return NaN;
+      return ctGrid[r2 * W + c2];
+    }
+    function ctInterp(r1, c1, r2, c2, thr) {
+      var v1 = ctVal(r1, c1), v2 = ctVal(r2, c2);
+      if (!isFinite(v1) || !isFinite(v2) || v1 === v2) return 0.5;
+      return Math.max(0, Math.min(1, (thr - v1) / (v2 - v1)));
+    }
+
+    var PREC8 = 8;
+    function ptKey(p) { return p[0].toFixed(PREC8) + ',' + p[1].toFixed(PREC8); }
+
+    thresholds.forEach(function(threshold) {
+      var isMajor = (Math.round(threshold) % majorInt === 0);
+      var segments = [];
+
+      for (var row = 0; row < H - 1; row++) {
+        for (var col = 0; col < W - 1; col++) {
+          var tl = ctVal(row + 1, col), tr = ctVal(row + 1, col + 1);
+          var br = ctVal(row,     col + 1), bl = ctVal(row,     col);
+          if (!isFinite(tl) || !isFinite(tr) || !isFinite(br) || !isFinite(bl)) continue;
+
+          var idx = 0;
+          if (tl >= threshold) idx |= 8;
+          if (tr >= threshold) idx |= 4;
+          if (br >= threshold) idx |= 2;
+          if (bl >= threshold) idx |= 1;
+          if (idx === 0 || idx === 15) continue;
+
+          var tFrac = ctInterp(row + 1, col, row + 1, col + 1, threshold);
+          var top    = [startLat + (row + 1) * dLat, startLng + (col + tFrac) * dLng];
+          var rFrac = ctInterp(row + 1, col + 1, row, col + 1, threshold);
+          var right  = [startLat + (row + 1 - rFrac) * dLat, startLng + (col + 1) * dLng];
+          var bFrac = ctInterp(row, col, row, col + 1, threshold);
+          var bottom = [startLat + row * dLat, startLng + (col + bFrac) * dLng];
+          var lFrac = ctInterp(row + 1, col, row, col, threshold);
+          var left   = [startLat + (row + 1 - lFrac) * dLat, startLng + col * dLng];
+
+          switch (idx) {
+            case 1: case 14: segments.push([left, bottom]); break;
+            case 2: case 13: segments.push([bottom, right]); break;
+            case 3: case 12: segments.push([left, right]); break;
+            case 4: case 11: segments.push([top, right]); break;
+            case 5: segments.push([left, top]); segments.push([bottom, right]); break;
+            case 6: case 9:  segments.push([top, bottom]); break;
+            case 7: case 8:  segments.push([left, top]); break;
+            case 10: segments.push([left, bottom]); segments.push([top, right]); break;
+          }
+        }
+      }
+
+      if (!segments.length) return;
+
+      // Chain segments into polylines
+      var endMap = {};
+      for (var si = 0; si < segments.length; si++) {
+        for (var ei = 0; ei < 2; ei++) {
+          var k = ptKey(segments[si][ei]);
+          if (!endMap[k]) endMap[k] = [];
+          endMap[k].push({ seg: si, end: ei });
+        }
+      }
+      var used = new Array(segments.length);
+      var chains = [];
+      for (var si2 = 0; si2 < segments.length; si2++) {
+        if (used[si2]) continue;
+        used[si2] = true;
+        var chain = [segments[si2][0], segments[si2][1]];
+        var ext = true;
+        while (ext) {
+          ext = false;
+          var cands = endMap[ptKey(chain[chain.length - 1])];
+          if (cands) for (var ci = 0; ci < cands.length; ci++) {
+            if (used[cands[ci].seg]) continue;
+            used[cands[ci].seg] = true;
+            chain.push(segments[cands[ci].seg][1 - cands[ci].end]);
+            ext = true; break;
+          }
+        }
+        ext = true;
+        while (ext) {
+          ext = false;
+          var cands2 = endMap[ptKey(chain[0])];
+          if (cands2) for (var ci2 = 0; ci2 < cands2.length; ci2++) {
+            if (used[cands2[ci2].seg]) continue;
+            used[cands2[ci2].seg] = true;
+            chain.unshift(segments[cands2[ci2].seg][1 - cands2[ci2].end]);
+            ext = true; break;
+          }
+        }
+        if (chain.length >= 3) chains.push(chain);
+      }
+
+      // Draw each chain
+      chains.forEach(function(chain) {
+        var polyline = L.polyline(chain, {
+          color: '#8B7355', weight: isMajor ? 2 : 1,
+          opacity: isMajor ? 0.65 : 0.40, interactive: false,
+          pane: 'terrainContourPane'
+        });
+        if (window._terrainContourLayer) window._terrainContourLayer.addLayer(polyline);
+
+        // Label major contours at chain midpoint
+        if (isMajor && chain.length >= 4) {
+          var mid = chain[Math.floor(chain.length / 2)];
+          var label = L.marker(mid, {
+            pane: 'terrainContourPane',
+            interactive: false,
+            icon: L.divIcon({
+              html: '<span style="font-size:10px;color:#6B5A42;font-weight:600;' +
+                    'background:rgba(255,255,255,0.6);padding:0 2px;border-radius:2px;white-space:nowrap;">' +
+                    Math.round(threshold) + '</span>',
+              className: '', iconSize: null, iconAnchor: [10, 7]
+            })
+          });
+          if (window._terrainContourLayer) window._terrainContourLayer.addLayer(label);
+        }
+      });
+    });
+
+    if (window._map && window._terrainContourLayer && !window._map.hasLayer(window._terrainContourLayer))
+      window._terrainContourLayer.addTo(window._map);
+  }
+
+  // Register callback: regenerate contours when WCS raster is updated
+  window.onWCSRasterUpdated = function(tile) {
+    if (_terrainContourOn && _terrainEnabled) generateTerrainContours();
+  };
+
+  // Debounced contour update on map pan/zoom
+  var _contourDebounceTimer = null;
+  window._registerContourMoveend = function() {
+    if (!window._map) return;
+    window._map.on('moveend', function() {
+      if (!_terrainContourOn || !_terrainEnabled) return;
+      if (_contourDebounceTimer) clearTimeout(_contourDebounceTimer);
+      _contourDebounceTimer = setTimeout(function() {
+        var mb = window._map.getBounds();
+        // If the current raster covers the new view, just redraw; else re-fetch
+        var raster = window.DEMCache ? window.DEMCache.getCurrentRaster() : null;
+        if (raster) {
+          var rb = raster.bounds;
+          var covers = rb.north >= mb.getNorth() && rb.south <= mb.getSouth() &&
+                       rb.east >= mb.getEast() && rb.west <= mb.getWest();
+          if (covers) { generateTerrainContours(); return; }
+        }
+        // Fetch new tile for new extent
+        if (window.DEMCache) {
+          window.DEMCache.getTileForBounds(mb.getNorth(), mb.getSouth(), mb.getEast(), mb.getWest(), 0.002);
+          // onWCSRasterUpdated callback will regenerate contours
+        }
+      }, 2000);
+    });
+  };
+  // Register immediately if map is already available, otherwise defer
+  if (window._map) {
+    window._registerContourMoveend();
+  } else {
+    // Will be called after initMap sets window._map
+    var _contourMoveendInterval = setInterval(function() {
+      if (window._map) { clearInterval(_contourMoveendInterval); window._registerContourMoveend(); }
+    }, 200);
+  }
+
+  var contourBtn = document.getElementById('terrainContourBtn');
+  if (contourBtn) {
+    contourBtn.addEventListener('click', function() {
+      _terrainContourOn = !_terrainContourOn;
+      contourBtn.classList.toggle('active', _terrainContourOn);
+      if (_terrainContourOn) {
+        generateTerrainContours();
+      } else {
+        if (window._terrainContourLayer) window._terrainContourLayer.clearLayers();
+      }
+    });
+  }
+
   // Terrain screening toolbar toggle
   var terrBtn = document.getElementById('terrainToggleBtn');
   if (terrBtn) {
@@ -8646,6 +8884,9 @@ function initPropagationMethod() {
         if (nmBtn && nmBtn.classList.contains('active')) {
           alert('Terrain screening enabled \u2014 regenerate the noise map to apply terrain corrections.');
         }
+        // Show contour toggle button
+        var ctBtn2 = document.getElementById('terrainContourBtn');
+        if (ctBtn2) ctBtn2.style.display = '';
       } else {
         _terrainIL = [];
         window._terrainIL = _terrainIL;
@@ -8667,6 +8908,12 @@ function initPropagationMethod() {
         if (nmBtn2 && nmBtn2.classList.contains('active')) {
           alert('Terrain screening disabled \u2014 regenerate the noise map to remove terrain corrections.');
         }
+        // Hide contour button and clear contour layer
+        _terrainContourOn = false;
+        var ctBtn = document.getElementById('terrainContourBtn');
+        if (ctBtn) { ctBtn.classList.remove('active'); ctBtn.style.display = 'none'; }
+        if (window._terrainContourLayer) window._terrainContourLayer.clearLayers();
+        if (window.DEMCache) window.DEMCache.clearWCSCache();
       }
       if (typeof renderSourceCards === 'function') renderSourceCards();
       render();
@@ -9742,6 +9989,7 @@ initCollapse();
         // Terrain screening state
         data.terrain = {
           enabled: _terrainEnabled,
+          contours: _terrainContourOn,
           sourceElevations: {},
           receiverElevations: {}
         };
@@ -10574,6 +10822,14 @@ initCollapse();
         _terrainEnabled = data.terrain.enabled !== false;
         var tBtn = document.getElementById('terrainToggleBtn');
         if (tBtn) tBtn.classList.toggle('active', _terrainEnabled);
+        var _tcBtn = document.getElementById('terrainContourBtn');
+        if (_tcBtn && _terrainEnabled) _tcBtn.style.display = '';
+        _terrainContourOn = !!data.terrain.contours;
+        var ctBtn3 = document.getElementById('terrainContourBtn');
+        if (ctBtn3) {
+          ctBtn3.style.display = _terrainEnabled ? '' : 'none';
+          ctBtn3.classList.toggle('active', _terrainContourOn);
+        }
         // Restore elevations without re-fetching
         if (data.terrain.sourceElevations && typeof sources !== 'undefined') {
           sources.forEach(function(src, si) {
@@ -13395,7 +13651,10 @@ initCollapse();
       if (_terrainEnabled) {
         if (groundElev !== null && Number.isFinite(groundElev)) {
           var absHt = groundElev + ht;
-          html += 'Terrain elevation: ' + groundElev.toFixed(1) + ' m AHD<br>' +
+          var _src = window.DEMCache ? window.DEMCache.getRasterSource() : null;
+          var _srcLbl = _src === 'lidar' ? ' <span style="color:#2563eb;font-size:10px;">(5m LiDAR)</span>' :
+                        _src === 'open-elevation' ? ' <span style="color:#888;font-size:10px;">(Open-Elevation)</span>' : '';
+          html += 'Terrain elevation: ' + groundElev.toFixed(1) + ' m AHD' + _srcLbl + '<br>' +
             'Receiver height: ' + ht.toFixed(1) + ' m above terrain (' + absHt.toFixed(1) + ' m AHD)';
         } else {
           html += 'Terrain elevation: fetching\u2026';
@@ -13419,7 +13678,10 @@ initCollapse();
       if (_terrainEnabled) {
         if (groundElev !== null && Number.isFinite(groundElev)) {
           var absHt = groundElev + ht;
-          terrEl.innerHTML = 'Terrain elevation: ' + groundElev.toFixed(1) + ' m AHD<br>' +
+          var src = window.DEMCache ? window.DEMCache.getRasterSource() : null;
+          var srcLabel = src === 'lidar' ? ' <span style="color:#2563eb;font-size:10px;">(5m LiDAR)</span>' :
+                         src === 'open-elevation' ? ' <span style="color:#888;font-size:10px;">(Open-Elevation)</span>' : '';
+          terrEl.innerHTML = 'Terrain elevation: ' + groundElev.toFixed(1) + ' m AHD' + srcLabel + '<br>' +
             'Receiver height: ' + ht.toFixed(1) + ' m above terrain (' + absHt.toFixed(1) + ' m AHD)';
         } else {
           terrEl.innerHTML = 'Terrain elevation: fetching\u2026';
@@ -14448,6 +14710,13 @@ initCollapse();
     var customBuildings = [];
     var customBuildingLayer = L.layerGroup().addTo(map);
     var _groundZoneLayer = L.layerGroup().addTo(map); // ground absorption zones (below buildings)
+
+    // Terrain contour pane (below overlayPane z=400, above tilePane z=200)
+    map.createPane('terrainContourPane');
+    map.getPane('terrainContourPane').style.zIndex = '250';
+    map.getPane('terrainContourPane').style.pointerEvents = 'none';
+    var _terrainContourLayer = L.layerGroup().addTo(map);
+    window._terrainContourLayer = _terrainContourLayer;
 
     var CUSTOM_STYLE = {
       color: '#922b21', fillColor: '#c0392b', fillOpacity: 0.45,
@@ -15770,47 +16039,29 @@ initCollapse();
 
       var demPromise;
       if (_terrainEnabled && window.DEMCache) {
-        // Build coarse grid of sample points covering expanded map bounds
-        var _demN = mapBounds.getNorth(), _demS = mapBounds.getSouth();
-        var _demE = mapBounds.getEast(), _demW = mapBounds.getWest();
-        var _demLatSpan = _demN - _demS, _demLngSpan = _demE - _demW;
-        var _demExpN = _demN + _demLatSpan * 0.1, _demExpS = _demS - _demLatSpan * 0.1;
-        var _demExpE = _demE + _demLngSpan * 0.1, _demExpW = _demW - _demLngSpan * 0.1;
-        var _demGridPts = [];
-        for (var _demLat = _demExpS; _demLat <= _demExpN + demSpacing * 0.5; _demLat += demSpacing) {
-          for (var _demLng = _demExpW; _demLng <= _demExpE + demSpacing * 0.5; _demLng += demSpacing) {
-            _demGridPts.push({ lat: parseFloat(_demLat.toFixed(5)), lng: parseFloat(_demLng.toFixed(5)) });
+        if (noiseMapBtn) noiseMapBtn.textContent = 'Fetching terrain (LiDAR)...';
+        demPromise = DEMCache.getTileForBounds(
+          mapBounds.getNorth(), mapBounds.getSouth(),
+          mapBounds.getEast(),  mapBounds.getWest(),
+          demSpacing,
+          function(done, total) {
+            if (noiseMapBtn) noiseMapBtn.textContent = 'Fetching terrain... (' + done + '/' + total + ')';
           }
-        }
-        // Clamp to 2000 points max
-        if (_demGridPts.length > 2000) {
-          var _demSkip = Math.ceil(_demGridPts.length / 2000);
-          _demGridPts = _demGridPts.filter(function(_, i) { return i % _demSkip === 0; });
-        }
-        var _demTotalPts = _demGridPts.length;
-        var _demChunkSize = 100; // 100 pts per call = 1 POST request per chunk, same as terrain profile
-        var _demChunks = [];
-        for (var _demCi = 0; _demCi < _demTotalPts; _demCi += _demChunkSize) {
-          _demChunks.push(_demGridPts.slice(_demCi, _demCi + _demChunkSize));
-        }
-        var _demEntries = []; // flat [{lat, lng, elev}] — passed directly to worker
-        demPromise = _demChunks.reduce(function(pr, chunk, idx) {
-          return pr.then(function() {
-            return DEMCache.getElevations(chunk).then(function(elevs) {
-              for (var _j = 0; _j < chunk.length; _j++) {
-                if (elevs[_j] !== null && elevs[_j] !== undefined) {
-                  _demEntries.push({ lat: chunk[_j].lat, lng: chunk[_j].lng, elev: elevs[_j] });
-                }
-              }
-              var _done = Math.min((idx + 1) * _demChunkSize, _demTotalPts);
-              if (noiseMapBtn) noiseMapBtn.textContent = 'Fetching terrain... (' + _done + '/' + _demTotalPts + ')';
-            });
-          });
-        }, Promise.resolve())
-        .then(function() { return { entries: _demEntries, total: _demTotalPts }; })
-        .catch(function(err) {
+        ).then(function(tile) {
+          if (!tile) return null;
+          var entries = [], total = 0;
+          for (var _r = 0; _r < tile.lats.length; _r++) {
+            for (var _c = 0; _c < tile.lngs.length; _c++) {
+              total++;
+              var _e = tile.elevations[_r][_c];
+              if (_e !== null && _e !== undefined && isFinite(_e))
+                entries.push({ lat: tile.lats[_r], lng: tile.lngs[_c], elev: _e });
+            }
+          }
+          return { entries: entries, total: total, source: tile.source };
+        }).catch(function(err) {
           console.warn('DEM pre-warm failed:', err);
-          return { entries: [], total: _demTotalPts };
+          return { entries: [], total: 0 };
         });
       } else {
         demPromise = Promise.resolve(null);
@@ -15821,6 +16072,8 @@ initCollapse();
       var demEntries = (demResult && demResult.entries) ? demResult.entries : [];
       var demTotal = (demResult && demResult.total) ? demResult.total : 0;
       var _demValidFrac = demTotal > 0 ? demEntries.length / demTotal : 0;
+      var _demSrc = demResult && demResult.source;
+      var _srcTag = _demSrc === 'lidar' ? ' (5m LiDAR)' : _demSrc === 'open-elevation' ? ' (Open-Elevation)' : '';
       if (_terrainEnabled && demTotal > 0 && _demValidFrac < 0.2) {
         showTerrainWarning('Terrain data unavailable \u2014 terrain screening not applied (try again later)');
         demEntries = []; // too few valid points — skip terrain
