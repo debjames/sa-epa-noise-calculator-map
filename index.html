@@ -615,6 +615,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
                 <div class="mp-sep"></div>
                 <button class="mp-btn map-mode-btn" id="mapMode-source" title="Click map to place noise source" style="display:none;border-left:3px solid #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise source</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Point source</button>
+                <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.)" style="border-left:3px solid #e87d2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e87d2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#e87d2f"/><circle cx="19" cy="5" r="2" fill="#e87d2f"/></svg> Line source</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
@@ -1200,6 +1201,10 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <h2>Noise sources</h2>
         <div id="sourcePinCards" style="display:flex;flex-direction:column;gap:0;"></div>
         <button type="button" id="addSourcePinBtn" class="pdf-btn" style="font-size:12px;padding:5px 14px;margin-top:10px;">+ Add Source</button>
+        <div id="lineSourceCardsSection" style="margin-top:14px;display:none;">
+          <div style="font-size:12px;font-weight:700;color:#e87d2f;border-top:1px solid #fde8d4;padding-top:10px;margin-bottom:6px;">&#9135; Line sources</div>
+          <div id="lineSourceCards" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
       </div>
     </div>
 
@@ -3220,6 +3225,182 @@ let iso_groundFactor = 0.5;   // G: 0=hard, 0.5=mixed, 1.0=soft/porous
 // Each zone: {id, name, g, vertices: [[lat,lng],...], _polygon (Leaflet ref)}
 var _groundZones = [];
 var _gzIdCtr = 0;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LINE SOURCES  — global state and geometry helpers
+   Each: {id, name, vertices:[[lat,lng],...], heightM, segmentLengthM,
+          lwPerMetre:{day,eve,night}, lw_max_per_metre,
+          spectrum:{day,eve,night}, spectrum_max,
+          activeInPeriod:{day,eve,night,lmax}, tonal, impulsive, _poly}
+   ═══════════════════════════════════════════════════════════════════════════ */
+var lineSources = [];
+var _lsIdCtr = 0;
+
+/** Total length of a polyline (metres). */
+function _lsTotalLength(vertices) {
+  if (!vertices || vertices.length < 2) return 0;
+  var total = 0;
+  for (var i = 1; i < vertices.length; i++) {
+    total += SharedCalc.flatDistM(
+      { lat: vertices[i-1][0], lng: vertices[i-1][1] },
+      { lat: vertices[i][0],   lng: vertices[i][1]   }
+    );
+  }
+  return total;
+}
+
+/**
+ * Split polyline into sub-segments of approximately segLenM, return each
+ * segment's midpoint and actual length.
+ * @returns {Array<{lat, lng, length}>}
+ */
+function _lsGetSegmentsWithLength(vertices, segLenM) {
+  if (!vertices || vertices.length < 2) return [];
+  segLenM = segLenM || 10;
+  var segs = [];
+  for (var i = 0; i < vertices.length - 1; i++) {
+    var aLat = vertices[i][0],   aLng = vertices[i][1];
+    var bLat = vertices[i+1][0], bLng = vertices[i+1][1];
+    var d = SharedCalc.flatDistM({ lat: aLat, lng: aLng }, { lat: bLat, lng: bLng });
+    if (d < 0.5) continue;
+    var n = Math.max(1, Math.round(d / segLenM));
+    var actualLen = d / n;
+    for (var j = 0; j < n; j++) {
+      var tMid = (j + 0.5) / n;
+      segs.push({
+        lat: aLat + tMid * (bLat - aLat),
+        lng: aLng + tMid * (bLng - aLng),
+        length: actualLen
+      });
+    }
+  }
+  return segs;
+}
+
+/** Geographic midpoint of a polyline. */
+function _lsPolylineMidpoint(vertices) {
+  var total = _lsTotalLength(vertices);
+  if (total === 0) return null;
+  var target = total / 2, walked = 0;
+  for (var i = 0; i < vertices.length - 1; i++) {
+    var aLat = vertices[i][0],   aLng = vertices[i][1];
+    var bLat = vertices[i+1][0], bLng = vertices[i+1][1];
+    var d = SharedCalc.flatDistM({ lat: aLat, lng: aLng }, { lat: bLat, lng: bLng });
+    if (walked + d >= target) {
+      var t = (target - walked) / d;
+      return { lat: aLat + t * (bLat - aLat), lng: aLng + t * (bLng - aLng) };
+    }
+    walked += d;
+  }
+  var last = vertices[vertices.length - 1];
+  return { lat: last[0], lng: last[1] };
+}
+
+/** Distance (metres) from receiver point to nearest point on line source polyline. */
+function _lsClosestDistM(vertices, recLat, recLng) {
+  if (!vertices || vertices.length === 0) return Infinity;
+  if (vertices.length === 1) return SharedCalc.flatDistM({ lat: vertices[0][0], lng: vertices[0][1] }, { lat: recLat, lng: recLng });
+  var best = Infinity;
+  for (var i = 0; i < vertices.length - 1; i++) {
+    var aLat = vertices[i][0],   aLng = vertices[i][1];
+    var bLat = vertices[i+1][0], bLng = vertices[i+1][1];
+    // Project recvr onto segment, clamp to [0,1]
+    var dxLat = bLat - aLat, dxLng = bLng - aLng;
+    var lenSq = dxLat * dxLat + dxLng * dxLng;
+    var t = lenSq > 0 ? Math.max(0, Math.min(1, ((recLat - aLat) * dxLat + (recLng - aLng) * dxLng) / lenSq)) : 0;
+    var closeLat = aLat + t * dxLat, closeLng = aLng + t * dxLng;
+    var d = SharedCalc.flatDistM({ lat: closeLat, lng: closeLng }, { lat: recLat, lng: recLng });
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/**
+ * Compute total line-source contribution at one receiver for one period.
+ * Segments line source into sub-sources, applies simple or ISO propagation +
+ * building/barrier screening + ground zones.  No terrain IL (async, not available here).
+ * @param {Object} ls  line source object
+ * @param {string} period 'day'|'eve'|'night'|'lmax'
+ * @param {number} ri  receiver index 0–3
+ * @returns {number} LAeq (dB) or NaN if not computable
+ */
+function calcLineSourceAtReceiver(ls, period, ri) {
+  if (!ls.activeInPeriod) return NaN;
+  if (period === 'lmax') {
+    if (ls.activeInPeriod.lmax !== true) return NaN;
+  } else {
+    if (ls.activeInPeriod[period] === false) return NaN;
+  }
+
+  var lwPerM = (period === 'lmax') ? ls.lw_max_per_metre : (ls.lwPerMetre ? ls.lwPerMetre[period] : null);
+  if (!Number.isFinite(lwPerM)) return NaN;
+
+  var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+  var recIds = ['r1','r2','r3','r4'];
+  var recLL = allLL[recIds[ri]];
+  if (!recLL) return NaN;
+
+  var segLenM = ls.segmentLengthM || 10;
+  var segs = _lsGetSegmentsWithLength(ls.vertices, segLenM);
+  if (segs.length === 0) return NaN;
+
+  var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : 1.5;
+  var srcHt = ls.heightM || 0.5;
+  var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : [];
+  var contributions = [];
+
+  segs.forEach(function(seg) {
+    var lwSeg = lwPerM + 10 * Math.log10(seg.length);
+    var srcLL = { lat: seg.lat, lng: seg.lng };
+    var d = SharedCalc.flatDistM(srcLL, recLL);
+    if (d < 0.1) d = 0.1;
+
+    var lp;
+    if (propagationMethod === 'iso9613' && period !== 'lmax') {
+      // Build per-band spectrum for this segment
+      var spec = ls.spectrum && ls.spectrum[period] ? ls.spectrum[period] : null;
+      var specA;
+      if (spec && spec.length === 8) {
+        var specAdj2 = lwSeg - SharedCalc.energySum(spec);
+        specA = spec.map(function(v) { return v + specAdj2; });
+      } else {
+        // Flat spectrum: uniform distribution across 8 bands
+        var flatVal = lwSeg - 10 * Math.log10(8);
+        specA = [flatVal, flatVal, flatVal, flatVal, flatVal, flatVal, flatVal, flatVal];
+      }
+
+      var barrierDelta = 0, endDL = 0, endDR = 0;
+      if (screenable.length > 0) {
+        var bw = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+        if (bw) {
+          barrierDelta = bw.pathLengthDiff || 0;
+          endDL = bw.endDeltaLeft || 0;
+          endDR = bw.endDeltaRight || 0;
+        }
+      }
+
+      var gf = (typeof _gzComputePathG === 'function')
+        ? _gzComputePathG(seg.lat, seg.lng, recLL.lat, recLL.lng, srcHt, recHt, d)
+        : iso_groundFactor;
+      var isoP = { receiverHeight: recHt, groundFactor: gf,
+                   temperature: iso_temperature, humidity: iso_humidity };
+
+      lp = SharedCalc.calcISOatPoint(specA, srcHt, d, 0, barrierDelta, recHt, isoP, endDL, endDR);
+    } else {
+      // Simple propagation
+      lp = attenuatePoint(lwSeg, d);
+      if (screenable.length > 0) {
+        var bwS = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+        if (bwS) lp -= calcBarrierIL_broadband(bwS);
+      }
+    }
+
+    if (Number.isFinite(lp)) contributions.push(lp);
+  });
+
+  if (contributions.length === 0) return NaN;
+  return SharedCalc.energySum(contributions);
+}
 
 /** Colour helpers — interpolate grey/blue (G=0, hard) → green (G=1, soft). */
 function _gzFillColor(g) {
@@ -5654,6 +5835,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   renderSourcePins();
+  if (typeof renderLineSourceCards === 'function') renderLineSourceCards();
 
   // ── Buildings-layer hooks for source building detection ───────────────────
   (function() {
@@ -9433,6 +9615,31 @@ function renderScenariosTable() {
     html += '</tr>';
   });
 
+  // Line sources in scenarios table
+  lineSources.forEach(function(ls) {
+    var len = _lsTotalLength(ls.vertices);
+    html += '<tr>';
+    html += '<td style="font-size:12px;color:#e87d2f;">&#9135; ' + escapeHTML(ls.name || 'Line source') + '</td>';
+    ['day', 'eve', 'night'].forEach(function(period) {
+      var lwPerM = ls.lwPerMetre && Number.isFinite(ls.lwPerMetre[period]) ? ls.lwPerMetre[period] : null;
+      var active = ls.activeInPeriod && ls.activeInPeriod[period] !== false;
+      if (lwPerM !== null && active) {
+        var totalLw = lwPerM + 10 * Math.log10(Math.max(1, len));
+        html += '<td class="num" style="color:#e87d2f;font-size:12px;">\u2713 ' + Math.round(lwPerM) + ' dB/m</td>';
+      } else {
+        html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
+      }
+    });
+    var lwMaxPerM = ls.lw_max_per_metre;
+    var lmaxActive = ls.activeInPeriod && ls.activeInPeriod.lmax === true;
+    if (Number.isFinite(lwMaxPerM) && lmaxActive) {
+      html += '<td class="num" style="color:#e87d2f;font-size:12px;">\u2713 ' + Math.round(lwMaxPerM) + ' dB/m</td>';
+    } else {
+      html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
+    }
+    html += '</tr>';
+  });
+
   html += '</tbody></table></div>';
   container.innerHTML = html;
 }
@@ -9461,8 +9668,13 @@ function renderContributions() {
       if (pin.activeInPeriod && pin.activeInPeriod[period] === false) return false;
       return pin.lw && Number.isFinite(pin.lw[period]) && pin.lw[period] > 0;
     });
+    var activeLs = lineSources.filter(function(ls) {
+      if (!ls.vertices || ls.vertices.length < 2) return false;
+      if (!ls.activeInPeriod || ls.activeInPeriod[period] === false) return false;
+      return ls.lwPerMetre && Number.isFinite(ls.lwPerMetre[period]);
+    });
 
-    if (activePins.length === 0) return; // no sources for this period — skip table
+    if (activePins.length === 0 && activeLs.length === 0) return; // skip period table
     anyTable = true;
 
     var sectionDiv = document.createElement('div');
@@ -9557,6 +9769,25 @@ function renderContributions() {
           '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
         tbody.appendChild(srcTr);
       });
+
+      // Line source rows
+      (function(capturedRi, capturedRecLL) {
+        activeLs.forEach(function(ls) {
+          var lsLpRaw = calcLineSourceAtReceiver(ls, period, capturedRi);
+          var closestD = capturedRecLL ? _lsClosestDistM(ls.vertices, capturedRecLL.lat, capturedRecLL.lng) : Infinity;
+          var distStr = (Number.isFinite(closestD) && closestD < Infinity) ? String(Math.round(closestD)) : '\u2014';
+          var lpStr = Number.isFinite(lsLpRaw) ? String(Math.round(lsLpRaw)) : '\u2014';
+          if (Number.isFinite(lsLpRaw)) rawContributions.push(lsLpRaw);
+          var lsTr = document.createElement('tr');
+          var lsLen = _lsTotalLength(ls.vertices);
+          var lsDisplayName = '&#9135; ' + escapeHTML(ls.name || 'Line source') +
+            ' <span style="font-size:10px;color:#aaa;">(' + Math.round(lsLen) + 'm)</span>';
+          lsTr.innerHTML = '<td style="padding-left:16px;font-size:12px;color:#e87d2f;">' + lsDisplayName + '</td>' +
+            '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
+            '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
+          tbody.appendChild(lsTr);
+        });
+      })(ri, recLL);
 
       var totalTr = document.createElement('tr');
       totalTr.className = 'contrib-total-row';
@@ -10072,6 +10303,20 @@ initCollapse();
         if (gzones.length > 0) {
           data.groundZones = gzones.map(function(gz) {
             return { id: gz.id, name: gz.name, g: gz.g, vertices: gz.vertices };
+          });
+        }
+
+        // Line sources
+        if (lineSources.length > 0) {
+          data.lineSources = lineSources.map(function(ls) {
+            return {
+              id: ls.id, name: ls.name, vertices: ls.vertices,
+              heightM: ls.heightM, segmentLengthM: ls.segmentLengthM,
+              lwPerMetre: ls.lwPerMetre, lw_max_per_metre: ls.lw_max_per_metre,
+              spectrum: ls.spectrum, spectrum_max: ls.spectrum_max,
+              activeInPeriod: ls.activeInPeriod,
+              tonal: ls.tonal, impulsive: ls.impulsive
+            };
           });
         }
 
@@ -10943,6 +11188,11 @@ initCollapse();
       // Restore ground absorption zones
       if (data.groundZones && data.groundZones.length > 0 && window._setGroundZones) {
         window._setGroundZones(data.groundZones);
+      }
+
+      // Restore line sources
+      if (data.lineSources && data.lineSources.length > 0 && window._setLineSources) {
+        window._setLineSources(data.lineSources);
       }
 
       // 16. Re-render detected zones panel for VIC
@@ -14383,6 +14633,11 @@ initCollapse();
         });
         if (typeof renderSourcePins === 'function') renderSourcePins();
 
+        // Clear line sources
+        lineSources.length = 0;
+        lineSourceLayer.clearLayers();
+        renderLineSourceCards();
+
         removeParcelOutlines();
         updateConcentricCircles();
         if (typeof clearAutoIF === 'function') clearAutoIF();
@@ -15275,6 +15530,8 @@ initCollapse();
 
       map.on(L.Draw.Event.CREATED, function(e) {
         if (e.layerType === 'polyline') {
+          // If line source draw is active, skip — handled by the line source listener
+          if (_lsDrawHandler) return;
           // Barrier polyline completed
           if (_barrierDrawHandler) { _barrierDrawHandler = null; }
           _drawingActive = false;
@@ -15670,6 +15927,394 @@ initCollapse();
       });
     };
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       LINE SOURCES — map layer, cards, drawing, editing
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    var lineSourceLayer = L.layerGroup().addTo(map);
+    var LS_STYLE = { color: '#e87d2f', weight: 3.5, opacity: 0.9 };
+
+    function renderLineSourceLayer() {
+      lineSourceLayer.clearLayers();
+      lineSources.forEach(function(ls) {
+        if (!ls.vertices || ls.vertices.length < 2) return;
+
+        var poly = L.polyline(ls.vertices, LS_STYLE);
+        var lsLen = _lsTotalLength(ls.vertices);
+        var lwDay = ls.lwPerMetre && Number.isFinite(ls.lwPerMetre.day) ? Math.round(ls.lwPerMetre.day) + ' dB/m' : '—';
+        poly.bindTooltip('<b>' + escapeHTML(ls.name || 'Line source') + '</b><br>' +
+          'L = ' + Math.round(lsLen) + 'm | Lw/m Day: ' + lwDay, { sticky: true });
+
+        // Click → open properties popup
+        poly.on('click', (function(capturedLs) {
+          return function(e) {
+            if (_drawingActive || _lsDrawHandler) return;
+            L.DomEvent.stopPropagation(e);
+            var h = '<div style="min-width:220px;font-size:13px;">';
+            h += '<b>&#9135; ' + escapeHTML(capturedLs.name || 'Line source') + '</b>';
+            h += '<div style="font-size:11px;color:#888;margin:2px 0 8px;">Length: ' + Math.round(_lsTotalLength(capturedLs.vertices)) + 'm</div>';
+            h += '<div style="margin-bottom:6px;">Name: <input type="text" id="lsPopName" value="' + escapeHTML(capturedLs.name || '') + '" style="width:130px;padding:2px 4px;font-size:12px;"></div>';
+            h += '<div style="margin-bottom:4px;">Height (m): <input type="number" id="lsPopHt" value="' + (capturedLs.heightM || 0.5) + '" step="0.1" min="0" style="width:55px;padding:2px 4px;font-size:12px;"></div>';
+            h += '<table style="font-size:12px;border-collapse:collapse;margin-bottom:6px;">';
+            h += '<tr><th style="padding:2px 6px 2px 0;text-align:left;">Period</th><th style="padding:2px 4px;">Lw/m (dB/A)</th><th style="padding:2px 4px;">Active</th></tr>';
+            ['day','eve','night'].forEach(function(p) {
+              var val = capturedLs.lwPerMetre && Number.isFinite(capturedLs.lwPerMetre[p]) ? capturedLs.lwPerMetre[p] : '';
+              var active = !capturedLs.activeInPeriod || capturedLs.activeInPeriod[p] !== false;
+              h += '<tr><td style="padding:2px 6px 2px 0;">' + (p.charAt(0).toUpperCase() + p.slice(1)) + '</td>';
+              h += '<td><input type="number" id="lsPopLw_' + p + '" value="' + val + '" step="0.5" style="width:60px;padding:2px 4px;font-size:12px;"></td>';
+              h += '<td><input type="checkbox" id="lsPopAct_' + p + '"' + (active ? ' checked' : '') + '></td></tr>';
+            });
+            h += '</table>';
+            h += '<button id="lsPopApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
+            h += '<button id="lsPopDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#dc2626;">Delete</button>';
+            h += '</div>';
+            L.popup({ maxWidth: 300 }).setLatLng(e.latlng).setContent(h).openOn(map);
+            setTimeout(function() {
+              var apBtn = document.getElementById('lsPopApply');
+              var delBtn = document.getElementById('lsPopDelete');
+              if (apBtn) apBtn.addEventListener('click', function() {
+                capturedLs.name = document.getElementById('lsPopName').value || capturedLs.name;
+                var ht = parseFloat(document.getElementById('lsPopHt').value);
+                if (Number.isFinite(ht) && ht >= 0) capturedLs.heightM = ht;
+                if (!capturedLs.lwPerMetre) capturedLs.lwPerMetre = {};
+                if (!capturedLs.activeInPeriod) capturedLs.activeInPeriod = { day: true, eve: true, night: true, lmax: false };
+                ['day','eve','night'].forEach(function(p) {
+                  var v = parseFloat(document.getElementById('lsPopLw_' + p).value);
+                  capturedLs.lwPerMetre[p] = Number.isFinite(v) ? v : null;
+                  capturedLs.activeInPeriod[p] = !!document.getElementById('lsPopAct_' + p).checked;
+                });
+                map.closePopup();
+                renderLineSourceLayer();
+                renderLineSourceCards();
+                if (typeof render === 'function') render();
+                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              });
+              if (delBtn) delBtn.addEventListener('click', function() {
+                var idx = lineSources.indexOf(capturedLs);
+                if (idx !== -1) lineSources.splice(idx, 1);
+                map.closePopup();
+                renderLineSourceLayer();
+                renderLineSourceCards();
+                if (typeof render === 'function') render();
+                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              });
+            }, 50);
+          };
+        })(ls));
+
+        // Right-click context menu
+        poly.on('contextmenu', (function(capturedLs) {
+          return function(e) {
+            if (_drawingActive || _lsDrawHandler) return;
+            L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
+            var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
+            _showMapCtxMenu(cx, cy, [
+              { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
+                  var newLs = JSON.parse(JSON.stringify(capturedLs));
+                  newLs.id = 'ls_' + (++_lsIdCtr);
+                  newLs.name = (capturedLs.name || 'Line source') + ' (copy)';
+                  newLs.vertices = capturedLs.vertices.map(function(v) {
+                    return [v[0] - 0.00002, v[1] + 0.00002];
+                  });
+                  lineSources.push(newLs);
+                  renderLineSourceLayer();
+                  renderLineSourceCards();
+                  if (typeof render === 'function') render();
+                  if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              }},
+              'sep',
+              { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
+                  var idx = lineSources.indexOf(capturedLs);
+                  if (idx !== -1) lineSources.splice(idx, 1);
+                  renderLineSourceLayer();
+                  renderLineSourceCards();
+                  if (typeof render === 'function') render();
+                  if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              }}
+            ]);
+          };
+        })(ls));
+
+        ls._poly = poly;
+        lineSourceLayer.addLayer(poly);
+
+        // Label at midpoint
+        var midPt = _lsPolylineMidpoint(ls.vertices);
+        if (midPt) {
+          var lbl = L.marker([midPt.lat, midPt.lng], {
+            icon: L.divIcon({
+              html: '<div style="font-size:10px;font-weight:700;color:#e87d2f;text-shadow:0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none;">' + escapeHTML(ls.name || 'Line source') + '</div>',
+              className: '', iconSize: [80, 14], iconAnchor: [40, -4]
+            }),
+            interactive: false
+          });
+          lineSourceLayer.addLayer(lbl);
+        }
+      });
+    }
+
+    function renderLineSourceCards() {
+      var container = document.getElementById('lineSourceCards');
+      var section = document.getElementById('lineSourceCardsSection');
+      if (!container) return;
+      if (section) section.style.display = lineSources.length > 0 ? '' : 'none';
+      container.innerHTML = '';
+
+      lineSources.forEach(function(ls, idx) {
+        var lsLen = _lsTotalLength(ls.vertices);
+        var card = document.createElement('div');
+        card.style.cssText = 'border-left:4px solid #e87d2f;background:#fffaf6;border-radius:4px;padding:8px 10px;font-size:12px;';
+
+        var hdr = document.createElement('div');
+        hdr.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;';
+
+        var nameInp = document.createElement('input');
+        nameInp.type = 'text'; nameInp.value = ls.name || '';
+        nameInp.style.cssText = 'font-weight:700;font-size:12px;border:none;border-bottom:1px solid #fcd9b0;background:transparent;flex:1;';
+        nameInp.addEventListener('change', (function(capturedIdx) {
+          return function() { lineSources[capturedIdx].name = this.value; renderLineSourceLayer(); };
+        })(idx));
+        hdr.appendChild(nameInp);
+
+        var delBtn = document.createElement('button');
+        delBtn.textContent = '✕'; delBtn.type = 'button';
+        delBtn.style.cssText = 'font-size:12px;padding:1px 5px;border:none;background:transparent;color:#bbb;cursor:pointer;margin-left:auto;';
+        delBtn.addEventListener('click', (function(capturedIdx) {
+          return function() {
+            lineSources.splice(capturedIdx, 1);
+            renderLineSourceLayer();
+            renderLineSourceCards();
+            if (typeof render === 'function') render();
+            if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+          };
+        })(idx));
+        hdr.appendChild(delBtn);
+        card.appendChild(hdr);
+
+        // Length + height row
+        var metaRow = document.createElement('div');
+        metaRow.style.cssText = 'display:flex;gap:10px;margin-bottom:6px;align-items:center;';
+        metaRow.innerHTML = '<span style="color:#888;font-size:11px;">Length: <b>' + Math.round(lsLen) + 'm</b></span>';
+        var htLbl = document.createElement('label');
+        htLbl.style.cssText = 'font-size:11px;color:#888;display:flex;align-items:center;gap:3px;';
+        htLbl.innerHTML = 'Ht: ';
+        var htInp = document.createElement('input');
+        htInp.type = 'number'; htInp.value = ls.heightM || 0.5; htInp.step = '0.1'; htInp.min = '0';
+        htInp.style.cssText = 'width:44px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:3px;';
+        htInp.addEventListener('change', (function(capturedIdx) {
+          return function() {
+            var v = parseFloat(this.value);
+            if (Number.isFinite(v) && v >= 0) lineSources[capturedIdx].heightM = v;
+            if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+          };
+        })(idx));
+        htLbl.appendChild(htInp);
+        htLbl.appendChild(document.createTextNode('m'));
+        metaRow.appendChild(htLbl);
+        card.appendChild(metaRow);
+
+        // Per-period Lw/m inputs
+        var periods = [{ key: 'day', label: 'Day' }, { key: 'eve', label: 'Eve' }, { key: 'night', label: 'Night' }];
+        periods.forEach(function(p) {
+          if (!ls.lwPerMetre) ls.lwPerMetre = {};
+          if (!ls.activeInPeriod) ls.activeInPeriod = { day: true, eve: true, night: true, lmax: false };
+          var row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:3px;';
+
+          var chk = document.createElement('input');
+          chk.type = 'checkbox'; chk.checked = ls.activeInPeriod[p.key] !== false;
+          chk.title = p.label + ' active';
+          chk.addEventListener('change', (function(capturedIdx, capturedPeriod) {
+            return function() {
+              lineSources[capturedIdx].activeInPeriod[capturedPeriod] = this.checked;
+              if (typeof render === 'function') render();
+              if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+            };
+          })(idx, p.key));
+          row.appendChild(chk);
+
+          var lbl = document.createElement('span');
+          lbl.textContent = p.label; lbl.style.cssText = 'font-size:11px;width:26px;color:#555;';
+          row.appendChild(lbl);
+
+          var lwInp = document.createElement('input');
+          lwInp.type = 'number';
+          lwInp.value = Number.isFinite(ls.lwPerMetre[p.key]) ? ls.lwPerMetre[p.key] : '';
+          lwInp.placeholder = 'Lw/m dB(A)'; lwInp.step = '0.5';
+          lwInp.style.cssText = 'width:80px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;';
+          lwInp.addEventListener('change', (function(capturedIdx, capturedPeriod) {
+            return function() {
+              var v = parseFloat(this.value);
+              if (!lineSources[capturedIdx].lwPerMetre) lineSources[capturedIdx].lwPerMetre = {};
+              lineSources[capturedIdx].lwPerMetre[capturedPeriod] = Number.isFinite(v) ? v : null;
+              if (typeof render === 'function') render();
+              if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+            };
+          })(idx, p.key));
+          row.appendChild(lwInp);
+
+          // Show total Lw for this period
+          var lwPerM = ls.lwPerMetre[p.key];
+          if (Number.isFinite(lwPerM) && lsLen > 0) {
+            var totalLw = lwPerM + 10 * Math.log10(lsLen);
+            var totalSpan = document.createElement('span');
+            totalSpan.style.cssText = 'font-size:10px;color:#888;';
+            totalSpan.textContent = '→ ' + Math.round(totalLw) + ' dB total';
+            row.appendChild(totalSpan);
+          }
+          card.appendChild(row);
+        });
+
+        container.appendChild(card);
+      });
+    }
+
+    // Draw Line Source button
+    var drawLineSourceBtn = document.getElementById('drawLineSourceBtn');
+    var _lsDrawHandler = null;
+    if (drawLineSourceBtn && typeof L.Draw !== 'undefined') {
+      drawLineSourceBtn.addEventListener('click', function() {
+        if (_lsDrawHandler) {
+          _lsDrawHandler.disable();
+          _lsDrawHandler = null;
+          drawLineSourceBtn.classList.remove('active');
+          _drawingActive = false;
+          return;
+        }
+        if (_drawHandler) { _drawHandler.disable(); stopDrawing(); }
+        if (_barrierDrawHandler) {
+          _barrierDrawHandler.disable(); _barrierDrawHandler = null;
+          _drawingActive = false;
+          var dbBtn2 = document.getElementById('drawBarrierBtn');
+          if (dbBtn2) dbBtn2.classList.remove('active');
+        }
+        if (_gzDrawHandler) {
+          _gzDrawHandler.disable(); _gzDrawHandler = null;
+          _drawingGroundZone = false; _drawingActive = false;
+          var dgzBtn = document.getElementById('drawGroundZoneBtn');
+          if (dgzBtn) dgzBtn.classList.remove('active');
+        }
+        _drawingActive = true;
+        document.querySelectorAll('.map-mode-btn').forEach(function(b) { b.classList.remove('active'); });
+        _lsDrawHandler = new L.Draw.Polyline(map, {
+          shapeOptions: LS_STYLE,
+          showLength: false
+        });
+        _lsDrawHandler.enable();
+        drawLineSourceBtn.classList.add('active');
+      });
+    }
+
+    // Listen for line source polyline completion
+    map.on(L.Draw.Event.CREATED, function(e) {
+      if (e.layerType !== 'polyline') return;
+      // Check if we're in line source mode (not barrier mode)
+      if (!_lsDrawHandler) return;
+      _lsDrawHandler = null;
+      _drawingActive = false;
+      if (drawLineSourceBtn) drawLineSourceBtn.classList.remove('active');
+
+      var latlngsRaw = e.layer.getLatLngs();
+      var verts = latlngsRaw.map(function(ll) { return [ll.lat, ll.lng]; });
+      if (verts.length < 2) return;
+
+      // Show properties popup
+      var midPt = _lsPolylineMidpoint(verts);
+      var lsLen = _lsTotalLength(verts);
+      var newId = ++_lsIdCtr;
+      var defName = 'Line source ' + newId;
+
+      var h = '<div style="min-width:240px;font-size:13px;">';
+      h += '<b>&#9135; New line source</b>';
+      h += '<div style="font-size:11px;color:#888;margin:2px 0 8px;">Length: ' + Math.round(lsLen) + 'm</div>';
+      h += '<div style="margin-bottom:5px;">Name: <input type="text" id="newLsName" value="' + escapeHTML(defName) + '" style="width:140px;padding:2px 4px;font-size:12px;"></div>';
+      h += '<div style="margin-bottom:5px;">Lw/m Day: <input type="number" id="newLsLwDay" step="0.5" style="width:65px;padding:2px 4px;font-size:12px;"> <span style="font-size:11px;color:#888;">dB(A)</span></div>';
+      h += '<div style="margin-bottom:5px;">Lw/m Eve: <input type="number" id="newLsLwEve" step="0.5" style="width:65px;padding:2px 4px;font-size:12px;"></div>';
+      h += '<div style="margin-bottom:5px;">Lw/m Night: <input type="number" id="newLsLwNight" step="0.5" style="width:65px;padding:2px 4px;font-size:12px;"></div>';
+      h += '<div style="margin-bottom:8px;">Height: <input type="number" id="newLsHt" value="0.5" step="0.1" min="0" style="width:55px;padding:2px 4px;font-size:12px;"> <span style="font-size:11px;color:#888;">m</span></div>';
+      h += '<button id="newLsAdd" style="font-size:11px;padding:3px 10px;cursor:pointer;background:#e87d2f;color:#fff;border:none;border-radius:3px;">Add line source</button> ';
+      h += '<button id="newLsCancel" style="font-size:11px;padding:3px 8px;cursor:pointer;color:#666;border:1px solid #ccc;border-radius:3px;background:#fff;">Cancel</button>';
+      h += '</div>';
+
+      var midLL = midPt ? [midPt.lat, midPt.lng] : [verts[0][0], verts[0][1]];
+      L.popup({ maxWidth: 320, closeOnClick: false })
+        .setLatLng(midLL).setContent(h).openOn(map);
+
+      setTimeout(function() {
+        var addBtn2 = document.getElementById('newLsAdd');
+        var cancelBtn3 = document.getElementById('newLsCancel');
+        if (addBtn2) addBtn2.addEventListener('click', function() {
+          var lwDay  = parseFloat(document.getElementById('newLsLwDay').value);
+          var lwEve  = parseFloat(document.getElementById('newLsLwEve').value);
+          var lwNight = parseFloat(document.getElementById('newLsLwNight').value);
+          var ht = parseFloat(document.getElementById('newLsHt').value);
+          var nm = document.getElementById('newLsName').value || defName;
+          var ls = {
+            id: 'ls_' + newId,
+            name: nm,
+            vertices: verts,
+            heightM: Number.isFinite(ht) && ht >= 0 ? ht : 0.5,
+            segmentLengthM: 10,
+            lwPerMetre: {
+              day:   Number.isFinite(lwDay)   ? lwDay   : null,
+              eve:   Number.isFinite(lwEve)   ? lwEve   : null,
+              night: Number.isFinite(lwNight) ? lwNight : null
+            },
+            lw_max_per_metre: null,
+            spectrum: { day: null, eve: null, night: null },
+            spectrum_max: null,
+            activeInPeriod: { day: true, eve: true, night: true, lmax: false },
+            tonal: 0, impulsive: 0
+          };
+          lineSources.push(ls);
+          map.closePopup();
+          renderLineSourceLayer();
+          renderLineSourceCards();
+          if (typeof render === 'function') render();
+          if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+        });
+        if (cancelBtn3) cancelBtn3.addEventListener('click', function() { map.closePopup(); });
+      }, 50);
+    });
+
+    // Cancel line source drawing on Escape
+    map.on('draw:drawstop', function() {
+      if (_lsDrawHandler) {
+        _lsDrawHandler = null;
+        _drawingActive = false;
+        if (drawLineSourceBtn) drawLineSourceBtn.classList.remove('active');
+      }
+    });
+
+    // Window exports for line sources
+    window._getLineSources = function() { return lineSources; };
+    window._setLineSources = function(arr) {
+      lineSourceLayer.clearLayers();
+      lineSources.length = 0;
+      if (!arr) return;
+      arr.forEach(function(ls) {
+        var obj = {
+          id: ls.id, name: ls.name, vertices: ls.vertices,
+          heightM: ls.heightM || 0.5,
+          segmentLengthM: ls.segmentLengthM || 10,
+          lwPerMetre: ls.lwPerMetre || { day: null, eve: null, night: null },
+          lw_max_per_metre: ls.lw_max_per_metre || null,
+          spectrum: ls.spectrum || { day: null, eve: null, night: null },
+          spectrum_max: ls.spectrum_max || null,
+          activeInPeriod: ls.activeInPeriod || { day: true, eve: true, night: true, lmax: false },
+          tonal: ls.tonal || 0, impulsive: ls.impulsive || 0
+        };
+        if (ls.id) {
+          var num = parseInt((ls.id + '').replace('ls_', ''));
+          if (Number.isFinite(num) && num > _lsIdCtr) _lsIdCtr = num;
+        }
+        lineSources.push(obj);
+      });
+      renderLineSourceLayer();
+      renderLineSourceCards();
+    };
+
     /* ═══ Right-click context menu infrastructure ═══ */
     var _ctxMenuEl = document.getElementById('mapCtxMenu');
     var _ctxMenuOpen = false;
@@ -15995,6 +16640,35 @@ initCollapse();
           spectrumAdj: specAdj
         });
       });
+
+      // Line source segments — each segment becomes a virtual point source
+      lineSources.forEach(function(ls) {
+        if (period === 'lmax') {
+          if (!ls.activeInPeriod || ls.activeInPeriod.lmax !== true) return;
+        } else {
+          if (!ls.activeInPeriod || ls.activeInPeriod[period] === false) return;
+        }
+        var lwPerM = (period === 'lmax') ? ls.lw_max_per_metre : (ls.lwPerMetre ? ls.lwPerMetre[period] : null);
+        if (!Number.isFinite(lwPerM)) return;
+
+        var lsSpec = (period !== 'lmax') ? (ls.spectrum && ls.spectrum[period] ? ls.spectrum[period] : null)
+                                         : (ls.spectrum_max || null);
+        var segLenM = ls.segmentLengthM || 10;
+        var segs = _lsGetSegmentsWithLength(ls.vertices, segLenM);
+
+        segs.forEach(function(seg) {
+          var lwSeg = lwPerM + 10 * Math.log10(seg.length);
+          var segSpecAdj = lsSpec ? (lwSeg - SharedCalc.energySum(lsSpec)) : 0;
+          result.push({
+            lat: seg.lat, lng: seg.lng,
+            heightM: ls.heightM || 0.5,
+            equipment: [{ name: ls.name || 'Line source', Lw: lwSeg, quantity: 1 }],
+            spectrum: lsSpec,
+            spectrumAdj: segSpecAdj
+          });
+        });
+      });
+
       return result;
     }
 
