@@ -602,7 +602,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
                 <div class="mp-sep"></div>
                 <button class="mp-btn map-mode-btn" id="mapMode-source" title="Click map to place noise source" style="display:none;border-left:3px solid #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise source</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Point source</button>
-                <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.)" style="border-left:3px solid #e87d2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e87d2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#e87d2f"/><circle cx="19" cy="5" r="2" fill="#e87d2f"/></svg> Line source</button>
+                <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.)" style="border-left:3px solid #d32f2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#d32f2f"/><circle cx="19" cy="5" r="2" fill="#d32f2f"/></svg> Line source</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
@@ -1189,7 +1189,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         <div id="sourcePinCards" style="display:flex;flex-direction:column;gap:0;"></div>
         <button type="button" id="addSourcePinBtn" class="pdf-btn" style="font-size:12px;padding:5px 14px;margin-top:10px;">+ Add Source</button>
         <div id="lineSourceCardsSection" style="margin-top:14px;display:none;">
-          <div style="font-size:12px;font-weight:700;color:#e87d2f;border-top:1px solid #fde8d4;padding-top:10px;margin-bottom:6px;">&#9135; Line sources</div>
+          <div style="font-size:12px;font-weight:700;color:#d32f2f;border-top:1px solid #fde8d4;padding-top:10px;margin-bottom:6px;">&#9135; Line sources</div>
           <div id="lineSourceCards" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
       </div>
@@ -9618,13 +9618,13 @@ function renderScenariosTable() {
   lineSources.forEach(function(ls) {
     var len = _lsTotalLength(ls.vertices);
     html += '<tr>';
-    html += '<td style="font-size:12px;color:#e87d2f;">&#9135; ' + escapeHTML(ls.name || 'Line source') + '</td>';
+    html += '<td style="font-size:12px;color:#d32f2f;">&#9135; ' + escapeHTML(ls.name || 'Line source') + '</td>';
     ['day', 'eve', 'night'].forEach(function(period) {
       var lwPerM = ls.lwPerMetre && Number.isFinite(ls.lwPerMetre[period]) ? ls.lwPerMetre[period] : null;
       var active = ls.activeInPeriod && ls.activeInPeriod[period] !== false;
       if (lwPerM !== null && active) {
         var totalLw = lwPerM + 10 * Math.log10(Math.max(1, len));
-        html += '<td class="num" style="color:#e87d2f;font-size:12px;">\u2713 ' + Math.round(lwPerM) + ' dB/m</td>';
+        html += '<td class="num" style="color:#d32f2f;font-size:12px;">\u2713 ' + Math.round(lwPerM) + ' dB/m</td>';
       } else {
         html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
       }
@@ -9632,7 +9632,7 @@ function renderScenariosTable() {
     var lwMaxPerM = ls.lw_max_per_metre;
     var lmaxActive = ls.activeInPeriod && ls.activeInPeriod.lmax === true;
     if (Number.isFinite(lwMaxPerM) && lmaxActive) {
-      html += '<td class="num" style="color:#e87d2f;font-size:12px;">\u2713 ' + Math.round(lwMaxPerM) + ' dB/m</td>';
+      html += '<td class="num" style="color:#d32f2f;font-size:12px;">\u2713 ' + Math.round(lwMaxPerM) + ' dB/m</td>';
     } else {
       html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
     }
@@ -9781,7 +9781,7 @@ function renderContributions() {
           var lsLen = _lsTotalLength(ls.vertices);
           var lsDisplayName = '&#9135; ' + escapeHTML(ls.name || 'Line source') +
             ' <span style="font-size:10px;color:#aaa;">(' + Math.round(lsLen) + 'm)</span>';
-          lsTr.innerHTML = '<td style="padding-left:16px;font-size:12px;color:#e87d2f;">' + lsDisplayName + '</td>' +
+          lsTr.innerHTML = '<td style="padding-left:16px;font-size:12px;color:#d32f2f;">' + lsDisplayName + '</td>' +
             '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
             '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
           tbody.appendChild(lsTr);
@@ -15338,23 +15338,57 @@ initCollapse();
             var shapeBtn = document.getElementById('editBarShape');
             if (shapeBtn) shapeBtn.addEventListener('click', function() {
               map.closePopup();
-              // Enter edit mode using Leaflet.draw edit on this polyline
               if (!line.editing) return;
+              var origVertices = ub.vertices.map(function(v) { return [v[0], v[1]]; });
               _drawingActive = true;
               line.editing.enable();
               var editBarrierBtn = document.getElementById('drawBarrierBtn');
               if (editBarrierBtn) editBarrierBtn.classList.add('active');
-              // Finish on map click or Escape — single handler, no stale references
-              function finishBarrierEdit() {
-                line.off('edit'); // prevent orphaned listener after re-render
+              // Floating edit toolbar
+              var editBar = document.createElement('div');
+              editBar.id = 'shapeEditBar';
+              editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #e67e22;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
+              editBar.innerHTML =
+                '<span style="color:#e67e22;font-weight:600;">Editing barrier: ' + escapeHTML(ub.name || 'Barrier') + '</span>' +
+                '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
+                '<button id="shapeEditSave" style="padding:3px 12px;font-size:12px;background:#e67e22;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+                '<button id="shapeEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
+              var mapContainer = map.getContainer();
+              mapContainer.style.position = 'relative';
+              mapContainer.appendChild(editBar);
+              function _barRemoveEditBar() {
+                var bar = document.getElementById('shapeEditBar');
+                if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
+              }
+              function _barFinishEdit(save) {
+                line.off('edit');
                 if (line.editing) line.editing.disable();
                 _drawingActive = false;
                 if (editBarrierBtn) editBarrierBtn.classList.remove('active');
-                ub.vertices = line.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+                document.removeEventListener('keydown', _barEscHandler);
+                _barRemoveEditBar();
+                if (save) {
+                  ub.vertices = line.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+                } else {
+                  line.setLatLngs(origVertices);
+                }
                 renderUserBarriers();
                 rebuildBuildingsIndex();
+                if (save) {
+                  if (typeof render === 'function') render();
+                  if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                }
               }
-              map.once('click', finishBarrierEdit);
+              function _barEscHandler(e) {
+                if (e.key === 'Escape') { e.stopPropagation(); _barFinishEdit(false); }
+              }
+              document.addEventListener('keydown', _barEscHandler);
+              setTimeout(function() {
+                var saveBtn = document.getElementById('shapeEditSave');
+                var cancelBtn = document.getElementById('shapeEditCancel');
+                if (saveBtn) saveBtn.addEventListener('click', function() { _barFinishEdit(true); });
+                if (cancelBtn) cancelBtn.addEventListener('click', function() { _barFinishEdit(false); });
+              }, 50);
             });
           }, 50);
 
@@ -15419,6 +15453,7 @@ initCollapse();
           html += 'Height: <input type="number" id="cbHeight" value="' + (cb.heightM || 3) + '" step="0.5" min="0" style="width:60px;padding:2px 4px;font-size:12px;"> m';
           html += '</div>';
           html += '<button id="cbApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
+          html += '<button id="cbEditShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#922b21;">Edit shape</button> ';
           html += '<button id="cbDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#dc2626;">Delete</button>';
           html += '</div>';
 
@@ -15446,6 +15481,58 @@ initCollapse();
               renderCustomBuildings();
               rebuildBuildingsIndex();
               if (typeof render === 'function') render();
+            });
+
+            var cbShapeBtn = document.getElementById('cbEditShape');
+            if (cbShapeBtn) cbShapeBtn.addEventListener('click', function() {
+              map.closePopup();
+              if (!poly.editing) return;
+              var origPolygon = cb.polygon.map(function(v) { return [v[0], v[1]]; });
+              _drawingActive = true;
+              poly.editing.enable();
+              // Floating edit toolbar
+              var editBar = document.createElement('div');
+              editBar.id = 'shapeEditBar';
+              editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #922b21;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
+              editBar.innerHTML =
+                '<span style="color:#922b21;font-weight:600;">Editing building: ' + escapeHTML(cb.name || 'Custom building') + '</span>' +
+                '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
+                '<button id="shapeEditSave" style="padding:3px 12px;font-size:12px;background:#922b21;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+                '<button id="shapeEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
+              var mapContainer = map.getContainer();
+              mapContainer.style.position = 'relative';
+              mapContainer.appendChild(editBar);
+              function _cbRemoveEditBar() {
+                var bar = document.getElementById('shapeEditBar');
+                if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
+              }
+              function _cbFinishEdit(save) {
+                if (poly.editing) poly.editing.disable();
+                _drawingActive = false;
+                document.removeEventListener('keydown', _cbEscHandler);
+                _cbRemoveEditBar();
+                if (save) {
+                  cb.polygon = poly.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+                } else {
+                  poly.setLatLngs([origPolygon]);
+                }
+                renderCustomBuildings();
+                rebuildBuildingsIndex();
+                if (save) {
+                  if (typeof render === 'function') render();
+                  if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                }
+              }
+              function _cbEscHandler(e) {
+                if (e.key === 'Escape') { e.stopPropagation(); _cbFinishEdit(false); }
+              }
+              document.addEventListener('keydown', _cbEscHandler);
+              setTimeout(function() {
+                var saveBtn = document.getElementById('shapeEditSave');
+                var cancelBtn = document.getElementById('shapeEditCancel');
+                if (saveBtn) saveBtn.addEventListener('click', function() { _cbFinishEdit(true); });
+                if (cancelBtn) cancelBtn.addEventListener('click', function() { _cbFinishEdit(false); });
+              }, 50);
             });
           }, 50);
         });
@@ -15791,6 +15878,7 @@ initCollapse();
         eHtml += 'Custom G (0–1): <input type="number" id="editGzCustomG" min="0" max="1" step="0.05" value="' + gz.g + '" style="width:60px;padding:2px 4px;font-size:12px;">';
         eHtml += '</div></div>';
         eHtml += '<button id="editGzSave" style="font-size:11px;padding:2px 8px;cursor:pointer;">Save</button> ';
+        eHtml += '<button id="editGzEditShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#2d6a4f;">Edit shape</button> ';
         eHtml += '<button id="editGzDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#dc2626;">Delete</button> ';
         eHtml += '<button id="editGzCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button>';
         eHtml += '</div>';
@@ -15830,6 +15918,56 @@ initCollapse();
           });
           var cancelBtn2 = document.getElementById('editGzCancel');
           if (cancelBtn2) cancelBtn2.addEventListener('click', function() { map.closePopup(); });
+
+          var gzShapeBtn = document.getElementById('editGzEditShape');
+          if (gzShapeBtn) gzShapeBtn.addEventListener('click', function() {
+            map.closePopup();
+            if (!poly.editing) return;
+            var origVertices = gz.vertices.map(function(v) { return [v[0], v[1]]; });
+            _drawingActive = true;
+            poly.editing.enable();
+            // Floating edit toolbar (accent colour matches zone G value)
+            var gzAccent = _gzBorderColor(gz.g);
+            var editBar = document.createElement('div');
+            editBar.id = 'shapeEditBar';
+            editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid ' + gzAccent + ';border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
+            editBar.innerHTML =
+              '<span style="color:' + gzAccent + ';font-weight:600;">Editing ground zone: ' + escapeHTML(gz.name || 'Ground zone') + '</span>' +
+              '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
+              '<button id="shapeEditSave" style="padding:3px 12px;font-size:12px;background:' + gzAccent + ';color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+              '<button id="shapeEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
+            var mapContainer = map.getContainer();
+            mapContainer.style.position = 'relative';
+            mapContainer.appendChild(editBar);
+            function _gzRemoveEditBar() {
+              var bar = document.getElementById('shapeEditBar');
+              if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
+            }
+            function _gzFinishShapeEdit(save) {
+              if (poly.editing) poly.editing.disable();
+              _drawingActive = false;
+              document.removeEventListener('keydown', _gzShapeEscHandler);
+              _gzRemoveEditBar();
+              if (save) {
+                gz.vertices = poly.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+                _renderGroundZone(gz);
+                if (typeof render === 'function') render();
+                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              } else {
+                poly.setLatLngs([origVertices]);
+              }
+            }
+            function _gzShapeEscHandler(e) {
+              if (e.key === 'Escape') { e.stopPropagation(); _gzFinishShapeEdit(false); }
+            }
+            document.addEventListener('keydown', _gzShapeEscHandler);
+            setTimeout(function() {
+              var saveBtn = document.getElementById('shapeEditSave');
+              var cancelBtn = document.getElementById('shapeEditCancel');
+              if (saveBtn) saveBtn.addEventListener('click', function() { _gzFinishShapeEdit(true); });
+              if (cancelBtn) cancelBtn.addEventListener('click', function() { _gzFinishShapeEdit(false); });
+            }, 50);
+          });
         }, 50);
       });
 
@@ -15931,7 +16069,7 @@ initCollapse();
        ═══════════════════════════════════════════════════════════════════════ */
 
     var lineSourceLayer = L.layerGroup().addTo(map);
-    var LS_STYLE = { color: '#e87d2f', weight: 3.5, opacity: 0.9 };
+    var LS_STYLE = { color: '#d32f2f', weight: 3.5, opacity: 0.9 };
 
     function renderLineSourceLayer() {
       lineSourceLayer.clearLayers();
@@ -16011,11 +16149,11 @@ initCollapse();
                 // Floating edit bar with Save / Cancel
                 var editBar = document.createElement('div');
                 editBar.id = 'lsEditBar';
-                editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #e87d2f;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
+                editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #d32f2f;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
                 editBar.innerHTML =
-                  '<span style="color:#e87d2f;font-weight:600;">&#9135; Editing line source</span>' +
+                  '<span style="color:#d32f2f;font-weight:600;">&#9135; Editing line source</span>' +
                   '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
-                  '<button id="lsEditSave" style="padding:3px 12px;font-size:12px;background:#e87d2f;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+                  '<button id="lsEditSave" style="padding:3px 12px;font-size:12px;background:#d32f2f;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
                   '<button id="lsEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
                 var mapContainer = map.getContainer();
                 mapContainer.style.position = 'relative';
@@ -16099,7 +16237,7 @@ initCollapse();
         if (midPt) {
           var lbl = L.marker([midPt.lat, midPt.lng], {
             icon: L.divIcon({
-              html: '<div style="font-size:10px;font-weight:700;color:#e87d2f;text-shadow:0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none;">' + escapeHTML(ls.name || 'Line source') + '</div>',
+              html: '<div style="font-size:10px;font-weight:700;color:#d32f2f;text-shadow:0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none;">' + escapeHTML(ls.name || 'Line source') + '</div>',
               className: '', iconSize: [80, 14], iconAnchor: [40, -4]
             }),
             interactive: false
@@ -16119,7 +16257,7 @@ initCollapse();
       lineSources.forEach(function(ls, idx) {
         var lsLen = _lsTotalLength(ls.vertices);
         var card = document.createElement('div');
-        card.style.cssText = 'border-left:4px solid #e87d2f;background:#fffaf6;border-radius:4px;padding:8px 10px;font-size:12px;';
+        card.style.cssText = 'border-left:4px solid #d32f2f;background:#fffaf6;border-radius:4px;padding:8px 10px;font-size:12px;';
 
         var hdr = document.createElement('div');
         hdr.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;';
@@ -16289,7 +16427,7 @@ initCollapse();
       h += '<div style="margin-bottom:5px;">Lw/m Eve: <input type="number" id="newLsLwEve" step="0.5" style="width:65px;padding:2px 4px;font-size:12px;"></div>';
       h += '<div style="margin-bottom:5px;">Lw/m Night: <input type="number" id="newLsLwNight" step="0.5" style="width:65px;padding:2px 4px;font-size:12px;"></div>';
       h += '<div style="margin-bottom:8px;">Height: <input type="number" id="newLsHt" value="0.5" step="0.1" min="0" style="width:55px;padding:2px 4px;font-size:12px;"> <span style="font-size:11px;color:#888;">m</span></div>';
-      h += '<button id="newLsAdd" style="font-size:11px;padding:3px 10px;cursor:pointer;background:#e87d2f;color:#fff;border:none;border-radius:3px;">Add line source</button> ';
+      h += '<button id="newLsAdd" style="font-size:11px;padding:3px 10px;cursor:pointer;background:#d32f2f;color:#fff;border:none;border-radius:3px;">Add line source</button> ';
       h += '<button id="newLsCancel" style="font-size:11px;padding:3px 8px;cursor:pointer;color:#666;border:1px solid #ccc;border-radius:3px;background:#fff;">Cancel</button>';
       h += '</div>';
 
