@@ -15241,8 +15241,8 @@ initCollapse();
     window._terrainContourLayer = _terrainContourLayer;
 
     var CUSTOM_STYLE = {
-      color: '#922b21', fillColor: '#c0392b', fillOpacity: 0.45,
-      weight: 2, dashArray: '4 2'
+      color: 'rgba(70,90,120,0.7)', fillColor: 'rgba(100,120,150,0.35)', fillOpacity: 1,
+      weight: 2
     };
     var DEMOLISHED_STYLE = {
       color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 0.15,
@@ -15426,7 +15426,7 @@ initCollapse();
     var barrierLayer = L.layerGroup().addTo(map);
     var _selectedBarrier = null; // currently selected barrier for keyboard Delete
     var BARRIER_STYLE = {
-      color: '#e67e22', weight: 3, dashArray: '8 4', opacity: 0.9
+      color: '#4CAF50', weight: 3, opacity: 0.9
     };
     var BARRIER_SUPPRESSED_STYLE = {
       color: '#999', weight: 2, dashArray: '4 4', opacity: 0.35
@@ -15482,7 +15482,7 @@ initCollapse();
           html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;color:#555;">Top of barrier:</td>';
           html += '<td id="editBarTopDisplay" style="font-size:12px;color:#555;">' + curTop.toFixed(1) + 'm above ground</td></tr>';
           html += '</table>';
-          html += '<div id="editBarFloatNote" style="font-size:11px;color:#e67e22;margin-top:2px;display:' + (curBase > 0 ? 'block' : 'none') + ';">⚠ Floating barrier</div>';
+          html += '<div id="editBarFloatNote" style="font-size:11px;color:#4CAF50;margin-top:2px;display:' + (curBase > 0 ? 'block' : 'none') + ';">⚠ Floating barrier</div>';
           html += '<label style="font-size:12px;cursor:pointer;display:block;margin-top:6px;">';
           html += '<input type="checkbox" id="editBarSuppressed"' + (ub.suppressed ? ' checked' : '') + '> Suppressed (excluded from calculations)</label>';
           html += '</div>';
@@ -15545,11 +15545,11 @@ initCollapse();
               // Floating edit toolbar
               var editBar = document.createElement('div');
               editBar.id = 'shapeEditBar';
-              editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #e67e22;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
+              editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #4CAF50;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
               editBar.innerHTML =
-                '<span style="color:#e67e22;font-weight:600;">Editing barrier: ' + escapeHTML(ub.name || 'Barrier') + '</span>' +
+                '<span style="color:#4CAF50;font-weight:600;">Editing barrier: ' + escapeHTML(ub.name || 'Barrier') + '</span>' +
                 '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
-                '<button id="shapeEditSave" style="padding:3px 12px;font-size:12px;background:#e67e22;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+                '<button id="shapeEditSave" style="padding:3px 12px;font-size:12px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
                 '<button id="shapeEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
               var mapContainer = map.getContainer();
               mapContainer.style.position = 'relative';
@@ -15837,7 +15837,7 @@ initCollapse();
           html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;color:#555;">Top of barrier:</td>';
           html += '<td id="newBarTopDisplay" style="font-size:12px;color:#555;">2.0m above ground</td></tr>';
           html += '</table>';
-          html += '<div id="newBarFloatNote" style="font-size:11px;color:#e67e22;margin-top:2px;display:none;">⚠ Floating barrier</div>';
+          html += '<div id="newBarFloatNote" style="font-size:11px;color:#4CAF50;margin-top:2px;display:none;">⚠ Floating barrier</div>';
           html += '</div>';
           html += '<button id="newBarAdd" style="font-size:11px;padding:2px 8px;cursor:pointer;">Add Barrier</button> ';
           html += '<button id="newBarCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button>';
