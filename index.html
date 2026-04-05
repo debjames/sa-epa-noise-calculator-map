@@ -3234,6 +3234,87 @@ var _gzIdCtr = 0;
    ═══════════════════════════════════════════════════════════════════════════ */
 var lineSources = [];
 var _lsIdCtr = 0;
+var _lsPanel = null;
+var _lsPanelId = null;
+
+var LINE_SOURCE_LIBRARY = [
+  { name: 'Small truck driving slowly', category: 'Trucks',
+    spectrum_unweighted: {63:66,125:65,250:62,500:61,1000:61,2000:59,4000:52,8000:42},
+    lw_m_dba: 65, height_m: 1.5 },
+  { name: 'Small truck exhaust', category: 'Trucks',
+    spectrum_unweighted: {63:58,125:57,250:54,500:53,1000:53,2000:51,4000:44,8000:34},
+    lw_m_dba: 57, height_m: 3.6 },
+  { name: 'Medium truck driving slowly', category: 'Trucks',
+    spectrum_unweighted: {63:69,125:68,250:65,500:64,1000:64,2000:62,4000:55,8000:45},
+    lw_m_dba: 68, height_m: 1.5 },
+  { name: 'Medium truck exhaust', category: 'Trucks',
+    spectrum_unweighted: {63:61,125:60,250:57,500:56,1000:56,2000:54,4000:47,8000:37},
+    lw_m_dba: 60, height_m: 3.6 },
+  { name: 'Large truck driving slowly', category: 'Trucks',
+    spectrum_unweighted: {63:72,125:71,250:68,500:67,1000:67,2000:65,4000:58,8000:48},
+    lw_m_dba: 71, height_m: 1.0 },
+  { name: 'Large truck exhaust', category: 'Trucks',
+    spectrum_unweighted: {63:64,125:63,250:60,500:59,1000:59,2000:57,4000:50,8000:40},
+    lw_m_dba: 63, height_m: 3.6 },
+  { name: 'Car driving slowly < 30 km/h', category: 'Light vehicles',
+    spectrum_unweighted: {63:55,125:49,250:45,500:43,1000:43,2000:39,4000:35,8000:32},
+    lw_m_dba: 47, height_m: 0.5 },
+  { name: 'Electric forklift - driving', category: 'Industrial',
+    spectrum_unweighted: {63:46,125:46,250:46,500:46,1000:46,2000:46,4000:46,8000:46},
+    lw_m_dba: 53, height_m: 1.0 },
+  { name: 'Gas forklift - driving', category: 'Industrial',
+    spectrum_unweighted: {63:70,125:64,250:60,500:58,1000:58,2000:54,4000:50,8000:47},
+    lw_m_dba: 62, height_m: 1.0 },
+  { name: 'Diesel forklift - driving', category: 'Industrial',
+    spectrum_unweighted: {63:70,125:64,250:60,500:58,1000:58,2000:54,4000:50,8000:47},
+    lw_m_dba: 62, height_m: 1.0 }
+];
+var LINE_SOURCE_LIBRARY_GROUPED = {};
+LINE_SOURCE_LIBRARY.forEach(function(e) {
+  if (!LINE_SOURCE_LIBRARY_GROUPED[e.category]) LINE_SOURCE_LIBRARY_GROUPED[e.category] = [];
+  LINE_SOURCE_LIBRARY_GROUPED[e.category].push(e);
+});
+
+function _lsCalcLwmAdj(lwmBase, N, speed, period) {
+  // Reference: N=1, speed=10, period=15 → adj=0
+  N      = (N      > 0) ? N      : 1;
+  speed  = (speed  > 0) ? speed  : 10;
+  period = (period > 0) ? period : 15;
+  var adj = 10*Math.log10(period/15) + 10*Math.log10(N) + 10*Math.log10(10/speed);
+  return lwmBase + adj;
+}
+
+// Auto spacing based on line length
+function _lsAutoSpacing(totalLenM) {
+  if (totalLenM < 50)  return 2;
+  if (totalLenM < 200) return 5;
+  return 10;
+}
+
+function _lsGetEffectiveLwm(ls, period) {
+  if (!ls.activeInPeriod || !ls.activeInPeriod[period]) return NaN;
+  var mvt = (ls.movements && ls.movements[period]) || { N:1, speed:10, period:15 };
+  if (ls.manualOverride && ls.manualOverride[period]) {
+    return (ls.manualLwm && Number.isFinite(ls.manualLwm[period])) ? ls.manualLwm[period] : NaN;
+  }
+  var base = ls.lw_m_base ? ls.lw_m_base[period] : null;
+  if (!Number.isFinite(base)) return NaN;
+  return _lsCalcLwmAdj(base, mvt.N, mvt.speed, mvt.period);
+}
+
+function _lsGetEffectiveSpectrum(ls, period) {
+  // Returns array of 8 values [b63, b125, ...] or null
+  var mvt = (ls.movements && ls.movements[period]) || { N:1, speed:10, period:15 };
+  var adj = 10*Math.log10((mvt.period||15)/15) + 10*Math.log10((mvt.N||1)) + 10*Math.log10(10/(mvt.speed||10));
+  if (ls.manualOverride && ls.manualOverride[period] && ls.manualSpectrum && ls.manualSpectrum[period]) {
+    var ms = ls.manualSpectrum[period];
+    return [63,125,250,500,1000,2000,4000,8000].map(function(f) { return (ms[f] || 0) + adj; });
+  }
+  var base = ls.spectrum_m_base ? ls.spectrum_m_base[period] : null;
+  if (!base) return null;
+  // base is an object {63:x, 125:x, ...}
+  return [63,125,250,500,1000,2000,4000,8000].map(function(f) { return (base[f] || 0) + adj; });
+}
 
 /** Total length of a polyline (metres). */
 function _lsTotalLength(vertices) {
@@ -3324,32 +3405,47 @@ function _lsClosestDistM(vertices, recLat, recLng) {
  * @returns {number} LAeq (dB) or NaN if not computable
  */
 function calcLineSourceAtReceiver(ls, period, ri) {
-  if (!ls.activeInPeriod) return NaN;
-  if (period === 'lmax') {
-    if (ls.activeInPeriod.lmax !== true) return NaN;
+  // Support both old format (lwPerMetre) and new format (lw_m_base / manualOverride)
+  var lwm;
+  if (ls.lw_m_base !== undefined || ls.manualOverride !== undefined) {
+    // New data model
+    lwm = _lsGetEffectiveLwm(ls, period);
   } else {
-    if (ls.activeInPeriod[period] === false) return NaN;
+    // Old data model backward compat
+    if (!ls.activeInPeriod) return NaN;
+    if (period === 'lmax') {
+      if (ls.activeInPeriod.lmax !== true) return NaN;
+    } else {
+      if (ls.activeInPeriod[period] === false) return NaN;
+    }
+    lwm = (period === 'lmax') ? ls.lw_max_per_metre : (ls.lwPerMetre ? ls.lwPerMetre[period] : null);
   }
-
-  var lwPerM = (period === 'lmax') ? ls.lw_max_per_metre : (ls.lwPerMetre ? ls.lwPerMetre[period] : null);
-  if (!Number.isFinite(lwPerM)) return NaN;
+  if (!Number.isFinite(lwm)) return NaN;
+  if (!ls.vertices || ls.vertices.length < 2) return NaN;
 
   var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
   var recIds = ['r1','r2','r3','r4'];
   var recLL = allLL[recIds[ri]];
   if (!recLL) return NaN;
 
-  var segLenM = ls.segmentLengthM || 10;
-  var segs = _lsGetSegmentsWithLength(ls.vertices, segLenM);
-  if (segs.length === 0) return NaN;
+  var totalLen = _lsTotalLength(ls.vertices);
+  var spacing = _lsAutoSpacing(totalLen);
+  var segs = _lsGetSegmentsWithLength(ls.vertices, spacing);
+  if (!segs.length) return NaN;
 
   var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : 1.5;
-  var srcHt = ls.heightM || 0.5;
+  var heightM = ls.height_m || ls.heightM || 1.5;
   var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : [];
+
+  // Get effective spectrum array (8 bands, already movement-adjusted)
+  var specArr = (typeof _lsGetEffectiveSpectrum === 'function' && ls.lw_m_base !== undefined)
+    ? _lsGetEffectiveSpectrum(ls, period)
+    : (ls.spectrum && ls.spectrum[period] ? ls.spectrum[period] : null);
+
   var contributions = [];
 
   segs.forEach(function(seg) {
-    var lwSeg = lwPerM + 10 * Math.log10(seg.length);
+    var lwSeg = lwm + 10 * Math.log10(seg.length);
     var srcLL = { lat: seg.lat, lng: seg.lng };
     var d = SharedCalc.flatDistM(srcLL, recLL);
     if (d < 0.1) d = 0.1;
@@ -3357,11 +3453,17 @@ function calcLineSourceAtReceiver(ls, period, ri) {
     var lp;
     if (propagationMethod === 'iso9613' && period !== 'lmax') {
       // Build per-band spectrum for this segment
-      var spec = ls.spectrum && ls.spectrum[period] ? ls.spectrum[period] : null;
       var specA;
-      if (spec && spec.length === 8) {
-        var specAdj2 = lwSeg - SharedCalc.energySum(spec);
-        specA = spec.map(function(v) { return v + specAdj2; });
+      if (specArr && specArr.length === 8) {
+        // specArr is already movement-adjusted Lw/m; scale by segment length
+        var segSpecArr = specArr.map(function(v) { return v + 10*Math.log10(seg.length); });
+        var specEnergy = segSpecArr.reduce(function(sum, v) { return sum + Math.pow(10, v/10); }, 0);
+        var specTotal = 10*Math.log10(specEnergy);
+        var segSpecAdj = lwSeg - specTotal;
+        specA = segSpecArr.map(function(v) { return v + segSpecAdj; });
+      } else if (specArr && specArr.length === 8) {
+        var specAdj2 = lwSeg - SharedCalc.energySum(specArr);
+        specA = specArr.map(function(v) { return v + specAdj2; });
       } else {
         // Flat spectrum: uniform distribution across 8 bands
         var flatVal = lwSeg - 10 * Math.log10(8);
@@ -3370,7 +3472,7 @@ function calcLineSourceAtReceiver(ls, period, ri) {
 
       var barrierDelta = 0, endDL = 0, endDR = 0;
       if (screenable.length > 0) {
-        var bw = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+        var bw = SharedCalc.getDominantBarrier(srcLL, recLL, heightM, recHt, screenable);
         if (bw) {
           barrierDelta = bw.pathLengthDiff || 0;
           endDL = bw.endDeltaLeft || 0;
@@ -3379,17 +3481,17 @@ function calcLineSourceAtReceiver(ls, period, ri) {
       }
 
       var gf = (typeof _gzComputePathG === 'function')
-        ? _gzComputePathG(seg.lat, seg.lng, recLL.lat, recLL.lng, srcHt, recHt, d)
+        ? _gzComputePathG(seg.lat, seg.lng, recLL.lat, recLL.lng, heightM, recHt, d)
         : iso_groundFactor;
       var isoP = { receiverHeight: recHt, groundFactor: gf,
                    temperature: iso_temperature, humidity: iso_humidity };
 
-      lp = SharedCalc.calcISOatPoint(specA, srcHt, d, 0, barrierDelta, recHt, isoP, endDL, endDR);
+      lp = SharedCalc.calcISOatPoint(specA, heightM, d, 0, barrierDelta, recHt, isoP, endDL, endDR);
     } else {
       // Simple propagation
       lp = attenuatePoint(lwSeg, d);
       if (screenable.length > 0) {
-        var bwS = SharedCalc.getDominantBarrier(srcLL, recLL, srcHt, recHt, screenable);
+        var bwS = SharedCalc.getDominantBarrier(srcLL, recLL, heightM, recHt, screenable);
         if (bwS) lp -= calcBarrierIL_broadband(bwS);
       }
     }
@@ -8177,6 +8279,52 @@ window.runUAT = async function() {
     sourcePins.length = origLen;
   })();
 
+  /* ════════════════════════════════════════════════════════════════
+     CAT 21 — Line source calculation
+     ════════════════════════════════════════════════════════════════ */
+  C[21] = { label:'Line source calculation', pass:0, fail:0, lines:[] };
+  (function(){
+    var cat = 21;
+    var testLs = {
+      id: 'test-ls', name: 'Test line source',
+      vertices: [[0,0],[0.001,0]], // ~111m line
+      libraryEntry: null,
+      height_m: 1.5,
+      movements: { day:{N:1,speed:10,period:15}, eve:{N:1,speed:10,period:15}, night:{N:1,speed:10,period:15} },
+      lw_m_base: { day:65, eve:65, night:65 },
+      spectrum_m_base: { day:null, eve:null, night:null },
+      manualOverride: { day:false, eve:false, night:false },
+      manualLwm: { day:null, eve:null, night:null },
+      manualSpectrum: { day:null, eve:null, night:null },
+      activeInPeriod: { day:true, eve:true, night:true }
+    };
+    // 21.1 reference case N=1, v=10, T=15 → adj=0
+    var adj0 = _lsCalcLwmAdj(65, 1, 10, 15) - 65;
+    t(cat, '21.1', Math.abs(adj0) < 0.01, 'N=1,v=10,T=15 adj='+adj0.toFixed(3)+' expected 0');
+    // 21.2 N=2 → +3.01 dB
+    var adj2 = _lsCalcLwmAdj(65, 2, 10, 15) - 65;
+    t(cat, '21.2', Math.abs(adj2 - 3.010) < 0.05, 'N=2 adj='+adj2.toFixed(3)+' expected +3.010');
+    // 21.3 speed=20 → -3.01 dB
+    var adjV20 = _lsCalcLwmAdj(65, 1, 20, 15) - 65;
+    t(cat, '21.3', Math.abs(adjV20 + 3.010) < 0.05, 'v=20 adj='+adjV20.toFixed(3)+' expected -3.010');
+    // 21.4 period=8 → -2.730 dB
+    var adjT8 = _lsCalcLwmAdj(65, 1, 10, 8) - 65;
+    t(cat, '21.4', Math.abs(adjT8 + 2.730) < 0.05, 'T=8 adj='+adjT8.toFixed(3)+' expected -2.730');
+    // 21.5 sub-source Lw = Lw/m + 10*log10(spacing)
+    var spacing = _lsAutoSpacing(111);
+    t(cat, '21.5', spacing === 5, 'spacing for 111m line = '+spacing+' expected 5');
+    var lwSeg = 65 + 10*Math.log10(spacing);
+    t(cat, '21.5b', Math.abs(lwSeg - (65+6.99)) < 0.1, 'Lw_seg='+lwSeg.toFixed(2));
+    // 21.6 inactive → NaN
+    testLs.activeInPeriod.day = false;
+    var inactiveResult = _lsGetEffectiveLwm(testLs, 'day');
+    t(cat, '21.7', !Number.isFinite(inactiveResult), 'inactive Lw/m='+inactiveResult);
+    testLs.activeInPeriod.day = true;
+    // 21.8 active → valid Lw/m
+    var activeResult = _lsGetEffectiveLwm(testLs, 'day');
+    t(cat, '21.8', Number.isFinite(activeResult) && Math.abs(activeResult - 65) < 0.01, 'active Lw/m='+activeResult.toFixed(2));
+  })();
+
   /* ── restore all state ── */
   restore();
 
@@ -8203,10 +8351,11 @@ window.runUAT = async function() {
     17:'Building height on source',
     18:'Terrain screening',
     19:'Period selector consistency',
-    20:'Multiple source energy summation'
+    20:'Multiple source energy summation',
+    21:'Line source calculation'
   };
 
-  for (var ci=1; ci<=20; ci++) {
+  for (var ci=1; ci<=21; ci++) {
     var cat = C[ci];
     if (!cat) continue;
     lines.push('\nCAT ' + ci + ' \u2014 ' + catLabels[ci]);
@@ -8217,7 +8366,7 @@ window.runUAT = async function() {
 
   lines.push('\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550');
   lines.push('SUMMARY');
-  for (var cj=1; cj<=20; cj++) {
+  for (var cj=1; cj<=21; cj++) {
     var cc = C[cj];
     if (!cc) continue;
     var tot = cc.pass + cc.fail;
@@ -9616,26 +9765,19 @@ function renderScenariosTable() {
 
   // Line sources in scenarios table
   lineSources.forEach(function(ls) {
-    var len = _lsTotalLength(ls.vertices);
     html += '<tr>';
     html += '<td style="font-size:12px;color:#d32f2f;">&#9135; ' + escapeHTML(ls.name || 'Line source') + '</td>';
     ['day', 'eve', 'night'].forEach(function(period) {
-      var lwPerM = ls.lwPerMetre && Number.isFinite(ls.lwPerMetre[period]) ? ls.lwPerMetre[period] : null;
+      var lwm = _lsGetEffectiveLwm(ls, period);
       var active = ls.activeInPeriod && ls.activeInPeriod[period] !== false;
-      if (lwPerM !== null && active) {
-        var totalLw = lwPerM + 10 * Math.log10(Math.max(1, len));
-        html += '<td class="num" style="color:#d32f2f;font-size:12px;">\u2713 ' + Math.round(lwPerM) + ' dB/m</td>';
+      if (Number.isFinite(lwm) && active) {
+        html += '<td class="num" style="color:#d32f2f;font-size:12px;">\u2713 ' + Math.round(lwm) + ' dB/m</td>';
       } else {
         html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
       }
     });
-    var lwMaxPerM = ls.lw_max_per_metre;
-    var lmaxActive = ls.activeInPeriod && ls.activeInPeriod.lmax === true;
-    if (Number.isFinite(lwMaxPerM) && lmaxActive) {
-      html += '<td class="num" style="color:#d32f2f;font-size:12px;">\u2713 ' + Math.round(lwMaxPerM) + ' dB/m</td>';
-    } else {
-      html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
-    }
+    // Lmax not supported in new model — show —
+    html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
     html += '</tr>';
   });
 
@@ -10310,11 +10452,15 @@ initCollapse();
           data.lineSources = lineSources.map(function(ls) {
             return {
               id: ls.id, name: ls.name, vertices: ls.vertices,
-              heightM: ls.heightM, segmentLengthM: ls.segmentLengthM,
-              lwPerMetre: ls.lwPerMetre, lw_max_per_metre: ls.lw_max_per_metre,
-              spectrum: ls.spectrum, spectrum_max: ls.spectrum_max,
-              activeInPeriod: ls.activeInPeriod,
-              tonal: ls.tonal, impulsive: ls.impulsive
+              libraryEntry: ls.libraryEntry ? { name: ls.libraryEntry.name } : null,
+              height_m: ls.height_m || ls.heightM || 1.5,
+              movements: ls.movements,
+              lw_m_base: ls.lw_m_base,
+              spectrum_m_base: ls.spectrum_m_base,
+              manualOverride: ls.manualOverride,
+              manualLwm: ls.manualLwm,
+              manualSpectrum: ls.manualSpectrum,
+              activeInPeriod: ls.activeInPeriod
             };
           });
         }
@@ -10550,6 +10696,36 @@ initCollapse();
       return features;
     }
 
+    function buildLineSourceFeatures() {
+      var features = [];
+      lineSources.forEach(function(ls) {
+        if (!ls.vertices || ls.vertices.length < 2) return;
+        var coords = ls.vertices.map(function(v) { return [v[1], v[0]]; }); // [lng, lat]
+        var lwmDay   = _lsGetEffectiveLwm(ls, 'day');
+        var lwmEve   = _lsGetEffectiveLwm(ls, 'eve');
+        var lwmNight = _lsGetEffectiveLwm(ls, 'night');
+        var mvtDay = (ls.movements && ls.movements.day) || {};
+        features.push({
+          type: 'Feature',
+          id: ls.id || ('line-source-' + Math.random()),
+          geometry: { type: 'LineString', coordinates: coords },
+          properties: {
+            feature_type: 'line_source',
+            name: ls.name || 'Line source',
+            lw_m_day:   Number.isFinite(lwmDay)   ? Math.round(lwmDay*10)/10   : null,
+            lw_m_eve:   Number.isFinite(lwmEve)   ? Math.round(lwmEve*10)/10   : null,
+            lw_m_night: Number.isFinite(lwmNight) ? Math.round(lwmNight*10)/10 : null,
+            length_m:   Math.round(_lsTotalLength(ls.vertices)),
+            height_m:   ls.height_m || ls.heightM || 1.5,
+            movements_day_N:     mvtDay.N     || 1,
+            movements_day_speed: mvtDay.speed || 10,
+            source_type: ls.libraryEntry ? ls.libraryEntry.name : 'custom'
+          }
+        });
+      });
+      return features;
+    }
+
     // ── GeoJSON export ──
     var geoJsonBtn = document.getElementById('exportGeoJsonBtn');
     if (geoJsonBtn) geoJsonBtn.addEventListener('click', function() {
@@ -10562,7 +10738,8 @@ initCollapse();
           buildSourceFeatures(),
           buildReceiverFeatures(),
           buildContourFeatures(),
-          buildBuildingFeatures()
+          buildBuildingFeatures(),
+          buildLineSourceFeatures()
         )
       };
       var json = JSON.stringify(fc, null, 2);
@@ -10626,6 +10803,27 @@ initCollapse();
         contours.forEach(function(f) {
           kml += '<Placemark><name>' + (f.properties.level_dba || '?') + ' dB(A)</name>\n';
           kml += '<LineString><coordinates>' + f.geometry.coordinates.map(function(c) { return c[0] + ',' + c[1] + ',0'; }).join(' ') + '</coordinates></LineString>\n';
+          kml += '</Placemark>\n';
+        });
+        kml += '</Folder>\n';
+      }
+
+      // Line sources folder
+      var lsFeatures = buildLineSourceFeatures();
+      if (lsFeatures.length > 0) {
+        kml += '<Folder><name>Line Sources</name>\n';
+        lsFeatures.forEach(function(f) {
+          var p = f.properties;
+          kml += '<Placemark><name>' + escapeXML(p.name) + '</name>\n';
+          kml += '<LineString><coordinates>' + f.geometry.coordinates.map(function(c) { return c[0] + ',' + c[1] + ',0'; }).join(' ') + '</coordinates></LineString>\n';
+          kml += '<ExtendedData>';
+          kml += '<Data name="lw_m_day"><value>'   + (p.lw_m_day   !== null ? p.lw_m_day   : '') + '</value></Data>';
+          kml += '<Data name="lw_m_eve"><value>'   + (p.lw_m_eve   !== null ? p.lw_m_eve   : '') + '</value></Data>';
+          kml += '<Data name="lw_m_night"><value>' + (p.lw_m_night !== null ? p.lw_m_night : '') + '</value></Data>';
+          kml += '<Data name="length_m"><value>'   + p.length_m   + '</value></Data>';
+          kml += '<Data name="height_m"><value>'   + p.height_m   + '</value></Data>';
+          kml += '<Data name="source_type"><value>' + escapeXML(p.source_type) + '</value></Data>';
+          kml += '</ExtendedData>\n';
           kml += '</Placemark>\n';
         });
         kml += '</Folder>\n';
@@ -16071,6 +16269,416 @@ initCollapse();
     var lineSourceLayer = L.layerGroup().addTo(map);
     var LS_STYLE = { color: '#d32f2f', weight: 3.5, opacity: 0.9 };
 
+    // ── Floating panel for line source editing ──────────────────────────────
+
+    function closeLsPanel() {
+      var existing = document.getElementById('lsFloatPanel');
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+      _lsPanel = null;
+      _lsPanelId = null;
+    }
+
+    function buildLsPanelHTML(ls) {
+      var lsLen = _lsTotalLength(ls.vertices);
+      var midPt = _lsPolylineMidpoint(ls.vertices);
+      var coordStr = midPt ? midPt.lat.toFixed(5) + ', ' + midPt.lng.toFixed(5) : '—';
+      var heightVal = ls.height_m || ls.heightM || 1.5;
+
+      // Library selector options
+      var libOpts = '<option value="">— Custom / manual —</option>';
+      Object.keys(LINE_SOURCE_LIBRARY_GROUPED).forEach(function(cat) {
+        libOpts += '<optgroup label="' + escapeHTML(cat) + '">';
+        LINE_SOURCE_LIBRARY_GROUPED[cat].forEach(function(entry) {
+          var sel = (ls.libraryEntry && ls.libraryEntry.name === entry.name) ? ' selected' : '';
+          libOpts += '<option value="' + escapeHTML(entry.name) + '"' + sel + '>' + escapeHTML(entry.name) + '</option>';
+        });
+        libOpts += '</optgroup>';
+      });
+
+      function periodBlock(pKey, pLabel) {
+        var mvt = (ls.movements && ls.movements[pKey]) || { N:1, speed:10, period:15 };
+        var active = ls.activeInPeriod ? ls.activeInPeriod[pKey] !== false : true;
+        var calcLwm = _lsGetEffectiveLwm(ls, pKey);
+        var calcStr = Number.isFinite(calcLwm) ? calcLwm.toFixed(1) : '—';
+        var isOverride = ls.manualOverride && ls.manualOverride[pKey];
+        var manLwm = ls.manualLwm && Number.isFinite(ls.manualLwm[pKey]) ? ls.manualLwm[pKey] : '';
+        var ms = ls.manualSpectrum && ls.manualSpectrum[pKey] ? ls.manualSpectrum[pKey] : {};
+        var bands = [63,125,250,500,1000,2000,4000,8000];
+        var bandLabels = ['63Hz','125Hz','250Hz','500Hz','1kHz','2kHz','4kHz','8kHz'];
+        var bandInputs = '';
+        bands.forEach(function(f, i) {
+          bandInputs += '<div style="display:flex;align-items:center;gap:3px;">' +
+            '<label style="font-size:10px;width:32px;text-align:right;">' + bandLabels[i] + '</label>' +
+            '<input type="number" id="lsPanelBand_' + pKey + '_' + f + '" value="' + (ms[f] || '') + '" step="0.5" style="width:52px;padding:2px 3px;border:1px solid #ddd;border-radius:3px;font-size:11px;">' +
+            '</div>';
+        });
+        return '<div style="border:1px solid #eee;border-radius:6px;padding:8px 10px;">' +
+          '<div style="font-weight:600;color:#333;margin-bottom:6px;">' + pLabel + '</div>' +
+          '<label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="lsPanelActive_' + pKey + '"' + (active ? ' checked' : '') + '> Active</label>' +
+          '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+            '<div style="display:flex;align-items:center;gap:4px;">' +
+              '<label style="font-size:11px;">N:</label>' +
+              '<input type="number" id="lsPanelN_' + pKey + '" value="' + (mvt.N || 1) + '" min="1" step="1" style="width:50px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:4px;">' +
+              '<label style="font-size:11px;">Speed (km/h):</label>' +
+              '<input type="number" id="lsPanelSpeed_' + pKey + '" value="' + (mvt.speed || 10) + '" min="1" step="1" style="width:55px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:4px;">' +
+              '<label style="font-size:11px;">Period (min):</label>' +
+              '<input type="number" id="lsPanelPeriod_' + pKey + '" value="' + (mvt.period || 15) + '" min="1" step="1" style="width:50px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
+            '</div>' +
+          '</div>' +
+          '<div style="margin-top:6px;font-size:12px;color:#555;">Calculated Lw/m: <b id="lsPanelCalcLwm_' + pKey + '">' + calcStr + '</b> dB(A)</div>' +
+          '<div style="margin-top:6px;border-top:1px solid #eee;padding-top:6px;">' +
+            '<label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="lsPanelOverride_' + pKey + '"' + (isOverride ? ' checked' : '') + '> Manual Lw/m override</label>' +
+            '<div id="lsPanelOverrideSection_' + pKey + '" style="display:' + (isOverride ? 'block' : 'none') + ';margin-top:6px;">' +
+              '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+                '<label style="font-size:11px;">Lw/m dB(A):</label>' +
+                '<input type="number" id="lsPanelManLwm_' + pKey + '" value="' + manLwm + '" step="0.1" style="width:70px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
+              '</div>' +
+              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;font-size:11px;">' + bandInputs + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }
+
+      var totalLwDay = _lsGetEffectiveLwm(ls, 'day');
+      var totalLenM = Math.round(lsLen);
+      var totalLwStr = (Number.isFinite(totalLwDay) && lsLen > 0)
+        ? (totalLwDay + 10*Math.log10(lsLen)).toFixed(1) : '—';
+
+      return '<div id="lsFloatPanel" style="position:fixed;width:360px;max-height:calc(100vh - 80px);overflow-y:auto;overflow-x:hidden;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;">' +
+        '<div style="background:#d32f2f;color:#fff;padding:10px 14px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:8px;cursor:move;" id="lsPanelHeader">' +
+          '<span style="font-size:15px;">&#9135;</span>' +
+          '<span style="font-weight:700;flex:1;" id="lsPanelTitle">' + escapeHTML(ls.name || 'Line source') + '</span>' +
+          '<button id="lsPanelClose" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:0 4px;">&#x2715;</button>' +
+        '</div>' +
+        '<div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">' +
+          '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<label style="font-size:11px;color:#666;white-space:nowrap;">Name:</label>' +
+            '<input type="text" id="lsPanelName" value="' + escapeHTML(ls.name || '') + '" style="flex:1;padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:13px;">' +
+          '</div>' +
+          '<div style="font-size:11px;color:#888;display:flex;gap:12px;">' +
+            '<span id="lsPanelCoords">' + coordStr + '</span>' +
+            '<span>Length: <b id="lsPanelLength">' + totalLenM + '</b> m</span>' +
+          '</div>' +
+          '<div>' +
+            '<label style="font-size:11px;font-weight:600;color:#555;">Source type:</label>' +
+            '<select id="lsPanelLibSel" style="width:100%;margin-top:3px;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;">' + libOpts + '</select>' +
+          '</div>' +
+          periodBlock('day', 'Day') +
+          periodBlock('eve', 'Evening') +
+          periodBlock('night', 'Night') +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<label style="font-size:12px;">Height (m):</label>' +
+            '<input type="number" id="lsPanelHeight" value="' + heightVal + '" step="0.1" min="0" style="width:65px;padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;">' +
+          '</div>' +
+          '<div style="font-size:12px;color:#555;background:#f9f9f9;border-radius:4px;padding:6px 8px;">' +
+            '<span>Total Lw (Day): </span><b id="lsPanelTotalLw">' + totalLwStr + '</b> dB(A)' +
+          '</div>' +
+          '<button id="lsPanelEditShape" style="padding:5px 12px;font-size:12px;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;cursor:pointer;text-align:left;">\u270f Edit shape</button>' +
+          '<div style="display:flex;gap:8px;margin-top:4px;">' +
+            '<button id="lsPanelDelete" style="padding:5px 12px;font-size:12px;background:#fff;color:#c0392b;border:1px solid #e0a0a0;border-radius:4px;cursor:pointer;">Delete</button>' +
+            '<div style="flex:1;"></div>' +
+            '<button id="lsPanelClose2" style="padding:5px 16px;font-size:12px;background:#d32f2f;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Close</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function _lsPanelUpdateCalc(ls) {
+      ['day','eve','night'].forEach(function(p) {
+        var lwm = _lsGetEffectiveLwm(ls, p);
+        var el = document.getElementById('lsPanelCalcLwm_' + p);
+        if (el) el.textContent = Number.isFinite(lwm) ? lwm.toFixed(1) : '—';
+      });
+      var lsLen = _lsTotalLength(ls.vertices);
+      var totalLwDay = _lsGetEffectiveLwm(ls, 'day');
+      var totalLwStr = (Number.isFinite(totalLwDay) && lsLen > 0)
+        ? (totalLwDay + 10*Math.log10(lsLen)).toFixed(1) : '—';
+      var tlEl = document.getElementById('lsPanelTotalLw');
+      if (tlEl) tlEl.textContent = totalLwStr;
+    }
+
+    function attachLsPanelListeners(ls) {
+      function triggerRecompute() {
+        renderLineSourceLayer();
+        renderLineSourceCards();
+        if (typeof render === 'function') render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+        _lsPanelUpdateCalc(ls);
+      }
+
+      // Close buttons
+      var closeBtn = document.getElementById('lsPanelClose');
+      var closeBtn2 = document.getElementById('lsPanelClose2');
+      if (closeBtn) closeBtn.addEventListener('click', closeLsPanel);
+      if (closeBtn2) closeBtn2.addEventListener('click', closeLsPanel);
+
+      // Name
+      var nameInp = document.getElementById('lsPanelName');
+      if (nameInp) nameInp.addEventListener('input', function() {
+        ls.name = this.value;
+        var titleEl = document.getElementById('lsPanelTitle');
+        if (titleEl) titleEl.textContent = ls.name || 'Line source';
+        renderLineSourceLayer();
+        renderLineSourceCards();
+      });
+
+      // Library selector
+      var libSel = document.getElementById('lsPanelLibSel');
+      if (libSel) libSel.addEventListener('change', function() {
+        var selName = this.value;
+        if (!selName) {
+          ls.libraryEntry = null;
+        } else {
+          var found = null;
+          LINE_SOURCE_LIBRARY.forEach(function(e) { if (e.name === selName) found = e; });
+          if (found) {
+            ls.libraryEntry = found;
+            var isGeneric = !ls.name || /^Line source \d+$/.test(ls.name);
+            if (isGeneric) {
+              ls.name = found.name;
+              var nameEl = document.getElementById('lsPanelName');
+              if (nameEl) nameEl.value = ls.name;
+              var titleEl = document.getElementById('lsPanelTitle');
+              if (titleEl) titleEl.textContent = ls.name;
+            }
+            // Set lw_m_base and spectrum_m_base for all periods
+            ['day','eve','night'].forEach(function(p) {
+              if (!ls.lw_m_base) ls.lw_m_base = {};
+              ls.lw_m_base[p] = found.lw_m_dba;
+              if (!ls.spectrum_m_base) ls.spectrum_m_base = {};
+              ls.spectrum_m_base[p] = found.spectrum_unweighted;
+            });
+            ls.height_m = found.height_m;
+            var htEl = document.getElementById('lsPanelHeight');
+            if (htEl) htEl.value = found.height_m;
+          }
+        }
+        triggerRecompute();
+      });
+
+      // Height
+      var htInp = document.getElementById('lsPanelHeight');
+      if (htInp) htInp.addEventListener('input', function() {
+        var v = parseFloat(this.value);
+        if (Number.isFinite(v) && v >= 0) { ls.height_m = v; ls.heightM = v; }
+        triggerRecompute();
+      });
+
+      // Delete
+      var delBtn = document.getElementById('lsPanelDelete');
+      if (delBtn) delBtn.addEventListener('click', function() {
+        closeLsPanel();
+        var idx = lineSources.indexOf(ls);
+        if (idx !== -1) lineSources.splice(idx, 1);
+        renderLineSourceLayer();
+        renderLineSourceCards();
+        if (typeof render === 'function') render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      });
+
+      // Edit shape button
+      var editShapeBtn = document.getElementById('lsPanelEditShape');
+      if (editShapeBtn) editShapeBtn.addEventListener('click', function() {
+        closeLsPanel();
+        // Find the poly for this ls and trigger edit
+        var capturedLs = ls;
+        var capturedPoly = capturedLs._poly;
+        if (!capturedPoly || !capturedPoly.editing) return;
+        var origVertices = capturedLs.vertices.map(function(v) { return [v[0], v[1]]; });
+        _drawingActive = true;
+        capturedPoly.editing.enable();
+        var lsDrawBtnEl = document.getElementById('drawLineSourceBtn');
+        if (lsDrawBtnEl) lsDrawBtnEl.classList.add('active');
+        var editBar2 = document.createElement('div');
+        editBar2.id = 'lsEditBar';
+        editBar2.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #d32f2f;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
+        editBar2.innerHTML =
+          '<span style="color:#d32f2f;font-weight:600;">&#9135; Editing line source</span>' +
+          '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
+          '<button id="lsEditSave2" style="padding:3px 12px;font-size:12px;background:#d32f2f;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+          '<button id="lsEditCancel2" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
+        var mapCont2 = map.getContainer();
+        mapCont2.style.position = 'relative';
+        mapCont2.appendChild(editBar2);
+        function _lsRemoveEditBar2() {
+          var bar2 = document.getElementById('lsEditBar');
+          if (bar2 && bar2.parentNode) bar2.parentNode.removeChild(bar2);
+        }
+        function _lsFinishEdit2(save) {
+          if (capturedPoly.editing) capturedPoly.editing.disable();
+          _drawingActive = false;
+          if (lsDrawBtnEl) lsDrawBtnEl.classList.remove('active');
+          document.removeEventListener('keydown', _lsEscHandler2);
+          _lsRemoveEditBar2();
+          if (save) {
+            capturedLs.vertices = capturedPoly.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+          } else {
+            capturedPoly.setLatLngs(origVertices);
+          }
+          renderLineSourceLayer();
+          renderLineSourceCards();
+          if (save) {
+            if (typeof render === 'function') render();
+            if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+          }
+        }
+        function _lsEscHandler2(ev) {
+          if (ev.key === 'Escape') { ev.stopPropagation(); _lsFinishEdit2(false); }
+        }
+        document.addEventListener('keydown', _lsEscHandler2);
+        setTimeout(function() {
+          var saveBtn2 = document.getElementById('lsEditSave2');
+          var cancelBtn2 = document.getElementById('lsEditCancel2');
+          if (saveBtn2) saveBtn2.addEventListener('click', function() { _lsFinishEdit2(true); });
+          if (cancelBtn2) cancelBtn2.addEventListener('click', function() { _lsFinishEdit2(false); });
+        }, 50);
+      });
+
+      // Per-period controls
+      ['day','eve','night'].forEach(function(p) {
+        var activeChk = document.getElementById('lsPanelActive_' + p);
+        var nInp = document.getElementById('lsPanelN_' + p);
+        var speedInp = document.getElementById('lsPanelSpeed_' + p);
+        var periodInp = document.getElementById('lsPanelPeriod_' + p);
+        var overrideChk = document.getElementById('lsPanelOverride_' + p);
+        var overrideSec = document.getElementById('lsPanelOverrideSection_' + p);
+        var manLwmInp = document.getElementById('lsPanelManLwm_' + p);
+
+        function readMovements() {
+          if (!ls.movements) ls.movements = { day:{N:1,speed:10,period:15}, eve:{N:1,speed:10,period:15}, night:{N:1,speed:10,period:15} };
+          if (!ls.movements[p]) ls.movements[p] = { N:1, speed:10, period:15 };
+          var N = parseInt(nInp ? nInp.value : 1) || 1;
+          var spd = parseFloat(speedInp ? speedInp.value : 10) || 10;
+          var per = parseFloat(periodInp ? periodInp.value : 15) || 15;
+          ls.movements[p].N = N;
+          ls.movements[p].speed = spd;
+          ls.movements[p].period = per;
+
+          // Auto-copy to eve/night if not user-edited
+          if (p === 'day') {
+            if (!ls._userEdited) ls._userEdited = { eve: false, night: false };
+            if (!ls._userEdited.eve) {
+              ls.movements.eve = { N:N, speed:spd, period:per };
+              ['N','speed','period'].forEach(function(k) {
+                var el = document.getElementById('lsPanelN_eve') || document.getElementById('lsPanelSpeed_eve') || document.getElementById('lsPanelPeriod_eve');
+              });
+              var nEve = document.getElementById('lsPanelN_eve');
+              var sEve = document.getElementById('lsPanelSpeed_eve');
+              var pEve = document.getElementById('lsPanelPeriod_eve');
+              if (nEve) nEve.value = N;
+              if (sEve) sEve.value = spd;
+              if (pEve) pEve.value = per;
+            }
+            if (!ls._userEdited.night) {
+              ls.movements.night = { N:N, speed:spd, period:per };
+              var nNight = document.getElementById('lsPanelN_night');
+              var sNight = document.getElementById('lsPanelSpeed_night');
+              var pNight = document.getElementById('lsPanelPeriod_night');
+              if (nNight) nNight.value = N;
+              if (sNight) sNight.value = spd;
+              if (pNight) pNight.value = per;
+            }
+          } else {
+            if (!ls._userEdited) ls._userEdited = { eve: false, night: false };
+            ls._userEdited[p] = true;
+          }
+        }
+
+        if (activeChk) activeChk.addEventListener('change', function() {
+          if (!ls.activeInPeriod) ls.activeInPeriod = { day:true, eve:true, night:true };
+          ls.activeInPeriod[p] = this.checked;
+          triggerRecompute();
+        });
+
+        if (nInp) nInp.addEventListener('input', function() { readMovements(); triggerRecompute(); });
+        if (speedInp) speedInp.addEventListener('input', function() { readMovements(); triggerRecompute(); });
+        if (periodInp) periodInp.addEventListener('input', function() { readMovements(); triggerRecompute(); });
+
+        if (overrideChk) overrideChk.addEventListener('change', function() {
+          if (!ls.manualOverride) ls.manualOverride = { day:false, eve:false, night:false };
+          ls.manualOverride[p] = this.checked;
+          if (overrideSec) overrideSec.style.display = this.checked ? 'block' : 'none';
+          triggerRecompute();
+        });
+
+        if (manLwmInp) manLwmInp.addEventListener('input', function() {
+          if (!ls.manualLwm) ls.manualLwm = { day:null, eve:null, night:null };
+          var v = parseFloat(this.value);
+          ls.manualLwm[p] = Number.isFinite(v) ? v : null;
+          triggerRecompute();
+        });
+
+        // Band inputs
+        [63,125,250,500,1000,2000,4000,8000].forEach(function(f) {
+          var bandEl = document.getElementById('lsPanelBand_' + p + '_' + f);
+          if (bandEl) bandEl.addEventListener('input', function() {
+            if (!ls.manualSpectrum) ls.manualSpectrum = { day:null, eve:null, night:null };
+            if (!ls.manualSpectrum[p]) ls.manualSpectrum[p] = {};
+            var v = parseFloat(this.value);
+            ls.manualSpectrum[p][f] = Number.isFinite(v) ? v : 0;
+            triggerRecompute();
+          });
+        });
+      });
+
+      // Draggable header
+      var panel = document.getElementById('lsFloatPanel');
+      var header = document.getElementById('lsPanelHeader');
+      if (panel && header) {
+        var dragging = false, dragX = 0, dragY = 0, panelX = 0, panelY = 0;
+        header.addEventListener('mousedown', function(ev) {
+          dragging = true;
+          dragX = ev.clientX;
+          dragY = ev.clientY;
+          var rect = panel.getBoundingClientRect();
+          panelX = rect.left;
+          panelY = rect.top;
+          ev.preventDefault();
+        });
+        document.addEventListener('mousemove', function(ev) {
+          if (!dragging) return;
+          var dx = ev.clientX - dragX;
+          var dy = ev.clientY - dragY;
+          panel.style.left = (panelX + dx) + 'px';
+          panel.style.top  = (panelY + dy) + 'px';
+          panel.style.right = 'auto';
+          panel.style.bottom = 'auto';
+        });
+        document.addEventListener('mouseup', function() { dragging = false; });
+      }
+    }
+
+    function openLsPanel(lsId, clientX, clientY) {
+      closeLsPanel();
+      var ls = null;
+      for (var i = 0; i < lineSources.length; i++) {
+        if (lineSources[i].id === lsId) { ls = lineSources[i]; break; }
+      }
+      if (!ls) return;
+      _lsPanelId = lsId;
+
+      var div = document.createElement('div');
+      div.innerHTML = buildLsPanelHTML(ls);
+      var panel = div.firstChild;
+      document.body.appendChild(panel);
+      _lsPanel = panel;
+
+      // Position near click, keep in viewport
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var pw = 360, ph = Math.min(vh - 80, 700);
+      var left = Math.min(clientX + 10, vw - pw - 10);
+      var top  = Math.min(clientY - 30, vh - ph - 10);
+      if (top < 10) top = 10;
+      panel.style.left = left + 'px';
+      panel.style.top  = top  + 'px';
+
+      attachLsPanelListeners(ls);
+    }
+
     function renderLineSourceLayer() {
       lineSourceLayer.clearLayers();
       lineSources.forEach(function(ls) {
@@ -16078,120 +16686,17 @@ initCollapse();
 
         var poly = L.polyline(ls.vertices, LS_STYLE);
         var lsLen = _lsTotalLength(ls.vertices);
-        var lwDay = ls.lwPerMetre && Number.isFinite(ls.lwPerMetre.day) ? Math.round(ls.lwPerMetre.day) + ' dB/m' : '—';
+        var lwDay = _lsGetEffectiveLwm(ls, 'day');
+        var lwDayStr = Number.isFinite(lwDay) ? Math.round(lwDay) + ' dB/m' : '—';
         poly.bindTooltip('<b>' + escapeHTML(ls.name || 'Line source') + '</b><br>' +
-          'L = ' + Math.round(lsLen) + 'm | Lw/m Day: ' + lwDay, { sticky: true });
+          'L = ' + Math.round(lsLen) + 'm | Lw/m Day: ' + lwDayStr, { sticky: true });
 
-        // Click → open properties popup
+        // Click → open floating panel
         poly.on('click', (function(capturedLs) {
           return function(e) {
             if (_drawingActive || _lsDrawHandler) return;
             L.DomEvent.stopPropagation(e);
-            var h = '<div style="min-width:220px;font-size:13px;">';
-            h += '<b>&#9135; ' + escapeHTML(capturedLs.name || 'Line source') + '</b>';
-            h += '<div style="font-size:11px;color:#888;margin:2px 0 8px;">Length: ' + Math.round(_lsTotalLength(capturedLs.vertices)) + 'm</div>';
-            h += '<div style="margin-bottom:6px;">Name: <input type="text" id="lsPopName" value="' + escapeHTML(capturedLs.name || '') + '" style="width:130px;padding:2px 4px;font-size:12px;"></div>';
-            h += '<div style="margin-bottom:4px;">Height (m): <input type="number" id="lsPopHt" value="' + (capturedLs.heightM || 0.5) + '" step="0.1" min="0" style="width:55px;padding:2px 4px;font-size:12px;"></div>';
-            h += '<table style="font-size:12px;border-collapse:collapse;margin-bottom:6px;">';
-            h += '<tr><th style="padding:2px 6px 2px 0;text-align:left;">Period</th><th style="padding:2px 4px;">Lw/m (dB/A)</th><th style="padding:2px 4px;">Active</th></tr>';
-            ['day','eve','night'].forEach(function(p) {
-              var val = capturedLs.lwPerMetre && Number.isFinite(capturedLs.lwPerMetre[p]) ? capturedLs.lwPerMetre[p] : '';
-              var active = !capturedLs.activeInPeriod || capturedLs.activeInPeriod[p] !== false;
-              h += '<tr><td style="padding:2px 6px 2px 0;">' + (p.charAt(0).toUpperCase() + p.slice(1)) + '</td>';
-              h += '<td><input type="number" id="lsPopLw_' + p + '" value="' + val + '" step="0.5" style="width:60px;padding:2px 4px;font-size:12px;"></td>';
-              h += '<td><input type="checkbox" id="lsPopAct_' + p + '"' + (active ? ' checked' : '') + '></td></tr>';
-            });
-            h += '</table>';
-            h += '<button id="lsPopApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
-            h += '<button id="lsPopEditShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#2980b9;">Edit shape</button> ';
-            h += '<button id="lsPopDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#dc2626;">Delete</button>';
-            h += '</div>';
-            L.popup({ maxWidth: 300 }).setLatLng(e.latlng).setContent(h).openOn(map);
-            setTimeout(function() {
-              var apBtn = document.getElementById('lsPopApply');
-              var delBtn = document.getElementById('lsPopDelete');
-              if (apBtn) apBtn.addEventListener('click', function() {
-                capturedLs.name = document.getElementById('lsPopName').value || capturedLs.name;
-                var ht = parseFloat(document.getElementById('lsPopHt').value);
-                if (Number.isFinite(ht) && ht >= 0) capturedLs.heightM = ht;
-                if (!capturedLs.lwPerMetre) capturedLs.lwPerMetre = {};
-                if (!capturedLs.activeInPeriod) capturedLs.activeInPeriod = { day: true, eve: true, night: true, lmax: false };
-                ['day','eve','night'].forEach(function(p) {
-                  var v = parseFloat(document.getElementById('lsPopLw_' + p).value);
-                  capturedLs.lwPerMetre[p] = Number.isFinite(v) ? v : null;
-                  capturedLs.activeInPeriod[p] = !!document.getElementById('lsPopAct_' + p).checked;
-                });
-                map.closePopup();
-                renderLineSourceLayer();
-                renderLineSourceCards();
-                if (typeof render === 'function') render();
-                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-              });
-              if (delBtn) delBtn.addEventListener('click', function() {
-                var idx = lineSources.indexOf(capturedLs);
-                if (idx !== -1) lineSources.splice(idx, 1);
-                map.closePopup();
-                renderLineSourceLayer();
-                renderLineSourceCards();
-                if (typeof render === 'function') render();
-                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-              });
-              var editShapeBtn = document.getElementById('lsPopEditShape');
-              if (editShapeBtn) editShapeBtn.addEventListener('click', function() {
-                map.closePopup();
-                if (!poly.editing) return;
-                // Store original vertices so Cancel can revert
-                var origVertices = capturedLs.vertices.map(function(v) { return [v[0], v[1]]; });
-                _drawingActive = true;
-                poly.editing.enable();
-                var lsDrawBtn = document.getElementById('drawLineSourceBtn');
-                if (lsDrawBtn) lsDrawBtn.classList.add('active');
-                // Floating edit bar with Save / Cancel
-                var editBar = document.createElement('div');
-                editBar.id = 'lsEditBar';
-                editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #d32f2f;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
-                editBar.innerHTML =
-                  '<span style="color:#d32f2f;font-weight:600;">&#9135; Editing line source</span>' +
-                  '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
-                  '<button id="lsEditSave" style="padding:3px 12px;font-size:12px;background:#d32f2f;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
-                  '<button id="lsEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
-                var mapContainer = map.getContainer();
-                mapContainer.style.position = 'relative';
-                mapContainer.appendChild(editBar);
-                function _lsRemoveEditBar() {
-                  var bar = document.getElementById('lsEditBar');
-                  if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
-                }
-                function _lsFinishEdit(save) {
-                  if (poly.editing) poly.editing.disable();
-                  _drawingActive = false;
-                  if (lsDrawBtn) lsDrawBtn.classList.remove('active');
-                  document.removeEventListener('keydown', _lsEscHandler);
-                  _lsRemoveEditBar();
-                  if (save) {
-                    capturedLs.vertices = poly.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
-                  } else {
-                    poly.setLatLngs(origVertices); // revert visual shape
-                  }
-                  renderLineSourceLayer();
-                  renderLineSourceCards();
-                  if (save) {
-                    if (typeof render === 'function') render();
-                    if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-                  }
-                }
-                function _lsEscHandler(e) {
-                  if (e.key === 'Escape') { e.stopPropagation(); _lsFinishEdit(false); }
-                }
-                document.addEventListener('keydown', _lsEscHandler);
-                setTimeout(function() {
-                  var saveBtn = document.getElementById('lsEditSave');
-                  var cancelBtn = document.getElementById('lsEditCancel');
-                  if (saveBtn) saveBtn.addEventListener('click', function() { _lsFinishEdit(true); });
-                  if (cancelBtn) cancelBtn.addEventListener('click', function() { _lsFinishEdit(false); });
-                }, 50);
-              });
-            }, 50);
+            openLsPanel(capturedLs.id, e.originalEvent.clientX, e.originalEvent.clientY);
           };
         })(ls));
 
@@ -16257,22 +16762,41 @@ initCollapse();
       lineSources.forEach(function(ls, idx) {
         var lsLen = _lsTotalLength(ls.vertices);
         var card = document.createElement('div');
-        card.style.cssText = 'border-left:4px solid #d32f2f;background:#fffaf6;border-radius:4px;padding:8px 10px;font-size:12px;';
+        card.style.cssText = 'border-left:4px solid #d32f2f;background:#fffaf6;border-radius:4px;padding:8px 10px;font-size:12px;cursor:pointer;';
+
+        // Compact summary: name, length, active periods, Edit button
+        var activePeriods = [];
+        if (ls.activeInPeriod) {
+          if (ls.activeInPeriod.day !== false) activePeriods.push('Day');
+          if (ls.activeInPeriod.eve !== false) activePeriods.push('Eve');
+          if (ls.activeInPeriod.night !== false) activePeriods.push('Night');
+        }
+        var lwDay = _lsGetEffectiveLwm(ls, 'day');
+        var lwDayStr = Number.isFinite(lwDay) ? Math.round(lwDay) + ' dB/m' : '—';
 
         var hdr = document.createElement('div');
-        hdr.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;';
+        hdr.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
 
-        var nameInp = document.createElement('input');
-        nameInp.type = 'text'; nameInp.value = ls.name || '';
-        nameInp.style.cssText = 'font-weight:700;font-size:12px;border:none;border-bottom:1px solid #fcd9b0;background:transparent;flex:1;';
-        nameInp.addEventListener('change', (function(capturedIdx) {
-          return function() { lineSources[capturedIdx].name = this.value; renderLineSourceLayer(); };
-        })(idx));
-        hdr.appendChild(nameInp);
+        var nameSpan = document.createElement('span');
+        nameSpan.style.cssText = 'font-weight:700;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        nameSpan.textContent = ls.name || 'Line source';
+        hdr.appendChild(nameSpan);
+
+        var editBtn = document.createElement('button');
+        editBtn.textContent = 'Edit';
+        editBtn.type = 'button';
+        editBtn.style.cssText = 'font-size:11px;padding:2px 7px;border:1px solid #d32f2f;color:#d32f2f;background:#fff;border-radius:3px;cursor:pointer;';
+        editBtn.addEventListener('click', (function(capturedLs) {
+          return function(ev) {
+            ev.stopPropagation();
+            openLsPanel(capturedLs.id, ev.clientX, ev.clientY);
+          };
+        })(ls));
+        hdr.appendChild(editBtn);
 
         var delBtn = document.createElement('button');
         delBtn.textContent = '✕'; delBtn.type = 'button';
-        delBtn.style.cssText = 'font-size:12px;padding:1px 5px;border:none;background:transparent;color:#bbb;cursor:pointer;margin-left:auto;';
+        delBtn.style.cssText = 'font-size:12px;padding:1px 5px;border:none;background:transparent;color:#bbb;cursor:pointer;';
         delBtn.addEventListener('click', (function(capturedIdx) {
           return function() {
             lineSources.splice(capturedIdx, 1);
@@ -16285,79 +16809,19 @@ initCollapse();
         hdr.appendChild(delBtn);
         card.appendChild(hdr);
 
-        // Length + height row
         var metaRow = document.createElement('div');
-        metaRow.style.cssText = 'display:flex;gap:10px;margin-bottom:6px;align-items:center;';
-        metaRow.innerHTML = '<span style="color:#888;font-size:11px;">Length: <b>' + Math.round(lsLen) + 'm</b></span>';
-        var htLbl = document.createElement('label');
-        htLbl.style.cssText = 'font-size:11px;color:#888;display:flex;align-items:center;gap:3px;';
-        htLbl.innerHTML = 'Ht: ';
-        var htInp = document.createElement('input');
-        htInp.type = 'number'; htInp.value = ls.heightM || 0.5; htInp.step = '0.1'; htInp.min = '0';
-        htInp.style.cssText = 'width:44px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:3px;';
-        htInp.addEventListener('change', (function(capturedIdx) {
-          return function() {
-            var v = parseFloat(this.value);
-            if (Number.isFinite(v) && v >= 0) lineSources[capturedIdx].heightM = v;
-            if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-          };
-        })(idx));
-        htLbl.appendChild(htInp);
-        htLbl.appendChild(document.createTextNode('m'));
-        metaRow.appendChild(htLbl);
+        metaRow.style.cssText = 'font-size:11px;color:#888;display:flex;gap:10px;flex-wrap:wrap;';
+        metaRow.innerHTML =
+          '<span>Length: <b>' + Math.round(lsLen) + 'm</b></span>' +
+          '<span>Lw/m Day: <b>' + lwDayStr + '</b></span>' +
+          (activePeriods.length ? '<span>Active: ' + activePeriods.join(', ') + '</span>' : '');
         card.appendChild(metaRow);
 
-        // Per-period Lw/m inputs
-        var periods = [{ key: 'day', label: 'Day' }, { key: 'eve', label: 'Eve' }, { key: 'night', label: 'Night' }];
-        periods.forEach(function(p) {
-          if (!ls.lwPerMetre) ls.lwPerMetre = {};
-          if (!ls.activeInPeriod) ls.activeInPeriod = { day: true, eve: true, night: true, lmax: false };
-          var row = document.createElement('div');
-          row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:3px;';
-
-          var chk = document.createElement('input');
-          chk.type = 'checkbox'; chk.checked = ls.activeInPeriod[p.key] !== false;
-          chk.title = p.label + ' active';
-          chk.addEventListener('change', (function(capturedIdx, capturedPeriod) {
-            return function() {
-              lineSources[capturedIdx].activeInPeriod[capturedPeriod] = this.checked;
-              if (typeof render === 'function') render();
-              if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-            };
-          })(idx, p.key));
-          row.appendChild(chk);
-
-          var lbl = document.createElement('span');
-          lbl.textContent = p.label; lbl.style.cssText = 'font-size:11px;width:26px;color:#555;';
-          row.appendChild(lbl);
-
-          var lwInp = document.createElement('input');
-          lwInp.type = 'number';
-          lwInp.value = Number.isFinite(ls.lwPerMetre[p.key]) ? ls.lwPerMetre[p.key] : '';
-          lwInp.placeholder = 'Lw/m dB(A)'; lwInp.step = '0.5';
-          lwInp.style.cssText = 'width:80px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;';
-          lwInp.addEventListener('change', (function(capturedIdx, capturedPeriod) {
-            return function() {
-              var v = parseFloat(this.value);
-              if (!lineSources[capturedIdx].lwPerMetre) lineSources[capturedIdx].lwPerMetre = {};
-              lineSources[capturedIdx].lwPerMetre[capturedPeriod] = Number.isFinite(v) ? v : null;
-              if (typeof render === 'function') render();
-              if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-            };
-          })(idx, p.key));
-          row.appendChild(lwInp);
-
-          // Show total Lw for this period
-          var lwPerM = ls.lwPerMetre[p.key];
-          if (Number.isFinite(lwPerM) && lsLen > 0) {
-            var totalLw = lwPerM + 10 * Math.log10(lsLen);
-            var totalSpan = document.createElement('span');
-            totalSpan.style.cssText = 'font-size:10px;color:#888;';
-            totalSpan.textContent = '→ ' + Math.round(totalLw) + ' dB total';
-            row.appendChild(totalSpan);
-          }
-          card.appendChild(row);
-        });
+        card.addEventListener('click', (function(capturedLs) {
+          return function(ev) {
+            openLsPanel(capturedLs.id, ev.clientX, ev.clientY);
+          };
+        })(ls));
 
         container.appendChild(card);
       });
@@ -16413,63 +16877,36 @@ initCollapse();
       var verts = latlngsRaw.map(function(ll) { return [ll.lat, ll.lng]; });
       if (verts.length < 2) return;
 
-      // Show properties popup
-      var midPt = _lsPolylineMidpoint(verts);
-      var lsLen = _lsTotalLength(verts);
+      // Create new ls object with new data model and open floating panel
       var newId = ++_lsIdCtr;
-      var defName = 'Line source ' + newId;
-
-      var h = '<div style="min-width:240px;font-size:13px;">';
-      h += '<b>&#9135; New line source</b>';
-      h += '<div style="font-size:11px;color:#888;margin:2px 0 8px;">Length: ' + Math.round(lsLen) + 'm</div>';
-      h += '<div style="margin-bottom:5px;">Name: <input type="text" id="newLsName" value="' + escapeHTML(defName) + '" style="width:140px;padding:2px 4px;font-size:12px;"></div>';
-      h += '<div style="margin-bottom:5px;">Lw/m Day: <input type="number" id="newLsLwDay" step="0.5" style="width:65px;padding:2px 4px;font-size:12px;"> <span style="font-size:11px;color:#888;">dB(A)</span></div>';
-      h += '<div style="margin-bottom:5px;">Lw/m Eve: <input type="number" id="newLsLwEve" step="0.5" style="width:65px;padding:2px 4px;font-size:12px;"></div>';
-      h += '<div style="margin-bottom:5px;">Lw/m Night: <input type="number" id="newLsLwNight" step="0.5" style="width:65px;padding:2px 4px;font-size:12px;"></div>';
-      h += '<div style="margin-bottom:8px;">Height: <input type="number" id="newLsHt" value="0.5" step="0.1" min="0" style="width:55px;padding:2px 4px;font-size:12px;"> <span style="font-size:11px;color:#888;">m</span></div>';
-      h += '<button id="newLsAdd" style="font-size:11px;padding:3px 10px;cursor:pointer;background:#d32f2f;color:#fff;border:none;border-radius:3px;">Add line source</button> ';
-      h += '<button id="newLsCancel" style="font-size:11px;padding:3px 8px;cursor:pointer;color:#666;border:1px solid #ccc;border-radius:3px;background:#fff;">Cancel</button>';
-      h += '</div>';
-
-      var midLL = midPt ? [midPt.lat, midPt.lng] : [verts[0][0], verts[0][1]];
-      L.popup({ maxWidth: 320, closeOnClick: false })
-        .setLatLng(midLL).setContent(h).openOn(map);
-
-      setTimeout(function() {
-        var addBtn2 = document.getElementById('newLsAdd');
-        var cancelBtn3 = document.getElementById('newLsCancel');
-        if (addBtn2) addBtn2.addEventListener('click', function() {
-          var lwDay  = parseFloat(document.getElementById('newLsLwDay').value);
-          var lwEve  = parseFloat(document.getElementById('newLsLwEve').value);
-          var lwNight = parseFloat(document.getElementById('newLsLwNight').value);
-          var ht = parseFloat(document.getElementById('newLsHt').value);
-          var nm = document.getElementById('newLsName').value || defName;
-          var ls = {
-            id: 'ls_' + newId,
-            name: nm,
-            vertices: verts,
-            heightM: Number.isFinite(ht) && ht >= 0 ? ht : 0.5,
-            segmentLengthM: 10,
-            lwPerMetre: {
-              day:   Number.isFinite(lwDay)   ? lwDay   : null,
-              eve:   Number.isFinite(lwEve)   ? lwEve   : null,
-              night: Number.isFinite(lwNight) ? lwNight : null
-            },
-            lw_max_per_metre: null,
-            spectrum: { day: null, eve: null, night: null },
-            spectrum_max: null,
-            activeInPeriod: { day: true, eve: true, night: true, lmax: false },
-            tonal: 0, impulsive: 0
-          };
-          lineSources.push(ls);
-          map.closePopup();
-          renderLineSourceLayer();
-          renderLineSourceCards();
-          if (typeof render === 'function') render();
-          if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-        });
-        if (cancelBtn3) cancelBtn3.addEventListener('click', function() { map.closePopup(); });
-      }, 50);
+      var newLs = {
+        id: 'ls_' + newId,
+        name: 'Line source ' + lineSources.length,
+        vertices: verts,
+        libraryEntry: null,
+        height_m: 1.5,
+        movements: {
+          day:   { N:1, speed:10, period:15 },
+          eve:   { N:1, speed:10, period:15 },
+          night: { N:1, speed:10, period:15 }
+        },
+        lw_m_base:       { day:null, eve:null, night:null },
+        spectrum_m_base: { day:null, eve:null, night:null },
+        manualOverride:  { day:false, eve:false, night:false },
+        manualLwm:       { day:null, eve:null, night:null },
+        manualSpectrum:  { day:null, eve:null, night:null },
+        activeInPeriod:  { day:true, eve:true, night:true },
+        _userEdited:     { eve:false, night:false }
+      };
+      lineSources.push(newLs);
+      renderLineSourceLayer();
+      renderLineSourceCards();
+      if (typeof render === 'function') render();
+      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      // Open floating panel for configuration
+      var cx = e.originalEvent ? e.originalEvent.clientX : window.innerWidth / 2;
+      var cy = e.originalEvent ? e.originalEvent.clientY : window.innerHeight / 2;
+      openLsPanel(newLs.id, cx, cy);
     });
 
     // Cancel line source drawing on Escape
@@ -16488,17 +16925,58 @@ initCollapse();
       lineSources.length = 0;
       if (!arr) return;
       arr.forEach(function(ls) {
-        var obj = {
-          id: ls.id, name: ls.name, vertices: ls.vertices,
-          heightM: ls.heightM || 0.5,
-          segmentLengthM: ls.segmentLengthM || 10,
-          lwPerMetre: ls.lwPerMetre || { day: null, eve: null, night: null },
-          lw_max_per_metre: ls.lw_max_per_metre || null,
-          spectrum: ls.spectrum || { day: null, eve: null, night: null },
-          spectrum_max: ls.spectrum_max || null,
-          activeInPeriod: ls.activeInPeriod || { day: true, eve: true, night: true, lmax: false },
-          tonal: ls.tonal || 0, impulsive: ls.impulsive || 0
-        };
+        var obj;
+        if (ls.lwPerMetre !== undefined && ls.lw_m_base === undefined) {
+          // Old format — migrate to new format
+          obj = {
+            id: ls.id, name: ls.name, vertices: ls.vertices,
+            libraryEntry: null,
+            height_m: ls.heightM || ls.height_m || 1.5,
+            heightM: ls.heightM || ls.height_m || 1.5,
+            movements: {
+              day:   { N:1, speed:10, period:15 },
+              eve:   { N:1, speed:10, period:15 },
+              night: { N:1, speed:10, period:15 }
+            },
+            lw_m_base: {
+              day:   (ls.lwPerMetre && Number.isFinite(ls.lwPerMetre.day))   ? ls.lwPerMetre.day   : null,
+              eve:   (ls.lwPerMetre && Number.isFinite(ls.lwPerMetre.eve))   ? ls.lwPerMetre.eve   : null,
+              night: (ls.lwPerMetre && Number.isFinite(ls.lwPerMetre.night)) ? ls.lwPerMetre.night : null
+            },
+            spectrum_m_base: { day:null, eve:null, night:null },
+            manualOverride: { day:false, eve:false, night:false },
+            manualLwm: { day:null, eve:null, night:null },
+            manualSpectrum: { day:null, eve:null, night:null },
+            activeInPeriod: ls.activeInPeriod || { day:true, eve:true, night:true },
+            _userEdited: { eve:false, night:false }
+          };
+        } else {
+          // New format
+          obj = {
+            id: ls.id, name: ls.name, vertices: ls.vertices,
+            libraryEntry: ls.libraryEntry || null,
+            height_m: ls.height_m || ls.heightM || 1.5,
+            heightM: ls.height_m || ls.heightM || 1.5,
+            movements: ls.movements || {
+              day:   { N:1, speed:10, period:15 },
+              eve:   { N:1, speed:10, period:15 },
+              night: { N:1, speed:10, period:15 }
+            },
+            lw_m_base: ls.lw_m_base || { day:null, eve:null, night:null },
+            spectrum_m_base: ls.spectrum_m_base || { day:null, eve:null, night:null },
+            manualOverride: ls.manualOverride || { day:false, eve:false, night:false },
+            manualLwm: ls.manualLwm || { day:null, eve:null, night:null },
+            manualSpectrum: ls.manualSpectrum || { day:null, eve:null, night:null },
+            activeInPeriod: ls.activeInPeriod || { day:true, eve:true, night:true },
+            _userEdited: ls._userEdited || { eve:false, night:false }
+          };
+          // Resolve libraryEntry reference
+          if (obj.libraryEntry && obj.libraryEntry.name) {
+            LINE_SOURCE_LIBRARY.forEach(function(e) {
+              if (e.name === obj.libraryEntry.name) obj.libraryEntry = e;
+            });
+          }
+        }
         if (ls.id) {
           var num = parseInt((ls.id + '').replace('ls_', ''));
           if (Number.isFinite(num) && num > _lsIdCtr) _lsIdCtr = num;
@@ -16837,27 +17315,26 @@ initCollapse();
 
       // Line source segments — each segment becomes a virtual point source
       lineSources.forEach(function(ls) {
-        if (period === 'lmax') {
-          if (!ls.activeInPeriod || ls.activeInPeriod.lmax !== true) return;
-        } else {
-          if (!ls.activeInPeriod || ls.activeInPeriod[period] === false) return;
-        }
-        var lwPerM = (period === 'lmax') ? ls.lw_max_per_metre : (ls.lwPerMetre ? ls.lwPerMetre[period] : null);
-        if (!Number.isFinite(lwPerM)) return;
-
-        var lsSpec = (period !== 'lmax') ? (ls.spectrum && ls.spectrum[period] ? ls.spectrum[period] : null)
-                                         : (ls.spectrum_max || null);
-        var segLenM = ls.segmentLengthM || 10;
-        var segs = _lsGetSegmentsWithLength(ls.vertices, segLenM);
-
+        if (!ls.activeInPeriod || !ls.activeInPeriod[period]) return;
+        var lwm = _lsGetEffectiveLwm(ls, period);
+        if (!Number.isFinite(lwm)) return;
+        var totalLen = _lsTotalLength(ls.vertices);
+        var spacing = _lsAutoSpacing(totalLen);
+        var segs = _lsGetSegmentsWithLength(ls.vertices, spacing);
+        var specArr = _lsGetEffectiveSpectrum(ls, period);
         segs.forEach(function(seg) {
-          var lwSeg = lwPerM + 10 * Math.log10(seg.length);
-          var segSpecAdj = lsSpec ? (lwSeg - SharedCalc.energySum(lsSpec)) : 0;
+          var lwSeg = lwm + 10*Math.log10(seg.length);
+          var segSpecArr = specArr ? specArr.map(function(v) { return v + 10*Math.log10(seg.length); }) : null;
+          var segSpecAdj = 0;
+          if (segSpecArr) {
+            var specEnergy = segSpecArr.reduce(function(s,v) { return s + Math.pow(10, v/10); }, 0);
+            segSpecAdj = lwSeg - 10*Math.log10(specEnergy);
+          }
           result.push({
             lat: seg.lat, lng: seg.lng,
-            heightM: ls.heightM || 0.5,
+            heightM: ls.height_m || ls.heightM || 1.5,
             equipment: [{ name: ls.name || 'Line source', Lw: lwSeg, quantity: 1 }],
-            spectrum: lsSpec,
+            spectrum: segSpecArr || null,
             spectrumAdj: segSpecAdj
           });
         });
