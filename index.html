@@ -1465,8 +1465,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="p">L<sub>Amax</sub> barrier and building attenuation is calculated using the Maekawa diffraction formula applied per octave band to the source L<sub>max</sub> spectrum. Ground effect (A<sub>gr</sub>) is not applied to L<sub>Amax</sub> predictions. Terrain screening is applied where enabled. Barrier and terrain screening is applied regardless of whether the simple or ISO 9613-2 propagation method is selected.</div>
     <div class="h2" style="font-size:13px;">Facade reflections</div>
     <div class="p">Facade reflections are calculated using the image source method per ISO 9613-2 &sect;7.5. For each source&ndash;receiver pair, building and barrier edges within 50&thinsp;m of the receiver are tested as reflecting surfaces. The reflected contribution from the dominant surface is calculated as a separate propagation path (using the same propagation method as the direct path) and energy-added to the direct path. A single dominant reflection is considered per source&ndash;receiver pair. Grazing incidence is excluded (incidence angle &gt;80&deg; relative to surface normal). Hard surface reflection (0&thinsp;dB loss) is assumed for all buildings and barriers. Reflections are enabled via the Reflections toolbar button and apply to both receiver predictions and the noise map.</div>
-    <div class="h2" style="font-size:13px;">Operational time</div>
-    <div class="p" id="opTimeNote">The calculation provides an option to input the expected operational time during a 15 minute assessment period. This will provide a 10&middot;log time weighting to the source level to account for the contribution during the assessment period.</div>
+    <div class="h2" style="font-size:13px;">Operating % of period</div>
+    <div class="p" id="opTimeNote">The calculation provides an option to enter the percentage of the assessment period during which each source is operating. A 10&middot;log<sub>10</sub>(pct/100) weighting is applied to the source level: 100&thinsp;% &rarr; 0&thinsp;dB, 50&thinsp;% &rarr; &minus;3&thinsp;dB, 25&thinsp;% &rarr; &minus;6&thinsp;dB.</div>
     <div class="h2" style="font-size:13px;">Multiple sources &mdash; energy summation</div>
     <div class="p">Where more than one noise source is present, contributions at each receiver are combined by energy summation: L<sub>total</sub> = 10&middot;log<sub>10</sub>(&Sigma; 10<sup>L<sub>i</sub>/10</sup>). The combined level will always be higher than the loudest individual source, but by no more than 3 dB when two equal sources are present.</div>
     <div class="h2" style="font-size:13px;">Noise map</div>
@@ -3275,12 +3275,12 @@ LINE_SOURCE_LIBRARY.forEach(function(e) {
   LINE_SOURCE_LIBRARY_GROUPED[e.category].push(e);
 });
 
-function _lsCalcLwmAdj(lwmBase, N, speed, period) {
-  // Reference: N=1, speed=10, period=15 → adj=0
-  N      = (N      > 0) ? N      : 1;
-  speed  = (speed  > 0) ? speed  : 10;
-  period = (period > 0) ? period : 15;
-  var adj = 10*Math.log10(period/15) + 10*Math.log10(N) + 10*Math.log10(10/speed);
+function _lsCalcLwmAdj(lwmBase, N, speed, operatingPct) {
+  // Reference: N=1, speed=10, operatingPct=100 → adj=0
+  N           = (N           > 0) ? N           : 1;
+  speed       = (speed       > 0) ? speed       : 10;
+  operatingPct = (operatingPct > 0) ? operatingPct : 100;
+  var adj = 10*Math.log10(operatingPct/100) + 10*Math.log10(N) + 10*Math.log10(10/speed);
   return lwmBase + adj;
 }
 
@@ -3293,19 +3293,19 @@ function _lsAutoSpacing(totalLenM) {
 
 function _lsGetEffectiveLwm(ls, period) {
   if (!ls.activeInPeriod || !ls.activeInPeriod[period]) return NaN;
-  var mvt = (ls.movements && ls.movements[period]) || { N:1, speed:10, period:15 };
+  var mvt = (ls.movements && ls.movements[period]) || { N:1, speed:10, operatingPct:100 };
   if (ls.manualOverride && ls.manualOverride[period]) {
     return (ls.manualLwm && Number.isFinite(ls.manualLwm[period])) ? ls.manualLwm[period] : NaN;
   }
   var base = ls.lw_m_base ? ls.lw_m_base[period] : null;
   if (!Number.isFinite(base)) return NaN;
-  return _lsCalcLwmAdj(base, mvt.N, mvt.speed, mvt.period);
+  return _lsCalcLwmAdj(base, mvt.N, mvt.speed, mvt.operatingPct);
 }
 
 function _lsGetEffectiveSpectrum(ls, period) {
   // Returns array of 8 values [b63, b125, ...] or null
-  var mvt = (ls.movements && ls.movements[period]) || { N:1, speed:10, period:15 };
-  var adj = 10*Math.log10((mvt.period||15)/15) + 10*Math.log10((mvt.N||1)) + 10*Math.log10(10/(mvt.speed||10));
+  var mvt = (ls.movements && ls.movements[period]) || { N:1, speed:10, operatingPct:100 };
+  var adj = 10*Math.log10((mvt.operatingPct||100)/100) + 10*Math.log10((mvt.N||1)) + 10*Math.log10(10/(mvt.speed||10));
   if (ls.manualOverride && ls.manualOverride[period] && ls.manualSpectrum && ls.manualSpectrum[period]) {
     var ms = ls.manualSpectrum[period];
     return [63,125,250,500,1000,2000,4000,8000].map(function(f) { return (ms[f] || 0) + adj; });
@@ -3682,7 +3682,7 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   var lwVal = pin.lw ? pin.lw[prefix] : null;
   if (!Number.isFinite(lwVal)) return NaN;
 
-  var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
+  var opAdj = 10 * log10((pin.operatingPct || 100) / 100);
   var quantityAdj = 10 * log10(_getNumUnits(pin, prefix));
   var adjDB = opAdj + quantityAdj;
 
@@ -3790,7 +3790,7 @@ function calcISO9613reflectedLevel(si, prefix, reflDistM, receiverIdx) {
   var lwVal = pin.lw ? pin.lw[prefix] : null;
   if (!Number.isFinite(lwVal)) return NaN;
 
-  var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15) + 10 * log10(_getNumUnits(pin, prefix));
+  var opAdj = 10 * log10((pin.operatingPct || 100) / 100) + 10 * log10(_getNumUnits(pin, prefix));
   var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
   var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
 
@@ -4050,7 +4050,7 @@ var sourcePins = [{
   height_m: 1.5,
   buildingHeight_m: 0,
   groundElevation_m: null,
-  operationalTime_min: 15,
+  operatingPct: 100,
   numUnits: { day: 1, eve: 1, night: 1, lmax: 1 },
   activeInPeriod: { day: true, eve: true, night: true, lmax: false }
 }];
@@ -4913,7 +4913,7 @@ function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDi
       }
     }
 
-    var opAdj = 10 * log10((pin.operationalTime_min || 15) / 15);
+    var opAdj = 10 * log10((pin.operatingPct || 100) / 100);
     var quantityAdjSimple = 10 * log10(_getNumUnits(pin, prefix));
     // For Lmax: no operational time weighting, but quantity still applies
     var lwW = (prefix === 'lmax') ? lwVal + quantityAdjSimple : lwVal + opAdj + quantityAdjSimple;
@@ -5073,24 +5073,24 @@ function renderSourcePins() {
     htUnit.textContent = 'm'; htUnit.style.cssText = 'font-size:11px;color:#666;';
     hdr.appendChild(htUnit);
 
-    // Op time
+    // Operating %
     var otLabel = document.createElement('span');
     otLabel.textContent = '⏱'; otLabel.style.cssText = 'font-size:11px;color:#666;margin-left:4px;';
-    otLabel.title = 'Operational time (min per 15 min reference period)';
+    otLabel.title = 'Operating % of assessment period';
     hdr.appendChild(otLabel);
     var otInp = document.createElement('input');
-    otInp.type = 'number'; otInp.value = pin.operationalTime_min || 15; otInp.min = '1'; otInp.max = '15'; otInp.step = '1';
-    otInp.title = 'Operational time (min per 15 min)';
-    otInp.style.cssText = 'border:1px solid #ddd;padding:3px 4px;font-size:12px;width:46px;border-radius:3px;';
+    otInp.type = 'number'; otInp.value = pin.operatingPct || 100; otInp.min = '1'; otInp.max = '100'; otInp.step = '1';
+    otInp.title = 'Operating % of period';
+    otInp.style.cssText = 'border:1px solid #ddd;padding:3px 4px;font-size:12px;width:50px;border-radius:3px;';
     otInp.addEventListener('change', function() {
-      var v = Math.max(1, Math.min(15, parseInt(this.value) || 15));
-      sourcePins[idx].operationalTime_min = v;
+      var v = Math.max(1, Math.min(100, parseInt(this.value) || 100));
+      sourcePins[idx].operatingPct = v;
       this.value = v;
       if (typeof renderDebounced === 'function') renderDebounced();
     });
     hdr.appendChild(otInp);
     var otUnit = document.createElement('span');
-    otUnit.textContent = 'min'; otUnit.style.cssText = 'font-size:11px;color:#666;';
+    otUnit.textContent = '%'; otUnit.style.cssText = 'font-size:11px;color:#666;';
     hdr.appendChild(otUnit);
 
     // Place button
@@ -5458,7 +5458,7 @@ function buildSrcPanelHTML(pin, pinIdx) {
     '</div>' +
     '<div style="display:flex;gap:8px;margin-bottom:4px;padding:0 14px;">' +
       '<label style="font-size:11px;white-space:nowrap;">Ht (m): <input type="number" class="sfp-height" value="' + (pin.height_m || 1.5) + '" min="0" step="0.1" style="width:52px;text-align:center;font-size:12px;"></label>' +
-      '<label style="font-size:11px;white-space:nowrap;">Op time (min): <input type="number" class="sfp-optime" value="' + (pin.operationalTime_min || 15) + '" style="width:52px;text-align:center;font-size:12px;"></label>' +
+      '<label style="font-size:11px;white-space:nowrap;">Op %: <input type="number" class="sfp-optime" value="' + (pin.operatingPct || 100) + '" min="1" max="100" style="width:52px;text-align:center;font-size:12px;"></label>' +
     '</div>' +
     '<div class="sfp-bldg-info" style="font-size:11px;color:#6b7280;padding:2px 14px 8px;min-height:16px;">' + bldgInfoHTML + '</div>' +
   '</div>' +
@@ -5521,7 +5521,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
   // Optime
   var otEl = panel.querySelector('.sfp-optime');
   if (otEl) otEl.addEventListener('change', function() {
-    pin.operationalTime_min = parseFloat(this.value) || 15;
+    pin.operatingPct = Math.max(1, Math.min(100, parseInt(this.value) || 100));
     if (typeof window.updateAll === 'function') window.updateAll();
   });
 
@@ -5927,7 +5927,7 @@ document.addEventListener('DOMContentLoaded', function() {
         height_m: 1.5,
         buildingHeight_m: 0,
         groundElevation_m: null,
-        operationalTime_min: 15,
+        operatingPct: 100,
         numUnits: { day: 1, eve: 1, night: 1, lmax: 1 },
         activeInPeriod: { day: true, eve: true, night: true, lmax: false }
       });
@@ -7223,7 +7223,7 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
     var daySpec = src.spectrum.day;
     if (Array.isArray(daySpec) && daySpec.some(function(v) { return v !== null && Number.isFinite(v); })) {
       spectrum = daySpec;
-      adjDB = 10 * log10((src.operationalTime_min || 15) / 15);
+      adjDB = 10 * log10((src.operatingPct || 100) / 100);
     }
   }
 
@@ -7460,7 +7460,7 @@ window.runUAT = async function() {
       spectrum_max: cfg.specMax || null,
       height_m:           cfg.h  || 1.5,
       buildingHeight_m:   cfg.bh || 0,
-      operationalTime_min: cfg.op || 15,
+      operatingPct: cfg.op || 100,
       numUnits:    cfg.nu || { day:1, eve:1, night:1, lmax:1 },
       activeInPeriod: cfg.ap || { day:true, eve:true, night:true, lmax:true },
       name: 'UAT'
@@ -7547,8 +7547,8 @@ window.runUAT = async function() {
     var spec = [70,72,75,78,78,76,72,65], Lw = 80;
     var eS = SharedCalc.energySum(spec), specAdj = Lw - eS;
     t(4,'4.1', near(eS+specAdj, Lw, 0.001), 'energySum(spec)+specAdj=Lw: '+(eS+specAdj).toFixed(3));
-    t(4,'4.2', near(10*Math.log10(8/15), -2.730, 0.002), 'opAdj 8 min='+( 10*Math.log10(8/15)).toFixed(3));
-    t(4,'4.3', near(10*Math.log10(15/15), 0, 0.001), 'opAdj 15 min=0');
+    t(4,'4.2', near(10*Math.log10(50/100), -3.010, 0.002), 'opAdj 50%='+( 10*Math.log10(50/100)).toFixed(3));
+    t(4,'4.3', near(10*Math.log10(100/100), 0, 0.001), 'opAdj 100%=0');
     t(4,'4.4', near(10*Math.log10(4), 6.021, 0.002), 'quantityAdj 4 units='+(10*Math.log10(4)).toFixed(3));
     t(4,'4.5', near(10*Math.log10(1), 0, 0.001), 'quantityAdj 1 unit=0');
     t(4,'4.6', near(10*Math.log10(3), 4.771, 0.002), 'quantityAdj 3 units='+(10*Math.log10(3)).toFixed(3));
@@ -7618,11 +7618,11 @@ window.runUAT = async function() {
     var resDay  = calcPredAtReceiver('day',  null, 0);
     t(7,'7.4', typeof resLmax==='number' && resLmax !== resDay, 'lmax uses lw_max(70)≠lw.day(80): lmax='+resLmax+' day='+resDay);
 
-    setup({ lw:{ day:80,eve:80,night:80 }, lwMax:70, op:8,  d:82, ap:{ day:true,eve:true,night:true,lmax:true } });
-    var lmOp8  = calcPredAtReceiver('lmax', null, 0);
-    setup({ lw:{ day:80,eve:80,night:80 }, lwMax:70, op:15, d:82, ap:{ day:true,eve:true,night:true,lmax:true } });
-    var lmOp15 = calcPredAtReceiver('lmax', null, 0);
-    t(7,'7.5', lmOp8===lmOp15, 'lmax: no opTime weighting (op8=op15): '+lmOp8+'='+lmOp15);
+    setup({ lw:{ day:80,eve:80,night:80 }, lwMax:70, op:50,  d:82, ap:{ day:true,eve:true,night:true,lmax:true } });
+    var lmOp50  = calcPredAtReceiver('lmax', null, 0);
+    setup({ lw:{ day:80,eve:80,night:80 }, lwMax:70, op:100, d:82, ap:{ day:true,eve:true,night:true,lmax:true } });
+    var lmOp100 = calcPredAtReceiver('lmax', null, 0);
+    t(7,'7.5', lmOp50===lmOp100, 'lmax: no opPct weighting (op50=op100): '+lmOp50+'='+lmOp100);
 
     setup({});
     sourcePins[0].lat = null;
@@ -7673,11 +7673,11 @@ window.runUAT = async function() {
     var r1 = calcISO9613forSourcePin(0,'day',100,0);
     t(9,'9.1', Number.isFinite(r1), 'basic result finite: '+r1);
 
-    setup({ lw:{ day:80,eve:80,night:80 }, op:8,  d:100, meth:'iso9613', bArr:BB });
-    var rOp8  = calcISO9613forSourcePin(0,'day',100,0);
-    setup({ lw:{ day:80,eve:80,night:80 }, op:15, d:100, meth:'iso9613', bArr:BB });
-    var rOp15 = calcISO9613forSourcePin(0,'day',100,0);
-    t(9,'9.2', near(rOp15-rOp8, 2.730, 0.1), 'opTime 15 vs 8→+2.730 dB: '+(rOp15-rOp8).toFixed(3));
+    setup({ lw:{ day:80,eve:80,night:80 }, op:50,  d:100, meth:'iso9613', bArr:BB });
+    var rOp50  = calcISO9613forSourcePin(0,'day',100,0);
+    setup({ lw:{ day:80,eve:80,night:80 }, op:100, d:100, meth:'iso9613', bArr:BB });
+    var rOp100 = calcISO9613forSourcePin(0,'day',100,0);
+    t(9,'9.2', near(rOp100-rOp50, 3.010, 0.1), 'opPct 100 vs 50→+3.010 dB: '+(rOp100-rOp50).toFixed(3));
 
     setup({ lw:{ day:80,eve:80,night:80 }, nu:{ day:4,eve:1,night:1,lmax:1 }, d:100, meth:'iso9613', bArr:BB });
     var rU4 = calcISO9613forSourcePin(0,'day',100,0);
@@ -7864,11 +7864,11 @@ window.runUAT = async function() {
   var t13_4_day = calcPredAtReceiver('day',null,0,dist82);
   var t13_4_ngt = calcPredAtReceiver('night',null,0,dist82);
 
-  // 13.5: opTime diff
-  setup({ lw:{ day:80,eve:80,night:80 }, op:8,  d:dist82, meth:'simple' });
-  var t13_5_op8  = calcPredAtReceiver('day',null,0,dist82);
-  setup({ lw:{ day:80,eve:80,night:80 }, op:15, d:dist82, meth:'simple' });
-  var t13_5_op15 = calcPredAtReceiver('day',null,0,dist82);
+  // 13.5: opPct diff
+  setup({ lw:{ day:80,eve:80,night:80 }, op:50,  d:dist82, meth:'simple' });
+  var t13_5_op50  = calcPredAtReceiver('day',null,0,dist82);
+  setup({ lw:{ day:80,eve:80,night:80 }, op:100, d:dist82, meth:'simple' });
+  var t13_5_op100 = calcPredAtReceiver('day',null,0,dist82);
 
   // 13.6: Lmax simple
   if (window._setLmaxMethod) window._setLmaxMethod('simple');
@@ -7877,7 +7877,7 @@ window.runUAT = async function() {
 
   // Launch workers in parallel
   var wSpec = [70,72,75,78,78,76,72,65];
-  var opAdj8 = 10*Math.log10(8/15);
+  var opAdj50 = 10*Math.log10(50/100);
   var w13_promises = [
     // 13.1 simple flat
     _runWorker(Object.assign({}, wBase, { bounds:wB, sources:[_mkSrc(80,0,0,null)], propagationMethod:'simple', isoParams:wP, period:'day' })),
@@ -7889,9 +7889,9 @@ window.runUAT = async function() {
     // 13.4 numUnits 3 vs 1
     _runWorker(Object.assign({}, wBase, { bounds:wB, sources:[_mkSrc(80,0,10*Math.log10(3),null)], propagationMethod:'simple', isoParams:wP, period:'day'   })),
     _runWorker(Object.assign({}, wBase, { bounds:wB, sources:[_mkSrc(80,0,0,             null)], propagationMethod:'simple', isoParams:wP, period:'night' })),
-    // 13.5 opTime 8 vs 15
-    _runWorker(Object.assign({}, wBase, { bounds:wB, sources:[_mkSrc(80,opAdj8,0,null)], propagationMethod:'simple', isoParams:wP, period:'day' })),
-    _runWorker(Object.assign({}, wBase, { bounds:wB, sources:[_mkSrc(80,0,     0,null)], propagationMethod:'simple', isoParams:wP, period:'day' })),
+    // 13.5 opPct 50 vs 100
+    _runWorker(Object.assign({}, wBase, { bounds:wB, sources:[_mkSrc(80,opAdj50,0,null)], propagationMethod:'simple', isoParams:wP, period:'day' })),
+    _runWorker(Object.assign({}, wBase, { bounds:wB, sources:[_mkSrc(80,0,      0,null)], propagationMethod:'simple', isoParams:wP, period:'day' })),
     // 13.6 Lmax simple
     _runWorker(Object.assign({}, wBase, { bounds:wB, sources:[_mkSrc(75,0,0,null)], propagationMethod:'simple', isoParams:wP, period:'lmax' }))
   ];
@@ -7915,7 +7915,7 @@ window.runUAT = async function() {
   var wDiff4 = wL13_4d - wL13_4n, exp4 = 10*Math.log10(3);
   t(13,'13.4', w13[4]&&w13[5]&&near(wDiff4,exp4,0.5), 'numUnits 3vs1: worker Δ='+wDiff4.toFixed(2)+' exp='+exp4.toFixed(3)+' ±0.5');
   var wDiff5 = wL13_5b - wL13_5a;
-  t(13,'13.5', w13[6]&&w13[7]&&near(wDiff5,2.730,0.3), 'opTime 15vs8: worker Δ='+wDiff5.toFixed(2)+' exp=2.730 ±0.3');
+  t(13,'13.5', w13[6]&&w13[7]&&near(wDiff5,3.010,0.3), 'opPct 100vs50: worker Δ='+wDiff5.toFixed(2)+' exp=3.010 ±0.3');
   t(13,'13.6', w13[8]&&Number.isFinite(wL13_6)&&near(wL13_6,t13_6_tbl,2), 'Lmax simple: worker='+wL13_6+' table='+t13_6_tbl+' ±2dB');
 
   /* ════════════════════════════════════════════════════════════════
@@ -8047,19 +8047,19 @@ window.runUAT = async function() {
     var rNgt1  = calcPredAtReceiver('night',null,0);
     t(16,'16.3', Number(rDay4) !== Number(rNgt1), 'day units=4 independent of night units=1: day='+rDay4+' night='+rNgt1);
 
-    setup({ lw:{ day:80,eve:80,night:80 }, op:8,  d:82 });
-    var rOp8  = calcPredAtReceiver('day',null,0);
-    setup({ lw:{ day:80,eve:80,night:80 }, op:15, d:82 });
-    var rOp15 = calcPredAtReceiver('day',null,0);
-    t(16,'16.4', near(Number(rOp15)-Number(rOp8), 2.730, 0.5), 'opTime 15vs8: +2.730 dB: '+(Number(rOp15)-Number(rOp8)).toFixed(3));
+    setup({ lw:{ day:80,eve:80,night:80 }, op:50,  d:82 });
+    var rOp50b  = calcPredAtReceiver('day',null,0);
+    setup({ lw:{ day:80,eve:80,night:80 }, op:100, d:82 });
+    var rOp100b = calcPredAtReceiver('day',null,0);
+    t(16,'16.4', near(Number(rOp100b)-Number(rOp50b), 3.010, 0.5), 'opPct 100vs50: +3.010 dB: '+(Number(rOp100b)-Number(rOp50b)).toFixed(3));
 
-    setup({ lw:{ day:80,eve:80,night:80 }, op:1,  d:82 });
-    var rOp1  = calcPredAtReceiver('day',null,0);
-    t(16,'16.5', near(Number(rOp15)-Number(rOp1), 11.761, 0.5), 'opTime 15vs1: +11.761 dB: '+(Number(rOp15)-Number(rOp1)).toFixed(3));
+    setup({ lw:{ day:80,eve:80,night:80 }, op:25,  d:82 });
+    var rOp25  = calcPredAtReceiver('day',null,0);
+    t(16,'16.5', near(Number(rOp100b)-Number(rOp25), 6.021, 0.5), 'opPct 100vs25: +6.021 dB: '+(Number(rOp100b)-Number(rOp25)).toFixed(3));
 
-    setup({ lw:{ day:80,eve:80,night:80 }, nu:{ day:1,eve:1,night:1,lmax:1 }, op:15, d:82 });
+    setup({ lw:{ day:80,eve:80,night:80 }, nu:{ day:1,eve:1,night:1,lmax:1 }, op:100, d:82 });
     var rBase = calcPredAtReceiver('day',null,0);
-    t(16,'16.6', Number.isFinite(Number(rBase)) && rBase !== '', 'defaults (units=1, op=15) gives baseline: '+rBase);
+    t(16,'16.6', Number.isFinite(Number(rBase)) && rBase !== '', 'defaults (units=1, op=100) gives baseline: '+rBase);
   })();
 
   /* ════════════════════════════════════════════════════════════════
@@ -8213,7 +8213,7 @@ window.runUAT = async function() {
     var blankPin = function(idx) {
       return { lat:null, lng:LNG0, lw:{ day:80,eve:80,night:80 }, lw_max:null,
                spectrum:null, spectrum_max:null, height_m:1.5, buildingHeight_m:0,
-               operationalTime_min:15, numUnits:{ day:1,eve:1,night:1,lmax:1 },
+               operatingPct:100, numUnits:{ day:1,eve:1,night:1,lmax:1 },
                activeInPeriod:{ day:true,eve:true,night:true,lmax:false }, name:'UAT_tmp'+idx };
     };
     while (sourcePins.length < 3) sourcePins.push(blankPin(sourcePins.length));
@@ -8224,7 +8224,7 @@ window.runUAT = async function() {
       Object.assign(sourcePins[1], {
         lat: LAT0+0.00001, lng: LNG0,
         lw:{ day:lw2,eve:lw2,night:lw2 }, lw_max:null, spectrum:null, spectrum_max:null,
-        height_m:1.5, buildingHeight_m:0, operationalTime_min:15,
+        height_m:1.5, buildingHeight_m:0, operatingPct:100,
         numUnits:{ day:1,eve:1,night:1,lmax:1 },
         activeInPeriod:{ day:act2!==false, eve:true, night:true, lmax:false }, name:'UAT2'
       });
@@ -8251,7 +8251,7 @@ window.runUAT = async function() {
     Object.assign(sourcePins[2], {
       lat: LAT0+0.00002, lng: LNG0,
       lw:{ day:80,eve:80,night:80 }, lw_max:null, spectrum:null, spectrum_max:null,
-      height_m:1.5, buildingHeight_m:0, operationalTime_min:15,
+      height_m:1.5, buildingHeight_m:0, operatingPct:100,
       numUnits:{ day:1,eve:1,night:1,lmax:1 },
       activeInPeriod:{ day:true,eve:true,night:true,lmax:false }, name:'UAT3'
     });
@@ -8290,7 +8290,7 @@ window.runUAT = async function() {
       vertices: [[0,0],[0.001,0]], // ~111m line
       libraryEntry: null,
       height_m: 1.5,
-      movements: { day:{N:1,speed:10,period:15}, eve:{N:1,speed:10,period:15}, night:{N:1,speed:10,period:15} },
+      movements: { day:{N:1,speed:10,operatingPct:100}, eve:{N:1,speed:10,operatingPct:100}, night:{N:1,speed:10,operatingPct:100} },
       lw_m_base: { day:65, eve:65, night:65 },
       spectrum_m_base: { day:null, eve:null, night:null },
       manualOverride: { day:false, eve:false, night:false },
@@ -8298,18 +8298,18 @@ window.runUAT = async function() {
       manualSpectrum: { day:null, eve:null, night:null },
       activeInPeriod: { day:true, eve:true, night:true }
     };
-    // 21.1 reference case N=1, v=10, T=15 → adj=0
-    var adj0 = _lsCalcLwmAdj(65, 1, 10, 15) - 65;
-    t(cat, '21.1', Math.abs(adj0) < 0.01, 'N=1,v=10,T=15 adj='+adj0.toFixed(3)+' expected 0');
+    // 21.1 reference case N=1, v=10, pct=100 → adj=0
+    var adj0 = _lsCalcLwmAdj(65, 1, 10, 100) - 65;
+    t(cat, '21.1', Math.abs(adj0) < 0.01, 'N=1,v=10,pct=100 adj='+adj0.toFixed(3)+' expected 0');
     // 21.2 N=2 → +3.01 dB
-    var adj2 = _lsCalcLwmAdj(65, 2, 10, 15) - 65;
+    var adj2 = _lsCalcLwmAdj(65, 2, 10, 100) - 65;
     t(cat, '21.2', Math.abs(adj2 - 3.010) < 0.05, 'N=2 adj='+adj2.toFixed(3)+' expected +3.010');
     // 21.3 speed=20 → -3.01 dB
-    var adjV20 = _lsCalcLwmAdj(65, 1, 20, 15) - 65;
+    var adjV20 = _lsCalcLwmAdj(65, 1, 20, 100) - 65;
     t(cat, '21.3', Math.abs(adjV20 + 3.010) < 0.05, 'v=20 adj='+adjV20.toFixed(3)+' expected -3.010');
-    // 21.4 period=8 → -2.730 dB
-    var adjT8 = _lsCalcLwmAdj(65, 1, 10, 8) - 65;
-    t(cat, '21.4', Math.abs(adjT8 + 2.730) < 0.05, 'T=8 adj='+adjT8.toFixed(3)+' expected -2.730');
+    // 21.4 operatingPct=50 → -3.010 dB
+    var adjP50 = _lsCalcLwmAdj(65, 1, 10, 50) - 65;
+    t(cat, '21.4', Math.abs(adjP50 + 3.010) < 0.05, 'pct=50 adj='+adjP50.toFixed(3)+' expected -3.010');
     // 21.5 sub-source Lw = Lw/m + 10*log10(spacing)
     var spacing = _lsAutoSpacing(111);
     t(cat, '21.5', spacing === 5, 'spacing for 111m line = '+spacing+' expected 5');
@@ -9880,7 +9880,7 @@ function renderContributions() {
           if (propagationMethod === 'iso9613') {
             lpRaw = calcISO9613forSourcePin(si, period, d, ri);
           } else {
-            var opAdj = 10 * Math.log10((pin.operationalTime_min || 15) / 15);
+            var opAdj = 10 * Math.log10((pin.operatingPct || 100) / 100);
             var quantityAdjContrib = 10 * Math.log10(_getNumUnits(pin, period));
             lpRaw = attenuatePoint(pin.lw[period] + opAdj + quantityAdjContrib, d);
             var buildingIL = 0;
@@ -10231,7 +10231,7 @@ initCollapse();
             buildingHeight_m:     bh,
             effectiveHeight_m:    parseFloat(eff.toFixed(2)),
             groundElevation_m:    pin.groundElevation_m   || null,
-            operationalTime_min:  pin.operationalTime_min || 15,
+            operatingPct:  pin.operatingPct || 100,
             numUnits: (function() {
               var n = pin.numUnits;
               if (n && typeof n === 'object') return { day: n.day || 1, eve: n.eve || 1, night: n.night || 1, lmax: n.lmax || 1 };
@@ -10592,7 +10592,7 @@ initCollapse();
             building_height_m:     bh,
             effective_height_m:    eff,
             ground_elevation_m:    pin.groundElevation_m   || null,
-            operational_time_min:  pin.operationalTime_min || 15,
+            operating_pct:  pin.operatingPct || 100,
             num_units_day:         _getNumUnits(pin, 'day'),
             num_units_eve:         _getNumUnits(pin, 'eve'),
             num_units_night:       _getNumUnits(pin, 'night'),
@@ -10773,7 +10773,7 @@ initCollapse();
         kml += '<Data name="building_height_m"><value>'     + p.building_height_m     + '</value></Data>';
         kml += '<Data name="effective_height_m"><value>'    + p.effective_height_m    + '</value></Data>';
         if (p.ground_elevation_m !== null) kml += '<Data name="ground_elevation_m"><value>' + p.ground_elevation_m + '</value></Data>';
-        kml += '<Data name="operational_time_min"><value>'  + p.operational_time_min  + '</value></Data>';
+        kml += '<Data name="operating_pct"><value>'  + p.operating_pct  + '</value></Data>';
         kml += '</ExtendedData>\n';
         kml += '</Placemark>\n';
       });
@@ -10858,7 +10858,7 @@ initCollapse();
           p.building_height_m,
           p.effective_height_m,
           p.ground_elevation_m !== null ? p.ground_elevation_m : '',
-          p.operational_time_min
+          p.operating_pct
         ].join(',') + '\n';
       });
 
@@ -10970,7 +10970,7 @@ initCollapse();
             height_m:             s.height_m            || 1.5,
             buildingHeight_m:     s.buildingHeight_m    || 0,
             groundElevation_m:    s.groundElevation_m   || null,
-            operationalTime_min:  s.operationalTime_min || 15,
+            operatingPct:  s.operatingPct || (s.operationalTime_min ? Math.min(100, Math.max(1, Math.round((s.operationalTime_min / 15) * 100))) : 100),
             numUnits: (function() {
               var n = s.numUnits;
               if (n && typeof n === 'object') return { day: n.day || 1, eve: n.eve || 1, night: n.night || 1, lmax: n.lmax || 1 };
@@ -11005,7 +11005,7 @@ initCollapse();
             height_m:             s.heightM || s.height_m || 1.5,
             buildingHeight_m:     0,
             groundElevation_m:    null,
-            operationalTime_min:  s.operationalTime_min || 15,
+            operatingPct:  s.operatingPct || (s.operationalTime_min ? Math.min(100, Math.max(1, Math.round((s.operationalTime_min / 15) * 100))) : 100),
             numUnits: (function() {
               var n = s.numUnits;
               if (n && typeof n === 'object') return { day: n.day || 1, eve: n.eve || 1, night: n.night || 1, lmax: n.lmax || 1 };
@@ -11387,9 +11387,23 @@ initCollapse();
         window._setGroundZones(data.groundZones);
       }
 
-      // Restore line sources
+      // Restore line sources (with legacy migration: period→operatingPct)
       if (data.lineSources && data.lineSources.length > 0 && window._setLineSources) {
-        window._setLineSources(data.lineSources);
+        var migratedLs = data.lineSources.map(function(ls) {
+          if (ls.movements) {
+            ['day','eve','night'].forEach(function(p) {
+              var m = ls.movements[p];
+              if (m && !Number.isFinite(m.operatingPct)) {
+                // old saves used m.period (minutes); convert to %
+                m.operatingPct = m.period
+                  ? Math.min(100, Math.max(1, Math.round((m.period / 15) * 100)))
+                  : 100;
+              }
+            });
+          }
+          return ls;
+        });
+        window._setLineSources(migratedLs);
       }
 
       // 16. Re-render detected zones panel for VIC
@@ -14467,7 +14481,7 @@ initCollapse();
           height_m: 1.5,
           buildingHeight_m: 0,
           groundElevation_m: null,
-          operationalTime_min: 15,
+          operatingPct: 100,
           activeInPeriod: { day: true, eve: true, night: true, lmax: false }
         });
       }
@@ -14824,7 +14838,7 @@ initCollapse();
           height_m: 1.5,
           buildingHeight_m: 0,
           groundElevation_m: null,
-          operationalTime_min: 15,
+          operatingPct: 100,
           numUnits: { day: 1, eve: 1, night: 1, lmax: 1 },
           activeInPeriod: { day: true, eve: true, night: true, lmax: false }
         });
@@ -16296,7 +16310,7 @@ initCollapse();
       });
 
       function periodBlock(pKey, pLabel) {
-        var mvt = (ls.movements && ls.movements[pKey]) || { N:1, speed:10, period:15 };
+        var mvt = (ls.movements && ls.movements[pKey]) || { N:1, speed:10, operatingPct:100 };
         var active = ls.activeInPeriod ? ls.activeInPeriod[pKey] !== false : true;
         var calcLwm = _lsGetEffectiveLwm(ls, pKey);
         var calcStr = Number.isFinite(calcLwm) ? calcLwm.toFixed(1) : '—';
@@ -16325,8 +16339,8 @@ initCollapse();
               '<input type="number" id="lsPanelSpeed_' + pKey + '" value="' + (mvt.speed || 10) + '" min="1" step="1" style="width:55px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
             '</div>' +
             '<div style="display:flex;align-items:center;gap:4px;">' +
-              '<label style="font-size:11px;">Period (min):</label>' +
-              '<input type="number" id="lsPanelPeriod_' + pKey + '" value="' + (mvt.period || 15) + '" min="1" step="1" style="width:50px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
+              '<label style="font-size:11px;">Op %:</label>' +
+              '<input type="number" id="lsPanelPct_' + pKey + '" value="' + (mvt.operatingPct || 100) + '" min="1" max="100" step="1" style="width:50px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
             '</div>' +
           '</div>' +
           '<div style="margin-top:6px;font-size:12px;color:#555;">Calculated Lw/m: <b id="lsPanelCalcLwm_' + pKey + '">' + calcStr + '</b> dB(A)</div>' +
@@ -16543,44 +16557,41 @@ initCollapse();
         var activeChk = document.getElementById('lsPanelActive_' + p);
         var nInp = document.getElementById('lsPanelN_' + p);
         var speedInp = document.getElementById('lsPanelSpeed_' + p);
-        var periodInp = document.getElementById('lsPanelPeriod_' + p);
+        var pctInp = document.getElementById('lsPanelPct_' + p);
         var overrideChk = document.getElementById('lsPanelOverride_' + p);
         var overrideSec = document.getElementById('lsPanelOverrideSection_' + p);
         var manLwmInp = document.getElementById('lsPanelManLwm_' + p);
 
         function readMovements() {
-          if (!ls.movements) ls.movements = { day:{N:1,speed:10,period:15}, eve:{N:1,speed:10,period:15}, night:{N:1,speed:10,period:15} };
-          if (!ls.movements[p]) ls.movements[p] = { N:1, speed:10, period:15 };
+          if (!ls.movements) ls.movements = { day:{N:1,speed:10,operatingPct:100}, eve:{N:1,speed:10,operatingPct:100}, night:{N:1,speed:10,operatingPct:100} };
+          if (!ls.movements[p]) ls.movements[p] = { N:1, speed:10, operatingPct:100 };
           var N = parseInt(nInp ? nInp.value : 1) || 1;
           var spd = parseFloat(speedInp ? speedInp.value : 10) || 10;
-          var per = parseFloat(periodInp ? periodInp.value : 15) || 15;
+          var pct = Math.max(1, Math.min(100, parseInt(pctInp ? pctInp.value : 100) || 100));
           ls.movements[p].N = N;
           ls.movements[p].speed = spd;
-          ls.movements[p].period = per;
+          ls.movements[p].operatingPct = pct;
 
           // Auto-copy to eve/night if not user-edited
           if (p === 'day') {
             if (!ls._userEdited) ls._userEdited = { eve: false, night: false };
             if (!ls._userEdited.eve) {
-              ls.movements.eve = { N:N, speed:spd, period:per };
-              ['N','speed','period'].forEach(function(k) {
-                var el = document.getElementById('lsPanelN_eve') || document.getElementById('lsPanelSpeed_eve') || document.getElementById('lsPanelPeriod_eve');
-              });
+              ls.movements.eve = { N:N, speed:spd, operatingPct:pct };
               var nEve = document.getElementById('lsPanelN_eve');
               var sEve = document.getElementById('lsPanelSpeed_eve');
-              var pEve = document.getElementById('lsPanelPeriod_eve');
+              var pEve = document.getElementById('lsPanelPct_eve');
               if (nEve) nEve.value = N;
               if (sEve) sEve.value = spd;
-              if (pEve) pEve.value = per;
+              if (pEve) pEve.value = pct;
             }
             if (!ls._userEdited.night) {
-              ls.movements.night = { N:N, speed:spd, period:per };
+              ls.movements.night = { N:N, speed:spd, operatingPct:pct };
               var nNight = document.getElementById('lsPanelN_night');
               var sNight = document.getElementById('lsPanelSpeed_night');
-              var pNight = document.getElementById('lsPanelPeriod_night');
+              var pNight = document.getElementById('lsPanelPct_night');
               if (nNight) nNight.value = N;
               if (sNight) sNight.value = spd;
-              if (pNight) pNight.value = per;
+              if (pNight) pNight.value = pct;
             }
           } else {
             if (!ls._userEdited) ls._userEdited = { eve: false, night: false };
@@ -16886,9 +16897,9 @@ initCollapse();
         libraryEntry: null,
         height_m: 1.5,
         movements: {
-          day:   { N:1, speed:10, period:15 },
-          eve:   { N:1, speed:10, period:15 },
-          night: { N:1, speed:10, period:15 }
+          day:   { N:1, speed:10, operatingPct:100 },
+          eve:   { N:1, speed:10, operatingPct:100 },
+          night: { N:1, speed:10, operatingPct:100 }
         },
         lw_m_base:       { day:null, eve:null, night:null },
         spectrum_m_base: { day:null, eve:null, night:null },
@@ -16934,9 +16945,9 @@ initCollapse();
             height_m: ls.heightM || ls.height_m || 1.5,
             heightM: ls.heightM || ls.height_m || 1.5,
             movements: {
-              day:   { N:1, speed:10, period:15 },
-              eve:   { N:1, speed:10, period:15 },
-              night: { N:1, speed:10, period:15 }
+              day:   { N:1, speed:10, operatingPct:100 },
+              eve:   { N:1, speed:10, operatingPct:100 },
+              night: { N:1, speed:10, operatingPct:100 }
             },
             lw_m_base: {
               day:   (ls.lwPerMetre && Number.isFinite(ls.lwPerMetre.day))   ? ls.lwPerMetre.day   : null,
@@ -16958,9 +16969,9 @@ initCollapse();
             height_m: ls.height_m || ls.heightM || 1.5,
             heightM: ls.height_m || ls.heightM || 1.5,
             movements: ls.movements || {
-              day:   { N:1, speed:10, period:15 },
-              eve:   { N:1, speed:10, period:15 },
-              night: { N:1, speed:10, period:15 }
+              day:   { N:1, speed:10, operatingPct:100 },
+              eve:   { N:1, speed:10, operatingPct:100 },
+              night: { N:1, speed:10, operatingPct:100 }
             },
             lw_m_base: ls.lw_m_base || { day:null, eve:null, night:null },
             spectrum_m_base: ls.spectrum_m_base || { day:null, eve:null, night:null },
@@ -17281,7 +17292,7 @@ initCollapse();
           opAdj = 0; // No operational time weighting for Lmax
         } else {
           lwVal = pin.lw ? pin.lw[period] : null;
-          opAdj = 10 * Math.log10((pin.operationalTime_min || 15) / 15);
+          opAdj = 10 * Math.log10((pin.operatingPct || 100) / 100);
         }
         if (!Number.isFinite(lwVal)) return;
 
