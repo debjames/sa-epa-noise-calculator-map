@@ -514,6 +514,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   </div>
   <button class="collapse-all-btn" id="collapseAllBtn" style="display:none;">Collapse All</button>
 
+  <!-- Save / Load standalone row -->
+  <div style="display:flex;gap:8px;margin:10px 0;">
+    <button class="pdf-btn" id="exportJsonBtn" type="button">Save Assessment</button>
+    <button class="pdf-btn" id="importJsonBtn" type="button">Load Assessment</button>
+  </div>
+
   <div class="sheet">
     <div class="grid2">
 
@@ -536,12 +542,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <span id="map-status-r2"     style="color:#16a34a;">&#9679; R2: not placed</span>
           <span id="map-status-r3"     style="color:#d97706;">&#9679; R3: not placed</span>
           <span id="map-status-r4"     style="color:#7c3aed;">&#9679; R4: not placed</span>
-        </div>
-
-        <!-- Save / Load row above map -->
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <button class="pdf-btn" id="exportJsonBtn" type="button">Save Assessment</button>
-          <button class="pdf-btn" id="importJsonBtn" type="button">Load Assessment</button>
         </div>
 
         <!-- Map + floating panels wrapper -->
