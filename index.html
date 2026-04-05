@@ -15966,6 +15966,7 @@ initCollapse();
             });
             h += '</table>';
             h += '<button id="lsPopApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
+            h += '<button id="lsPopEditShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#2980b9;">Edit shape</button> ';
             h += '<button id="lsPopDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#dc2626;">Delete</button>';
             h += '</div>';
             L.popup({ maxWidth: 300 }).setLatLng(e.latlng).setContent(h).openOn(map);
@@ -15997,6 +15998,61 @@ initCollapse();
                 renderLineSourceCards();
                 if (typeof render === 'function') render();
                 if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              });
+              var editShapeBtn = document.getElementById('lsPopEditShape');
+              if (editShapeBtn) editShapeBtn.addEventListener('click', function() {
+                map.closePopup();
+                if (!poly.editing) return;
+                // Store original vertices so Cancel can revert
+                var origVertices = capturedLs.vertices.map(function(v) { return [v[0], v[1]]; });
+                _drawingActive = true;
+                poly.editing.enable();
+                var lsDrawBtn = document.getElementById('drawLineSourceBtn');
+                if (lsDrawBtn) lsDrawBtn.classList.add('active');
+                // Floating edit bar with Save / Cancel
+                var editBar = document.createElement('div');
+                editBar.id = 'lsEditBar';
+                editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #e87d2f;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
+                editBar.innerHTML =
+                  '<span style="color:#e87d2f;font-weight:600;">&#9135; Editing line source</span>' +
+                  '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
+                  '<button id="lsEditSave" style="padding:3px 12px;font-size:12px;background:#e87d2f;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+                  '<button id="lsEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
+                var mapContainer = map.getContainer();
+                mapContainer.style.position = 'relative';
+                mapContainer.appendChild(editBar);
+                function _lsRemoveEditBar() {
+                  var bar = document.getElementById('lsEditBar');
+                  if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
+                }
+                function _lsFinishEdit(save) {
+                  if (poly.editing) poly.editing.disable();
+                  _drawingActive = false;
+                  if (lsDrawBtn) lsDrawBtn.classList.remove('active');
+                  document.removeEventListener('keydown', _lsEscHandler);
+                  _lsRemoveEditBar();
+                  if (save) {
+                    capturedLs.vertices = poly.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+                  } else {
+                    poly.setLatLngs(origVertices); // revert visual shape
+                  }
+                  renderLineSourceLayer();
+                  renderLineSourceCards();
+                  if (save) {
+                    if (typeof render === 'function') render();
+                    if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                  }
+                }
+                function _lsEscHandler(e) {
+                  if (e.key === 'Escape') { e.stopPropagation(); _lsFinishEdit(false); }
+                }
+                document.addEventListener('keydown', _lsEscHandler);
+                setTimeout(function() {
+                  var saveBtn = document.getElementById('lsEditSave');
+                  var cancelBtn = document.getElementById('lsEditCancel');
+                  if (saveBtn) saveBtn.addEventListener('click', function() { _lsFinishEdit(true); });
+                  if (cancelBtn) cancelBtn.addEventListener('click', function() { _lsFinishEdit(false); });
+                }, 50);
               });
             }, 50);
           };
@@ -16175,6 +16231,7 @@ initCollapse();
     var _lsDrawHandler = null;
     if (drawLineSourceBtn && typeof L.Draw !== 'undefined') {
       drawLineSourceBtn.addEventListener('click', function() {
+        if (document.getElementById('lsEditBar')) return; // line source edit in progress
         if (_lsDrawHandler) {
           _lsDrawHandler.disable();
           _lsDrawHandler = null;
