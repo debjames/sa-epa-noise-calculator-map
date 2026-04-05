@@ -514,25 +514,6 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   </div>
   <button class="collapse-all-btn" id="collapseAllBtn" style="display:none;">Collapse All</button>
 
-  <!-- How to use panel (before map) -->
-  <div class="card" style="margin:14px 0;">
-    <h2>How to use</h2>
-    <div style="line-height:1.8;font-size:12px;">
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">1</span><div><b>Set the site location</b><br>Search for an address using the search bar, or click the map to centre the view on your site. The address is used in exported filenames.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">2</span><div><b>Place noise source(s)</b><br>Click &ldquo;+ Add source&rdquo; to create a source. Click &ldquo;Place&rdquo; within the source card, then click the map to place the source pin. Each source has its own equipment list and height setting. Multiple sources are energy-summed at each receiver.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">3</span><div><b>Enter equipment details</b><br>For each source, add equipment items with their sound power level (L<sub>w</sub>, dB(A)) and quantity. Use manufacturer data sheets or measured values. If operational time is less than 15 minutes per assessment period, enter the expected duration to apply a time weighting.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">4</span><div><b>Place receivers</b><br>Click the receiver button (R1&ndash;R4) on the toolbar, then click the map. Up to four receivers can be assessed simultaneously. Assign a name to each receiver for reporting purposes.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">5</span><div><b>Set zones and receiver types</b><br>Use the zone dropdown for each receiver to set the applicable noise zone, or rely on auto-detection from SAPPA (SA), NSW Planning Portal, or VIC zone data. Select the receiver type (e.g. residential, commercial) to apply the correct criteria.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">6</span><div><b>Review results</b><br>The results table shows predicted levels for day, evening, and night periods against the applicable criteria. Cells highlighted in red indicate an exceedance. Click any receiver row to see a per-band ISO 9613-2 calculation breakdown. Where terrain screening is enabled and elevation data is available, terrain diffraction loss is automatically applied &mdash; a mountain icon (&#x26F0;) will appear next to predicted levels. Use the terrain profile view in each receiver card to inspect the propagation path.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">7</span><div><b>Add buildings and barriers (optional)</b><br>To include additional elements in the noise model, activate Buildings to load editable OSM building footprints, or use Draw Building and Draw Barrier to add custom elements. All buildings and barriers are included in the acoustic calculation.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">8</span><div><b>Enable terrain screening (optional)</b><br>Click the Terrain button in the toolbar to fetch ground elevation data from the Open-Elevation API for all placed pins. Where terrain between a source and receiver protrudes above the direct line of sight, diffraction loss is calculated using the Maekawa formula (the same method as building barriers). A terrain indicator appears in the results table where terrain screening is applied. Use the terrain profile view in the per-band breakdown to inspect the propagation path cross-section.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">9</span><div><b>Enable the noise map (optional)</b><br>Toggle the Noise Map button to display predicted contours across the site. Select the period (day/evening/night), receiver height, and grid size. Finer grids (1&ndash;5&thinsp;m) give more detail but take longer to compute &mdash; use Auto for most assessments. Enable the Terrain button before generating the noise map to apply terrain diffraction screening to the contours. Contours are calculated using the same propagation method as the receiver predictions.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">10</span><div><b>Load planning overlays (optional)</b><br>Use the toolbar to add contextual layers: SA Planning zones (Show Zones), aerial imagery (Aerial), cadastral boundaries (Cadastral), and OpenStreetMap building footprints (Buildings). MBS 010 Screening identifies whether receiver locations fall within a Noise and Emissions Overlay under the SA Planning and Design Code.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">11</span><div><b>Export</b><br><b>Save session:</b> downloads a JSON file to reload this assessment later &mdash; all sources, receivers, settings, and results are preserved.<br><b>GIS Export:</b> exports sources, receivers, and contours as GeoJSON, KML, or CSV for use in QGIS, ArcGIS, or Google Earth.<br><b>Screenshot:</b> use your browser or operating system screenshot tool to capture the map at the appropriate zoom level for use as a figure in reports.</div></div>
-      <div style="background:#f8f9fa;border-left:3px solid #f39c12;padding:8px 12px;font-size:11px;color:#856404;border-radius:4px;margin-top:4px;">Always cross-check predicted results against hand calculations for at least one receiver before using outputs in a formal report.</div>
-    </div>
-  </div>
-
   <div class="sheet">
     <div class="grid2">
 
@@ -555,6 +536,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <span id="map-status-r2"     style="color:#16a34a;">&#9679; R2: not placed</span>
           <span id="map-status-r3"     style="color:#d97706;">&#9679; R3: not placed</span>
           <span id="map-status-r4"     style="color:#7c3aed;">&#9679; R4: not placed</span>
+        </div>
+
+        <!-- Save / Load row above map -->
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button class="pdf-btn" id="exportJsonBtn" type="button">Save Assessment</button>
+          <button class="pdf-btn" id="importJsonBtn" type="button">Load Assessment</button>
         </div>
 
         <!-- Map + floating panels wrapper -->
@@ -1432,26 +1419,38 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   <button class="pdf-btn" id="pdfCriteriaBtn" type="button" style="display:none;">PDF Criteria</button>
   <input type="file" id="importJsonFile" accept=".json" style="display:none;">
 
-  <!-- Save & Export panel -->
+  <!-- GIS Export panel -->
   <div class="card" style="margin-top:14px;">
-    <h2>Save &amp; Export</h2>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;">
-      <button class="pdf-btn" id="exportJsonBtn" type="button">Save Assessment</button>
-      <button class="pdf-btn" id="importJsonBtn" type="button">Load Assessment</button>
+    <h2>GIS Export</h2>
+    <div class="p" style="margin-bottom:8px;">Export assessment data for use in GIS applications (QGIS, ArcGIS, Google Earth).</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+      <button class="pdf-btn" id="exportGeoJsonBtn" type="button" title="To get a Shapefile, open this GeoJSON in QGIS and use Export → Save Features As → ESRI Shapefile.">Export GeoJSON</button>
+      <button class="pdf-btn" id="exportKmlBtn" type="button">Export KML</button>
+      <button class="pdf-btn" id="exportCsvBtn" type="button">Export CSV</button>
     </div>
-    <div style="border-top:1px solid var(--border);padding-top:12px;">
-      <div class="h2" style="font-size:13px;margin-top:0;">GIS Export</div>
-      <div class="p" style="margin-bottom:8px;">Export assessment data for use in GIS applications (QGIS, ArcGIS, Google Earth).</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-        <button class="pdf-btn" id="exportGeoJsonBtn" type="button" title="To get a Shapefile, open this GeoJSON in QGIS and use Export → Save Features As → ESRI Shapefile.">Export GeoJSON</button>
-        <button class="pdf-btn" id="exportKmlBtn" type="button">Export KML</button>
-        <button class="pdf-btn" id="exportCsvBtn" type="button">Export CSV</button>
-      </div>
-      <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.6;">
-        <b>GeoJSON</b> — recommended for QGIS and ArcGIS. <span style="color:#888;">Tip: to get a Shapefile, open GeoJSON in QGIS &rarr; Export &rarr; Save Features As &rarr; ESRI Shapefile.</span><br>
-        <b>KML</b> — use with Google Earth or Google Maps.<br>
-        <b>CSV</b> — receivers only, for Excel or data joins.
-      </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.6;">
+      <b>GeoJSON</b> — recommended for QGIS and ArcGIS. <span style="color:#888;">Tip: to get a Shapefile, open GeoJSON in QGIS &rarr; Export &rarr; Save Features As &rarr; ESRI Shapefile.</span><br>
+      <b>KML</b> — use with Google Earth or Google Maps.<br>
+      <b>CSV</b> — receivers only, for Excel or data joins.
+    </div>
+  </div>
+
+  <!-- How to use panel -->
+  <div class="card" style="margin-top:14px;">
+    <h2>How to use</h2>
+    <div style="line-height:1.8;font-size:12px;">
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">1</span><div><b>Set the site location</b><br>Search for an address using the search bar, or click the map to centre the view on your site. The address is used in exported filenames.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">2</span><div><b>Place noise source(s)</b><br>Click &ldquo;+ Add source&rdquo; to create a source. Click &ldquo;Place&rdquo; within the source card, then click the map to place the source pin. Each source has its own equipment list and height setting. Multiple sources are energy-summed at each receiver.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">3</span><div><b>Enter equipment details</b><br>For each source, add equipment items with their sound power level (L<sub>w</sub>, dB(A)) and quantity. Use manufacturer data sheets or measured values. If operational time is less than 15 minutes per assessment period, enter the expected duration to apply a time weighting.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">4</span><div><b>Place receivers</b><br>Click the receiver button (R1&ndash;R4) on the toolbar, then click the map. Up to four receivers can be assessed simultaneously. Assign a name to each receiver for reporting purposes.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">5</span><div><b>Set zones and receiver types</b><br>Use the zone dropdown for each receiver to set the applicable noise zone, or rely on auto-detection from SAPPA (SA), NSW Planning Portal, or VIC zone data. Select the receiver type (e.g. residential, commercial) to apply the correct criteria.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">6</span><div><b>Review results</b><br>The results table shows predicted levels for day, evening, and night periods against the applicable criteria. Cells highlighted in red indicate an exceedance. Click any receiver row to see a per-band ISO 9613-2 calculation breakdown. Where terrain screening is enabled and elevation data is available, terrain diffraction loss is automatically applied &mdash; a mountain icon (&#x26F0;) will appear next to predicted levels. Use the terrain profile view in each receiver card to inspect the propagation path.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">7</span><div><b>Add buildings and barriers (optional)</b><br>To include additional elements in the noise model, activate Buildings to load editable OSM building footprints, or use Draw Building and Draw Barrier to add custom elements. All buildings and barriers are included in the acoustic calculation.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">8</span><div><b>Enable terrain screening (optional)</b><br>Click the Terrain button in the toolbar to fetch ground elevation data from the Open-Elevation API for all placed pins. Where terrain between a source and receiver protrudes above the direct line of sight, diffraction loss is calculated using the Maekawa formula (the same method as building barriers). A terrain indicator appears in the results table where terrain screening is applied. Use the terrain profile view in the per-band breakdown to inspect the propagation path cross-section.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">9</span><div><b>Enable the noise map (optional)</b><br>Toggle the Noise Map button to display predicted contours across the site. Select the period (day/evening/night), receiver height, and grid size. Finer grids (1&ndash;5&thinsp;m) give more detail but take longer to compute &mdash; use Auto for most assessments. Enable the Terrain button before generating the noise map to apply terrain diffraction screening to the contours. Contours are calculated using the same propagation method as the receiver predictions.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">10</span><div><b>Load planning overlays (optional)</b><br>Use the toolbar to add contextual layers: SA Planning zones (Show Zones), aerial imagery (Aerial), cadastral boundaries (Cadastral), and OpenStreetMap building footprints (Buildings). MBS 010 Screening identifies whether receiver locations fall within a Noise and Emissions Overlay under the SA Planning and Design Code.</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">11</span><div><b>Export</b><br><b>Save session:</b> downloads a JSON file to reload this assessment later &mdash; all sources, receivers, settings, and results are preserved.<br><b>GIS Export:</b> exports sources, receivers, and contours as GeoJSON, KML, or CSV for use in QGIS, ArcGIS, or Google Earth.<br><b>Screenshot:</b> use your browser or operating system screenshot tool to capture the map at the appropriate zoom level for use as a figure in reports.</div></div>
+      <div style="background:#f8f9fa;border-left:3px solid #f39c12;padding:8px 12px;font-size:11px;color:#856404;border-radius:4px;margin-top:4px;">Always cross-check predicted results against hand calculations for at least one receiver before using outputs in a formal report.</div>
     </div>
   </div>
 
@@ -10010,7 +10009,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Scenarios', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation', 'Save & Export', 'How to use', 'Methodology', 'Custom sources'];
+    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Scenarios', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation', 'GIS Export', 'How to use', 'Methodology', 'Custom sources'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
