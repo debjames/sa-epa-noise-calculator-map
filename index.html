@@ -3672,6 +3672,15 @@ function _getNumUnits(pin, period) {
   return pin.numUnits || 1; // legacy scalar
 }
 
+/** Return the operating % for a given period, handling both new {day,eve,night}
+ *  object format and legacy scalar format.  Returns 1–100. */
+function _getPinOpPct(pin, period) {
+  var op = pin.operatingPct;
+  if (op && typeof op === 'object') return op[period] || 100;
+  if (typeof op === 'number') return op;
+  return 100;
+}
+
 function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   if (!Number.isFinite(distM) || distM <= 0) return NaN;
   var pin = sourcePins[si];
@@ -3682,7 +3691,7 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   var lwVal = pin.lw ? pin.lw[prefix] : null;
   if (!Number.isFinite(lwVal)) return NaN;
 
-  var opAdj = 10 * log10((pin.operatingPct || 100) / 100);
+  var opAdj = 10 * log10(_getPinOpPct(pin, checkPeriod) / 100);
   var quantityAdj = 10 * log10(_getNumUnits(pin, prefix));
   var adjDB = opAdj + quantityAdj;
 
@@ -3790,7 +3799,7 @@ function calcISO9613reflectedLevel(si, prefix, reflDistM, receiverIdx) {
   var lwVal = pin.lw ? pin.lw[prefix] : null;
   if (!Number.isFinite(lwVal)) return NaN;
 
-  var opAdj = 10 * log10((pin.operatingPct || 100) / 100) + 10 * log10(_getNumUnits(pin, prefix));
+  var opAdj = 10 * log10(_getPinOpPct(pin, checkPeriod) / 100) + 10 * log10(_getNumUnits(pin, prefix));
   var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
   var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
 
@@ -4050,7 +4059,7 @@ var sourcePins = [{
   height_m: 1.5,
   buildingHeight_m: 0,
   groundElevation_m: null,
-  operatingPct: 100,
+  operatingPct: { day: 100, eve: 100, night: 100 },
   numUnits: { day: 1, eve: 1, night: 1, lmax: 1 },
   activeInPeriod: { day: true, eve: true, night: true, lmax: false }
 }];
@@ -4913,7 +4922,7 @@ function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDi
       }
     }
 
-    var opAdj = 10 * log10((pin.operatingPct || 100) / 100);
+    var opAdj = 10 * log10(_getPinOpPct(pin, prefix) / 100);
     var quantityAdjSimple = 10 * log10(_getNumUnits(pin, prefix));
     // For Lmax: no operational time weighting, but quantity still applies
     var lwW = (prefix === 'lmax') ? lwVal + quantityAdjSimple : lwVal + opAdj + quantityAdjSimple;
@@ -5072,26 +5081,6 @@ function renderSourcePins() {
     var htUnit = document.createElement('span');
     htUnit.textContent = 'm'; htUnit.style.cssText = 'font-size:11px;color:#666;';
     hdr.appendChild(htUnit);
-
-    // Operating %
-    var otLabel = document.createElement('span');
-    otLabel.textContent = '⏱'; otLabel.style.cssText = 'font-size:11px;color:#666;margin-left:4px;';
-    otLabel.title = 'Operating % of assessment period';
-    hdr.appendChild(otLabel);
-    var otInp = document.createElement('input');
-    otInp.type = 'number'; otInp.value = pin.operatingPct || 100; otInp.min = '1'; otInp.max = '100'; otInp.step = '1';
-    otInp.title = 'Operating % of period';
-    otInp.style.cssText = 'border:1px solid #ddd;padding:3px 4px;font-size:12px;width:50px;border-radius:3px;';
-    otInp.addEventListener('change', function() {
-      var v = Math.max(1, Math.min(100, parseInt(this.value) || 100));
-      sourcePins[idx].operatingPct = v;
-      this.value = v;
-      if (typeof renderDebounced === 'function') renderDebounced();
-    });
-    hdr.appendChild(otInp);
-    var otUnit = document.createElement('span');
-    otUnit.textContent = '%'; otUnit.style.cssText = 'font-size:11px;color:#666;';
-    hdr.appendChild(otUnit);
 
     // Place button
     var placeBtn = document.createElement('button');
@@ -5316,6 +5305,7 @@ function srcPanelPeriodHTML(pin, period) {
 /** Build HTML for one always-visible period section */
 function srcPanelPeriodSectionHTML(pin, period, periodLabel) {
   var SFP_FREQS = ['63', '125', '250', '500', '1k', '2k', '4k', '8k'];
+  var opPct = _getPinOpPct(pin, period);
   var lwVal = (pin.lw && pin.lw[period] !== undefined && pin.lw[period] !== null) ? pin.lw[period] : '';
   var spectrum = pin.spectrum[period] || {};
   var active = !pin.activeInPeriod || pin.activeInPeriod[period] !== false;
@@ -5346,6 +5336,9 @@ function srcPanelPeriodSectionHTML(pin, period, periodLabel) {
       '<label style="font-size:11px;white-space:nowrap;">Lw (dB):</label>' +
       '<input type="number" class="sfp-lw-' + period + '" value="' + lwVal + '" style="width:64px;text-align:center;font-size:13px;">' +
       '<label style="font-size:11px;white-space:nowrap;margin-left:4px;">Units: <input type="number" class="sfp-units-' + period + '" value="' + (_getNumUnits(pin, period)) + '" min="1" step="1" style="width:46px;text-align:center;font-size:12px;"></label>' +
+    '</div>' +
+    '<div style="margin-bottom:4px;">' +
+      '<label style="font-size:11px;white-space:nowrap;">Op %: <input type="number" class="sfp-oppct-' + period + '" value="' + opPct + '" min="1" max="100" step="1" style="width:52px;text-align:center;font-size:12px;"></label>' +
     '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;">' + bandsHTML + '</div>' +
   '</div>';
@@ -5458,7 +5451,6 @@ function buildSrcPanelHTML(pin, pinIdx) {
     '</div>' +
     '<div style="display:flex;gap:8px;margin-bottom:4px;padding:0 14px;">' +
       '<label style="font-size:11px;white-space:nowrap;">Ht (m): <input type="number" class="sfp-height" value="' + (pin.height_m || 1.5) + '" min="0" step="0.1" style="width:52px;text-align:center;font-size:12px;"></label>' +
-      '<label style="font-size:11px;white-space:nowrap;">Op %: <input type="number" class="sfp-optime" value="' + (pin.operatingPct || 100) + '" min="1" max="100" style="width:52px;text-align:center;font-size:12px;"></label>' +
     '</div>' +
     '<div class="sfp-bldg-info" style="font-size:11px;color:#6b7280;padding:2px 14px 8px;min-height:16px;">' + bldgInfoHTML + '</div>' +
   '</div>' +
@@ -5515,13 +5507,6 @@ function attachSrcPanelListeners(pin, pinIdx) {
   if (htEl) htEl.addEventListener('change', function() {
     pin.height_m = parseFloat(this.value) || 1.5;
     _updateSrcPanelBuildingDisplay(pinIdx);
-    if (typeof window.updateAll === 'function') window.updateAll();
-  });
-
-  // Optime
-  var otEl = panel.querySelector('.sfp-optime');
-  if (otEl) otEl.addEventListener('change', function() {
-    pin.operatingPct = Math.max(1, Math.min(100, parseInt(this.value) || 100));
     if (typeof window.updateAll === 'function') window.updateAll();
   });
 
@@ -5789,6 +5774,35 @@ function attachSrcPanelListeners(pin, pinIdx) {
 /** Wire Lw + band listeners for one period */
 function attachSrcPeriodListeners(pin, pinIdx, period, panel) {
   var SFP_FREQS = ['63', '125', '250', '500', '1k', '2k', '4k', '8k'];
+
+  // Operating % per-period with day→eve/night auto-copy
+  var opEl = panel.querySelector('.sfp-oppct-' + period);
+  if (opEl) {
+    opEl.addEventListener('change', function() {
+      var v = Math.max(1, Math.min(100, parseInt(this.value) || 100));
+      this.value = v;
+      if (!pin.operatingPct || typeof pin.operatingPct !== 'object') {
+        var cur = typeof pin.operatingPct === 'number' ? pin.operatingPct : 100;
+        pin.operatingPct = { day: cur, eve: cur, night: cur };
+      }
+      pin.operatingPct[period] = v;
+      if (period === 'day') {
+        if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+        ['eve', 'night'].forEach(function(p) {
+          if (!pin._userEdited[p]) {
+            pin.operatingPct[p] = v;
+            var el = panel.querySelector('.sfp-oppct-' + p);
+            if (el) el.value = v;
+          }
+        });
+      } else {
+        if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
+        pin._userEdited[period] = true;
+      }
+      if (typeof window.updateAll === 'function') window.updateAll();
+    });
+  }
+
   var lwEl = panel.querySelector('.sfp-lw-' + period);
   if (lwEl) {
     lwEl.addEventListener('change', function() {
@@ -5927,7 +5941,7 @@ document.addEventListener('DOMContentLoaded', function() {
         height_m: 1.5,
         buildingHeight_m: 0,
         groundElevation_m: null,
-        operatingPct: 100,
+        operatingPct: { day: 100, eve: 100, night: 100 },
         numUnits: { day: 1, eve: 1, night: 1, lmax: 1 },
         activeInPeriod: { day: true, eve: true, night: true, lmax: false }
       });
@@ -7223,7 +7237,7 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
     var daySpec = src.spectrum.day;
     if (Array.isArray(daySpec) && daySpec.some(function(v) { return v !== null && Number.isFinite(v); })) {
       spectrum = daySpec;
-      adjDB = 10 * log10((src.operatingPct || 100) / 100);
+      adjDB = 10 * log10(_getPinOpPct(src, 'day') / 100);
     }
   }
 
@@ -7460,7 +7474,11 @@ window.runUAT = async function() {
       spectrum_max: cfg.specMax || null,
       height_m:           cfg.h  || 1.5,
       buildingHeight_m:   cfg.bh || 0,
-      operatingPct: cfg.op || 100,
+      operatingPct: (function() {
+        var v = cfg.op !== undefined ? cfg.op : 100;
+        if (typeof v === 'object') return v;
+        return { day: v, eve: v, night: v };
+      })(),
       numUnits:    cfg.nu || { day:1, eve:1, night:1, lmax:1 },
       activeInPeriod: cfg.ap || { day:true, eve:true, night:true, lmax:true },
       name: 'UAT'
@@ -9880,7 +9898,7 @@ function renderContributions() {
           if (propagationMethod === 'iso9613') {
             lpRaw = calcISO9613forSourcePin(si, period, d, ri);
           } else {
-            var opAdj = 10 * Math.log10((pin.operatingPct || 100) / 100);
+            var opAdj = 10 * Math.log10(_getPinOpPct(pin, period) / 100);
             var quantityAdjContrib = 10 * Math.log10(_getNumUnits(pin, period));
             lpRaw = attenuatePoint(pin.lw[period] + opAdj + quantityAdjContrib, d);
             var buildingIL = 0;
@@ -10231,7 +10249,7 @@ initCollapse();
             buildingHeight_m:     bh,
             effectiveHeight_m:    parseFloat(eff.toFixed(2)),
             groundElevation_m:    pin.groundElevation_m   || null,
-            operatingPct:  pin.operatingPct || 100,
+            operatingPct:  (function() { var op = pin.operatingPct; if (op && typeof op === 'object') return op; var v = op || 100; return { day:v, eve:v, night:v }; })(),
             numUnits: (function() {
               var n = pin.numUnits;
               if (n && typeof n === 'object') return { day: n.day || 1, eve: n.eve || 1, night: n.night || 1, lmax: n.lmax || 1 };
@@ -10592,7 +10610,9 @@ initCollapse();
             building_height_m:     bh,
             effective_height_m:    eff,
             ground_elevation_m:    pin.groundElevation_m   || null,
-            operating_pct:  pin.operatingPct || 100,
+            operating_pct_day:   _getPinOpPct(pin, 'day'),
+            operating_pct_eve:   _getPinOpPct(pin, 'eve'),
+            operating_pct_night: _getPinOpPct(pin, 'night'),
             num_units_day:         _getNumUnits(pin, 'day'),
             num_units_eve:         _getNumUnits(pin, 'eve'),
             num_units_night:       _getNumUnits(pin, 'night'),
@@ -10773,7 +10793,9 @@ initCollapse();
         kml += '<Data name="building_height_m"><value>'     + p.building_height_m     + '</value></Data>';
         kml += '<Data name="effective_height_m"><value>'    + p.effective_height_m    + '</value></Data>';
         if (p.ground_elevation_m !== null) kml += '<Data name="ground_elevation_m"><value>' + p.ground_elevation_m + '</value></Data>';
-        kml += '<Data name="operating_pct"><value>'  + p.operating_pct  + '</value></Data>';
+        kml += '<Data name="operating_pct_day"><value>'   + p.operating_pct_day   + '</value></Data>';
+        kml += '<Data name="operating_pct_eve"><value>'   + p.operating_pct_eve   + '</value></Data>';
+        kml += '<Data name="operating_pct_night"><value>' + p.operating_pct_night + '</value></Data>';
         kml += '</ExtendedData>\n';
         kml += '</Placemark>\n';
       });
@@ -10858,7 +10880,7 @@ initCollapse();
           p.building_height_m,
           p.effective_height_m,
           p.ground_elevation_m !== null ? p.ground_elevation_m : '',
-          p.operating_pct
+          p.operating_pct_day, p.operating_pct_eve, p.operating_pct_night
         ].join(',') + '\n';
       });
 
@@ -10970,7 +10992,12 @@ initCollapse();
             height_m:             s.height_m            || 1.5,
             buildingHeight_m:     s.buildingHeight_m    || 0,
             groundElevation_m:    s.groundElevation_m   || null,
-            operatingPct:  s.operatingPct || (s.operationalTime_min ? Math.min(100, Math.max(1, Math.round((s.operationalTime_min / 15) * 100))) : 100),
+            operatingPct:  (function() {
+              var raw = s.operatingPct || (s.operationalTime_min ? Math.min(100, Math.max(1, Math.round((s.operationalTime_min / 15) * 100))) : 100);
+              if (raw && typeof raw === 'object') return { day: raw.day||100, eve: raw.eve||100, night: raw.night||100 };
+              var v = typeof raw === 'number' ? raw : 100;
+              return { day: v, eve: v, night: v };
+            })(),
             numUnits: (function() {
               var n = s.numUnits;
               if (n && typeof n === 'object') return { day: n.day || 1, eve: n.eve || 1, night: n.night || 1, lmax: n.lmax || 1 };
@@ -11005,7 +11032,12 @@ initCollapse();
             height_m:             s.heightM || s.height_m || 1.5,
             buildingHeight_m:     0,
             groundElevation_m:    null,
-            operatingPct:  s.operatingPct || (s.operationalTime_min ? Math.min(100, Math.max(1, Math.round((s.operationalTime_min / 15) * 100))) : 100),
+            operatingPct:  (function() {
+              var raw = s.operatingPct || (s.operationalTime_min ? Math.min(100, Math.max(1, Math.round((s.operationalTime_min / 15) * 100))) : 100);
+              if (raw && typeof raw === 'object') return { day: raw.day||100, eve: raw.eve||100, night: raw.night||100 };
+              var v = typeof raw === 'number' ? raw : 100;
+              return { day: v, eve: v, night: v };
+            })(),
             numUnits: (function() {
               var n = s.numUnits;
               if (n && typeof n === 'object') return { day: n.day || 1, eve: n.eve || 1, night: n.night || 1, lmax: n.lmax || 1 };
@@ -14481,7 +14513,7 @@ initCollapse();
           height_m: 1.5,
           buildingHeight_m: 0,
           groundElevation_m: null,
-          operatingPct: 100,
+          operatingPct: { day: 100, eve: 100, night: 100 },
           activeInPeriod: { day: true, eve: true, night: true, lmax: false }
         });
       }
@@ -14838,7 +14870,7 @@ initCollapse();
           height_m: 1.5,
           buildingHeight_m: 0,
           groundElevation_m: null,
-          operatingPct: 100,
+          operatingPct: { day: 100, eve: 100, night: 100 },
           numUnits: { day: 1, eve: 1, night: 1, lmax: 1 },
           activeInPeriod: { day: true, eve: true, night: true, lmax: false }
         });
@@ -16318,40 +16350,42 @@ initCollapse();
         var manLwm = ls.manualLwm && Number.isFinite(ls.manualLwm[pKey]) ? ls.manualLwm[pKey] : '';
         var ms = ls.manualSpectrum && ls.manualSpectrum[pKey] ? ls.manualSpectrum[pKey] : {};
         var bands = [63,125,250,500,1000,2000,4000,8000];
-        var bandLabels = ['63Hz','125Hz','250Hz','500Hz','1kHz','2kHz','4kHz','8kHz'];
-        var bandInputs = '';
-        bands.forEach(function(f, i) {
-          bandInputs += '<div style="display:flex;align-items:center;gap:3px;">' +
-            '<label style="font-size:10px;width:32px;text-align:right;">' + bandLabels[i] + '</label>' +
-            '<input type="number" id="lsPanelBand_' + pKey + '_' + f + '" value="' + (ms[f] || '') + '" step="0.5" style="width:52px;padding:2px 3px;border:1px solid #ddd;border-radius:3px;font-size:11px;">' +
-            '</div>';
-        });
-        return '<div style="border:1px solid #eee;border-radius:6px;padding:8px 10px;">' +
-          '<div style="font-weight:600;color:#333;margin-bottom:6px;">' + pLabel + '</div>' +
-          '<label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="lsPanelActive_' + pKey + '"' + (active ? ' checked' : '') + '> Active</label>' +
-          '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-            '<div style="display:flex;align-items:center;gap:4px;">' +
-              '<label style="font-size:11px;">N:</label>' +
-              '<input type="number" id="lsPanelN_' + pKey + '" value="' + (mvt.N || 1) + '" min="1" step="1" style="width:50px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
-            '</div>' +
-            '<div style="display:flex;align-items:center;gap:4px;">' +
-              '<label style="font-size:11px;">Speed (km/h):</label>' +
-              '<input type="number" id="lsPanelSpeed_' + pKey + '" value="' + (mvt.speed || 10) + '" min="1" step="1" style="width:55px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
-            '</div>' +
-            '<div style="display:flex;align-items:center;gap:4px;">' +
-              '<label style="font-size:11px;">Op %:</label>' +
-              '<input type="number" id="lsPanelPct_' + pKey + '" value="' + (mvt.operatingPct || 100) + '" min="1" max="100" step="1" style="width:50px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
-            '</div>' +
+        var bandLabels = ['63','125','250','500','1k','2k','4k','8k'];
+        // 8-column compact grid matching point source layout
+        var bandInputs = bands.map(function(f, i) {
+          return '<label style="display:flex;flex-direction:column;align-items:center;font-size:10px;gap:2px;">' +
+            bandLabels[i] +
+            '<input type="number" id="lsPanelBand_' + pKey + '_' + f + '" value="' + (ms[f] !== undefined ? ms[f] : '') + '" step="0.5" style="width:38px;text-align:center;padding:2px 0;font-size:11px;" placeholder="\u2014">' +
+            '</label>';
+        }).join('');
+        return '<div class="ls-period-section" data-period="' + pKey + '" style="' + (!active ? 'opacity:0.5;' : '') + 'margin-bottom:8px;">' +
+          // Header row: period label + Active checkbox (right-aligned) — matches sfp style
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+            '<strong style="font-size:12px;">' + pLabel + '</strong>' +
+            '<label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer;margin-left:auto;">' +
+              '<input type="checkbox" id="lsPanelActive_' + pKey + '"' + (active ? ' checked' : '') + '> Active' +
+            '</label>' +
           '</div>' +
-          '<div style="margin-top:6px;font-size:12px;color:#555;">Calculated Lw/m: <b id="lsPanelCalcLwm_' + pKey + '">' + calcStr + '</b> dB(A)</div>' +
-          '<div style="margin-top:6px;border-top:1px solid #eee;padding-top:6px;">' +
-            '<label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="lsPanelOverride_' + pKey + '"' + (isOverride ? ' checked' : '') + '> Manual Lw/m override</label>' +
+          // N + Speed row
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+            '<label style="font-size:11px;white-space:nowrap;">N: <input type="number" id="lsPanelN_' + pKey + '" value="' + (mvt.N || 1) + '" min="1" step="1" style="width:46px;text-align:center;font-size:12px;"></label>' +
+            '<label style="font-size:11px;white-space:nowrap;margin-left:4px;">Speed (km/h): <input type="number" id="lsPanelSpeed_' + pKey + '" value="' + (mvt.speed || 10) + '" min="1" step="1" style="width:50px;text-align:center;font-size:12px;"></label>' +
+          '</div>' +
+          // Op % row
+          '<div style="margin-bottom:4px;">' +
+            '<label style="font-size:11px;white-space:nowrap;">Op %: <input type="number" id="lsPanelPct_' + pKey + '" value="' + (mvt.operatingPct || 100) + '" min="1" max="100" step="1" style="width:46px;text-align:center;font-size:12px;"></label>' +
+          '</div>' +
+          // Calculated Lw/m
+          '<div style="margin-bottom:4px;font-size:12px;color:#555;">Calculated Lw/m: <b id="lsPanelCalcLwm_' + pKey + '">' + calcStr + '</b> dB(A)</div>' +
+          // Manual override toggle + section
+          '<div>' +
+            '<label style="font-size:11px;cursor:pointer;"><input type="checkbox" id="lsPanelOverride_' + pKey + '"' + (isOverride ? ' checked' : '') + '> Manual Lw/m override</label>' +
             '<div id="lsPanelOverrideSection_' + pKey + '" style="display:' + (isOverride ? 'block' : 'none') + ';margin-top:6px;">' +
               '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
-                '<label style="font-size:11px;">Lw/m dB(A):</label>' +
-                '<input type="number" id="lsPanelManLwm_' + pKey + '" value="' + manLwm + '" step="0.1" style="width:70px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">' +
+                '<label style="font-size:11px;white-space:nowrap;">Lw/m dB(A): <input type="number" id="lsPanelManLwm_' + pKey + '" value="' + manLwm + '" step="0.1" style="width:70px;text-align:center;font-size:12px;"></label>' +
               '</div>' +
-              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;font-size:11px;">' + bandInputs + '</div>' +
+              // Compact 8-column band grid
+              '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;">' + bandInputs + '</div>' +
             '</div>' +
           '</div>' +
         '</div>';
@@ -16432,13 +16466,18 @@ initCollapse();
 
       // Name
       var nameInp = document.getElementById('lsPanelName');
-      if (nameInp) nameInp.addEventListener('input', function() {
-        ls.name = this.value;
-        var titleEl = document.getElementById('lsPanelTitle');
-        if (titleEl) titleEl.textContent = ls.name || 'Line source';
-        renderLineSourceLayer();
-        renderLineSourceCards();
-      });
+      if (nameInp) {
+        nameInp.addEventListener('input', function() {
+          ls.name = this.value;
+          var titleEl = document.getElementById('lsPanelTitle');
+          if (titleEl) titleEl.textContent = ls.name || 'Line source';
+          renderLineSourceLayer();
+          renderLineSourceCards();
+        });
+        nameInp.addEventListener('change', function() {
+          ls._nameManuallyEdited = true;
+        });
+      }
 
       // Library selector
       var libSel = document.getElementById('lsPanelLibSel');
@@ -16451,13 +16490,13 @@ initCollapse();
           LINE_SOURCE_LIBRARY.forEach(function(e) { if (e.name === selName) found = e; });
           if (found) {
             ls.libraryEntry = found;
-            var isGeneric = !ls.name || /^Line source \d+$/.test(ls.name);
-            if (isGeneric) {
+            if (!ls._nameManuallyEdited) {
               ls.name = found.name;
               var nameEl = document.getElementById('lsPanelName');
               if (nameEl) nameEl.value = ls.name;
               var titleEl = document.getElementById('lsPanelTitle');
               if (titleEl) titleEl.textContent = ls.name;
+              renderLineSourceLayer();
             }
             // Set lw_m_base and spectrum_m_base for all periods
             ['day','eve','night'].forEach(function(p) {
@@ -17292,7 +17331,7 @@ initCollapse();
           opAdj = 0; // No operational time weighting for Lmax
         } else {
           lwVal = pin.lw ? pin.lw[period] : null;
-          opAdj = 10 * Math.log10((pin.operatingPct || 100) / 100);
+          opAdj = 10 * Math.log10(_getPinOpPct(pin, period) / 100);
         }
         if (!Number.isFinite(lwVal)) return;
 
