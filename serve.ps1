@@ -27,6 +27,8 @@ while ($listener.IsListening) {
                 default { 'application/octet-stream' }
             }
             $context.Response.ContentType = $ct
+            $context.Response.Headers.Add("Cache-Control", "no-store, no-cache, must-revalidate")
+            $context.Response.Headers.Add("Pragma", "no-cache")
             $context.Response.ContentLength64 = $bytes.Length
             $context.Response.OutputStream.Write($bytes, 0, $bytes.Length)
         } else {
