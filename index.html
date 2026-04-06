@@ -1787,6 +1787,34 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     }, Promise.resolve()).then(function() { return assemble(nullCount); });
   }
 
+  // Convert an Open-Elevation grid result into a raster tile compatible with sampleRaster.
+  // OE lats are ordered south→north; sampleRaster expects row 0 = north, so rows are flipped.
+  function convertOEToRasterTile(oeResult, north, south, east, west) {
+    var lats = oeResult.lats, lngs = oeResult.lngs;
+    var H = lats.length, W = lngs.length;
+    var raster = new Float32Array(H * W);
+    var validCount = 0;
+    for (var r = 0; r < H; r++) {
+      var rasterRow = H - 1 - r; // flip: OE row 0 = south → raster row 0 = north
+      for (var c = 0; c < W; c++) {
+        var v = oeResult.elevations[r] ? oeResult.elevations[r][c] : null;
+        if (v !== null && v !== undefined && isFinite(v)) {
+          raster[rasterRow * W + c] = v;
+          validCount++;
+        } else {
+          raster[rasterRow * W + c] = WCS_NODATA;
+        }
+      }
+    }
+    return {
+      bounds: { north: north, south: south, east: east, west: west },
+      width: W, height: H,
+      raster: raster,
+      validFrac: H * W > 0 ? validCount / (H * W) : 0,
+      source: 'srtm'
+    };
+  }
+
   // Batch Open-Elevation for individual point lookups
   function fetchFromOE(locations) {
     if (!locations.length) return Promise.resolve([]);
@@ -1971,6 +1999,34 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     var done = 0, total = toFetch.length;
     var CONCURRENT = 4;
 
+    // SRTM fallback: Open-Elevation for a tile bbox when WCS has no LiDAR coverage.
+    // Key stays in _pendingKeys until OE resolves so duplicate fetches are prevented.
+    function fetchSRTMFallback(key, b) {
+      var oeSpacing = Math.max((b.north - b.south) / 20, 0.001);
+      return fetchOETile(b.north, b.south, b.east, b.west, oeSpacing, null)
+        .then(function(oeResult) {
+          delete _pendingKeys[key];
+          var srtmTile = convertOEToRasterTile(oeResult, b.north, b.south, b.east, b.west);
+          if (srtmTile.validFrac >= 0.05) {
+            if (_wcsCache.length >= WCS_CACHE_MAX) _wcsCache.shift();
+            _wcsCache.push(srtmTile);
+            _curRaster = srtmTile; _curSource = 'open-elevation';
+            done++;
+            if (onProgress) onProgress(done, total);
+            if (window.onWCSRasterUpdated) window.onWCSRasterUpdated(null);
+          } else {
+            done++;
+            if (onProgress) onProgress(done, total);
+          }
+        })
+        .catch(function(oeErr) {
+          delete _pendingKeys[key];
+          console.warn('SRTM fallback failed [' + key + ']:', oeErr.message || oeErr);
+          done++;
+          if (onProgress) onProgress(done, total);
+        });
+    }
+
     function fetchBatch(remaining) {
       if (remaining.length === 0) return Promise.resolve();
       var batch = remaining.slice(0, CONCURRENT);
@@ -1979,27 +2035,24 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         var b = item.bounds;
         return fetchWCSTile(b.north, b.south, b.east, b.west)
           .then(function(tile) {
-            delete _pendingKeys[item.key];
             if (tile.validFrac >= 0.05) {
+              // LiDAR data — cache and notify immediately
+              delete _pendingKeys[item.key];
               if (_wcsCache.length >= WCS_CACHE_MAX) _wcsCache.shift();
               _wcsCache.push(tile);
-              _curRaster = tile;
-              _curSource = 'lidar';
-              // Only notify when data was actually cached — prevents re-triggering
-              // generateTerrainContours in areas with no LiDAR coverage.
+              _curRaster = tile; _curSource = 'lidar';
               done++;
               if (onProgress) onProgress(done, total);
               if (window.onWCSRasterUpdated) window.onWCSRasterUpdated(null);
             } else {
-              done++;
-              if (onProgress) onProgress(done, total);
+              // No LiDAR coverage — fall back to SRTM (key stays pending during OE fetch)
+              return fetchSRTMFallback(item.key, b);
             }
           })
           .catch(function(err) {
-            delete _pendingKeys[item.key];
+            // WCS request error — fall back to SRTM
             console.warn('WCS tile failed [' + item.key + ']:', err.message || err);
-            done++;
-            if (onProgress) onProgress(done, total);
+            return fetchSRTMFallback(item.key, b);
           });
       })).then(function() { return fetchBatch(rest); });
     }
@@ -9176,13 +9229,15 @@ function initPropagationMethod() {
     var north = mb.getNorth(), south = mb.getSouth();
     var east  = mb.getEast(),  west  = mb.getWest();
 
-    // Collect all LiDAR tiles that overlap the current view
+    // Collect LiDAR and SRTM tiles that overlap the current view
     var allTiles = window.DEMCache.getAllWCSRasters();
     var viewTiles = allTiles.filter(function(t) {
-      if (t.source !== 'lidar') return false;
+      if (t.source !== 'lidar' && t.source !== 'srtm') return false;
       var b = t.bounds;
       return b.north > south && b.south < north && b.east > west && b.west < east;
     });
+    var lidarTiles = viewTiles.filter(function(t) { return t.source === 'lidar'; });
+    var srtmTiles  = viewTiles.filter(function(t) { return t.source === 'srtm';  });
 
     if (viewTiles.length === 0) {
       // Nothing cached yet — trigger tiled fetch; onWCSRasterUpdated will re-enter
@@ -9214,30 +9269,40 @@ function initPropagationMethod() {
 
     var H = lats.length, W = lngs.length;
 
-    // ctGrid[row*W+col]: row 0 = south (matches marching-squares convention)
-    var ctGrid = new Float32Array(H * W);
-    ctGrid.fill(NaN);
+    // Separate grids: LiDAR → solid contours, SRTM fallback → dashed contours
+    var ctGridLidar = new Float32Array(H * W); ctGridLidar.fill(NaN);
+    var ctGridSrtm  = new Float32Array(H * W); ctGridSrtm.fill(NaN);
 
     var _sampleRaster = window.DEMCache.sampleRaster;
     for (var ri = 0; ri < H; ri++) {
       for (var ci = 0; ci < W; ci++) {
-        // Try tiles most-recent-first; take first non-null hit
-        for (var ti = viewTiles.length - 1; ti >= 0; ti--) {
-          var e = _sampleRaster(viewTiles[ti], lats[ri], lngs[ci]);
-          if (e !== null) { ctGrid[ri * W + ci] = e; break; }
+        var cellIdx = ri * W + ci;
+        // LiDAR tiles (most-recent-first)
+        for (var ti = lidarTiles.length - 1; ti >= 0; ti--) {
+          var e = _sampleRaster(lidarTiles[ti], lats[ri], lngs[ci]);
+          if (e !== null) { ctGridLidar[cellIdx] = e; break; }
+        }
+        // SRTM fills only cells where LiDAR has no coverage
+        if (isNaN(ctGridLidar[cellIdx])) {
+          for (var ti2 = srtmTiles.length - 1; ti2 >= 0; ti2--) {
+            var e2 = _sampleRaster(srtmTiles[ti2], lats[ri], lngs[ci]);
+            if (e2 !== null) { ctGridSrtm[cellIdx] = e2; break; }
+          }
         }
       }
     }
 
-    // ── Elevation range from merged grid ─────────────────────────────────────
+    // ── Elevation range across both grids ────────────────────────────────────
     var elevMin = Infinity, elevMax = -Infinity;
-    for (var gi = 0; gi < ctGrid.length; gi++) {
-      var gv = ctGrid[gi];
-      if (isFinite(gv)) {
-        if (gv < elevMin) elevMin = gv;
-        if (gv > elevMax) elevMax = gv;
+    [ctGridLidar, ctGridSrtm].forEach(function(g) {
+      for (var gi = 0; gi < g.length; gi++) {
+        var gv = g[gi];
+        if (isFinite(gv)) {
+          if (gv < elevMin) elevMin = gv;
+          if (gv > elevMax) elevMax = gv;
+        }
       }
-    }
+    });
     if (!isFinite(elevMin) || elevMax - elevMin < 2) return; // flat or no data
 
     var range = elevMax - elevMin;
@@ -9253,127 +9318,136 @@ function initPropagationMethod() {
     var startLat = lats[0];
     var startLng = lngs[0];
 
-    // ── Marching squares ─────────────────────────────────────────────────────
-    function ctVal(r2, c2) {
-      if (r2 < 0 || r2 >= H || c2 < 0 || c2 >= W) return NaN;
-      return ctGrid[r2 * W + c2];
-    }
-    function ctInterp(r1, c1, r2, c2, thr) {
-      var v1 = ctVal(r1, c1), v2 = ctVal(r2, c2);
-      if (!isFinite(v1) || !isFinite(v2) || v1 === v2) return 0.5;
-      return Math.max(0, Math.min(1, (thr - v1) / (v2 - v1)));
-    }
-
+    // ── Marching squares — parameterised per source ───────────────────────────
     var PREC8 = 8;
     function ptKey(p) { return p[0].toFixed(PREC8) + ',' + p[1].toFixed(PREC8); }
 
-    thresholds.forEach(function(threshold) {
-      var isMajor = (Math.round(threshold) % majorInt === 0);
-      var segments = [];
-
-      for (var row = 0; row < H - 1; row++) {
-        for (var col = 0; col < W - 1; col++) {
-          var tl = ctVal(row + 1, col), tr = ctVal(row + 1, col + 1);
-          var br = ctVal(row,     col + 1), bl = ctVal(row,     col);
-          if (!isFinite(tl) || !isFinite(tr) || !isFinite(br) || !isFinite(bl)) continue;
-
-          var idx = 0;
-          if (tl >= threshold) idx |= 8;
-          if (tr >= threshold) idx |= 4;
-          if (br >= threshold) idx |= 2;
-          if (bl >= threshold) idx |= 1;
-          if (idx === 0 || idx === 15) continue;
-
-          var tFrac = ctInterp(row + 1, col, row + 1, col + 1, threshold);
-          var top    = [startLat + (row + 1) * dLat, startLng + (col + tFrac) * dLng];
-          var rFrac = ctInterp(row + 1, col + 1, row, col + 1, threshold);
-          var right  = [startLat + (row + 1 - rFrac) * dLat, startLng + (col + 1) * dLng];
-          var bFrac = ctInterp(row, col, row, col + 1, threshold);
-          var bottom = [startLat + row * dLat, startLng + (col + bFrac) * dLng];
-          var lFrac = ctInterp(row + 1, col, row, col, threshold);
-          var left   = [startLat + (row + 1 - lFrac) * dLat, startLng + col * dLng];
-
-          switch (idx) {
-            case 1: case 14: segments.push([left, bottom]); break;
-            case 2: case 13: segments.push([bottom, right]); break;
-            case 3: case 12: segments.push([left, right]); break;
-            case 4: case 11: segments.push([top, right]); break;
-            case 5: segments.push([left, top]); segments.push([bottom, right]); break;
-            case 6: case 9:  segments.push([top, bottom]); break;
-            case 7: case 8:  segments.push([left, top]); break;
-            case 10: segments.push([left, bottom]); segments.push([top, right]); break;
-          }
-        }
+    // Renders contour polylines from ctGrid using lineStyle = { majorOpacity, minorOpacity, dashArray? }
+    function renderContours(ctGrid, lineStyle) {
+      function ctVal(r2, c2) {
+        if (r2 < 0 || r2 >= H || c2 < 0 || c2 >= W) return NaN;
+        return ctGrid[r2 * W + c2];
+      }
+      function ctInterp(r1, c1, r2, c2, thr) {
+        var v1 = ctVal(r1, c1), v2 = ctVal(r2, c2);
+        if (!isFinite(v1) || !isFinite(v2) || v1 === v2) return 0.5;
+        return Math.max(0, Math.min(1, (thr - v1) / (v2 - v1)));
       }
 
-      if (!segments.length) return;
+      thresholds.forEach(function(threshold) {
+        var isMajor = (Math.round(threshold) % majorInt === 0);
+        var segments = [];
 
-      // Chain segments into polylines
-      var endMap = {};
-      for (var si = 0; si < segments.length; si++) {
-        for (var ei = 0; ei < 2; ei++) {
-          var k = ptKey(segments[si][ei]);
-          if (!endMap[k]) endMap[k] = [];
-          endMap[k].push({ seg: si, end: ei });
-        }
-      }
-      var used = new Array(segments.length);
-      var chains = [];
-      for (var si2 = 0; si2 < segments.length; si2++) {
-        if (used[si2]) continue;
-        used[si2] = true;
-        var chain = [segments[si2][0], segments[si2][1]];
-        var ext = true;
-        while (ext) {
-          ext = false;
-          var cands = endMap[ptKey(chain[chain.length - 1])];
-          if (cands) for (var ci = 0; ci < cands.length; ci++) {
-            if (used[cands[ci].seg]) continue;
-            used[cands[ci].seg] = true;
-            chain.push(segments[cands[ci].seg][1 - cands[ci].end]);
-            ext = true; break;
+        for (var row = 0; row < H - 1; row++) {
+          for (var col = 0; col < W - 1; col++) {
+            var tl = ctVal(row + 1, col), tr = ctVal(row + 1, col + 1);
+            var br = ctVal(row,     col + 1), bl = ctVal(row,     col);
+            if (!isFinite(tl) || !isFinite(tr) || !isFinite(br) || !isFinite(bl)) continue;
+
+            var idx = 0;
+            if (tl >= threshold) idx |= 8;
+            if (tr >= threshold) idx |= 4;
+            if (br >= threshold) idx |= 2;
+            if (bl >= threshold) idx |= 1;
+            if (idx === 0 || idx === 15) continue;
+
+            var tFrac = ctInterp(row + 1, col, row + 1, col + 1, threshold);
+            var top    = [startLat + (row + 1) * dLat, startLng + (col + tFrac) * dLng];
+            var rFrac = ctInterp(row + 1, col + 1, row, col + 1, threshold);
+            var right  = [startLat + (row + 1 - rFrac) * dLat, startLng + (col + 1) * dLng];
+            var bFrac = ctInterp(row, col, row, col + 1, threshold);
+            var bottom = [startLat + row * dLat, startLng + (col + bFrac) * dLng];
+            var lFrac = ctInterp(row + 1, col, row, col, threshold);
+            var left   = [startLat + (row + 1 - lFrac) * dLat, startLng + col * dLng];
+
+            switch (idx) {
+              case 1: case 14: segments.push([left, bottom]); break;
+              case 2: case 13: segments.push([bottom, right]); break;
+              case 3: case 12: segments.push([left, right]); break;
+              case 4: case 11: segments.push([top, right]); break;
+              case 5: segments.push([left, top]); segments.push([bottom, right]); break;
+              case 6: case 9:  segments.push([top, bottom]); break;
+              case 7: case 8:  segments.push([left, top]); break;
+              case 10: segments.push([left, bottom]); segments.push([top, right]); break;
+            }
           }
         }
-        ext = true;
-        while (ext) {
-          ext = false;
-          var cands2 = endMap[ptKey(chain[0])];
-          if (cands2) for (var ci2 = 0; ci2 < cands2.length; ci2++) {
-            if (used[cands2[ci2].seg]) continue;
-            used[cands2[ci2].seg] = true;
-            chain.unshift(segments[cands2[ci2].seg][1 - cands2[ci2].end]);
-            ext = true; break;
+
+        if (!segments.length) return;
+
+        // Chain segments into polylines
+        var endMap = {};
+        for (var si = 0; si < segments.length; si++) {
+          for (var ei = 0; ei < 2; ei++) {
+            var k = ptKey(segments[si][ei]);
+            if (!endMap[k]) endMap[k] = [];
+            endMap[k].push({ seg: si, end: ei });
           }
         }
-        if (chain.length >= 3) chains.push(chain);
-      }
+        var used = new Array(segments.length);
+        var chains = [];
+        for (var si2 = 0; si2 < segments.length; si2++) {
+          if (used[si2]) continue;
+          used[si2] = true;
+          var chain = [segments[si2][0], segments[si2][1]];
+          var ext = true;
+          while (ext) {
+            ext = false;
+            var cands = endMap[ptKey(chain[chain.length - 1])];
+            if (cands) for (var ci = 0; ci < cands.length; ci++) {
+              if (used[cands[ci].seg]) continue;
+              used[cands[ci].seg] = true;
+              chain.push(segments[cands[ci].seg][1 - cands[ci].end]);
+              ext = true; break;
+            }
+          }
+          ext = true;
+          while (ext) {
+            ext = false;
+            var cands2 = endMap[ptKey(chain[0])];
+            if (cands2) for (var ci2 = 0; ci2 < cands2.length; ci2++) {
+              if (used[cands2[ci2].seg]) continue;
+              used[cands2[ci2].seg] = true;
+              chain.unshift(segments[cands2[ci2].seg][1 - cands2[ci2].end]);
+              ext = true; break;
+            }
+          }
+          if (chain.length >= 3) chains.push(chain);
+        }
 
-      // Draw each chain
-      chains.forEach(function(chain) {
-        var polyline = L.polyline(chain, {
-          color: '#8B7355', weight: isMajor ? 2 : 1,
-          opacity: isMajor ? 0.65 : 0.40, interactive: false,
-          pane: 'terrainContourPane'
-        });
-        if (window._terrainContourLayer) window._terrainContourLayer.addLayer(polyline);
-
-        // Label major contours at chain midpoint
-        if (isMajor && chain.length >= 4) {
-          var mid = chain[Math.floor(chain.length / 2)];
-          var label = L.marker(mid, {
-            pane: 'terrainContourPane',
-            interactive: false,
-            icon: L.divIcon({
-              html: '<span style="font-size:10px;color:#6B5A42;font-weight:600;' +
-                    'background:rgba(255,255,255,0.6);padding:0 2px;border-radius:2px;white-space:nowrap;">' +
-                    Math.round(threshold) + '</span>',
-              className: '', iconSize: null, iconAnchor: [10, 7]
-            })
+        chains.forEach(function(chain) {
+          var polyline = L.polyline(chain, {
+            color: '#8B7355', weight: isMajor ? 2 : 1,
+            opacity: isMajor ? lineStyle.majorOpacity : lineStyle.minorOpacity,
+            dashArray: lineStyle.dashArray || null,
+            interactive: false, pane: 'terrainContourPane'
           });
-          if (window._terrainContourLayer) window._terrainContourLayer.addLayer(label);
-        }
+          if (window._terrainContourLayer) window._terrainContourLayer.addLayer(polyline);
+
+          // Label major contours at chain midpoint
+          if (isMajor && chain.length >= 4) {
+            var mid = chain[Math.floor(chain.length / 2)];
+            var label = L.marker(mid, {
+              pane: 'terrainContourPane', interactive: false,
+              icon: L.divIcon({
+                html: '<span style="font-size:10px;color:#6B5A42;font-weight:600;' +
+                      'background:rgba(255,255,255,0.6);padding:0 2px;border-radius:2px;white-space:nowrap;">' +
+                      Math.round(threshold) + '</span>',
+                className: '', iconSize: null, iconAnchor: [10, 7]
+              })
+            });
+            if (window._terrainContourLayer) window._terrainContourLayer.addLayer(label);
+          }
+        });
       });
-    });
+    }
+
+    // LiDAR tiles → solid brown contours (5m accuracy)
+    if (lidarTiles.length > 0)
+      renderContours(ctGridLidar, { majorOpacity: 0.65, minorOpacity: 0.40 });
+    // SRTM fallback tiles → dashed brown contours (30m accuracy)
+    if (srtmTiles.length > 0)
+      renderContours(ctGridSrtm,  { majorOpacity: 0.55, minorOpacity: 0.30, dashArray: '5, 5' });
 
     if (window._map && window._terrainContourLayer && !window._map.hasLayer(window._terrainContourLayer))
       window._terrainContourLayer.addTo(window._map);
