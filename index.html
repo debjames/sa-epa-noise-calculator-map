@@ -3561,6 +3561,192 @@ function _asGetEffectiveLw(as, period) {
   }
 }
 
+/** Lw/m² adjusted for qty + pct but NOT area — base power density per sub-source. */
+function _asGetLwM2Adj(as, period) {
+  if (!as.activeInPeriod || !as.activeInPeriod[period]) return NaN;
+  var area = _asPolygonArea(as.vertices || []);
+  var qty  = (as.quantity    && Number.isFinite(as.quantity[period]))    ? as.quantity[period]    : 1;
+  var pct  = (as.operatingPct && Number.isFinite(as.operatingPct[period])) ? as.operatingPct[period] : 100;
+  var lw   = (as.lwValue     && Number.isFinite(as.lwValue[period]))     ? as.lwValue[period]     : null;
+  if (lw === null) return NaN;
+  var adjN  = (qty > 0) ? 10 * Math.log10(qty)       : 0;
+  var adjOp = (pct > 0) ? 10 * Math.log10(pct / 100) : -Infinity;
+  if (as.lwMode === 'total') {
+    if (area <= 0) return NaN;
+    return lw - 10 * Math.log10(area) + adjN + adjOp; // distribute total over area
+  } else {
+    return lw + adjN + adjOp; // already Lw/m²
+  }
+}
+
+/** Build A-weighted octave-band spectrum for ISO 9613-2 propagation,
+ *  scaled so that energy-sum equals targetLwA.
+ *  Spectrum stored in as.spectrum[period] is UNWEIGHTED (from library_unweighted).
+ *  Returns array[8] or null. */
+function _asGetSpectrumA(as, period, targetLwA) {
+  var bands = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+  var AW    = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
+  var specObj = null;
+  if (as.manualOverride && as.manualOverride[period] && as.spectrum && as.spectrum[period]) {
+    specObj = as.spectrum[period];
+  } else if (as.libraryEntry && as.libraryEntry.spectrum_unweighted) {
+    specObj = as.libraryEntry.spectrum_unweighted;
+  } else if (as.spectrum && as.spectrum[period]) {
+    specObj = as.spectrum[period];
+  }
+  if (!specObj) return null;
+  var rawA = bands.map(function(f, i) {
+    var v = specObj[f];
+    return (v !== undefined && Number.isFinite(parseFloat(v))) ? parseFloat(v) + AW[i] : null;
+  });
+  if (rawA.some(function(v) { return v === null; })) return null;
+  var sumLin = rawA.reduce(function(s, v) { return s + Math.pow(10, v / 10); }, 0);
+  if (sumLin <= 0) return null;
+  var adj = targetLwA - 10 * Math.log10(sumLin);
+  return rawA.map(function(v) { return v + adj; });
+}
+
+/** Grid spacing (m) for area source subdivision based on polygon area. */
+function _asGridSpacing(area_m2) {
+  if (area_m2 < 100)  return 2;
+  if (area_m2 < 1000) return 5;
+  if (area_m2 < 5000) return 10;
+  return 20;
+}
+
+/** Fill polygon with a regular grid of point sub-sources.
+ *  Returns [{lat, lng, cellArea}] — at least one (centroid fallback for tiny polygons). */
+function _asGenerateSubSources(as) {
+  var verts = as.vertices || [];
+  if (verts.length < 3) return [];
+  var area    = _asPolygonArea(verts);
+  var spacing = _asGridSpacing(area);
+
+  // Bounding box
+  var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  verts.forEach(function(v) {
+    if (v[0] < minLat) minLat = v[0];
+    if (v[0] > maxLat) maxLat = v[0];
+    if (v[1] < minLng) minLng = v[1];
+    if (v[1] > maxLng) maxLng = v[1];
+  });
+
+  var midLat  = (minLat + maxLat) / 2;
+  var dLat    = spacing / 111000;
+  var dLng    = spacing / (111000 * Math.max(0.01, Math.cos(midLat * Math.PI / 180)));
+  var cellArea = spacing * spacing;
+
+  var pts = [];
+  for (var lat = minLat + dLat / 2; lat <= maxLat; lat += dLat) {
+    for (var lng = minLng + dLng / 2; lng <= maxLng; lng += dLng) {
+      if (_pointInPolygon(lat, lng, verts)) {
+        pts.push({ lat: lat, lng: lng, cellArea: cellArea });
+      }
+    }
+  }
+  if (pts.length === 0) {
+    var ctr = _asPolygonCentroid(verts);
+    pts.push({ lat: ctr.lat, lng: ctr.lng, cellArea: area });
+  }
+  return pts;
+}
+
+/** Tallest building overlapping lat/lng (returns 0 if none or buildings layer off). */
+function _asGetBuildingHeightAtPoint(lat, lng) {
+  if (!window._getBuildingsOn || !window._getBuildingsOn()) return 0;
+  var buildings = window._buildings || [];
+  var maxH = 0;
+  for (var i = 0; i < buildings.length; i++) {
+    var b = buildings[i];
+    if (b.excluded || b.demolished) continue;
+    if (!b.polygon || b.polygon.length < 3) continue;
+    if (_pointInPolygon(lat, lng, b.polygon)) {
+      var h = (b.heightM && b.heightM > 0) ? b.heightM : 3.0;
+      if (h > maxH) maxH = h;
+    }
+  }
+  return maxH;
+}
+
+/** Distance (m) from receiver to nearest vertex/edge-midpoint on area source polygon. */
+function _asNearestEdgeDist(as, recLat, recLng) {
+  var verts = as.vertices || [];
+  if (!verts.length) return Infinity;
+  var n = verts.length, minD = Infinity;
+  for (var i = 0; i < n; i++) {
+    var j = (i + 1) % n;
+    var dV = SharedCalc.flatDistM({ lat: verts[i][0], lng: verts[i][1] }, { lat: recLat, lng: recLng });
+    if (dV < minD) minD = dV;
+    var mLat = (verts[i][0] + verts[j][0]) / 2;
+    var mLng = (verts[i][1] + verts[j][1]) / 2;
+    var dM = SharedCalc.flatDistM({ lat: mLat, lng: mLng }, { lat: recLat, lng: recLng });
+    if (dM < minD) minD = dM;
+  }
+  return minD;
+}
+
+/** ISO 9613-2 area-source prediction at one receiver for one period.
+ *  Subdivides polygon into grid sub-sources; applies building-on-roof elevation,
+ *  per-path ground zones, barrier screening, and 1 m minimum distance.
+ *  @param {Object} as area source object
+ *  @param {string} period 'day'|'eve'|'night'
+ *  @param {number} ri receiver index 0–3
+ *  @returns {number} LAeq (dB) or NaN */
+function calcAreaSourceAtReceiver(as, period, ri) {
+  if (!as.activeInPeriod || as.activeInPeriod[period] === false) return NaN;
+  if (!as.vertices || as.vertices.length < 3) return NaN;
+  var lwM2Adj = _asGetLwM2Adj(as, period);
+  if (!Number.isFinite(lwM2Adj)) return NaN;
+
+  var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+  var recLL = allLL['r' + (ri + 1)];
+  if (!recLL) return NaN;
+
+  var pts        = _asGenerateSubSources(as);
+  if (!pts.length) return NaN;
+  var recHt      = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : 1.5;
+  var heightM    = as.height_m || 0.5;
+  var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : [];
+  var contributions = [];
+
+  pts.forEach(function(pt) {
+    var lwPoint   = lwM2Adj + 10 * Math.log10(pt.cellArea);
+    var bldgH     = _asGetBuildingHeightAtPoint(pt.lat, pt.lng);
+    var effectiveH = heightM + bldgH;
+    var srcLL     = { lat: pt.lat, lng: pt.lng };
+    var d = SharedCalc.flatDistM(srcLL, { lat: recLL.lat, lng: recLL.lng });
+    if (d < 1.0) d = 1.0; // min 1 m — prevents ∞/NaN for receiver inside polygon
+
+    var barrierDelta = 0, endDL = 0, endDR = 0;
+    if (screenable.length > 0) {
+      var bw = SharedCalc.getDominantBarrier(srcLL, recLL, effectiveH, recHt, screenable);
+      if (bw) {
+        barrierDelta = bw.pathLengthDiff  || 0;
+        endDL        = bw.endDeltaLeft    || 0;
+        endDR        = bw.endDeltaRight   || 0;
+      }
+    }
+    var gf = (typeof _gzComputePathG === 'function')
+      ? _gzComputePathG(pt.lat, pt.lng, recLL.lat, recLL.lng, effectiveH, recHt, d)
+      : iso_groundFactor;
+    var isoP = { temperature: iso_temperature, humidity: iso_humidity, groundFactor: gf };
+
+    var specA = _asGetSpectrumA(as, period, lwPoint);
+    var lp;
+    if (specA) {
+      lp = SharedCalc.calcISOatPoint(specA, effectiveH, d, 0, barrierDelta, recHt, isoP, endDL, endDR);
+    } else {
+      var flatVal  = lwPoint - 10 * Math.log10(8);
+      var flatSpec = [flatVal, flatVal, flatVal, flatVal, flatVal, flatVal, flatVal, flatVal];
+      lp = SharedCalc.calcISOatPoint(flatSpec, effectiveH, d, 0, barrierDelta, recHt, isoP, endDL, endDR);
+    }
+    if (Number.isFinite(lp)) contributions.push(lp);
+  });
+
+  if (!contributions.length) return NaN;
+  return SharedCalc.energySum(contributions);
+}
+
 function _lsCalcLwmAdj(lwmBase, N, speed, operatingPct) {
   // Reference: N=1, speed=10, operatingPct=100 → adj=0
   N           = (N           > 0) ? N           : 1;
@@ -4191,6 +4377,28 @@ function calcTotalISO9613(prefix, receiverIdx) {
       anySrc = true;
     }
   });
+
+  // Line source contributions
+  if (typeof lineSources !== 'undefined') {
+    lineSources.forEach(function(ls) {
+      var lsLp = calcLineSourceAtReceiver(ls, prefix, receiverIdx);
+      if (Number.isFinite(lsLp)) {
+        totalLin += Math.pow(10, lsLp / 10);
+        anySrc = true;
+      }
+    });
+  }
+
+  // Area source contributions
+  if (typeof areaSources !== 'undefined') {
+    areaSources.forEach(function(as) {
+      var asLp = calcAreaSourceAtReceiver(as, prefix, receiverIdx);
+      if (Number.isFinite(asLp)) {
+        totalLin += Math.pow(10, asLp / 10);
+        anySrc = true;
+      }
+    });
+  }
 
   if (!anySrc) return "";
   return Math.round(10 * log10(totalLin));
@@ -10306,10 +10514,17 @@ function renderContributions() {
     var activeLs = lineSources.filter(function(ls) {
       if (!ls.vertices || ls.vertices.length < 2) return false;
       if (!ls.activeInPeriod || ls.activeInPeriod[period] === false) return false;
-      return ls.lwPerMetre && Number.isFinite(ls.lwPerMetre[period]);
+      // support both old model (lwPerMetre) and new model (lw_m_base)
+      var lwm = (typeof _lsGetEffectiveLwm === 'function') ? _lsGetEffectiveLwm(ls, period) : (ls.lwPerMetre && ls.lwPerMetre[period]);
+      return Number.isFinite(lwm);
     });
+    var activeAs = (typeof areaSources !== 'undefined') ? areaSources.filter(function(as) {
+      if (!as.vertices || as.vertices.length < 3) return false;
+      if (!as.activeInPeriod || as.activeInPeriod[period] === false) return false;
+      return as.lwValue && Number.isFinite(as.lwValue[period]);
+    }) : [];
 
-    if (activePins.length === 0 && activeLs.length === 0) return; // skip period table
+    if (activePins.length === 0 && activeLs.length === 0 && activeAs.length === 0) return; // skip period table
     anyTable = true;
 
     var sectionDiv = document.createElement('div');
@@ -10422,6 +10637,30 @@ function renderContributions() {
             '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
           tbody.appendChild(lsTr);
         });
+      })(ri, recLL);
+
+      // Area source rows
+      (function(capturedRi, capturedRecLL) {
+        if (typeof areaSources !== 'undefined') {
+          areaSources.forEach(function(as) {
+            if (!as.vertices || as.vertices.length < 3) return;
+            if (!as.activeInPeriod || as.activeInPeriod[period] === false) return;
+            if (!as.lwValue || !Number.isFinite(as.lwValue[period])) return;
+            var asLpRaw = calcAreaSourceAtReceiver(as, period, capturedRi);
+            var nearestD = capturedRecLL ? _asNearestEdgeDist(as, capturedRecLL.lat, capturedRecLL.lng) : Infinity;
+            var distStr = (Number.isFinite(nearestD) && nearestD < Infinity) ? String(Math.round(nearestD)) : '\u2014';
+            var lpStr = Number.isFinite(asLpRaw) ? String(Math.round(asLpRaw)) : '\u2014';
+            if (Number.isFinite(asLpRaw)) rawContributions.push(asLpRaw);
+            var asTr = document.createElement('tr');
+            var asArea = _asPolygonArea(as.vertices);
+            var asDisplayName = '\u25a0 ' + escapeHTML(as.name || 'Area source') +
+              ' <span style="font-size:10px;color:#aaa;">(' + _asFormatArea(asArea) + ')</span>';
+            asTr.innerHTML = '<td style="padding-left:16px;font-size:12px;color:#d97706;">' + asDisplayName + '</td>' +
+              '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
+              '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
+            tbody.appendChild(asTr);
+          });
+        }
       })(ri, recLL);
 
       var totalTr = document.createElement('tr');
@@ -16981,7 +17220,7 @@ initCollapse();
           '</div>' +
           '<div style="border-top:1px solid #e5e7eb;margin:4px 0 6px;"></div>' +
           '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;margin-bottom:4px;">' + bandInputs + '</div>' +
-          '<div style="margin-bottom:4px;font-size:12px;color:#555;">Total Lw: <b id="asPanelCalcLw_' + pKey + '">' + calcStr + '</b> dB(A)</div>' +
+          '<div style="margin-bottom:4px;font-size:12px;color:#555;"><span id="asPanelCalcLwLbl_' + pKey + '">' + (lwMode === 'per_m2' ? 'Total Lw' : 'Effective Lw/m\u00b2') + '</span>: <b id="asPanelCalcLw_' + pKey + '">' + calcStr + '</b> dB(A)</div>' +
           '<div><label style="font-size:11px;cursor:pointer;">' +
             '<input type="checkbox" id="asPanelOverride_' + pKey + '"' + (isOverride ? ' checked' : '') + '> Manual spectrum override' +
           '</label></div>' +
@@ -17026,6 +17265,7 @@ initCollapse();
             '<input type="number" id="asPanelHeight" value="' + heightVal + '" step="0.1" min="0" style="width:65px;padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;">' +
           '</div>' +
           '<div id="asPanelTerrainInfo" style="font-size:11px;color:#6b7280;min-height:0;"></div>' +
+          '<div id="asPanelBuildingOverlap" style="font-size:11px;min-height:0;"></div>' +
           '<div style="font-size:12px;color:#555;background:#f9f9f9;border-radius:4px;padding:6px 8px;">' +
             '<span>Total Lw (Day): </span><b id="asPanelTotalLw">' + totalLwStr + '</b> dB(A)' +
           '</div>' +
@@ -17058,11 +17298,23 @@ initCollapse();
     }
 
     function _asPanelUpdateCalc(as) {
-      var area = _asPolygonArea(as.vertices || []);
+      var area   = _asPolygonArea(as.vertices || []);
+      var lwMode = as.lwMode || 'per_m2';
       ['day','eve','night'].forEach(function(p) {
-        var lw = _asGetEffectiveLw(as, p);
+        // Show derived value opposite to the entered mode:
+        // per_m2 entered → show derived total Lw; total entered → show derived Lw/m²
+        var derivedLbl, derivedVal;
+        if (lwMode === 'per_m2') {
+          derivedLbl = 'Total Lw';
+          derivedVal = _asGetEffectiveLw(as, p);
+        } else {
+          derivedLbl = 'Effective Lw/m\u00b2';
+          derivedVal = _asGetLwM2Adj(as, p);
+        }
+        var lblEl = document.getElementById('asPanelCalcLwLbl_' + p);
+        if (lblEl) lblEl.textContent = derivedLbl;
         var el = document.getElementById('asPanelCalcLw_' + p);
-        if (el) el.textContent = Number.isFinite(lw) ? lw.toFixed(1) : '\u2014';
+        if (el) el.textContent = Number.isFinite(derivedVal) ? derivedVal.toFixed(1) : '\u2014';
       });
       var totalLw = _asGetEffectiveLw(as, 'day');
       var tlEl = document.getElementById('asPanelTotalLw');
@@ -17072,12 +17324,31 @@ initCollapse();
       // Update header title
       var titleEl = document.getElementById('asPanelTitle');
       if (titleEl) {
-        var lwMode  = as.lwMode || 'per_m2';
         var lwDay   = as.lwValue && Number.isFinite(as.lwValue.day) ? as.lwValue.day : null;
         var lwStr   = (lwDay !== null) ? ' \u2014 ' + (lwMode === 'per_m2' ? 'Lw/m\u00b2 ' : 'Lw ') + lwDay + ' dB(A)' : '';
         var nameInp = document.getElementById('asPanelName');
         titleEl.textContent = (nameInp ? nameInp.value : as.name || 'Area source') + lwStr;
       }
+    }
+
+    /** Update the building-on-roof warning in the open area source panel. */
+    function _asPanelUpdateBuildingOverlap(as) {
+      var el = document.getElementById('asPanelBuildingOverlap');
+      if (!el) return;
+      if (!window._getBuildingsOn || !window._getBuildingsOn()) { el.innerHTML = ''; return; }
+      var pts = _asGenerateSubSources(as);
+      if (!pts.length) { el.innerHTML = ''; return; }
+      var onRoof = 0, maxBldgH = 0, minEffH = as.height_m || 0.5;
+      pts.forEach(function(pt) {
+        var bh = _asGetBuildingHeightAtPoint(pt.lat, pt.lng);
+        if (bh > 0) { onRoof++; if (bh > maxBldgH) maxBldgH = bh; }
+      });
+      if (onRoof === 0) { el.innerHTML = ''; return; }
+      var pct  = Math.round(100 * onRoof / pts.length);
+      var maxEffH = (as.height_m || 0.5) + maxBldgH;
+      el.innerHTML = '<span style="color:#b45309;">\u26A0 Building overlap: ' + pct + '% of area on roof</span>' +
+        '<br><span style="color:#6b7280;">Effective height range: ' + (as.height_m || 0.5).toFixed(1) +
+        'm \u2013 ' + maxEffH.toFixed(1) + 'm</span>';
     }
 
     function attachAsPanelListeners(as) {
@@ -17086,6 +17357,7 @@ initCollapse();
         if (typeof render === 'function') render();
         if (window._recomputeNoiseMap) window._recomputeNoiseMap();
         _asPanelUpdateCalc(as);
+        _asPanelUpdateBuildingOverlap(as);
       }
 
       var closeBtn  = document.getElementById('asPanelClose');
@@ -17291,6 +17563,7 @@ initCollapse();
             renderAreaSourceLayer();
             _asPanelUpdateTerrainInfo(as);
             _asPanelUpdateCalc(as);
+            _asPanelUpdateBuildingOverlap(as);
             if (typeof render === 'function') render();
             if (window._recomputeNoiseMap) window._recomputeNoiseMap();
           } else {
@@ -17348,6 +17621,7 @@ initCollapse();
       panel.style.top  = top  + 'px';
       attachAsPanelListeners(as);
       _asPanelUpdateTerrainInfo(as);
+      _asPanelUpdateBuildingOverlap(as);
     }
 
     function renderAreaSourceLayer() {
