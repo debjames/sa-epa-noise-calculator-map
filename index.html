@@ -684,8 +684,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <div>
             <label class="h2" style="font-size:12px;">Area type</label>
             <div style="display:flex;gap:8px;margin-top:4px;">
-              <button type="button" class="penalty-btn" id="vicAreaUrban" onclick="setVicAreaTypeManual('urban');document.getElementById('vicAreaUrban').classList.add('active');document.getElementById('vicAreaRural').classList.remove('active');">Major urban (&gt;7,000)</button>
-              <button type="button" class="penalty-btn active" id="vicAreaRural" onclick="setVicAreaTypeManual('rural');document.getElementById('vicAreaRural').classList.add('active');document.getElementById('vicAreaUrban').classList.remove('active');">Rural</button>
+              <button type="button" class="penalty-btn active" id="vicAreaUrban" onclick="setVicAreaTypeManual('urban');document.getElementById('vicAreaUrban').classList.add('active');document.getElementById('vicAreaRural').classList.remove('active');">Major urban (&gt;7,000)</button>
+              <button type="button" class="penalty-btn" id="vicAreaRural" onclick="setVicAreaTypeManual('rural');document.getElementById('vicAreaRural').classList.add('active');document.getElementById('vicAreaUrban').classList.remove('active');">Rural</button>
             </div>
           </div>
           <div class="vic-rural-only">
@@ -3673,14 +3673,21 @@ function _asNearestEdgeDist(as, recLat, recLng) {
   var verts = as.vertices || [];
   if (!verts.length) return Infinity;
   var n = verts.length, minD = Infinity;
+  var cosLat = Math.cos(recLat * Math.PI / 180);
   for (var i = 0; i < n; i++) {
     var j = (i + 1) % n;
-    var dV = SharedCalc.flatDistM({ lat: verts[i][0], lng: verts[i][1] }, { lat: recLat, lng: recLng });
-    if (dV < minD) minD = dV;
-    var mLat = (verts[i][0] + verts[j][0]) / 2;
-    var mLng = (verts[i][1] + verts[j][1]) / 2;
-    var dM = SharedCalc.flatDistM({ lat: mLat, lng: mLng }, { lat: recLat, lng: recLng });
-    if (dM < minD) minD = dM;
+    // Convert edge endpoints to metres relative to receiver (flat-earth approximation)
+    var ax = (verts[i][1] - recLng) * 111320 * cosLat;
+    var ay = (verts[i][0] - recLat) * 111320;
+    var bx = (verts[j][1] - recLng) * 111320 * cosLat;
+    var by = (verts[j][0] - recLat) * 111320;
+    // True perpendicular from receiver (origin) to segment a→b, clamped to segment
+    var edx = bx - ax, edy = by - ay;
+    var lenSq = edx * edx + edy * edy;
+    var t = lenSq > 0 ? Math.max(0, Math.min(1, -(ax * edx + ay * edy) / lenSq)) : 0;
+    var px = ax + t * edx, py = ay + t * edy;
+    var d = Math.sqrt(px * px + py * py);
+    if (d < minD) minD = d;
   }
   return minD;
 }
@@ -3736,9 +3743,12 @@ function calcAreaSourceAtReceiver(as, period, ri) {
     if (specA) {
       lp = SharedCalc.calcISOatPoint(specA, effectiveH, d, 0, barrierDelta, recHt, isoP, endDL, endDR);
     } else {
-      var flatVal  = lwPoint - 10 * Math.log10(8);
-      var flatSpec = [flatVal, flatVal, flatVal, flatVal, flatVal, flatVal, flatVal, flatVal];
-      lp = SharedCalc.calcISOatPoint(flatSpec, effectiveH, d, 0, barrierDelta, recHt, isoP, endDL, endDR);
+      // No spectrum: use broadband hemispherical propagation (attenuatePoint).
+      // Feeding a flat A-weighted spectrum into calcISOatPoint would apply
+      // frequency-dependent Aatm and Agr, which overcorrects the broadband
+      // level (especially the 4k/8k bands). attenuatePoint is frequency-neutral
+      // and matches the no-spectrum fallback used for regular point sources.
+      lp = SharedCalc.attenuatePoint(lwPoint, d);
     }
     if (Number.isFinite(lp)) contributions.push(lp);
   });
@@ -4713,7 +4723,7 @@ function refreshAllTerrainIL() {
 
 // State detection: 'SA' | 'VIC' | 'NSW' | 'OTHER' | null
 let currentState = null;
-let vicAreaType = 'rural'; // 'urban' | 'rural' (VIC only) — default rural; user switches manually
+let vicAreaType = 'urban'; // 'urban' | 'rural' (VIC only) — default urban (metro Melbourne); user switches to Rural explicitly
 let _vicAreaTypeManuallySet = false; // true when user clicked Major urban/Rural button — blocks auto-detection override
 var _lastDetectedZones = {}; // {src:'GRZ1', r1:'FZ', ...} — last detected raw zone codes for urban↔rural conversion
 var _lastDetectedZoneLabels = {}; // {src:'GRZ1 — GENERAL RESIDENTIAL ZONE', r1:'FZ — FARMING ZONE', ...}
@@ -4969,7 +4979,8 @@ function switchToState(state) {
 
   const badge = document.getElementById('stateBadge');
   if (state === 'VIC') {
-    // No auto-detection: area type is manual-only (default rural).
+    // No auto-detection: area type is manual-only (default urban / Major urban >7,000).
+    // User must explicitly click "Rural" for EPA Pub 1826.5 rural criteria.
     // Reset the manual flag so the buttons are live on each VIC entry.
     _vicAreaTypeManuallySet = false;
     window._vicAreaTypeManuallySet = false;
@@ -7055,16 +7066,10 @@ function toggleRecvMapView(recvId) {
   _vicRecvMapVisible[recvId] = !_vicRecvMapVisible[recvId];
   if (typeof updateConcentricCircles === 'function') updateConcentricCircles();
   if (typeof updateRecvMapLegends === 'function') updateRecvMapLegends();
-  // Update button text and style directly
-  var RECV_COLORS = {r1: '#2563eb', r2: '#059669', r3: '#d97706', r4: '#7c3aed'};
-  var btn = document.getElementById('vicRecvToggle_' + recvId);
-  if (btn) {
-    var isVis = _vicRecvMapVisible[recvId];
-    var col = RECV_COLORS[recvId] || '#6b7280';
-    btn.textContent = isVis ? 'Hide on map' : 'Show on map';
-    btn.style.background = isVis ? col : 'transparent';
-    btn.style.color = isVis ? '#fff' : col;
-  }
+  // Rebuild the panel so button text/style is derived from _vicRecvMapVisible (source of truth).
+  // Direct DOM mutation was unreliable because async auto-IF callbacks call renderDetectedZones()
+  // + render() which could recreate the button element after the mutation was applied.
+  renderDetectedZones();
 }
 
 /** Render the detected zones into the UI panel — shows per-receiver IF data */
@@ -10947,6 +10952,9 @@ initCollapse();
         // State
         data.currentState = currentState;
         data.vicAreaType = vicAreaType;
+        // Only propagate rural on reload if the user EXPLICITLY clicked the Rural button.
+        // Old saves without this flag default to urban on load (the correct default).
+        data.vicAreaTypeExplicitlyRural = (_vicAreaTypeManuallySet && vicAreaType === 'rural');
 
         data.sourcePins = sourcePins.map(function(pin) {
           var bh  = pin.buildingHeight_m || 0;
@@ -11480,6 +11488,35 @@ initCollapse();
       return features;
     }
 
+    function buildAreaSourceFeatures() {
+      var features = [];
+      areaSources.forEach(function(as) {
+        if (!as.vertices || as.vertices.length < 3) return;
+        // GeoJSON Polygon: [[[lng,lat],...]] with closed ring
+        var ring = as.vertices.map(function(v) { return [v[1], v[0]]; });
+        ring.push(ring[0].slice()); // close ring
+        var area = _asPolygonArea(as.vertices);
+        var lwM2Day   = _asGetLwM2Adj(as, 'day');
+        var lwM2Eve   = _asGetLwM2Adj(as, 'eve');
+        var lwM2Night = _asGetLwM2Adj(as, 'night');
+        features.push({
+          type: 'Feature',
+          id: as.id,  // stable ID set at creation; omitted (undefined) for pre-ID legacy saves
+          geometry: { type: 'Polygon', coordinates: [ring] },
+          properties: {
+            feature_type: 'area_source',
+            name: as.name || 'Area source',
+            lw_m2_day:   Number.isFinite(lwM2Day)   ? Math.round(lwM2Day   * 10) / 10 : null,
+            lw_m2_eve:   Number.isFinite(lwM2Eve)   ? Math.round(lwM2Eve   * 10) / 10 : null,
+            lw_m2_night: Number.isFinite(lwM2Night) ? Math.round(lwM2Night * 10) / 10 : null,
+            area_m2:  Math.round(area),
+            height_m: as.height_m || 0.5
+          }
+        });
+      });
+      return features;
+    }
+
     // ── GeoJSON export ──
     var geoJsonBtn = document.getElementById('exportGeoJsonBtn');
     if (geoJsonBtn) geoJsonBtn.addEventListener('click', function() {
@@ -11493,7 +11530,8 @@ initCollapse();
           buildReceiverFeatures(),
           buildContourFeatures(),
           buildBuildingFeatures(),
-          buildLineSourceFeatures()
+          buildLineSourceFeatures(),
+          buildAreaSourceFeatures()
         )
       };
       var json = JSON.stringify(fc, null, 2);
@@ -11585,6 +11623,27 @@ initCollapse();
         kml += '</Folder>\n';
       }
 
+      // Area sources folder
+      var asFeatures = buildAreaSourceFeatures();
+      if (asFeatures.length > 0) {
+        kml += '<Folder><name>Area Sources</name>\n';
+        asFeatures.forEach(function(f) {
+          var p = f.properties;
+          var ring = f.geometry.coordinates[0].map(function(c) { return c[0] + ',' + c[1] + ',0'; }).join(' ');
+          kml += '<Placemark><name>' + escapeXML(p.name) + '</name>\n';
+          kml += '<Polygon><outerBoundaryIs><LinearRing><coordinates>' + ring + '</coordinates></LinearRing></outerBoundaryIs></Polygon>\n';
+          kml += '<ExtendedData>';
+          kml += '<Data name="lw_m2_day"><value>'   + (p.lw_m2_day   !== null ? p.lw_m2_day   : '') + '</value></Data>';
+          kml += '<Data name="lw_m2_eve"><value>'   + (p.lw_m2_eve   !== null ? p.lw_m2_eve   : '') + '</value></Data>';
+          kml += '<Data name="lw_m2_night"><value>' + (p.lw_m2_night !== null ? p.lw_m2_night : '') + '</value></Data>';
+          kml += '<Data name="area_m2"><value>'  + p.area_m2  + '</value></Data>';
+          kml += '<Data name="height_m"><value>' + p.height_m + '</value></Data>';
+          kml += '</ExtendedData>\n';
+          kml += '</Placemark>\n';
+        });
+        kml += '</Folder>\n';
+      }
+
       kml += '</Document>\n</kml>';
       downloadBlob(kml, getExportFilename('kml'), 'application/vnd.google-earth.kml+xml');
       if (contours.length === 0) {
@@ -11642,6 +11701,24 @@ initCollapse();
           comply
         ].join(',') + '\n';
       });
+
+      // ── Area sources section ──
+      var asRows = buildAreaSourceFeatures();
+      if (asRows.length > 0) {
+        csv += '\n# AREA SOURCES\n';
+        csv += 'Name,Area_m2,Height_m,Lw_m2_day_dBA,Lw_m2_eve_dBA,Lw_m2_night_dBA\n';
+        asRows.forEach(function(f) {
+          var p = f.properties;
+          csv += [
+            '"' + (p.name || '') + '"',
+            p.area_m2,
+            p.height_m,
+            p.lw_m2_day   !== null ? p.lw_m2_day   : '',
+            p.lw_m2_eve   !== null ? p.lw_m2_eve   : '',
+            p.lw_m2_night !== null ? p.lw_m2_night : ''
+          ].join(',') + '\n';
+        });
+      }
 
       downloadBlob(csv, getExportFilename('csv'), 'text/csv');
     });
@@ -11703,9 +11780,11 @@ initCollapse();
         switchToState(data.currentState);
       }
 
-      // 2. VIC area type
-      if (data.vicAreaType && typeof setVicAreaType === 'function') {
-        setVicAreaType(data.vicAreaType);
+      // 2. VIC area type — only restore 'rural' if explicitly flagged by the user.
+      // data.vicAreaTypeExplicitlyRural is set only when the user clicked the Rural button.
+      // Old saves without this flag (where 'rural' was merely the old wrong default) load as 'urban'.
+      if (typeof setVicAreaType === 'function') {
+        setVicAreaType(data.vicAreaTypeExplicitlyRural === true ? 'rural' : 'urban');
       }
 
       // 2b. Restore sourcePins array — detect format and migrate if legacy
@@ -17316,7 +17395,12 @@ initCollapse();
         var el = document.getElementById('asPanelCalcLw_' + p);
         if (el) el.textContent = Number.isFinite(derivedVal) ? derivedVal.toFixed(1) : '\u2014';
       });
-      var totalLw = _asGetEffectiveLw(as, 'day');
+      // Show Total Lw for the first active period (day → eve → night fallback).
+      // Using 'day' alone would show '—' for night-only sources.
+      var totalLw = NaN;
+      ['day', 'eve', 'night'].forEach(function(p) {
+        if (!Number.isFinite(totalLw)) totalLw = _asGetEffectiveLw(as, p);
+      });
       var tlEl = document.getElementById('asPanelTotalLw');
       if (tlEl) tlEl.textContent = Number.isFinite(totalLw) ? totalLw.toFixed(1) : '\u2014';
       var areaEl = document.getElementById('asPanelArea');
@@ -18925,6 +19009,78 @@ initCollapse();
           });
         });
       });
+
+      // Area source sub-sources — coarser grid for worker performance (2× main-thread spacing)
+      if (typeof areaSources !== 'undefined') {
+        areaSources.forEach(function(as) {
+          if (!as.vertices || as.vertices.length < 3) return;
+          // lmax not supported for area sources
+          if (period === 'lmax') return;
+          if (!as.activeInPeriod || !as.activeInPeriod[period]) return;
+
+          var lwM2Adj = _asGetLwM2Adj(as, period);
+          if (!Number.isFinite(lwM2Adj)) return;
+
+          var area = _asPolygonArea(as.vertices);
+          if (area <= 0) return;
+
+          // Double main-thread spacing for worker performance.
+          // Each worker cell has 4× the area (+6 dB), offsetting the ~4× fewer cells,
+          // so total radiated power is preserved to within edge-zone approximation.
+          // Spatial accuracy degrades for narrow features < 2×workerSpacing wide;
+          // the centroid fallback below handles the extreme case of zero cells inside.
+          var baseSpacing = _asGridSpacing(area);
+          var workerSpacing = baseSpacing * 2;
+
+          // Build bounding box — vertices are [lat, lng] arrays
+          var verts = as.vertices;
+          var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+          verts.forEach(function(v) {
+            if (v[0] < minLat) minLat = v[0]; if (v[0] > maxLat) maxLat = v[0];
+            if (v[1] < minLng) minLng = v[1]; if (v[1] > maxLng) maxLng = v[1];
+          });
+
+          // Cell dimensions in degrees
+          var dLat = workerSpacing / 111000;
+          var midLat = (minLat + maxLat) / 2;
+          var dLng = workerSpacing / (111000 * Math.max(0.01, Math.cos(midLat * Math.PI / 180)));
+          var cellArea = workerSpacing * workerSpacing;
+
+          // Grid sweep with point-in-polygon test (same as _asGenerateSubSources)
+          var subSources = [];
+          for (var ptLat = minLat + dLat / 2; ptLat <= maxLat; ptLat += dLat) {
+            for (var ptLng = minLng + dLng / 2; ptLng <= maxLng; ptLng += dLng) {
+              if (_pointInPolygon(ptLat, ptLng, verts)) {
+                subSources.push({ lat: ptLat, lng: ptLng, cellArea: cellArea });
+              }
+            }
+          }
+
+          // Fallback to centroid if no cells landed inside polygon
+          if (subSources.length === 0) {
+            var ctrLat = 0, ctrLng = 0;
+            verts.forEach(function(v) { ctrLat += v[0]; ctrLng += v[1]; });
+            subSources.push({ lat: ctrLat / verts.length, lng: ctrLng / verts.length, cellArea: area });
+          }
+
+          var heightM = as.height_m || 1.5;
+
+          subSources.forEach(function(pt) {
+            var lwPoint = lwM2Adj + 10 * Math.log10(pt.cellArea);
+            var specA = _asGetSpectrumA(as, period, lwPoint);
+            // _asGetSpectrumA already normalises energySum(specA) = lwPoint,
+            // so specAdj ≈ 0; computed via SharedCalc for robustness.
+            var specAdj = specA ? lwPoint - SharedCalc.energySum(specA) : 0;
+            result.push({
+              lat: pt.lat, lng: pt.lng,
+              heightM: heightM,
+              equipment: [{ name: as.name || 'Area source', Lw: lwPoint, quantity: 1 }],
+              spectrum: specA || null,
+              spectrumAdj: specAdj
+            });
+          });
+        });
+      }
 
       return result;
     }
