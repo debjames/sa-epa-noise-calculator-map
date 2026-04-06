@@ -613,6 +613,9 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
                 <button class="mp-btn parcel-toggle-btn active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Show / hide boundary</button>
                 <button class="mp-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;">Reset overrides</button>
                 <div class="mp-sep"></div>
+                <button class="mp-btn" id="sitePlanOverlayBtn" title="Upload a site plan image and position it as a map overlay" onclick="soOpenPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Site plan overlay</button>
+                <input type="file" id="soFileInput" accept=".png,.jpg,.jpeg,image/png,image/jpeg" style="display:none;">
+                <div class="mp-sep"></div>
                 <button class="mp-btn mp-danger" id="mapClearBtn" title="Remove all markers and clear distances"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg> Clear All</button>
               </div>
             </div>
@@ -11232,6 +11235,11 @@ initCollapse();
         }
         // Already captured in overrides with demolished flag
 
+        // Site plan overlays (base64 image + bounds + display settings)
+        if (window._siteOverlays && window._siteOverlays.length > 0 && window._soSerialize) {
+          data.siteOverlays = window._soSerialize();
+        }
+
         // Address bar text
         var searchInp = document.getElementById('mapSearchInput');
         if (searchInp && searchInp.value) data.addressText = searchInp.value;
@@ -12073,6 +12081,13 @@ initCollapse();
         if (typeof updateNSWIntrusiveness === 'function') updateNSWIntrusiveness();
       }
 
+      // 11b. Site plan overlays — restore after map is ready
+      if (data.siteOverlays && Array.isArray(data.siteOverlays) && data.siteOverlays.length > 0) {
+        setTimeout(function() {
+          if (window._soLoadAll) window._soLoadAll(data.siteOverlays);
+        }, 300);
+      }
+
       // 12. OTHER-mode criteria checkboxes
       if (data.other) {
         Object.keys(data.other).forEach(function(id) {
@@ -12321,6 +12336,9 @@ initCollapse();
           ? lmaxH2.getBoundingClientRect().top - captureRect.top
           : null;
 
+        // Hide overlay placement handles and toolbars — not part of the map export
+        if (window._soHideHandles) window._soHideHandles();
+
         const canvas = await html2canvas(captureEl, {
           scale: 2,
           backgroundColor: "#ffffff",
@@ -12328,6 +12346,7 @@ initCollapse();
           windowWidth: 1180
         });
 
+        if (window._soShowHandles) window._soShowHandles();
         captureEl.style.width = prevCaptureWidth;
 
         // 4. Restore table overflow and collapsed states
@@ -16100,6 +16119,413 @@ initCollapse();
     var customBuildingLayer = L.layerGroup().addTo(map);
     var _groundZoneLayer = L.layerGroup().addTo(map); // ground absorption zones (below buildings)
 
+    // Site plan overlay pane — above tiles (200) but below everything else (terrain:250+)
+    map.createPane('sitePlanPane');
+    map.getPane('sitePlanPane').style.zIndex = '220';
+    map.getPane('sitePlanPane').style.pointerEvents = 'none'; // locked overlays pass clicks through
+
+    /* ══════════════════════════════════════════════════════════
+       SITE PLAN OVERLAY — image overlay placement and management
+       ══════════════════════════════════════════════════════════ */
+    window._siteOverlays = [];
+    var _soIdCtr = 0;
+    function _soNewId() { return 'so_' + Date.now() + '_' + (++_soIdCtr); }
+
+    // Wire up the hidden file input
+    var _soFileInput = document.getElementById('soFileInput');
+    if (_soFileInput) {
+      _soFileInput.addEventListener('change', function(e) {
+        var file = e.target.files[0];
+        e.target.value = ''; // reset so same file can be re-selected
+        if (file) _soProcessFile(file);
+      });
+    }
+
+    // Map drag-and-drop for image files
+    ;(function() {
+      var mc = map.getContainer();
+      mc.addEventListener('dragover', function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+      mc.addEventListener('drop', function(e) {
+        e.preventDefault();
+        var f = e.dataTransfer && e.dataTransfer.files[0];
+        if (f && /^image\/(png|jpeg)$/.test(f.type)) _soProcessFile(f);
+      });
+    })();
+
+    window.soOpenPicker = function() {
+      var inp = document.getElementById('soFileInput');
+      if (inp) inp.click();
+    };
+
+    function _soProcessFile(file) {
+      if (!/^image\/(png|jpeg)$/.test(file.type)) {
+        alert('Please use PNG or JPG format.');
+        return;
+      }
+      var MB = file.size / 1024 / 1024;
+      if (MB > 10) {
+        alert('Image is ' + MB.toFixed(1) + '\u202fMB \u2014 too large to load reliably.\nPlease resize the image before uploading (max 10\u202fMB).');
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        var dataUrl = ev.target.result;
+        var name = file.name.replace(/\.[^.]+$/, '');
+        if (MB > 5) {
+          _soShowCompressDialog(dataUrl, name, MB);
+        } else {
+          _soAddOverlay({ imageSrc: dataUrl, name: name });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function _soShowCompressDialog(dataUrl, name, MB) {
+      var old = document.getElementById('soCompressDlg');
+      if (old) old.remove();
+      var dlg = document.createElement('div');
+      dlg.id = 'soCompressDlg';
+      dlg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.18);z-index:99999;padding:24px 28px;max-width:360px;font-size:13px;font-family:sans-serif;';
+      dlg.innerHTML =
+        '<h3 style="margin:0 0 10px;font-size:15px;">Large image \u2014 ' + MB.toFixed(1) + '\u202fMB</h3>' +
+        '<p style="margin:0 0 16px;color:#555;line-height:1.5;">This will significantly increase your save file size.<br>Compress to approx. 200\u202fKB (JPEG\u202f70%)?</p>' +
+        '<div style="display:flex;gap:10px;justify-content:flex-end;">' +
+        '<button id="soCompressYes" style="padding:6px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Yes, compress</button>' +
+        '<button id="soCompressNo"  style="padding:6px 16px;background:#f3f4f6;border:1px solid #ddd;border-radius:6px;cursor:pointer;font-size:13px;">Keep original</button>' +
+        '</div>';
+      document.body.appendChild(dlg);
+      document.getElementById('soCompressYes').onclick = function() {
+        dlg.remove();
+        _soCompressImage(dataUrl, 2000, 0.70, function(compressed) {
+          _soAddOverlay({ imageSrc: compressed, name: name });
+        });
+      };
+      document.getElementById('soCompressNo').onclick = function() {
+        dlg.remove();
+        _soAddOverlay({ imageSrc: dataUrl, name: name });
+      };
+    }
+
+    function _soCompressImage(dataUrl, maxW, quality, cb) {
+      var img = new Image();
+      img.onload = function() {
+        var w = img.width, h = img.height;
+        if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        cb(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = dataUrl;
+    }
+
+    function _soAddOverlay(opts) {
+      // Initial bounds: centre of current map view at ~50% of view extent
+      var bounds = opts.bounds || (function() {
+        var vb = map.getBounds();
+        var latH = (vb.getNorth() - vb.getSouth()) * 0.25;
+        var lngH = (vb.getEast()  - vb.getWest())  * 0.25;
+        var cLat = (vb.getNorth() + vb.getSouth()) / 2;
+        var cLng = (vb.getEast()  + vb.getWest())  / 2;
+        return [[cLat - latH, cLng - lngH], [cLat + latH, cLng + lngH]];
+      })();
+
+      var ovr = {
+        id:       opts.id  || _soNewId(),
+        name:     opts.name || 'Site plan',
+        imageSrc: opts.imageSrc,
+        bounds:   bounds,
+        opacity:  opts.opacity  !== undefined ? opts.opacity  : 0.5,
+        locked:   opts.locked   !== undefined ? opts.locked   : false,
+        visible:  opts.visible  !== undefined ? opts.visible  : true,
+        // runtime refs (not serialised)
+        _layer: null, _handles: [], _centerHandle: null, _toolbar: null,
+        _imgW: 1, _imgH: 1  // natural px dims for proportional resize
+      };
+
+      // Measure natural image dimensions for proportional resize
+      var _img = new Image();
+      _img.onload = function() { ovr._imgW = _img.naturalWidth || 1; ovr._imgH = _img.naturalHeight || 1; };
+      _img.src = ovr.imageSrc;
+
+      ovr._layer = L.imageOverlay(ovr.imageSrc, ovr.bounds, {
+        opacity:     ovr.visible ? ovr.opacity : 0,
+        interactive: false,
+        pane:        'sitePlanPane',
+        crossOrigin: 'anonymous'
+      }).addTo(map);
+
+      window._siteOverlays.push(ovr);
+
+      if (!ovr.locked) _soEnterPlacement(ovr);
+
+      _renderObjectList();
+      return ovr;
+    }
+
+    // ── Placement mode ────────────────────────────────────────
+    function _soEnterPlacement(ovr) {
+      ovr.locked = false;
+      _soRemoveHandles(ovr);
+
+      var b = L.latLngBounds(ovr.bounds);
+      // corners: 0=SW, 1=NW, 2=NE, 3=SE
+      var corners = [
+        [b.getSouth(), b.getWest()],
+        [b.getNorth(), b.getWest()],
+        [b.getNorth(), b.getEast()],
+        [b.getSouth(), b.getEast()]
+      ];
+
+      function cornerIcon(cursor) {
+        return L.divIcon({
+          className: '',
+          html: '<div style="width:12px;height:12px;background:#1d4ed8;border:2px solid #fff;border-radius:2px;box-shadow:0 1px 5px rgba(0,0,0,0.4);cursor:' + cursor + ';"></div>',
+          iconSize:   [12, 12],
+          iconAnchor: [6, 6]
+        });
+      }
+      var cursors = ['sw-resize', 'nw-resize', 'ne-resize', 'se-resize'];
+
+      var handles = corners.map(function(c, idx) {
+        var opp = (idx + 2) % 4; // opposite corner index
+        var m = L.marker(c, {
+          draggable: true,
+          icon: cornerIcon(cursors[idx]),
+          zIndexOffset: 1000
+        }).addTo(map);
+
+        m.on('dragstart', function() { map.dragging.disable(); });
+        m.on('drag', function(e) {
+          var ll = e.latlng;
+          var shiftHeld = e.originalEvent && e.originalEvent.shiftKey;
+          if (shiftHeld) {
+            // Proportional resize: constrain to image aspect ratio
+            var oppLL = handles[opp].getLatLng();
+            var dLat = Math.abs(ll.lat - oppLL.lat);
+            var dLng = Math.abs(ll.lng - oppLL.lng);
+            var cLat = (ll.lat + oppLL.lat) / 2;
+            // Convert to metres to compare with image aspect ratio
+            var dLatM = dLat * 111000;
+            var dLngM = dLng * 111320 * Math.cos(cLat * Math.PI / 180);
+            var aspect = ovr._imgW / ovr._imgH; // W/H
+            if (dLngM / dLatM > aspect) {
+              // Width too wide → constrain lng
+              dLng = (dLatM * aspect) / (111320 * Math.cos(cLat * Math.PI / 180));
+            } else {
+              // Height too tall → constrain lat
+              dLat = (dLngM / aspect) / 111000;
+            }
+            ll = L.latLng(
+              oppLL.lat + (ll.lat > oppLL.lat ?  dLat : -dLat),
+              oppLL.lng + (ll.lng > oppLL.lng ?  dLng : -dLng)
+            );
+            m.setLatLng(ll);
+          }
+          corners[idx] = [ll.lat, ll.lng];
+          _soUpdateBoundsFromCorners(ovr, corners, handles);
+        });
+        m.on('dragend', function() { map.dragging.enable(); });
+        return m;
+      });
+
+      // Centre drag handle — moves the whole overlay
+      var cLat = (corners[0][0] + corners[2][0]) / 2;
+      var cLng = (corners[0][1] + corners[2][1]) / 2;
+      var centerMark = L.marker([cLat, cLng], {
+        draggable: true,
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="width:20px;height:20px;background:rgba(29,78,216,0.15);border:2px dashed #1d4ed8;border-radius:50%;cursor:move;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>',
+          iconSize:   [20, 20],
+          iconAnchor: [10, 10]
+        }),
+        zIndexOffset: 999
+      }).addTo(map);
+
+      var _prevLL = null;
+      centerMark.on('dragstart', function(e) { _prevLL = e.target.getLatLng(); map.dragging.disable(); });
+      centerMark.on('drag', function(e) {
+        var ll = e.latlng;
+        if (_prevLL) {
+          var dLat = ll.lat - _prevLL.lat;
+          var dLng = ll.lng - _prevLL.lng;
+          corners = corners.map(function(c) { return [c[0] + dLat, c[1] + dLng]; });
+          handles.forEach(function(h, i) { h.setLatLng(corners[i]); });
+          _soUpdateBoundsFromCorners(ovr, corners, null); // don't re-sync handles (already set)
+        }
+        _prevLL = ll;
+      });
+      centerMark.on('dragend', function() { map.dragging.enable(); });
+
+      ovr._handles      = handles;
+      ovr._centerHandle = centerMark;
+      _soShowPlacementToolbar(ovr);
+    }
+
+    function _soUpdateBoundsFromCorners(ovr, corners, handles) {
+      var lats = corners.map(function(c) { return c[0]; });
+      var lngs = corners.map(function(c) { return c[1]; });
+      var south = Math.min.apply(null, lats), north = Math.max.apply(null, lats);
+      var west  = Math.min.apply(null, lngs), east  = Math.max.apply(null, lngs);
+      ovr.bounds = [[south, west], [north, east]];
+      if (ovr._layer) ovr._layer.setBounds(L.latLngBounds(ovr.bounds));
+      if (ovr._centerHandle) {
+        ovr._centerHandle.setLatLng([(south + north) / 2, (west + east) / 2]);
+      }
+    }
+
+    function _soRemoveHandles(ovr) {
+      (ovr._handles || []).forEach(function(h) { if (h && map.hasLayer(h)) map.removeLayer(h); });
+      ovr._handles = [];
+      if (ovr._centerHandle && map.hasLayer(ovr._centerHandle)) map.removeLayer(ovr._centerHandle);
+      ovr._centerHandle = null;
+      if (ovr._toolbar) { ovr._toolbar.remove(); ovr._toolbar = null; }
+      map.dragging.enable();
+    }
+
+    function _soShowPlacementToolbar(ovr) {
+      if (ovr._toolbar) { ovr._toolbar.remove(); ovr._toolbar = null; }
+      var tb = document.createElement('div');
+      tb.className = 'so-placement-toolbar';
+      tb.style.cssText = 'position:absolute;top:10px;right:10px;z-index:1100;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.15);padding:7px 12px;display:flex;align-items:center;gap:10px;font-size:12px;font-family:sans-serif;pointer-events:all;white-space:nowrap;';
+      tb.innerHTML =
+        '<button class="so-done" style="padding:4px 12px;background:#1d4ed8;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;">Done</button>' +
+        '<button class="so-cancel" style="padding:4px 10px;background:#f3f4f6;border:1px solid #ddd;border-radius:5px;cursor:pointer;font-size:12px;">Cancel</button>' +
+        '<label style="display:flex;align-items:center;gap:5px;">Opacity&nbsp;<input type="range" class="so-opacity" min="0" max="100" value="' + Math.round(ovr.opacity * 100) + '" style="width:80px;cursor:pointer;"></label>';
+
+      tb.querySelector('.so-done').onclick = function() {
+        ovr.locked = true;
+        _soRemoveHandles(ovr);
+        _renderObjectList();
+      };
+      tb.querySelector('.so-cancel').onclick = function() {
+        _soDelete(ovr.id, true);
+      };
+      tb.querySelector('.so-opacity').oninput = function() {
+        ovr.opacity = this.value / 100;
+        if (ovr._layer) ovr._layer.setOpacity(ovr.visible ? ovr.opacity : 0);
+      };
+
+      var mc = map.getContainer();
+      mc.style.position = mc.style.position || 'relative';
+      mc.appendChild(tb);
+      L.DomEvent.disableClickPropagation(tb);
+      ovr._toolbar = tb;
+    }
+
+    // ── After-placement controls ──────────────────────────────
+    window._soObjMenu = function(id, btn) {
+      var existing = document.getElementById('soObjMenuDropdown');
+      if (existing) { existing.remove(); return; }
+      var menu = document.createElement('div');
+      menu.id = 'soObjMenuDropdown';
+      menu.style.cssText = 'position:fixed;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.13);z-index:9999;font-size:12px;min-width:140px;overflow:hidden;';
+      var rect = btn.getBoundingClientRect();
+      menu.style.top  = (rect.bottom + 4) + 'px';
+      menu.style.left = (rect.right - 140) + 'px';
+      [
+        ['Adjust position', function() { _soAdjust(id); }],
+        ['Toggle visibility', function() { _soToggleVisible(id); }],
+        ['Delete', function() { _soDelete(id, false); }]
+      ].forEach(function(pair) {
+        var el = document.createElement('div');
+        el.textContent = pair[0];
+        el.style.cssText = 'padding:7px 14px;cursor:pointer;';
+        el.onmouseenter = function() { el.style.background = '#f3f4f6'; };
+        el.onmouseleave = function() { el.style.background = ''; };
+        el.onclick = function() { menu.remove(); pair[1](); };
+        menu.appendChild(el);
+      });
+      document.body.appendChild(menu);
+      setTimeout(function() {
+        document.addEventListener('click', function rm() { menu.remove(); document.removeEventListener('click', rm); });
+      }, 0);
+    };
+
+    // ── Public API ────────────────────────────────────────────
+    function _soDelete(id, skipConfirm) {
+      var idx = -1;
+      window._siteOverlays.forEach(function(o, i) { if (o.id === id) idx = i; });
+      if (idx === -1) return;
+      var ovr = window._siteOverlays[idx];
+      if (!skipConfirm && !confirm('Delete overlay \u201c' + ovr.name + '\u201d?')) return;
+      _soRemoveHandles(ovr);
+      if (ovr._layer && map.hasLayer(ovr._layer)) map.removeLayer(ovr._layer);
+      window._siteOverlays.splice(idx, 1);
+      _renderObjectList();
+    }
+    window._soDelete = _soDelete;
+
+    function _soToggleVisible(id) {
+      var ovr = window._siteOverlays.find(function(o) { return o.id === id; });
+      if (!ovr) return;
+      ovr.visible = !ovr.visible;
+      if (ovr._layer) ovr._layer.setOpacity(ovr.visible ? ovr.opacity : 0);
+      _renderObjectList();
+    }
+    window._soToggleVisible = _soToggleVisible;
+
+    function _soAdjust(id) {
+      var ovr = window._siteOverlays.find(function(o) { return o.id === id; });
+      if (!ovr) return;
+      _soEnterPlacement(ovr);
+      _renderObjectList();
+    }
+    window._soAdjust = _soAdjust;
+
+    function _soSetOpacity(id, val) {
+      var ovr = window._siteOverlays.find(function(o) { return o.id === id; });
+      if (!ovr) return;
+      ovr.opacity = parseFloat(val) / 100;
+      if (ovr._layer) ovr._layer.setOpacity(ovr.visible ? ovr.opacity : 0);
+    }
+    window._soSetOpacity = _soSetOpacity;
+
+    function _soFlyTo(id) {
+      var ovr = window._siteOverlays.find(function(o) { return o.id === id; });
+      if (!ovr) return;
+      map.fitBounds(L.latLngBounds(ovr.bounds));
+    }
+    window._soFlyTo = _soFlyTo;
+
+    // Serialise for save JSON (strips runtime refs)
+    window._soSerialize = function() {
+      return window._siteOverlays.map(function(o) {
+        return { id: o.id, name: o.name, imageSrc: o.imageSrc, bounds: o.bounds,
+                 opacity: o.opacity, locked: o.locked, visible: o.visible };
+      });
+    };
+
+    // Restore from saved JSON
+    window._soLoadAll = function(arr) {
+      window._siteOverlays.forEach(function(o) {
+        _soRemoveHandles(o);
+        if (o._layer && map.hasLayer(o._layer)) map.removeLayer(o._layer);
+      });
+      window._siteOverlays = [];
+      (arr || []).forEach(function(d) {
+        _soAddOverlay({ id: d.id, name: d.name, imageSrc: d.imageSrc, bounds: d.bounds,
+                        opacity: d.opacity, locked: true, visible: d.visible !== false });
+      });
+    };
+
+    // Hide/restore handles during Save JPG
+    window._soHideHandles = function() {
+      window._siteOverlays.forEach(function(o) {
+        (o._handles || []).forEach(function(h) { var el = h.getElement ? h.getElement() : null; if (el) el.style.visibility = 'hidden'; });
+        if (o._centerHandle) { var el = o._centerHandle.getElement ? o._centerHandle.getElement() : null; if (el) el.style.visibility = 'hidden'; }
+        if (o._toolbar) o._toolbar.style.visibility = 'hidden';
+      });
+    };
+    window._soShowHandles = function() {
+      window._siteOverlays.forEach(function(o) {
+        (o._handles || []).forEach(function(h) { var el = h.getElement ? h.getElement() : null; if (el) el.style.visibility = ''; });
+        if (o._centerHandle) { var el = o._centerHandle.getElement ? o._centerHandle.getElement() : null; if (el) el.style.visibility = ''; }
+        if (o._toolbar) o._toolbar.style.visibility = '';
+      });
+    };
+
     // Terrain contour pane (below overlayPane z=400, above tilePane z=200)
     map.createPane('terrainContourPane');
     map.getPane('terrainContourPane').style.zIndex = '250';
@@ -19812,6 +20238,30 @@ initCollapse();
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">G' + (i + 1) + '</span>';
           html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + escapeHTML(name + gStr) + '</span>';
           html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'groundzone\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+
+      // Overlays group
+      if (window._siteOverlays && window._siteOverlays.length > 0) {
+        html += '<div style="margin-bottom:10px;">';
+        html += '<div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Overlays</div>';
+        window._siteOverlays.forEach(function(ovr, i) {
+          var visIcon = ovr.visible
+            ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+            : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2" style="vertical-align:-1px;"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+          html += '<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:4px;">';
+          // visibility toggle
+          html += '<button onclick="event.stopPropagation();_soToggleVisible(\'' + ovr.id + '\')" title="Toggle visibility" style="background:none;border:none;cursor:pointer;padding:0;line-height:1;flex-shrink:0;color:#6b7280;">' + visIcon + '</button>';
+          // index label
+          html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">O' + (i + 1) + '</span>';
+          // name (click → fly to)
+          html += '<span onclick="_soFlyTo(\'' + ovr.id + '\')" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;cursor:pointer;" title="' + escapeHTML(ovr.name) + '">' + escapeHTML(ovr.name) + (ovr.locked ? '' : ' <span style="color:#1d4ed8;font-size:10px;">(placing\u2026)</span>') + '</span>';
+          // opacity slider
+          html += '<input type="range" min="0" max="100" value="' + Math.round(ovr.opacity * 100) + '" title="Opacity" style="width:52px;cursor:pointer;flex-shrink:0;" oninput="_soSetOpacity(\'' + ovr.id + '\',this.value)" onclick="event.stopPropagation()">';
+          // ⋮ menu
+          html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_soObjMenu(\'' + ovr.id + '\',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
           html += '</div>';
         });
         html += '</div>';
