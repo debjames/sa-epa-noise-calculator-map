@@ -1598,9 +1598,11 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   var PREC         = 4;    // decimal places for cache key (~11m)
   var SNAP         = 0.0001;
 
-  var _ptCache  = {};  // "lat,lng" → elev
-  var _wcsCache = [];  // WCS tile objects [{bounds,width,height,raster,validFrac,source}], max 4
-  var _curRaster = null;       // most recently used WCS tile (for terrain contours)
+  var WCS_CACHE_MAX = 40;      // max cached WCS tiles (~40 KB each → ≤1.6 MB total)
+  var _ptCache  = {};          // "lat,lng" → elev
+  var _wcsCache = [];          // WCS tile objects [{bounds,width,height,raster,validFrac,source}]
+  var _pendingKeys = {};       // tracks in-flight tile fetches to prevent duplicates
+  var _curRaster = null;       // most recently fetched WCS tile (backward compat)
   var _curSource = null;       // 'lidar' | 'open-elevation' | null
 
   function rk(lat, lng) { return lat.toFixed(PREC) + ',' + lng.toFixed(PREC); }
@@ -1872,7 +1874,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           if (window.onWCSRasterUpdated) window.onWCSRasterUpdated(null);
           return fetchOETile(eN, eS, eE, eW, spacing, onProgress);
         }
-        if (_wcsCache.length >= 4) _wcsCache.shift();
+        if (_wcsCache.length >= WCS_CACHE_MAX) _wcsCache.shift();
         _wcsCache.push(tile);
         _curRaster = tile; _curSource = 'lidar';
         if (window.onWCSRasterUpdated) window.onWCSRasterUpdated(tile);
@@ -1886,15 +1888,137 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       });
   }
 
+  // ── Multi-tile fetch ──────────────────────────────────────────────────────
+  // Divides the visible map extent into a grid of small tiles whose size is
+  // tuned per zoom level so that a 5×5 = 25-tile grid covers the full
+  // typical viewport at that zoom.  Fires onWCSRasterUpdated after each tile
+  // arrives so the contour renderer updates progressively.
+  //
+  // zoom ≤ 8  → returns immediately (too wide for useful contours)
+  // zoom 9    → 0.75° tiles  (~83 km)   5×5 covers ~3.75° ≈ typical 3° view
+  // zoom 10   → 0.40° tiles             5×5 covers ~2.0°  ≈ typical 1.5° view
+  // zoom 11   → 0.20° tiles             5×5 covers ~1.0°  ≈ typical 0.75° view
+  // zoom 12   → 0.10° tiles             5×5 covers ~0.5°  ≈ typical 0.37° view
+  // zoom 13   → 0.05° tiles             5×5 covers ~0.25° ≈ typical 0.19° view
+  // zoom 14   → 0.02° tiles             5×5 covers ~0.1°  ≈ typical 0.09° view
+  // zoom 15   → 0.01° tiles             5×5 covers ~0.05° ≈ typical 0.045° view
+  // zoom 16+  → 0.005° tiles            5×5 covers ~0.025°≈ typical 0.022° view
+  var ZOOM_TILE_SIZE = { 9: 0.75, 10: 0.40, 11: 0.20, 12: 0.10, 13: 0.05, 14: 0.02, 15: 0.01 };
+  var TILE_MAX = 25; // 5×5 grid
+
+  function getTilesForBounds(north, south, east, west, zoom, onProgress) {
+    zoom = zoom || 12;
+    if (zoom <= 8) return Promise.resolve([]);
+
+    var tileSize = ZOOM_TILE_SIZE[Math.min(zoom, 15)] || 0.005;
+    var maxTiles = TILE_MAX;
+
+    // Snap tile grid origin to multiples of tileSize → stable keys on pan
+    var startLat = Math.floor(south / tileSize) * tileSize;
+    var startLng = Math.floor(west  / tileSize) * tileSize;
+
+    var tiles = [];
+    for (var tLat = startLat; tLat < north + tileSize * 0.01; tLat += tileSize) {
+      for (var tLng = startLng; tLng < east + tileSize * 0.01; tLng += tileSize) {
+        var tN = parseFloat((tLat + tileSize).toFixed(6));
+        var tS = parseFloat(tLat.toFixed(6));
+        var tE = parseFloat((tLng + tileSize).toFixed(6));
+        var tW = parseFloat(tLng.toFixed(6));
+        // Only include tiles that actually overlap the requested view
+        if (tN > south && tS < north && tE > west && tW < east) {
+          tiles.push({ north: tN, south: tS, east: tE, west: tW });
+        }
+      }
+    }
+
+    // Cap to maxTiles, prioritising tiles nearest the view centre
+    if (tiles.length > maxTiles) {
+      var cLat = (north + south) / 2, cLng = (east + west) / 2;
+      tiles.sort(function(a, b) {
+        var da = Math.pow((a.north + a.south) / 2 - cLat, 2) + Math.pow((a.east + a.west) / 2 - cLng, 2);
+        var db = Math.pow((b.north + b.south) / 2 - cLat, 2) + Math.pow((b.east + b.west) / 2 - cLng, 2);
+        return da - db;
+      });
+      tiles = tiles.slice(0, maxTiles);
+    }
+
+    // Separate into already-cached and needing fetch.
+    // Track whether ALL tiles came from cache (vs some still in-flight in _pendingKeys).
+    var allAlreadyCached = true;
+    var toFetch = [];
+    for (var i = 0; i < tiles.length; i++) {
+      var t = tiles[i];
+      var existing = findWCSTileForBounds(t.north, t.south, t.east, t.west);
+      if (existing) continue; // already in cache
+      allAlreadyCached = false;
+      // Build a stable key; skip if a fetch is already in-flight for this tile
+      var key = t.south.toFixed(6) + ',' + t.west.toFixed(6) + ',' + t.north.toFixed(6) + ',' + t.east.toFixed(6);
+      if (!_pendingKeys[key]) {
+        _pendingKeys[key] = true;
+        toFetch.push({ bounds: t, key: key });
+      }
+    }
+
+    if (toFetch.length === 0) {
+      // All tiles are either already in cache OR still in-flight (pending).
+      // Only fire the update callback when tiles are genuinely available in cache,
+      // NOT when they are merely pending — firing while pending causes
+      // generateTerrainContours → getTilesForBounds → onWCSRasterUpdated infinite recursion.
+      if (allAlreadyCached && window.onWCSRasterUpdated) window.onWCSRasterUpdated(null);
+      return Promise.resolve();
+    }
+
+    var done = 0, total = toFetch.length;
+    var CONCURRENT = 4;
+
+    function fetchBatch(remaining) {
+      if (remaining.length === 0) return Promise.resolve();
+      var batch = remaining.slice(0, CONCURRENT);
+      var rest  = remaining.slice(CONCURRENT);
+      return Promise.all(batch.map(function(item) {
+        var b = item.bounds;
+        return fetchWCSTile(b.north, b.south, b.east, b.west)
+          .then(function(tile) {
+            delete _pendingKeys[item.key];
+            if (tile.validFrac >= 0.05) {
+              if (_wcsCache.length >= WCS_CACHE_MAX) _wcsCache.shift();
+              _wcsCache.push(tile);
+              _curRaster = tile;
+              _curSource = 'lidar';
+              // Only notify when data was actually cached — prevents re-triggering
+              // generateTerrainContours in areas with no LiDAR coverage.
+              done++;
+              if (onProgress) onProgress(done, total);
+              if (window.onWCSRasterUpdated) window.onWCSRasterUpdated(null);
+            } else {
+              done++;
+              if (onProgress) onProgress(done, total);
+            }
+          })
+          .catch(function(err) {
+            delete _pendingKeys[item.key];
+            console.warn('WCS tile failed [' + item.key + ']:', err.message || err);
+            done++;
+            if (onProgress) onProgress(done, total);
+          });
+      })).then(function() { return fetchBatch(rest); });
+    }
+
+    return fetchBatch(toFetch);
+  }
+
   window.DEMCache = {
-    getElevation:    getElevation,
-    getElevations:   getElevations,
-    getTileForBounds: getTileForBounds,
-    getCacheSize:    function() { return Object.keys(_ptCache).length; },
-    getCurrentRaster: function() { return _curRaster; },
-    getRasterSource:  function() { return _curSource; },
-    clearWCSCache:   function() { _wcsCache.length = 0; _curRaster = null; _curSource = null; },
-    NODATA_VALUE:    WCS_NODATA
+    getElevation:      getElevation,
+    getElevations:     getElevations,
+    getTileForBounds:  getTileForBounds,
+    getTilesForBounds: getTilesForBounds,
+    sampleRaster:      sampleRaster,
+    getAllWCSRasters:   function() { return _wcsCache.slice(); },
+    getCacheSize:      function() { return Object.keys(_ptCache).length; },
+    getCurrentRaster:  function() { return _curRaster; },
+    getRasterSource:   function() { return _curSource; },
+    clearWCSCache:     function() { _wcsCache.length = 0; _pendingKeys = {}; _curRaster = null; _curSource = null; },
+    NODATA_VALUE:      WCS_NODATA
   };
 
   // Self-test (debug only)
@@ -9036,31 +9160,85 @@ function initPropagationMethod() {
   function generateTerrainContours() {
     if (window._terrainContourLayer) window._terrainContourLayer.clearLayers();
     if (!_terrainContourOn || !_terrainEnabled) return;
+    if (!window._map || !window.DEMCache) return;
 
-    var tile = window.DEMCache ? window.DEMCache.getCurrentRaster() : null;
-    if (!tile) {
-      // No raster cached yet — trigger a fetch for the current map view.
-      // onWCSRasterUpdated callback will call generateTerrainContours again when done.
-      if (window._map && window.DEMCache) {
-        var _mb = window._map.getBounds();
-        window.DEMCache.getTileForBounds(_mb.getNorth(), _mb.getSouth(), _mb.getEast(), _mb.getWest(), 0.002);
-      }
+    var ctBtn = document.getElementById('terrainContourBtn');
+    var zoom = Math.round(window._map.getZoom());
+
+    // Zoom guard — contours not useful at very wide extents
+    if (zoom <= 8) {
+      if (ctBtn) ctBtn.title = 'Zoom in further for terrain contours';
+      return;
+    }
+    if (ctBtn) ctBtn.title = 'Show terrain elevation contour lines on map (requires Terrain ON)';
+
+    var mb = window._map.getBounds();
+    var north = mb.getNorth(), south = mb.getSouth();
+    var east  = mb.getEast(),  west  = mb.getWest();
+
+    // Collect all LiDAR tiles that overlap the current view
+    var allTiles = window.DEMCache.getAllWCSRasters();
+    var viewTiles = allTiles.filter(function(t) {
+      if (t.source !== 'lidar') return false;
+      var b = t.bounds;
+      return b.north > south && b.south < north && b.east > west && b.west < east;
+    });
+
+    if (viewTiles.length === 0) {
+      // Nothing cached yet — trigger tiled fetch; onWCSRasterUpdated will re-enter
+      if (ctBtn) ctBtn.title = 'Fetching terrain tiles…';
+      window.DEMCache.getTilesForBounds(north, south, east, west, zoom,
+        function(done, total) {
+          if (ctBtn) ctBtn.title = 'Fetching terrain: ' + done + '/' + total + ' tiles…';
+        }
+      ).then(function() {
+        if (ctBtn) ctBtn.title = 'Show terrain elevation contour lines on map (requires Terrain ON)';
+      });
       return;
     }
 
-    var data = tile.raster, W = tile.width, H = tile.height, b = tile.bounds;
-    var latSpan = b.north - b.south, lngSpan = b.east - b.west;
-    var _nodata = (window.DEMCache && window.DEMCache.NODATA_VALUE !== undefined) ? window.DEMCache.NODATA_VALUE : -999;
+    // ── Build merged elevation grid ───────────────────────────────────────────
+    // Compute grid spacing: cap at 250 pts per axis so the marching-squares
+    // pass stays fast even at wide zoom levels.
+    var latSpan = north - south, lngSpan = east - west;
+    var rawSpacing = Math.max(latSpan, lngSpan) / 250;
+    var mag = Math.pow(10, Math.floor(Math.log10(rawSpacing)));
+    var gridSpacing = Math.max(Math.ceil(rawSpacing / mag) * mag, 0.00005);
 
-    // Compute elevation range
-    var elevMin = Infinity, elevMax = -Infinity;
-    for (var i = 0; i < data.length; i++) {
-      if (data[i] > _nodata && isFinite(data[i])) {
-        if (data[i] < elevMin) elevMin = data[i];
-        if (data[i] > elevMax) elevMax = data[i];
+    // Build south-to-north, west-to-east axis arrays
+    var lats = [], lngs = [];
+    for (var glat = south; glat <= north + gridSpacing * 0.01; glat += gridSpacing)
+      lats.push(parseFloat(glat.toFixed(7)));
+    for (var glng = west; glng <= east + gridSpacing * 0.01; glng += gridSpacing)
+      lngs.push(parseFloat(glng.toFixed(7)));
+
+    var H = lats.length, W = lngs.length;
+
+    // ctGrid[row*W+col]: row 0 = south (matches marching-squares convention)
+    var ctGrid = new Float32Array(H * W);
+    ctGrid.fill(NaN);
+
+    var _sampleRaster = window.DEMCache.sampleRaster;
+    for (var ri = 0; ri < H; ri++) {
+      for (var ci = 0; ci < W; ci++) {
+        // Try tiles most-recent-first; take first non-null hit
+        for (var ti = viewTiles.length - 1; ti >= 0; ti--) {
+          var e = _sampleRaster(viewTiles[ti], lats[ri], lngs[ci]);
+          if (e !== null) { ctGrid[ri * W + ci] = e; break; }
+        }
       }
     }
-    if (!isFinite(elevMin) || elevMax - elevMin < 2) return; // flat
+
+    // ── Elevation range from merged grid ─────────────────────────────────────
+    var elevMin = Infinity, elevMax = -Infinity;
+    for (var gi = 0; gi < ctGrid.length; gi++) {
+      var gv = ctGrid[gi];
+      if (isFinite(gv)) {
+        if (gv < elevMin) elevMin = gv;
+        if (gv > elevMax) elevMax = gv;
+      }
+    }
+    if (!isFinite(elevMin) || elevMax - elevMin < 2) return; // flat or no data
 
     var range = elevMax - elevMin;
     var minorInt = range < 20 ? 2 : range <= 200 ? 5 : 10;
@@ -9070,21 +9248,12 @@ function initPropagationMethod() {
     for (var t = Math.ceil(elevMin / minorInt) * minorInt; t <= elevMax; t += minorInt)
       thresholds.push(t);
 
-    // WCS raster: row 0 = north. Build south-to-north grid for marching squares.
-    var ctGrid = new Float32Array(H * W);
-    for (var r = 0; r < H; r++) {
-      var geoRow = H - 1 - r; // flip: ctGrid row 0 = south
-      for (var c = 0; c < W; c++) {
-        var v = data[geoRow * W + c];
-        ctGrid[r * W + c] = (v > _nodata && isFinite(v)) ? v : NaN;
-      }
-    }
+    var dLat = gridSpacing;
+    var dLng = gridSpacing;
+    var startLat = lats[0];
+    var startLng = lngs[0];
 
-    var dLat = latSpan / H;
-    var dLng = lngSpan / W;
-    var startLat = b.south;
-    var startLng = b.west;
-
+    // ── Marching squares ─────────────────────────────────────────────────────
     function ctVal(r2, c2) {
       if (r2 < 0 || r2 >= H || c2 < 0 || c2 >= W) return NaN;
       return ctGrid[r2 * W + c2];
@@ -9210,7 +9379,7 @@ function initPropagationMethod() {
       window._terrainContourLayer.addTo(window._map);
   }
 
-  // Register callback: regenerate contours when WCS raster is updated
+  // Register callback: regenerate contours when any WCS tile is updated
   window.onWCSRasterUpdated = function(tile) {
     if (_terrainContourOn && _terrainEnabled) generateTerrainContours();
   };
@@ -9224,19 +9393,21 @@ function initPropagationMethod() {
       if (_contourDebounceTimer) clearTimeout(_contourDebounceTimer);
       _contourDebounceTimer = setTimeout(function() {
         var mb = window._map.getBounds();
-        // If the current raster covers the new view, just redraw; else re-fetch
-        var raster = window.DEMCache ? window.DEMCache.getCurrentRaster() : null;
-        if (raster) {
-          var rb = raster.bounds;
-          var covers = rb.north >= mb.getNorth() && rb.south <= mb.getSouth() &&
-                       rb.east >= mb.getEast() && rb.west <= mb.getWest();
-          if (covers) { generateTerrainContours(); return; }
-        }
-        // Fetch new tile for new extent
-        if (window.DEMCache) {
-          window.DEMCache.getTileForBounds(mb.getNorth(), mb.getSouth(), mb.getEast(), mb.getWest(), 0.002);
-          // onWCSRasterUpdated callback will regenerate contours
-        }
+        var zoom = Math.round(window._map.getZoom());
+        if (zoom <= 8) { generateTerrainContours(); return; } // shows zoom message
+        if (!window.DEMCache) return;
+        var ctBtn = document.getElementById('terrainContourBtn');
+        // Fetch any missing tiles for this view; onWCSRasterUpdated redraws after each
+        window.DEMCache.getTilesForBounds(
+          mb.getNorth(), mb.getSouth(), mb.getEast(), mb.getWest(), zoom,
+          function(done, total) {
+            if (ctBtn) ctBtn.title = 'Fetching terrain: ' + done + '/' + total + ' tiles…';
+          }
+        ).then(function() {
+          if (ctBtn) ctBtn.title = 'Show terrain elevation contour lines on map (requires Terrain ON)';
+        });
+        // Also immediately redraw from whatever is already cached
+        generateTerrainContours();
       }, 2000);
     });
   };
@@ -9256,6 +9427,23 @@ function initPropagationMethod() {
       _terrainContourOn = !_terrainContourOn;
       contourBtn.classList.toggle('active', _terrainContourOn);
       if (_terrainContourOn) {
+        if (window._map && window.DEMCache) {
+          var mb = window._map.getBounds();
+          var zoom = Math.round(window._map.getZoom());
+          if (zoom > 8) {
+            // Pre-fetch tiles, then draw (generateTerrainContours called by onWCSRasterUpdated)
+            contourBtn.title = 'Fetching terrain tiles…';
+            window.DEMCache.getTilesForBounds(
+              mb.getNorth(), mb.getSouth(), mb.getEast(), mb.getWest(), zoom,
+              function(done, total) {
+                contourBtn.title = 'Fetching terrain: ' + done + '/' + total + ' tiles…';
+              }
+            ).then(function() {
+              contourBtn.title = 'Show terrain elevation contour lines on map (requires Terrain ON)';
+            });
+          }
+        }
+        // Draw from cache immediately (may be empty → fetches triggered above)
         generateTerrainContours();
       } else {
         if (window._terrainContourLayer) window._terrainContourLayer.clearLayers();
