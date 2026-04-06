@@ -603,6 +603,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
                 <button class="mp-btn map-mode-btn" id="mapMode-source" title="Click map to place noise source" style="display:none;border-left:3px solid #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise source</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Point source</button>
                 <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.)" style="border-left:3px solid #d32f2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#d32f2f"/><circle cx="19" cy="5" r="2" fill="#d32f2f"/></svg> Line source</button>
+                <button class="mp-btn" id="drawAreaSourceBtn" title="Draw an area source polygon (car park, outdoor dining, industrial activity, etc.)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(217,119,6,0.25)" stroke="#d97706" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="2" fill="#d97706" stroke="none"/></svg> Area source</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
@@ -3477,6 +3478,88 @@ LINE_SOURCE_LIBRARY.forEach(function(e) {
   if (!LINE_SOURCE_LIBRARY_GROUPED[e.category]) LINE_SOURCE_LIBRARY_GROUPED[e.category] = [];
   LINE_SOURCE_LIBRARY_GROUPED[e.category].push(e);
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AREA SOURCES  — distributed polygon sound sources
+   Each: {id, name, vertices:[[lat,lng],...], height_m, lwMode:'per_m2'|'total',
+          lwValue:{day,eve,night}, spectrum:{day,eve,night},
+          activeInPeriod, operatingPct, quantity, manualOverride,
+          libraryEntry, _poly, _userEdited}
+   ═══════════════════════════════════════════════════════════════════════════ */
+var areaSources = [];
+var _asIdCtr = 0;
+var _asPanel = null;
+var _asPanelId = null;
+
+var AREA_SOURCE_LIBRARY = [
+  { name: 'Light vehicle movements',            category: 'Car parks',
+    spectrum_unweighted: {63:55,125:49,250:45,500:43,1000:43,2000:39,4000:35,8000:32},
+    lw_m2_dba: 47, height_m: 0.5 },
+  { name: 'Car park with trolley collection',   category: 'Car parks',
+    spectrum_unweighted: {63:58,125:52,250:48,500:46,1000:46,2000:42,4000:38,8000:35},
+    lw_m2_dba: 50, height_m: 0.5 },
+  { name: 'Restaurant/cafe outdoor area',       category: 'Outdoor dining',
+    spectrum_unweighted: {63:60,125:57,250:55,500:53,1000:51,2000:48,4000:44,8000:40},
+    lw_m2_dba: 55, height_m: 1.2 },
+  { name: 'General loading/unloading activity', category: 'Loading / Industrial',
+    spectrum_unweighted: {63:72,125:68,250:65,500:63,1000:61,2000:58,4000:54,8000:50},
+    lw_m2_dba: 65, height_m: 1.5 },
+  { name: 'General construction activity',      category: 'Construction',
+    spectrum_unweighted: {63:77,125:73,250:70,500:68,1000:66,2000:63,4000:59,8000:55},
+    lw_m2_dba: 70, height_m: 2.0 }
+];
+var AREA_SOURCE_LIBRARY_GROUPED = {};
+AREA_SOURCE_LIBRARY.forEach(function(e) {
+  if (!AREA_SOURCE_LIBRARY_GROUPED[e.category]) AREA_SOURCE_LIBRARY_GROUPED[e.category] = [];
+  AREA_SOURCE_LIBRARY_GROUPED[e.category].push(e);
+});
+
+/** Polygon area in m² using spherical excess formula */
+function _asPolygonArea(vertices) {
+  var n = (vertices || []).length;
+  if (n < 3) return 0;
+  var area = 0;
+  for (var i = 0; i < n; i++) {
+    var j = (i + 1) % n;
+    var dLng = (vertices[j][1] - vertices[i][1]) * Math.PI / 180;
+    var lat1 = vertices[i][0] * Math.PI / 180;
+    var lat2 = vertices[j][0] * Math.PI / 180;
+    area += dLng * (2 + Math.sin(lat1) + Math.sin(lat2));
+  }
+  return Math.abs(area * 6371000 * 6371000 / 2);
+}
+
+/** Simple centroid (average of vertices) */
+function _asPolygonCentroid(vertices) {
+  if (!vertices || !vertices.length) return { lat: 0, lng: 0 };
+  var lat = 0, lng = 0;
+  for (var i = 0; i < vertices.length; i++) { lat += vertices[i][0]; lng += vertices[i][1]; }
+  return { lat: lat / vertices.length, lng: lng / vertices.length };
+}
+
+/** Format area: 0dp for ≥10 m², 1dp for smaller */
+function _asFormatArea(area) {
+  if (area >= 10) return Math.round(area) + ' m\u00b2';
+  return area.toFixed(1) + ' m\u00b2';
+}
+
+/** Effective Total Lw dB(A) for an area source in a given period */
+function _asGetEffectiveLw(as, period) {
+  if (!as.activeInPeriod || !as.activeInPeriod[period]) return NaN;
+  var area = _asPolygonArea(as.vertices || []);
+  var qty  = (as.quantity && Number.isFinite(as.quantity[period])) ? as.quantity[period] : 1;
+  var pct  = (as.operatingPct && Number.isFinite(as.operatingPct[period])) ? as.operatingPct[period] : 100;
+  var lw   = (as.lwValue && Number.isFinite(as.lwValue[period])) ? as.lwValue[period] : null;
+  if (lw === null) return NaN;
+  var adjN  = (qty  > 0) ? 10 * Math.log10(qty)       : 0;
+  var adjOp = (pct  > 0) ? 10 * Math.log10(pct / 100) : -Infinity;
+  if (as.lwMode === 'total') {
+    return lw + adjN + adjOp;
+  } else {
+    if (area <= 0) return NaN;
+    return lw + 10 * Math.log10(area) + adjN + adjOp;
+  }
+}
 
 function _lsCalcLwmAdj(lwmBase, N, speed, operatingPct) {
   // Reference: N=1, speed=10, operatingPct=100 → adj=0
@@ -10173,6 +10256,25 @@ function renderScenariosTable() {
     html += '</tr>';
   });
 
+  // Area sources in scenarios table
+  if (typeof areaSources !== 'undefined') {
+    areaSources.forEach(function(as) {
+      html += '<tr>';
+      html += '<td style="font-size:12px;color:#d97706;">\u25a0 ' + escapeHTML(as.name || 'Area source') + '</td>';
+      ['day','eve','night'].forEach(function(period) {
+        var lw     = _asGetEffectiveLw(as, period);
+        var active = as.activeInPeriod && as.activeInPeriod[period] !== false;
+        if (Number.isFinite(lw) && active) {
+          html += '<td class="num" style="color:#d97706;font-size:12px;">\u2713 ' + Math.round(lw) + ' dB</td>';
+        } else {
+          html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
+        }
+      });
+      html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
+      html += '</tr>';
+    });
+  }
+
   html += '</tbody></table></div>';
   container.innerHTML = html;
 }
@@ -10854,6 +10956,24 @@ initCollapse();
               manualLwm: ls.manualLwm,
               manualSpectrum: ls.manualSpectrum,
               activeInPeriod: ls.activeInPeriod
+            };
+          });
+        }
+
+        // Area sources
+        if (typeof areaSources !== 'undefined' && areaSources.length > 0) {
+          data.areaSources = areaSources.map(function(as) {
+            return {
+              id: as.id, name: as.name, vertices: as.vertices,
+              height_m: as.height_m || 0.5,
+              lwMode: as.lwMode || 'per_m2',
+              lwValue: as.lwValue,
+              spectrum: as.spectrum,
+              activeInPeriod: as.activeInPeriod,
+              operatingPct: as.operatingPct,
+              quantity: as.quantity,
+              manualOverride: as.manualOverride,
+              libraryEntry: as.libraryEntry ? { name: as.libraryEntry.name } : null
             };
           });
         }
@@ -11812,6 +11932,11 @@ initCollapse();
           return ls;
         });
         window._setLineSources(migratedLs);
+      }
+
+      // Restore area sources
+      if (data.areaSources && data.areaSources.length > 0 && window._setAreaSources) {
+        window._setAreaSources(data.areaSources);
       }
 
       // 16. Re-render detected zones panel for VIC
@@ -16239,7 +16364,9 @@ initCollapse();
     var drawBuildingBtn = document.getElementById('drawBuildingBtn');
     var _drawHandler = null;
     var _gzDrawHandler = null;
+    var _asDrawHandler = null;
     var _drawingGroundZone = false;
+    var _drawingAreaSource = false;
     if (drawBuildingBtn && typeof L.Draw !== 'undefined') {
       function stopDrawing() {
         _drawingActive = false;
@@ -16416,6 +16543,37 @@ initCollapse();
             });
             if (cancelBtnGz) cancelBtnGz.addEventListener('click', function() { map.closePopup(); });
           }, 50);
+          return;
+        }
+
+        // ── Area source branch ───────────────────────────────────────────────
+        if (_drawingAreaSource) {
+          _drawingAreaSource = false;
+          _asDrawHandler = null;
+          _drawingActive = false;
+          var _asDrawBtn2 = document.getElementById('drawAreaSourceBtn');
+          if (_asDrawBtn2) _asDrawBtn2.classList.remove('active');
+          var asVerts = e.layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+          var newAs = {
+            id: 'as_' + (++_asIdCtr),
+            name: 'Area source ' + _asIdCtr,
+            vertices: asVerts,
+            height_m: 0.5,
+            lwMode: 'per_m2',
+            lwValue: { day: null, eve: null, night: null },
+            spectrum: { day: null, eve: null, night: null },
+            activeInPeriod: { day: true, eve: true, night: true },
+            operatingPct: { day: 100, eve: 100, night: 100 },
+            quantity: { day: 1, eve: 1, night: 1 },
+            manualOverride: { day: false, eve: false, night: false },
+            libraryEntry: null,
+            _userEdited: { eve: false, night: false }
+          };
+          areaSources.push(newAs);
+          renderAreaSourceLayer();
+          openAsPanel(newAs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
+          if (typeof render === 'function') render();
+          if (window._recomputeNoiseMap) window._recomputeNoiseMap();
           return;
         }
 
@@ -16735,6 +16893,550 @@ initCollapse();
         _renderGroundZone(obj);
       });
     };
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       AREA SOURCES — map layer, panel, drawing
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    var areaSourceLayer = L.layerGroup().addTo(map);
+    var AS_STYLE = {
+      color: 'rgba(200,120,30,0.7)', weight: 2,
+      fillColor: 'rgba(255,160,50,0.25)', fillOpacity: 1, interactive: true
+    };
+
+    function closeAsPanel() {
+      var existing = document.getElementById('asFloatPanel');
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+      _asPanel = null;
+      _asPanelId = null;
+    }
+
+    function buildAsPanelHTML(as) {
+      var area    = _asPolygonArea(as.vertices || []);
+      var areaStr = _asFormatArea(area);
+      var ctr     = _asPolygonCentroid(as.vertices || []);
+      var coordStr = (as.vertices && as.vertices.length) ? ctr.lat.toFixed(5) + ', ' + ctr.lng.toFixed(5) : '\u2014';
+      var heightVal = as.height_m || 0.5;
+      var lwMode    = as.lwMode || 'per_m2';
+      var lwLabel   = lwMode === 'per_m2' ? 'Lw/m\u00b2 (dB):' : 'Total Lw (dB):';
+
+      var libOpts = '<option value="">\u2014 Custom / manual \u2014</option>';
+      Object.keys(AREA_SOURCE_LIBRARY_GROUPED).forEach(function(cat) {
+        libOpts += '<optgroup label="' + escapeHTML(cat) + '">';
+        AREA_SOURCE_LIBRARY_GROUPED[cat].forEach(function(entry) {
+          var sel = (as.libraryEntry && as.libraryEntry.name === entry.name) ? ' selected' : '';
+          libOpts += '<option value="' + escapeHTML(entry.name) + '"' + sel + '>' + escapeHTML(entry.name) + '</option>';
+        });
+        libOpts += '</optgroup>';
+      });
+
+      function asPeriodBlock(pKey, pLabel) {
+        var active    = as.activeInPeriod ? as.activeInPeriod[pKey] !== false : true;
+        var lwVal     = (as.lwValue && Number.isFinite(as.lwValue[pKey])) ? as.lwValue[pKey] : '';
+        var qty       = (as.quantity && Number.isFinite(as.quantity[pKey])) ? as.quantity[pKey] : 1;
+        var opPct     = (as.operatingPct && Number.isFinite(as.operatingPct[pKey])) ? as.operatingPct[pKey] : 100;
+        var isOverride = as.manualOverride && as.manualOverride[pKey];
+        var bands      = [63,125,250,500,1000,2000,4000,8000];
+        var bandLabels = ['63','125','250','500','1k','2k','4k','8k'];
+        var specObj    = as.spectrum && as.spectrum[pKey] ? as.spectrum[pKey] : null;
+        var libSpec    = as.libraryEntry ? as.libraryEntry.spectrum_unweighted : null;
+        var bandInputs = bands.map(function(f, i) {
+          var val, roAttr, roStyle;
+          if (isOverride) {
+            val     = specObj && specObj[f] !== undefined ? specObj[f] : '';
+            roAttr  = '';
+            roStyle = 'width:38px;text-align:center;padding:2px 0;font-size:11px;';
+          } else {
+            val     = specObj && specObj[f] !== undefined ? specObj[f] :
+                      (libSpec && libSpec[f] !== undefined ? libSpec[f] : '');
+            roAttr  = ' readonly';
+            roStyle = 'width:38px;text-align:center;padding:2px 0;font-size:11px;background:#f5f5f5;color:#555;cursor:default;';
+          }
+          return '<label style="display:flex;flex-direction:column;align-items:center;font-size:10px;gap:2px;">' +
+            bandLabels[i] +
+            '<input type="number" id="asPanelBand_' + pKey + '_' + f + '" value="' + val + '" step="0.5" style="' + roStyle + '" placeholder="\u2014"' + roAttr + '>' +
+            '</label>';
+        }).join('');
+        var calcLw  = _asGetEffectiveLw(as, pKey);
+        var calcStr = Number.isFinite(calcLw) ? calcLw.toFixed(1) : '\u2014';
+        return '<div class="as-period-section" data-period="' + pKey + '" style="' + (!active ? 'opacity:0.5;' : '') + 'margin-bottom:8px;">' +
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+            '<strong style="font-size:12px;">' + pLabel + '</strong>' +
+            '<label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer;margin-left:auto;">' +
+              '<input type="checkbox" id="asPanelActive_' + pKey + '"' + (active ? ' checked' : '') + '> Active' +
+            '</label>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">' +
+            '<label style="font-size:11px;white-space:nowrap;" id="asPanelLwLbl_' + pKey + '">' + lwLabel + ' ' +
+              '<input type="number" id="asPanelLw_' + pKey + '" value="' + lwVal + '" step="0.1" style="width:62px;text-align:center;font-size:12px;">' +
+            '</label>' +
+            '<label style="font-size:11px;white-space:nowrap;">Quantity: ' +
+              '<input type="number" id="asPanelQty_' + pKey + '" value="' + qty + '" min="1" step="1" style="width:46px;text-align:center;font-size:12px;">' +
+            '</label>' +
+          '</div>' +
+          '<div style="margin-bottom:4px;">' +
+            '<label style="font-size:11px;white-space:nowrap;">Operating % of period: ' +
+              '<input type="number" id="asPanelPct_' + pKey + '" value="' + opPct + '" min="1" max="100" step="1" style="width:52px;text-align:center;font-size:12px;">' +
+            '</label>' +
+          '</div>' +
+          '<div style="border-top:1px solid #e5e7eb;margin:4px 0 6px;"></div>' +
+          '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;margin-bottom:4px;">' + bandInputs + '</div>' +
+          '<div style="margin-bottom:4px;font-size:12px;color:#555;">Total Lw: <b id="asPanelCalcLw_' + pKey + '">' + calcStr + '</b> dB(A)</div>' +
+          '<div><label style="font-size:11px;cursor:pointer;">' +
+            '<input type="checkbox" id="asPanelOverride_' + pKey + '"' + (isOverride ? ' checked' : '') + '> Manual spectrum override' +
+          '</label></div>' +
+        '</div>';
+      }
+
+      var totalLw    = _asGetEffectiveLw(as, 'day');
+      var totalLwStr = Number.isFinite(totalLw) ? totalLw.toFixed(1) : '\u2014';
+      var lwHdrStr   = (as.lwValue && Number.isFinite(as.lwValue.day))
+        ? ' \u2014 ' + (lwMode === 'per_m2' ? 'Lw/m\u00b2 ' : 'Lw ') + as.lwValue.day + ' dB(A)' : '';
+
+      return '<div id="asFloatPanel" style="position:fixed;width:360px;max-height:calc(100vh - 80px);overflow-y:auto;overflow-x:hidden;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;">' +
+        '<div style="background:#fff;border-left:4px solid #d97706;border-radius:8px 8px 0 0;padding:10px 14px;display:flex;align-items:center;gap:8px;cursor:move;border-bottom:1px solid #f0f0f0;" id="asPanelHeader">' +
+          '<span style="font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;" id="asPanelTitle">' + escapeHTML((as.name || 'Area source') + lwHdrStr) + '</span>' +
+          '<button id="asPanelClose" style="background:none;border:none;color:#bbb;font-size:18px;cursor:pointer;padding:0 4px;">&#x2715;</button>' +
+        '</div>' +
+        '<div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">' +
+          '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<label style="font-size:11px;color:#666;white-space:nowrap;">Name:</label>' +
+            '<input type="text" id="asPanelName" value="' + escapeHTML(as.name || '') + '" style="flex:1;padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:13px;">' +
+          '</div>' +
+          '<div style="font-size:11px;color:#888;display:flex;gap:12px;">' +
+            '<span id="asPanelCoords">' + coordStr + '</span>' +
+            '<span>Area: <b id="asPanelArea">' + areaStr + '</b></span>' +
+          '</div>' +
+          '<div>' +
+            '<label style="font-size:11px;font-weight:600;color:#555;">Source type:</label>' +
+            '<select id="asPanelLibSel" style="width:100%;margin-top:3px;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;">' + libOpts + '</select>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<label style="font-size:11px;color:#555;white-space:nowrap;">Power input:</label>' +
+            '<select id="asPanelLwMode" style="padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;">' +
+              '<option value="per_m2"' + (lwMode === 'per_m2' ? ' selected' : '') + '>Lw/m\u00b2</option>' +
+              '<option value="total"' + (lwMode === 'total' ? ' selected' : '') + '>Total Lw</option>' +
+            '</select>' +
+          '</div>' +
+          asPeriodBlock('day', 'Day') +
+          asPeriodBlock('eve', 'Evening') +
+          asPeriodBlock('night', 'Night') +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<label style="font-size:12px;">Height (m):</label>' +
+            '<input type="number" id="asPanelHeight" value="' + heightVal + '" step="0.1" min="0" style="width:65px;padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;">' +
+          '</div>' +
+          '<div id="asPanelTerrainInfo" style="font-size:11px;color:#6b7280;min-height:0;"></div>' +
+          '<div style="font-size:12px;color:#555;background:#f9f9f9;border-radius:4px;padding:6px 8px;">' +
+            '<span>Total Lw (Day): </span><b id="asPanelTotalLw">' + totalLwStr + '</b> dB(A)' +
+          '</div>' +
+          '<button id="asPanelEditShape" style="padding:5px 12px;font-size:12px;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;cursor:pointer;text-align:left;">\u270f Edit shape</button>' +
+          '<div style="display:flex;gap:8px;margin-top:4px;border-top:1px solid #f0f0f0;padding-top:8px;">' +
+            '<button id="asPanelDelete" style="padding:4px 10px;font-size:12px;background:#c0392b;color:#fff;border:none;border-radius:3px;cursor:pointer;">Delete</button>' +
+            '<div style="flex:1;"></div>' +
+            '<button id="asPanelClose2" style="padding:4px 10px;font-size:12px;background:#7f8c8d;color:#fff;border:none;border-radius:3px;cursor:pointer;">Close</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function _asPanelUpdateTerrainInfo(as) {
+      var el = document.getElementById('asPanelTerrainInfo');
+      if (!el) return;
+      if (!_terrainEnabled) { el.textContent = ''; return; }
+      var ctr = _asPolygonCentroid(as.vertices || []);
+      if (typeof DEMCache !== 'undefined' && DEMCache.getElevation) {
+        DEMCache.getElevation(ctr.lat, ctr.lng).then(function(elev) {
+          if (elev !== null && elev !== undefined && Number.isFinite(elev)) {
+            var htVal  = as.height_m || 0.5;
+            var srcAHD = (elev + htVal).toFixed(1);
+            if (el && el.isConnected) {
+              el.innerHTML = 'Terrain elevation: ' + elev.toFixed(1) + ' m AHD (5m LiDAR) \u2014 Source: ' + srcAHD + ' m AHD';
+            }
+          }
+        }).catch(function() {});
+      }
+    }
+
+    function _asPanelUpdateCalc(as) {
+      var area = _asPolygonArea(as.vertices || []);
+      ['day','eve','night'].forEach(function(p) {
+        var lw = _asGetEffectiveLw(as, p);
+        var el = document.getElementById('asPanelCalcLw_' + p);
+        if (el) el.textContent = Number.isFinite(lw) ? lw.toFixed(1) : '\u2014';
+      });
+      var totalLw = _asGetEffectiveLw(as, 'day');
+      var tlEl = document.getElementById('asPanelTotalLw');
+      if (tlEl) tlEl.textContent = Number.isFinite(totalLw) ? totalLw.toFixed(1) : '\u2014';
+      var areaEl = document.getElementById('asPanelArea');
+      if (areaEl) areaEl.textContent = _asFormatArea(area);
+      // Update header title
+      var titleEl = document.getElementById('asPanelTitle');
+      if (titleEl) {
+        var lwMode  = as.lwMode || 'per_m2';
+        var lwDay   = as.lwValue && Number.isFinite(as.lwValue.day) ? as.lwValue.day : null;
+        var lwStr   = (lwDay !== null) ? ' \u2014 ' + (lwMode === 'per_m2' ? 'Lw/m\u00b2 ' : 'Lw ') + lwDay + ' dB(A)' : '';
+        var nameInp = document.getElementById('asPanelName');
+        titleEl.textContent = (nameInp ? nameInp.value : as.name || 'Area source') + lwStr;
+      }
+    }
+
+    function attachAsPanelListeners(as) {
+      function triggerRecompute() {
+        renderAreaSourceLayer();
+        if (typeof render === 'function') render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+        _asPanelUpdateCalc(as);
+      }
+
+      var closeBtn  = document.getElementById('asPanelClose');
+      var closeBtn2 = document.getElementById('asPanelClose2');
+      if (closeBtn)  closeBtn.addEventListener('click', closeAsPanel);
+      if (closeBtn2) closeBtn2.addEventListener('click', closeAsPanel);
+
+      var delBtn = document.getElementById('asPanelDelete');
+      if (delBtn) delBtn.addEventListener('click', function() {
+        if (!confirm('Delete "' + (as.name || 'Area source') + '"?')) return;
+        var idx = areaSources.indexOf(as);
+        if (idx !== -1) areaSources.splice(idx, 1);
+        closeAsPanel();
+        renderAreaSourceLayer();
+        if (typeof render === 'function') render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      });
+
+      var nameInp = document.getElementById('asPanelName');
+      if (nameInp) {
+        nameInp.addEventListener('input', function() {
+          as.name = this.value;
+          _asPanelUpdateCalc(as);
+          renderAreaSourceLayer();
+          if (window._renderObjectList) window._renderObjectList();
+        });
+      }
+
+      var libSel = document.getElementById('asPanelLibSel');
+      if (libSel) libSel.addEventListener('change', function() {
+        var selName = this.value;
+        var found = null;
+        if (selName) AREA_SOURCE_LIBRARY.forEach(function(e) { if (e.name === selName) found = e; });
+        as.libraryEntry = found || null;
+        if (found) {
+          as.height_m = found.height_m;
+          var htInp = document.getElementById('asPanelHeight');
+          if (htInp) htInp.value = found.height_m;
+          as.lwMode = 'per_m2';
+          var lwModeEl = document.getElementById('asPanelLwMode');
+          if (lwModeEl) lwModeEl.value = 'per_m2';
+          var bands = [63,125,250,500,1000,2000,4000,8000];
+          ['day','eve','night'].forEach(function(p) {
+            as.lwValue  = as.lwValue  || {};
+            as.spectrum = as.spectrum || {};
+            as.lwValue[p] = found.lw_m2_dba;
+            as.spectrum[p] = {};
+            var lwInp = document.getElementById('asPanelLw_' + p);
+            if (lwInp) lwInp.value = found.lw_m2_dba;
+            var lbl = document.getElementById('asPanelLwLbl_' + p);
+            if (lbl) lbl.childNodes[0].textContent = 'Lw/m\u00b2 (dB): ';
+            bands.forEach(function(f) {
+              as.spectrum[p][f] = found.spectrum_unweighted[f] !== undefined ? found.spectrum_unweighted[f] : '';
+              var bandEl = document.getElementById('asPanelBand_' + p + '_' + f);
+              if (bandEl) { bandEl.value = as.spectrum[p][f]; }
+            });
+          });
+        }
+        triggerRecompute();
+      });
+
+      var lwModeEl = document.getElementById('asPanelLwMode');
+      if (lwModeEl) lwModeEl.addEventListener('change', function() {
+        var newMode = this.value;
+        var oldMode = as.lwMode || 'per_m2';
+        if (newMode === oldMode) return;
+        var area  = _asPolygonArea(as.vertices || []);
+        var delta = (area > 0) ? ((newMode === 'total') ? 10 * Math.log10(area) : -10 * Math.log10(area)) : 0;
+        var bands = [63,125,250,500,1000,2000,4000,8000];
+        ['day','eve','night'].forEach(function(p) {
+          if (as.lwValue && Number.isFinite(as.lwValue[p])) {
+            as.lwValue[p] = Math.round((as.lwValue[p] + delta) * 10) / 10;
+            var lwInp = document.getElementById('asPanelLw_' + p);
+            if (lwInp) lwInp.value = as.lwValue[p];
+          }
+          if (as.manualOverride && as.manualOverride[p] && as.spectrum && as.spectrum[p]) {
+            bands.forEach(function(f) {
+              if (Number.isFinite(as.spectrum[p][f])) {
+                as.spectrum[p][f] = Math.round((as.spectrum[p][f] + delta) * 10) / 10;
+                var bEl = document.getElementById('asPanelBand_' + p + '_' + f);
+                if (bEl) bEl.value = as.spectrum[p][f];
+              }
+            });
+          }
+          var lbl = document.getElementById('asPanelLwLbl_' + p);
+          if (lbl) lbl.childNodes[0].textContent = (newMode === 'per_m2' ? 'Lw/m\u00b2 (dB): ' : 'Total Lw (dB): ');
+        });
+        as.lwMode = newMode;
+        triggerRecompute();
+      });
+
+      ['day','eve','night'].forEach(function(pKey) {
+        var activeChk = document.getElementById('asPanelActive_' + pKey);
+        if (activeChk) activeChk.addEventListener('change', function() {
+          as.activeInPeriod = as.activeInPeriod || {};
+          as.activeInPeriod[pKey] = this.checked;
+          triggerRecompute();
+        });
+
+        var lwInp = document.getElementById('asPanelLw_' + pKey);
+        if (lwInp) lwInp.addEventListener('input', function() {
+          var v = parseFloat(this.value);
+          as.lwValue = as.lwValue || {};
+          as.lwValue[pKey] = Number.isFinite(v) ? v : null;
+          if (pKey === 'day') {
+            if (!(as._userEdited && as._userEdited.eve)) {
+              as.lwValue.eve = as.lwValue.day;
+              var eveEl = document.getElementById('asPanelLw_eve');
+              if (eveEl) eveEl.value = this.value;
+            }
+            if (!(as._userEdited && as._userEdited.night)) {
+              as.lwValue.night = as.lwValue.day;
+              var nightEl = document.getElementById('asPanelLw_night');
+              if (nightEl) nightEl.value = this.value;
+            }
+          } else {
+            as._userEdited = as._userEdited || {};
+            as._userEdited[pKey] = true;
+          }
+          triggerRecompute();
+        });
+
+        var qtyInp = document.getElementById('asPanelQty_' + pKey);
+        if (qtyInp) qtyInp.addEventListener('input', function() {
+          var v = parseInt(this.value);
+          as.quantity = as.quantity || {};
+          as.quantity[pKey] = (v > 0) ? v : 1;
+          triggerRecompute();
+        });
+
+        var pctInp = document.getElementById('asPanelPct_' + pKey);
+        if (pctInp) pctInp.addEventListener('input', function() {
+          var v = parseFloat(this.value);
+          as.operatingPct = as.operatingPct || {};
+          as.operatingPct[pKey] = Number.isFinite(v) ? Math.min(100, Math.max(0.1, v)) : 100;
+          triggerRecompute();
+        });
+
+        var ovChk = document.getElementById('asPanelOverride_' + pKey);
+        if (ovChk) ovChk.addEventListener('change', function() {
+          as.manualOverride = as.manualOverride || {};
+          as.manualOverride[pKey] = this.checked;
+          var bands = [63,125,250,500,1000,2000,4000,8000];
+          bands.forEach(function(f) {
+            var bEl = document.getElementById('asPanelBand_' + pKey + '_' + f);
+            if (bEl) {
+              bEl.readOnly = !ovChk.checked;
+              bEl.style.background = ovChk.checked ? '' : '#f5f5f5';
+              bEl.style.color = ovChk.checked ? '' : '#555';
+              bEl.style.cursor = ovChk.checked ? '' : 'default';
+            }
+          });
+          triggerRecompute();
+        });
+
+        var bands = [63,125,250,500,1000,2000,4000,8000];
+        bands.forEach(function(f) {
+          var bEl = document.getElementById('asPanelBand_' + pKey + '_' + f);
+          if (bEl) bEl.addEventListener('input', function() {
+            if (!as.manualOverride || !as.manualOverride[pKey]) return;
+            as.spectrum = as.spectrum || {};
+            as.spectrum[pKey] = as.spectrum[pKey] || {};
+            as.spectrum[pKey][f] = parseFloat(this.value);
+          });
+        });
+      });
+
+      var htInp = document.getElementById('asPanelHeight');
+      if (htInp) htInp.addEventListener('input', function() {
+        var v = parseFloat(this.value);
+        if (Number.isFinite(v) && v >= 0) {
+          as.height_m = v;
+          _asPanelUpdateTerrainInfo(as);
+          triggerRecompute();
+        }
+      });
+
+      var editShapeBtn = document.getElementById('asPanelEditShape');
+      if (editShapeBtn) editShapeBtn.addEventListener('click', function() {
+        if (!as._poly || !as._poly.editing) return;
+        var origVertices = as.vertices.map(function(v) { return [v[0], v[1]]; });
+        _drawingActive = true;
+        as._poly.editing.enable();
+        var editBar = document.createElement('div');
+        editBar.id = 'shapeEditBar';
+        editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #d97706;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
+        editBar.innerHTML =
+          '<span style="color:#d97706;font-weight:600;">Editing area source: ' + escapeHTML(as.name || 'Area source') + '</span>' +
+          '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
+          '<button id="shapeEditSave" style="padding:3px 12px;font-size:12px;background:#d97706;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+          '<button id="shapeEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
+        var mc = map.getContainer();
+        mc.style.position = 'relative';
+        mc.appendChild(editBar);
+        function _asRemoveBar() { var b = document.getElementById('shapeEditBar'); if (b && b.parentNode) b.parentNode.removeChild(b); }
+        function _asFinishEdit(save) {
+          if (as._poly && as._poly.editing) as._poly.editing.disable();
+          _drawingActive = false;
+          document.removeEventListener('keydown', _asEscHandler);
+          _asRemoveBar();
+          if (save) {
+            as.vertices = as._poly.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+            renderAreaSourceLayer();
+            _asPanelUpdateTerrainInfo(as);
+            _asPanelUpdateCalc(as);
+            if (typeof render === 'function') render();
+            if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+          } else {
+            as._poly.setLatLngs([origVertices]);
+          }
+        }
+        function _asEscHandler(ev) { if (ev.key === 'Escape') { ev.stopPropagation(); _asFinishEdit(false); } }
+        document.addEventListener('keydown', _asEscHandler);
+        setTimeout(function() {
+          var sb = document.getElementById('shapeEditSave');
+          var cb = document.getElementById('shapeEditCancel');
+          if (sb) sb.addEventListener('click', function() { _asFinishEdit(true); });
+          if (cb) cb.addEventListener('click', function() { _asFinishEdit(false); });
+        }, 50);
+      });
+
+      // Draggable header
+      var dragHdr = document.getElementById('asPanelHeader');
+      if (dragHdr) {
+        var _asDrg = false, _asDX = 0, _asDY = 0, _asPX = 0, _asPY = 0;
+        var _asFloatPanel = document.getElementById('asFloatPanel');
+        dragHdr.addEventListener('mousedown', function(ev) {
+          if (ev.target.tagName === 'BUTTON' || ev.target.tagName === 'INPUT') return;
+          _asDrg = true; _asDX = ev.clientX; _asDY = ev.clientY;
+          var r = _asFloatPanel.getBoundingClientRect();
+          _asPX = r.left; _asPY = r.top;
+          ev.preventDefault();
+        });
+        document.addEventListener('mousemove', function(ev) {
+          if (!_asDrg) return;
+          _asFloatPanel.style.left = (_asPX + ev.clientX - _asDX) + 'px';
+          _asFloatPanel.style.top  = (_asPY + ev.clientY - _asDY) + 'px';
+        });
+        document.addEventListener('mouseup', function() { _asDrg = false; });
+      }
+    }
+
+    function openAsPanel(asId, clientX, clientY) {
+      closeAsPanel();
+      var as = null;
+      for (var i = 0; i < areaSources.length; i++) { if (areaSources[i].id === asId) { as = areaSources[i]; break; } }
+      if (!as) return;
+      _asPanelId = asId;
+      var div = document.createElement('div');
+      div.innerHTML = buildAsPanelHTML(as);
+      var panel = div.firstChild;
+      document.body.appendChild(panel);
+      _asPanel = panel;
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var pw = 360, ph = Math.min(vh - 80, 700);
+      var left = Math.min(clientX + 10, vw - pw - 10);
+      var top  = Math.min(clientY - 30, vh - ph - 10);
+      if (top < 10) top = 10;
+      panel.style.left = left + 'px';
+      panel.style.top  = top  + 'px';
+      attachAsPanelListeners(as);
+      _asPanelUpdateTerrainInfo(as);
+    }
+
+    function renderAreaSourceLayer() {
+      areaSourceLayer.clearLayers();
+      areaSources.forEach(function(as, asIdx) {
+        if (!as.vertices || as.vertices.length < 3) return;
+        var poly = L.polygon(as.vertices, AS_STYLE);
+        var area = _asPolygonArea(as.vertices);
+        poly.bindTooltip('<b>' + escapeHTML(as.name || 'Area source') + '</b><br>Area: ' + _asFormatArea(area), { sticky: true });
+        poly.on('mouseover', function() {
+          if (_drawingActive || _drawingAreaSource) return;
+          poly.setStyle({ weight: 4, color: 'rgba(200,120,30,1)' });
+          map.getContainer().style.cursor = 'pointer';
+        });
+        poly.on('mouseout', function() {
+          poly.setStyle(AS_STYLE);
+          map.getContainer().style.cursor = '';
+        });
+        poly.on('click', (function(capturedAs) {
+          return function(e) {
+            if (_drawingActive || _drawingAreaSource) return;
+            L.DomEvent.stopPropagation(e);
+            openAsPanel(capturedAs.id, e.originalEvent.clientX, e.originalEvent.clientY);
+          };
+        })(as));
+        poly.on('contextmenu', (function(capturedAs) {
+          return function(e) {
+            if (_drawingActive || _drawingAreaSource) return;
+            L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
+            var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
+            _showMapCtxMenu(cx, cy, [
+              { id: 'dup', label: 'Duplicate', icon: '\u29c9', action: function() {
+                  var newAs = JSON.parse(JSON.stringify(capturedAs));
+                  newAs.id = 'as_' + (++_asIdCtr);
+                  newAs.name = (capturedAs.name || 'Area source') + ' (copy)';
+                  newAs.vertices = capturedAs.vertices.map(function(v) { return [v[0] - 0.00005, v[1] + 0.00005]; });
+                  areaSources.push(newAs);
+                  renderAreaSourceLayer();
+                  if (typeof render === 'function') render();
+                  if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              }},
+              'sep',
+              { id: 'del', label: 'Delete', icon: '\ud83d\uddd1', cls: 'ctx-danger', action: function() {
+                  var idx = areaSources.indexOf(capturedAs);
+                  if (idx !== -1) areaSources.splice(idx, 1);
+                  renderAreaSourceLayer();
+                  if (typeof render === 'function') render();
+                  if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              }}
+            ]);
+          };
+        })(as));
+        var ctr = _asPolygonCentroid(as.vertices);
+        var lbl = L.marker([ctr.lat, ctr.lng], {
+          icon: L.divIcon({
+            html: '<div style="font-size:10px;font-weight:700;color:#d97706;text-shadow:0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none;">A' + (asIdx + 1) + '</div>',
+            className: '', iconSize: [24, 14], iconAnchor: [12, -4]
+          }),
+          interactive: false
+        });
+        areaSourceLayer.addLayer(lbl);
+        as._poly = poly;
+        areaSourceLayer.addLayer(poly);
+      });
+      if (window._renderObjectList) window._renderObjectList();
+    }
+
+    /* Draw Area Source button */
+    var drawAreaSourceBtn = document.getElementById('drawAreaSourceBtn');
+    if (drawAreaSourceBtn && typeof L.Draw !== 'undefined') {
+      drawAreaSourceBtn.addEventListener('click', function() {
+        if (_drawingAreaSource && _asDrawHandler) {
+          _asDrawHandler.disable(); _asDrawHandler = null;
+          _drawingAreaSource = false; _drawingActive = false;
+          drawAreaSourceBtn.classList.remove('active');
+          return;
+        }
+        if (_drawHandler)       { _drawHandler.disable(); stopDrawing(); }
+        if (_barrierDrawHandler){ _barrierDrawHandler.disable(); _barrierDrawHandler = null; _drawingActive = false; var dbBtn = document.getElementById('drawBarrierBtn'); if (dbBtn) dbBtn.classList.remove('active'); }
+        if (_gzDrawHandler)     { _gzDrawHandler.disable(); _gzDrawHandler = null; _drawingGroundZone = false; _drawingActive = false; var gzBtn = document.getElementById('drawGroundZoneBtn'); if (gzBtn) gzBtn.classList.remove('active'); }
+        _drawingActive = true;
+        _drawingAreaSource = true;
+        document.querySelectorAll('.map-mode-btn').forEach(function(b) { b.classList.remove('active'); });
+        _asDrawHandler = new L.Draw.Polygon(map, { shapeOptions: AS_STYLE, showArea: false });
+        _asDrawHandler.enable();
+        drawAreaSourceBtn.classList.add('active');
+      });
+    }
 
     /* ═══════════════════════════════════════════════════════════════════════
        LINE SOURCES — map layer, cards, drawing, editing
@@ -17495,6 +18197,38 @@ initCollapse();
         if (drawLineSourceBtn) drawLineSourceBtn.classList.remove('active');
       }
     });
+
+    // Window exports for area sources
+    window._getAreaSources = function() { return areaSources; };
+    window._setAreaSources = function(arr) {
+      areaSourceLayer.clearLayers();
+      areaSources.length = 0;
+      if (!arr) return;
+      arr.forEach(function(as) {
+        var obj = {
+          id: as.id, name: as.name, vertices: as.vertices,
+          height_m: as.height_m || 0.5,
+          lwMode: as.lwMode || 'per_m2',
+          lwValue: as.lwValue || { day: null, eve: null, night: null },
+          spectrum: as.spectrum || { day: null, eve: null, night: null },
+          activeInPeriod: as.activeInPeriod || { day: true, eve: true, night: true },
+          operatingPct: as.operatingPct || { day: 100, eve: 100, night: 100 },
+          quantity: as.quantity || { day: 1, eve: 1, night: 1 },
+          manualOverride: as.manualOverride || { day: false, eve: false, night: false },
+          libraryEntry: null,
+          _userEdited: { eve: false, night: false }
+        };
+        if (as.libraryEntry && as.libraryEntry.name) {
+          AREA_SOURCE_LIBRARY.forEach(function(e) { if (e.name === as.libraryEntry.name) obj.libraryEntry = e; });
+        }
+        if (as.id) {
+          var num = parseInt((as.id + '').replace('as_', ''));
+          if (Number.isFinite(num) && num > _asIdCtr) _asIdCtr = num;
+        }
+        areaSources.push(obj);
+      });
+      renderAreaSourceLayer();
+    };
 
     // Window exports for line sources
     window._getLineSources = function() { return lineSources; };
@@ -18581,6 +19315,17 @@ initCollapse();
           if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'linesource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
           html += '</div>';
         });
+        areaSources.forEach(function(as, i) {
+          var hasVerts = as.vertices && as.vertices.length >= 3;
+          var area = hasVerts ? ' (' + _asFormatArea(_asPolygonArea(as.vertices)) + ')' : '';
+          var name = escapeHTML(as.name || ('Area source ' + (i + 1)));
+          html += '<div class="obj-row" data-obj-type="areasource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts ? 'pointer' : 'default') + ';">';
+          html += '<span style="width:11px;height:11px;border:2px solid #d97706;background:rgba(255,160,50,0.25);border-radius:2px;display:inline-block;flex-shrink:0;"></span>';
+          html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">A' + (i + 1) + '</span>';
+          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + escapeHTML(area) + '</span>';
+          if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'areasource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
+          html += '</div>';
+        });
       }
       html += '</div>';
 
@@ -18680,6 +19425,13 @@ initCollapse();
         map.panTo(ll);
         m = markers[modeKey];
         if (m) { m.openPopup(); el = m.getElement ? m.getElement() : null; if (el) { el.style.transform = 'scale(1.6)'; el.style.transition = 'transform .15s'; setTimeout(function() { el.style.transform = ''; }, 800); } }
+      } else if (type === 'areasource') {
+        var as = areaSources[idx];
+        if (!as || !as.vertices || as.vertices.length < 3) return;
+        var asCtr = _asPolygonCentroid(as.vertices);
+        map.panTo([asCtr.lat, asCtr.lng]);
+        if (as._poly) { as._poly.setStyle({ weight: 5, color: 'rgba(200,120,30,1)' }); setTimeout(function() { if (as._poly) as._poly.setStyle(AS_STYLE); }, 1000); }
+        if (typeof openAsPanel === 'function') openAsPanel(as.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
       } else if (type === 'barrier') {
         var ub = userBarriers[idx];
         if (!ub || !ub.vertices || !ub.vertices.length) return;
@@ -18737,6 +19489,16 @@ initCollapse();
         renderLineSourceLayer();
         if (typeof renderLineSourceCards === 'function') renderLineSourceCards();
         if (typeof render === 'function') render();
+      } else if (type === 'areasource') {
+        var as = areaSources[idx];
+        if (!as) return;
+        var newAs = JSON.parse(JSON.stringify(as));
+        newAs.id = 'as_' + (++_asIdCtr);
+        newAs.name = (as.name || 'Area source') + ' (copy)';
+        newAs.vertices = as.vertices.map(function(v) { return [v[0] - 0.00005, v[1] + 0.00005]; });
+        areaSources.push(newAs);
+        renderAreaSourceLayer();
+        if (typeof render === 'function') render();
       } else if (type === 'barrier') {
         var ub = userBarriers[idx];
         if (!ub) return;
@@ -18782,6 +19544,13 @@ initCollapse();
         lineSources.splice(idx, 1);
         renderLineSourceLayer();
         if (typeof renderLineSourceCards === 'function') renderLineSourceCards();
+        if (typeof render === 'function') render();
+      } else if (type === 'areasource') {
+        var as = areaSources[idx];
+        if (!confirm('Delete "' + (as ? as.name || 'Area source' : 'Area source') + '"?')) return;
+        areaSources.splice(idx, 1);
+        if (as && as._poly) areaSourceLayer.removeLayer(as._poly);
+        renderAreaSourceLayer();
         if (typeof render === 'function') render();
       } else if (type === 'barrier') {
         var ub = userBarriers[idx];
