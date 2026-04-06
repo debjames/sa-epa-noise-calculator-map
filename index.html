@@ -1667,8 +1667,16 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       '&WIDTH=' + pixW + '&HEIGHT=' + pixH +
       '&FORMAT=GeoTIFF';
 
-    return fetch(url, { mode: 'cors' })
-      .then(function(r) { if (!r.ok) throw new Error('WCS HTTP ' + r.status); return r.arrayBuffer(); })
+    var _ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var _tid  = _ctrl ? setTimeout(function() { _ctrl.abort(); }, 15000) : null;
+    var _fetchOpts = { mode: 'cors' };
+    if (_ctrl) _fetchOpts.signal = _ctrl.signal;
+    return fetch(url, _fetchOpts)
+      .then(function(r) {
+        if (_tid) clearTimeout(_tid);
+        if (!r.ok) throw new Error('WCS HTTP ' + r.status);
+        return r.arrayBuffer();
+      })
       .then(function(buf) { return GeoTIFF.fromArrayBuffer(buf); })
       .then(function(tiff) { return tiff.getImage(); })
       .then(function(image) {
@@ -1885,12 +1893,15 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     getCacheSize:    function() { return Object.keys(_ptCache).length; },
     getCurrentRaster: function() { return _curRaster; },
     getRasterSource:  function() { return _curSource; },
-    clearWCSCache:   function() { _wcsCache.length = 0; _curRaster = null; _curSource = null; }
+    clearWCSCache:   function() { _wcsCache.length = 0; _curRaster = null; _curSource = null; },
+    NODATA_VALUE:    WCS_NODATA
   };
 
-  // Self-test
-  DEMCache.getElevation(-34.9285, 138.6007)
-    .then(function(el) { console.log('DEM test elevation:', el, 'm (expected ~50m)'); });
+  // Self-test (debug only)
+  if (window._debugTerrain) {
+    DEMCache.getElevation(-34.9285, 138.6007)
+      .then(function(el) { console.log('DEM test elevation:', el, 'm (expected ~50m)'); });
+  }
 })();
 </script>
 
@@ -9027,15 +9038,24 @@ function initPropagationMethod() {
     if (!_terrainContourOn || !_terrainEnabled) return;
 
     var tile = window.DEMCache ? window.DEMCache.getCurrentRaster() : null;
-    if (!tile) return;
+    if (!tile) {
+      // No raster cached yet — trigger a fetch for the current map view.
+      // onWCSRasterUpdated callback will call generateTerrainContours again when done.
+      if (window._map && window.DEMCache) {
+        var _mb = window._map.getBounds();
+        window.DEMCache.getTileForBounds(_mb.getNorth(), _mb.getSouth(), _mb.getEast(), _mb.getWest(), 0.002);
+      }
+      return;
+    }
 
     var data = tile.raster, W = tile.width, H = tile.height, b = tile.bounds;
     var latSpan = b.north - b.south, lngSpan = b.east - b.west;
+    var _nodata = (window.DEMCache && window.DEMCache.NODATA_VALUE !== undefined) ? window.DEMCache.NODATA_VALUE : -999;
 
     // Compute elevation range
     var elevMin = Infinity, elevMax = -Infinity;
     for (var i = 0; i < data.length; i++) {
-      if (data[i] > -999 && isFinite(data[i])) {
+      if (data[i] > _nodata && isFinite(data[i])) {
         if (data[i] < elevMin) elevMin = data[i];
         if (data[i] > elevMax) elevMax = data[i];
       }
@@ -9056,7 +9076,7 @@ function initPropagationMethod() {
       var geoRow = H - 1 - r; // flip: ctGrid row 0 = south
       for (var c = 0; c < W; c++) {
         var v = data[geoRow * W + c];
-        ctGrid[r * W + c] = (v > -999 && isFinite(v)) ? v : NaN;
+        ctGrid[r * W + c] = (v > _nodata && isFinite(v)) ? v : NaN;
       }
     }
 
@@ -10424,8 +10444,9 @@ initCollapse();
         }
         for (var ti = 1; ti <= 4; ti++) {
           var rKey = 'r' + ti;
-          if (typeof recvElevations !== 'undefined' && recvElevations[rKey] !== null && recvElevations[rKey] !== undefined) {
-            data.terrain.receiverElevations['receiver-' + ti] = recvElevations[rKey];
+          var rElev = (typeof recvGroundElevations !== 'undefined') ? recvGroundElevations[rKey] : undefined;
+          if (rElev !== null && rElev !== undefined) {
+            data.terrain.receiverElevations['receiver-' + ti] = rElev;
           }
         }
 
@@ -10658,8 +10679,8 @@ initCollapse();
             exceedance_day: null,
             exceedance_eve: null,
             exceedance_night: null,
-            groundElevation_m: (typeof recvElevations !== 'undefined' && recvElevations['r' + (i + 1)]) || null,
-            effectiveHeight_ASL: (typeof recvElevations !== 'undefined' && recvElevations['r' + (i + 1)] != null) ? recvElevations['r' + (i + 1)] + (typeof getReceiverHeight === 'function' ? getReceiverHeight(i) : 1.5) : null,
+            groundElevation_m: (typeof recvGroundElevations !== 'undefined' && recvGroundElevations['r' + (i + 1)] != null) ? recvGroundElevations['r' + (i + 1)] : null,
+            effectiveHeight_ASL: (typeof recvGroundElevations !== 'undefined' && recvGroundElevations['r' + (i + 1)] != null) ? recvGroundElevations['r' + (i + 1)] + (typeof getReceiverHeight === 'function' ? getReceiverHeight(i) : 1.5) : null,
             terrainInsertionLoss_dB: (_terrainIL[0] && _terrainIL[0][i] && _terrainIL[0][i].insertionLoss_dB > 0) ? _terrainIL[0][i].insertionLoss_dB : null
           }
         });
@@ -11345,10 +11366,11 @@ initCollapse();
           });
         }
         if (data.terrain.receiverElevations) {
-          if (typeof recvElevations === 'undefined') window.recvElevations = {};
           for (var rk = 1; rk <= 4; rk++) {
             var elev = data.terrain.receiverElevations['receiver-' + rk];
-            if (elev !== undefined) recvElevations['r' + rk] = elev;
+            if (elev !== undefined && typeof recvGroundElevations !== 'undefined') {
+              recvGroundElevations['r' + rk] = elev;
+            }
           }
         }
       }
