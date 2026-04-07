@@ -545,7 +545,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
         <!-- Status row (above map) -->
         <div class="map-status-row">
-          <span id="map-status-source" style="color:#dc2626;">&#9679; Source: not placed</span>
+          <span id="map-status-source" style="color:#dc2626;">&#9679; Sources: not placed</span>
           <span id="map-status-r1"     style="color:#2563eb;">&#9679; R1: not placed</span>
           <span id="map-status-r2"     style="color:#16a34a;">&#9679; R2: not placed</span>
           <span id="map-status-r3"     style="color:#d97706;">&#9679; R3: not placed</span>
@@ -12770,6 +12770,7 @@ initCollapse();
       /* Update subject site reference to first placed source */
       var first = sourcePins.find(function(p) { return p.lat !== null; });
       window._subjectSiteLatlng = first ? L.latLng(first.lat, first.lng) : null;
+      updateSourceStatusBar();
       if (typeof _renderObjectList === 'function') _renderObjectList();
     };
     window._fetchPinElevation = function(mode, ll) { fetchPinElevation(mode, ll); };
@@ -13544,7 +13545,9 @@ initCollapse();
       }
 
       var selectId = (mode === 'source' || /^source_\d+$/.test(mode)) ? 'src' : mode;
-      var statusEl = document.getElementById('map-status-' + mode);
+      var statusEl = isSourceMode(mode)
+        ? document.getElementById('map-status-source')
+        : document.getElementById('map-status-' + mode);
 
       /* Show detecting state */
       if (statusEl) {
@@ -14361,7 +14364,9 @@ initCollapse();
 
     function queryAndSetZoneVIC(mode, latlng) {
       var selectId = (mode === 'source' || /^source_\d+$/.test(mode)) ? 'src' : mode;
-      var statusEl = document.getElementById('map-status-' + mode);
+      var statusEl = isSourceMode(mode)
+        ? document.getElementById('map-status-source')
+        : document.getElementById('map-status-' + mode);
 
       if (statusEl) {
         var sub = statusEl.querySelector('.zone-status-label');
@@ -14486,7 +14491,9 @@ initCollapse();
     }
 
     function queryAndSetZoneNSW(mode, latlng) {
-      var statusEl = document.getElementById('map-status-' + mode);
+      var statusEl = isSourceMode(mode)
+        ? document.getElementById('map-status-source')
+        : document.getElementById('map-status-' + mode);
 
       if (statusEl) {
         var sub = statusEl.querySelector('.zone-status-label');
@@ -14636,6 +14643,23 @@ initCollapse();
       var zoneLabel = el.querySelector('.zone-status-label');
       el.textContent = text;
       if (zoneLabel) el.appendChild(zoneLabel);
+    }
+
+    /** Update the single source placement indicator (#map-status-source) from
+     *  the current sourcePins state.  Replaces all per-mode source status writes
+     *  so that the bar is always correct regardless of how sources are added,
+     *  removed, duplicated, or loaded.
+     *  Zone label (.zone-status-label child) is preserved while sources are placed;
+     *  it is dropped when count returns to zero. */
+    function updateSourceStatusBar() {
+      var el = document.getElementById('map-status-source');
+      if (!el) return;
+      var placed = sourcePins.filter(function(p) { return p.lat !== null; }).length;
+      var zoneLabel = el.querySelector('.zone-status-label');
+      el.textContent = placed === 0
+        ? '\u25CF Sources: not placed'
+        : '\u25CF Sources: ' + placed + ' placed';
+      if (placed > 0 && zoneLabel) el.appendChild(zoneLabel); // keep zone label while sources exist
     }
 
     /* ---- update distance inputs ---- */
@@ -15265,9 +15289,11 @@ initCollapse();
       });
 
       /* status label */
-      var statusEl = document.getElementById('map-status-' + mode);
-      if (statusEl) {
-        setStatusText(statusEl, (isSourceMode(mode) ? '\u25CF Source' : '\u25CF ' + cfg.label) + ': placed');
+      if (isSourceMode(mode)) {
+        updateSourceStatusBar();
+      } else {
+        var statusEl = document.getElementById('map-status-' + mode);
+        if (statusEl) setStatusText(statusEl, '\u25CF ' + cfg.label + ': placed');
       }
 
       updateAll();
@@ -15435,12 +15461,15 @@ initCollapse();
       }
 
       // Reset status label
-      var statusEl = document.getElementById('map-status-' + mode);
-      if (statusEl) {
-        if (mode === 'source') {
-          setStatusText(statusEl, '\u25CF Source: not placed');
+      if (isSourceMode(mode)) {
+        updateSourceStatusBar();
+        // Remove parcel outlines if no sources remain placed
+        if (sourcePins.filter(function(p) { return p.lat !== null; }).length === 0) {
           removeParcelOutlines();
-        } else {
+        }
+      } else {
+        var statusEl = document.getElementById('map-status-' + mode);
+        if (statusEl) {
           setStatusText(statusEl, '\u25CF ' + cfg.label + ': not placed');
           // Clear per-receiver IF data when receiver removed
           if (typeof autoIFPerReceiver !== 'undefined') {
@@ -15748,12 +15777,7 @@ initCollapse();
             if (zl) zl.remove();
           }
         });
-        var srcSt = document.getElementById('map-status-source');
-        if (srcSt) {
-          srcSt.textContent = '\u25CF Source: not placed';
-          var srcZl = srcSt.querySelector('.zone-status-label');
-          if (srcZl) srcZl.remove();
-        }
+        updateSourceStatusBar(); // resets to "Sources: not placed"; also drops zone label (placed=0)
 
         if (window._clearNoiseData) window._clearNoiseData();
         setMode('source');
