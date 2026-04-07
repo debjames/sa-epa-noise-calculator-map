@@ -6646,6 +6646,8 @@ function _sfpUpdateTotalLw(pin, panel) {
     html += '<div><span style="display:inline-block;width:46px;">L<sub>max</sub>:</span><b>' + totalLmax.toFixed(1) + ' dB(A)</b></div>';
   }
   el.innerHTML = html || '<span style="color:var(--muted);">\u2014</span>';
+  // Refresh Objects panel row to reflect updated values
+  if (window._renderObjectList) window._renderObjectList();
 }
 
 /** Open (or reopen) the floating source panel */
@@ -22139,32 +22141,87 @@ initCollapse();
       } else {
         sourcePins.forEach(function(pin, i) {
           var placed = pin.lat !== null;
-          var name = escapeHTML(pin.name || ('Source ' + (i + 1)));
+          var name = escapeHTML((pin.name || ('Source ' + (i + 1))).replace(/\s*\u2014Lw\b.*$/i, '').trim());
+          // Detail line: Ht | D: X | E: X | N: X dB(A)
+          var ht = Number.isFinite(pin.height_m) ? pin.height_m : 1.5;
+          var parts = [];
+          var DLBL = { day: 'D', eve: 'E', night: 'N' };
+          ['day', 'eve', 'night'].forEach(function(p) {
+            var active = !pin.activeInPeriod || pin.activeInPeriod[p] !== false;
+            if (!active) return;
+            var lw = pin.lw && Number.isFinite(pin.lw[p]) ? pin.lw[p] : null;
+            if (lw === null) return;
+            var qty = _getNumUnits(pin, p);
+            var pct = _getPinOpPct(pin, p);
+            var total = lw + Math.log10(qty) * 10 + Math.log10(pct / 100) * 10;
+            parts.push(DLBL[p] + ': ' + Math.round(total));
+          });
+          var detail = 'Ht: ' + ht.toFixed(1) + 'm';
+          if (parts.length > 0) detail += ' | ' + parts.join(' | ') + ' dB(A)';
+          if (pin.activeInPeriod && pin.activeInPeriod.lmax && Number.isFinite(pin.lw_max)) {
+            var qtyLmax = _getNumUnits(pin, 'lmax');
+            detail += ' Lmax: ' + Math.round(pin.lw_max + Math.log10(qtyLmax) * 10);
+          }
           html += '<div class="obj-row" data-obj-type="source" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (placed ? 'pointer' : 'default') + ';">';
           html += '<span style="width:11px;height:11px;background:#2563eb;border-radius:50%;display:inline-block;flex-shrink:0;"></span>';
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">S' + (i + 1) + '</span>';
-          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</span>';
+          html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+            '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(detail) + '</div>' +
+            '</span>';
           if (placed) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'source\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
           html += '</div>';
         });
         lineSources.forEach(function(ls, i) {
           var hasVerts = ls.vertices && ls.vertices.length >= 2;
           var name = escapeHTML(ls.name || ('Line source ' + (i + 1)));
+          // Detail line: Ht | Xm | D: X | E: X | N: X dB(A)/m
+          var lsHt = Number.isFinite(ls.height_m || ls.heightM) ? (ls.height_m || ls.heightM) : 1.5;
+          var lsLen = hasVerts ? _lsTotalLength(ls.vertices) : 0;
+          var lsParts = [];
+          ['day', 'eve', 'night'].forEach(function(p) {
+            if (!ls.activeInPeriod || !ls.activeInPeriod[p]) return;
+            var lwm = _lsGetEffectiveLwm(ls, p);
+            if (!Number.isFinite(lwm)) return;
+            lsParts.push({ day: 'D', eve: 'E', night: 'N' }[p] + ': ' + Math.round(lwm));
+          });
+          var lsDetail = 'Ht: ' + lsHt.toFixed(1) + 'm';
+          if (hasVerts) lsDetail += ' | ' + Math.round(lsLen) + 'm';
+          if (lsParts.length > 0) lsDetail += ' | ' + lsParts.join(' | ') + ' dB(A)/m';
           html += '<div class="obj-row" data-obj-type="linesource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts ? 'pointer' : 'default') + ';">';
           html += '<span style="width:14px;height:3px;background:#d32f2f;border-radius:1px;display:inline-block;flex-shrink:0;"></span>';
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">L' + (i + 1) + '</span>';
-          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</span>';
+          html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+            '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(lsDetail) + '</div>' +
+            '</span>';
           if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'linesource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
           html += '</div>';
         });
         areaSources.forEach(function(as, i) {
           var hasVerts = as.vertices && as.vertices.length >= 3;
-          var area = hasVerts ? ' (' + _asFormatArea(_asPolygonArea(as.vertices)) + ')' : '';
           var name = escapeHTML(as.name || ('Area source ' + (i + 1)));
+          // Detail line: Ht | Xm² | D: X | E: X | N: X dB(A)[/m²]
+          var asHt = Number.isFinite(as.height_m) ? as.height_m : 0.5;
+          var asArea = hasVerts ? _asPolygonArea(as.vertices) : 0;
+          var lwMode = as.lwMode || 'per_m2';
+          var asUnit = lwMode === 'per_m2' ? ' dB(A)/m\u00b2' : ' dB(A)';
+          var asParts = [];
+          ['day', 'eve', 'night'].forEach(function(p) {
+            var val = lwMode === 'per_m2' ? _asGetLwM2Adj(as, p) : _asGetEffectiveLw(as, p);
+            if (!Number.isFinite(val)) return;
+            asParts.push({ day: 'D', eve: 'E', night: 'N' }[p] + ': ' + Math.round(val));
+          });
+          var asDetail = 'Ht: ' + asHt.toFixed(1) + 'm';
+          if (hasVerts) asDetail += ' | ' + _asFormatArea(asArea);
+          if (asParts.length > 0) asDetail += ' | ' + asParts.join(' | ') + asUnit;
           html += '<div class="obj-row" data-obj-type="areasource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts ? 'pointer' : 'default') + ';">';
           html += '<span style="width:11px;height:11px;border:2px solid #d97706;background:rgba(255,160,50,0.25);border-radius:2px;display:inline-block;flex-shrink:0;"></span>';
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">A' + (i + 1) + '</span>';
-          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + escapeHTML(area) + '</span>';
+          html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+            '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(asDetail) + '</div>' +
+            '</span>';
           if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'areasource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
           html += '</div>';
         });
