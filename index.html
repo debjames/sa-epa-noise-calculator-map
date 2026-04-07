@@ -15281,6 +15281,8 @@ initCollapse();
           if (markers[mode] && markers[mode].getPopup && markers[mode].getPopup()) {
             markers[mode].setPopupContent(buildRecvPopupHTML(mode, ll));
           }
+          // Refresh Objects panel so coordinates update immediately
+          if (typeof _renderObjectList === 'function') _renderObjectList();
         }
         if (isSourceMode(mode) && currentState === 'VIC' && vicAreaType === 'rural') {
           // Source moved — re-query Clause 20 for all receivers
@@ -15505,6 +15507,7 @@ initCollapse();
           }
           refreshRecvPopupTerrain(mode);
           render();
+          if (typeof _renderObjectList === 'function') _renderObjectList(); // update Objects panel height display
         });
       });
     });
@@ -20398,20 +20401,28 @@ initCollapse();
 
       // Receivers group
       var rcvColors = ['#2563eb', '#16a34a', '#d97706', '#7c3aed'];
-      var rcvModeKeys = ['rcv_0', 'rcv_1', 'rcv_2', 'rcv_3'];
+      var rcvModes  = ['r1', 'r2', 'r3', 'r4'];
       html += '<div style="margin-bottom:10px;">';
       html += '<div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Receivers</div>';
-      rcvModeKeys.forEach(function(modeKey, i) {
-        var placed = !!latlngs[modeKey];
+      rcvModes.forEach(function(modeKey, i) {
+        var ll = latlngs[modeKey];
+        var placed = !!ll;
         var nameEl = document.getElementById('recvName' + (i + 1));
         var name = escapeHTML((nameEl && nameEl.value) || ('Receiver ' + (i + 1)));
-        html += '<div class="obj-row" data-obj-type="receiver" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (placed ? 'pointer' : 'default') + ';">';
+        html += '<div class="obj-row" data-obj-type="receiver" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:pointer;">';
         html += '<span style="width:11px;height:11px;border:2px solid ' + rcvColors[i] + ';border-radius:50%;display:inline-block;flex-shrink:0;"></span>';
         html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">R' + (i + 1) + '</span>';
         if (placed) {
-          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</span>';
+          var rHt = (recvHeights[modeKey] !== null && Number.isFinite(recvHeights[modeKey]))
+            ? recvHeights[modeKey]
+            : (typeof iso_receiverHeight !== 'undefined' ? (iso_receiverHeight || 1.5) : 1.5);
+          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' +
+            name +
+            ' <span style="color:#9ca3af;font-size:11px;">(' + ll.lat.toFixed(3) + ', ' + ll.lng.toFixed(3) + ')</span>' +
+            ' <span style="color:#6b7280;font-size:11px;">' + rHt.toFixed(1) + 'm</span></span>';
+          html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'receiver\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
         } else {
-          html += '<span style="flex:1;font-size:12px;color:#bbb;font-style:italic;">not placed</span>';
+          html += '<span style="flex:1;font-size:12px;color:#bbb;font-style:italic;">not placed \u2014 click to place</span>';
         }
         html += '</div>';
       });
@@ -20510,12 +20521,21 @@ initCollapse();
         if (ls._poly) { ls._poly.setStyle({ weight: 7, opacity: 1.0 }); setTimeout(function() { ls._poly.setStyle(LS_STYLE); }, 1000); }
         if (typeof openLsPanel === 'function') openLsPanel(ls.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
       } else if (type === 'receiver') {
-        var modeKey = 'rcv_' + idx;
+        var modeKey = ['r1', 'r2', 'r3', 'r4'][idx];
+        if (!modeKey) return;
         ll = latlngs[modeKey];
-        if (!ll) return;
+        if (!ll) {
+          // Not placed — enter placement mode for this receiver
+          if (typeof setMode === 'function') setMode(modeKey);
+          return;
+        }
         map.panTo(ll);
         m = markers[modeKey];
-        if (m) { m.openPopup(); el = m.getElement ? m.getElement() : null; if (el) { el.style.transform = 'scale(1.6)'; el.style.transition = 'transform .15s'; setTimeout(function() { el.style.transform = ''; }, 800); } }
+        if (m) {
+          m.openPopup();
+          el = m.getElement ? m.getElement() : null;
+          if (el) { el.style.transform = 'scale(1.6)'; el.style.transition = 'transform .15s'; setTimeout(function() { el.style.transform = ''; }, 800); }
+        }
       } else if (type === 'areasource') {
         var as = areaSources[idx];
         if (!as || !as.vertices || as.vertices.length < 3) return;
@@ -20548,10 +20568,11 @@ initCollapse();
       var items = [];
       items.push({ id: 'edit', label: 'Edit / Open', icon: '✎', action: function() { _objRowClick(type, idx); } });
       if (type !== 'receiver') {
+        // Non-receivers get Duplicate + separator before Delete
         items.push({ id: 'dup', label: 'Duplicate', icon: '⧉', action: function() { _objDuplicate(type, idx); } });
-        items.push('sep');
-        items.push({ id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() { _objDelete(type, idx); } });
       }
+      items.push('sep');
+      items.push({ id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() { _objDelete(type, idx); } });
       var r = btn.getBoundingClientRect();
       _showMapCtxMenu(Math.round(r.left), Math.round(r.bottom + 4), items);
     }
@@ -20622,6 +20643,14 @@ initCollapse();
     }
 
     function _objDelete(type, idx) {
+      if (type === 'receiver') {
+        var modeKey = ['r1', 'r2', 'r3', 'r4'][idx];
+        if (!modeKey) return;
+        if (!markers[modeKey]) return; // already not placed
+        if (!confirm('Remove Receiver ' + (idx + 1) + ' from the map?')) return;
+        removeMarker(modeKey);
+        return;
+      }
       if (type === 'source') {
         if (!confirm('Delete source ' + (idx + 1) + '?')) return;
         if (sourcePins.length <= 1) { alert('Cannot delete the last source.'); return; }
