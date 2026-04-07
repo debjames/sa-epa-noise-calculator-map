@@ -16298,16 +16298,26 @@ initCollapse();
       _img.onload = function() { ovr._imgW = _img.naturalWidth || 1; ovr._imgH = _img.naturalHeight || 1; };
       _img.src = ovr.imageSrc;
 
+      // Create the layer WITHOUT addTo() first so we can patch _reset before Leaflet calls it
       ovr._layer = L.imageOverlay(ovr.imageSrc, ovr.bounds, {
         opacity:     ovr.visible ? ovr.opacity : 0,
         interactive: false,
         pane:        'sitePlanPane',
         crossOrigin: 'anonymous'
-      }).addTo(map);
+      });
 
-      // Apply stored rotation immediately (Leaflet renders async; wait for first tile to avoid flash)
+      // Patch _reset so our rotation is re-applied every time Leaflet repositions the element.
+      // Leaflet uses  transform:translate(x,y)  for positioning; without this patch our
+      // transform:rotate() call overwrites it and the image jumps to the pane origin.
+      (function(layer) {
+        var _origReset = layer._reset.bind(layer);
+        layer._reset = function() { _origReset(); _soApplyRotation(ovr); };
+      })(ovr._layer);
+
+      ovr._layer.addTo(map);
+
+      // Safety net: reapply once the image pixels are loaded (async in some browsers)
       ovr._layer.once('load', function() { _soApplyRotation(ovr); });
-      setTimeout(function() { _soApplyRotation(ovr); }, 80);
 
       window._siteOverlays.push(ovr);
 
@@ -16327,13 +16337,17 @@ initCollapse();
       return Math.abs(norm - snapped) <= 3 ? ((snapped % 360) + 360) % 360 : norm;
     }
 
-    // Apply CSS rotation transform to the overlay image element
+    // Apply CSS rotation to the overlay image element, preserving Leaflet's translate.
+    // Leaflet positions the element via  transform:translate(x,y)  stored in el._leaflet_pos.
+    // If we set  transform:rotate()  alone we overwrite the translate and the image jumps.
+    // Solution: combine both as  translate3d(x,y,0) rotate(deg)  so positioning is kept.
     function _soApplyRotation(ovr) {
       if (!ovr._layer) return;
       var el = ovr._layer.getElement();
       if (!el) return;
+      var pos = el._leaflet_pos || L.point(0, 0);
       el.style.transformOrigin = '50% 50%';
-      el.style.transform = 'rotate(' + (ovr.rotation || 0) + 'deg)';
+      el.style.transform = 'translate3d(' + pos.x + 'px,' + pos.y + 'px,0) rotate(' + (ovr.rotation || 0) + 'deg)';
     }
     window._soApplyRotation = _soApplyRotation;
 
