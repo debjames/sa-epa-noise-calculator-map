@@ -96,6 +96,14 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   opacity: 1;
 }
 
+/* --- Site plan overlay rotation label --- */
+.so-rot-label {
+  background: rgba(29,78,216,0.85); color: #fff; border: none;
+  padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  white-space: nowrap; box-shadow: none;
+}
+.so-rot-label::before { display: none; }
+
 /* --- Characteristic penalty buttons --- */
 .iso-ht-col { display: none; }
 .penalty-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
@@ -16235,11 +16243,12 @@ initCollapse();
         name:     opts.name || 'Site plan',
         imageSrc: opts.imageSrc,
         bounds:   bounds,
-        opacity:  opts.opacity  !== undefined ? opts.opacity  : 0.5,
-        locked:   opts.locked   !== undefined ? opts.locked   : false,
-        visible:  opts.visible  !== undefined ? opts.visible  : true,
+        opacity:  opts.opacity   !== undefined ? opts.opacity   : 0.5,
+        rotation: opts.rotation  !== undefined ? opts.rotation  : 0,   // degrees, clockwise
+        locked:   opts.locked    !== undefined ? opts.locked    : false,
+        visible:  opts.visible   !== undefined ? opts.visible   : true,
         // runtime refs (not serialised)
-        _layer: null, _handles: [], _centerHandle: null, _toolbar: null,
+        _layer: null, _handles: [], _centerHandle: null, _rotHandle: null, _rotLine: null, _toolbar: null,
         _imgW: 1, _imgH: 1  // natural px dims for proportional resize
       };
 
@@ -16255,6 +16264,10 @@ initCollapse();
         crossOrigin: 'anonymous'
       }).addTo(map);
 
+      // Apply stored rotation immediately (Leaflet renders async; wait for first tile to avoid flash)
+      ovr._layer.once('load', function() { _soApplyRotation(ovr); });
+      setTimeout(function() { _soApplyRotation(ovr); }, 80);
+
       window._siteOverlays.push(ovr);
 
       if (!ovr.locked) _soEnterPlacement(ovr);
@@ -16263,13 +16276,45 @@ initCollapse();
       return ovr;
     }
 
+    // ── Helpers for rotation handle positioning ────────────────
+    // Returns [lat, lng] for a point `extraM` metres above the rotated top-centre.
+    function _soRotHandleLatLng(ovr, extraM) {
+      var b = L.latLngBounds(ovr.bounds);
+      var cLat = (b.getSouth() + b.getNorth()) / 2;
+      var cLng = (b.getWest()  + b.getEast())  / 2;
+      var rot  = (ovr.rotation || 0) * Math.PI / 180;
+      var halfHM = (b.getNorth() - b.getSouth()) * 111000 / 2;
+      var distM  = halfHM + (extraM || 40);
+      var dLat = Math.cos(rot) * distM / 111000;
+      var dLng = Math.sin(rot) * distM / (111320 * Math.cos(cLat * Math.PI / 180));
+      return [cLat + dLat, cLng + dLng];
+    }
+
+    // Snap angle to nearest 45° step when within 3° (unless Shift held)
+    function _soSnapAngle(deg, shiftHeld) {
+      var norm = ((deg % 360) + 360) % 360;
+      if (shiftHeld) return norm;
+      var snapped = Math.round(norm / 45) * 45;
+      return Math.abs(norm - snapped) <= 3 ? ((snapped % 360) + 360) % 360 : norm;
+    }
+
+    // Apply CSS rotation transform to the overlay image element
+    function _soApplyRotation(ovr) {
+      if (!ovr._layer) return;
+      var el = ovr._layer.getElement();
+      if (!el) return;
+      el.style.transformOrigin = '50% 50%';
+      el.style.transform = 'rotate(' + (ovr.rotation || 0) + 'deg)';
+    }
+    window._soApplyRotation = _soApplyRotation;
+
     // ── Placement mode ────────────────────────────────────────
     function _soEnterPlacement(ovr) {
       ovr.locked = false;
       _soRemoveHandles(ovr);
 
       var b = L.latLngBounds(ovr.bounds);
-      // corners: 0=SW, 1=NW, 2=NE, 3=SE
+      // corners: 0=SW, 1=NW, 2=NE, 3=SE (axis-aligned bounds)
       var corners = [
         [b.getSouth(), b.getWest()],
         [b.getNorth(), b.getWest()],
@@ -16288,7 +16333,7 @@ initCollapse();
       var cursors = ['sw-resize', 'nw-resize', 'ne-resize', 'se-resize'];
 
       var handles = corners.map(function(c, idx) {
-        var opp = (idx + 2) % 4; // opposite corner index
+        var opp = (idx + 2) % 4;
         var m = L.marker(c, {
           draggable: true,
           icon: cornerIcon(cursors[idx]),
@@ -16305,15 +16350,12 @@ initCollapse();
             var dLat = Math.abs(ll.lat - oppLL.lat);
             var dLng = Math.abs(ll.lng - oppLL.lng);
             var cLat = (ll.lat + oppLL.lat) / 2;
-            // Convert to metres to compare with image aspect ratio
             var dLatM = dLat * 111000;
             var dLngM = dLng * 111320 * Math.cos(cLat * Math.PI / 180);
-            var aspect = ovr._imgW / ovr._imgH; // W/H
+            var aspect = ovr._imgW / ovr._imgH;
             if (dLngM / dLatM > aspect) {
-              // Width too wide → constrain lng
               dLng = (dLatM * aspect) / (111320 * Math.cos(cLat * Math.PI / 180));
             } else {
-              // Height too tall → constrain lat
               dLat = (dLngM / aspect) / 111000;
             }
             ll = L.latLng(
@@ -16330,9 +16372,9 @@ initCollapse();
       });
 
       // Centre drag handle — moves the whole overlay
-      var cLat = (corners[0][0] + corners[2][0]) / 2;
-      var cLng = (corners[0][1] + corners[2][1]) / 2;
-      var centerMark = L.marker([cLat, cLng], {
+      var cLat0 = (corners[0][0] + corners[2][0]) / 2;
+      var cLng0 = (corners[0][1] + corners[2][1]) / 2;
+      var centerMark = L.marker([cLat0, cLng0], {
         draggable: true,
         icon: L.divIcon({
           className: '',
@@ -16352,7 +16394,7 @@ initCollapse();
           var dLng = ll.lng - _prevLL.lng;
           corners = corners.map(function(c) { return [c[0] + dLat, c[1] + dLng]; });
           handles.forEach(function(h, i) { h.setLatLng(corners[i]); });
-          _soUpdateBoundsFromCorners(ovr, corners, null); // don't re-sync handles (already set)
+          _soUpdateBoundsFromCorners(ovr, corners, null);
         }
         _prevLL = ll;
       });
@@ -16360,6 +16402,64 @@ initCollapse();
 
       ovr._handles      = handles;
       ovr._centerHandle = centerMark;
+
+      // ── Rotation handle + connecting line ──────────────────
+      // Line from image top-centre (at bounds edge) to the handle above it
+      var rotLineStart = _soRotHandleLatLng(ovr, 0);
+      var rotLineEnd   = _soRotHandleLatLng(ovr, 40);
+      var rotLine = L.polyline([rotLineStart, rotLineEnd], {
+        color: '#1d4ed8', weight: 1.5, opacity: 0.7,
+        dashArray: '4 3', interactive: false
+      }).addTo(map);
+      ovr._rotLine = rotLine;
+
+      // Rotation handle marker (circle, offset above image)
+      var rotMark = L.marker(rotLineEnd, {
+        draggable: true,
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="width:14px;height:14px;background:#fff;border:2.5px solid #1d4ed8;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,0.35);cursor:grab;"></div>',
+          iconSize:   [14, 14],
+          iconAnchor: [7, 7]
+        }),
+        zIndexOffset: 1001
+      }).addTo(map);
+
+      // Angle label tooltip (permanent, updates on drag)
+      rotMark.bindTooltip(Math.round(ovr.rotation || 0) + '\u00b0', {
+        permanent: true, direction: 'right', className: 'so-rot-label',
+        offset: [8, 0]
+      });
+
+      rotMark.on('dragstart', function() { map.dragging.disable(); });
+      rotMark.on('drag', function(e) {
+        var ll  = e.latlng;
+        var shiftHeld = e.originalEvent && e.originalEvent.shiftKey;
+        var b2  = L.latLngBounds(ovr.bounds);
+        var cLat = (b2.getSouth() + b2.getNorth()) / 2;
+        var cLng = (b2.getWest()  + b2.getEast())  / 2;
+        // Angle from north (clockwise) in metres-space
+        var dLatM = (ll.lat - cLat) * 111000;
+        var dLngM = (ll.lng - cLng) * 111320 * Math.cos(cLat * Math.PI / 180);
+        var rawDeg = Math.atan2(dLngM, dLatM) * 180 / Math.PI;
+        ovr.rotation = _soSnapAngle(rawDeg, shiftHeld);
+        _soApplyRotation(ovr);
+        // Update line: start at rotated top-centre, end at current drag position
+        var lineStart = _soRotHandleLatLng(ovr, 0);
+        rotLine.setLatLngs([lineStart, [ll.lat, ll.lng]]);
+        // Update label
+        rotMark.setTooltipContent(Math.round(ovr.rotation) + '\u00b0');
+      });
+      rotMark.on('dragend', function() {
+        // Snap handle back to correct circle position
+        var snapLL = _soRotHandleLatLng(ovr, 40);
+        rotMark.setLatLng(snapLL);
+        var lineStart = _soRotHandleLatLng(ovr, 0);
+        rotLine.setLatLngs([lineStart, snapLL]);
+        map.dragging.enable();
+      });
+
+      ovr._rotHandle = rotMark;
       _soShowPlacementToolbar(ovr);
     }
 
@@ -16370,8 +16470,18 @@ initCollapse();
       var west  = Math.min.apply(null, lngs), east  = Math.max.apply(null, lngs);
       ovr.bounds = [[south, west], [north, east]];
       if (ovr._layer) ovr._layer.setBounds(L.latLngBounds(ovr.bounds));
+      // Re-apply CSS rotation — Leaflet's setBounds recreates the element transform
+      _soApplyRotation(ovr);
       if (ovr._centerHandle) {
         ovr._centerHandle.setLatLng([(south + north) / 2, (west + east) / 2]);
+      }
+      // Reposition rotation handle and line to track the resized image
+      if (ovr._rotHandle) {
+        var newHandleLL = _soRotHandleLatLng(ovr, 40);
+        ovr._rotHandle.setLatLng(newHandleLL);
+        if (ovr._rotLine) {
+          ovr._rotLine.setLatLngs([_soRotHandleLatLng(ovr, 0), newHandleLL]);
+        }
       }
     }
 
@@ -16380,6 +16490,10 @@ initCollapse();
       ovr._handles = [];
       if (ovr._centerHandle && map.hasLayer(ovr._centerHandle)) map.removeLayer(ovr._centerHandle);
       ovr._centerHandle = null;
+      if (ovr._rotHandle  && map.hasLayer(ovr._rotHandle))  map.removeLayer(ovr._rotHandle);
+      ovr._rotHandle = null;
+      if (ovr._rotLine    && map.hasLayer(ovr._rotLine))    map.removeLayer(ovr._rotLine);
+      ovr._rotLine = null;
       if (ovr._toolbar) { ovr._toolbar.remove(); ovr._toolbar = null; }
       map.dragging.enable();
     }
@@ -16493,7 +16607,7 @@ initCollapse();
     window._soSerialize = function() {
       return window._siteOverlays.map(function(o) {
         return { id: o.id, name: o.name, imageSrc: o.imageSrc, bounds: o.bounds,
-                 opacity: o.opacity, locked: o.locked, visible: o.visible };
+                 opacity: o.opacity, rotation: o.rotation || 0, locked: o.locked, visible: o.visible };
       });
     };
 
@@ -16506,7 +16620,8 @@ initCollapse();
       window._siteOverlays = [];
       (arr || []).forEach(function(d) {
         _soAddOverlay({ id: d.id, name: d.name, imageSrc: d.imageSrc, bounds: d.bounds,
-                        opacity: d.opacity, locked: true, visible: d.visible !== false });
+                        opacity: d.opacity, rotation: d.rotation || 0,
+                        locked: true, visible: d.visible !== false });
       });
     };
 
@@ -16515,6 +16630,8 @@ initCollapse();
       window._siteOverlays.forEach(function(o) {
         (o._handles || []).forEach(function(h) { var el = h.getElement ? h.getElement() : null; if (el) el.style.visibility = 'hidden'; });
         if (o._centerHandle) { var el = o._centerHandle.getElement ? o._centerHandle.getElement() : null; if (el) el.style.visibility = 'hidden'; }
+        if (o._rotHandle)    { var el = o._rotHandle.getElement    ? o._rotHandle.getElement()    : null; if (el) el.style.visibility = 'hidden'; }
+        if (o._rotLine)      { var el = o._rotLine.getElement      ? o._rotLine.getElement()      : null; if (el) el.style.visibility = 'hidden'; }
         if (o._toolbar) o._toolbar.style.visibility = 'hidden';
       });
     };
@@ -16522,6 +16639,8 @@ initCollapse();
       window._siteOverlays.forEach(function(o) {
         (o._handles || []).forEach(function(h) { var el = h.getElement ? h.getElement() : null; if (el) el.style.visibility = ''; });
         if (o._centerHandle) { var el = o._centerHandle.getElement ? o._centerHandle.getElement() : null; if (el) el.style.visibility = ''; }
+        if (o._rotHandle)    { var el = o._rotHandle.getElement    ? o._rotHandle.getElement()    : null; if (el) el.style.visibility = ''; }
+        if (o._rotLine)      { var el = o._rotLine.getElement      ? o._rotLine.getElement()      : null; if (el) el.style.visibility = ''; }
         if (o._toolbar) o._toolbar.style.visibility = '';
       });
     };
