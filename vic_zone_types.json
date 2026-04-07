@@ -1,0 +1,2794 @@
+{
+  "_description": "EPA Victoria Publication 1826.5 - Tables A.1 to A.4",
+  "_source": "Noise limit and assessment protocol for commercial, industrial and trade premises and entertainment venues",
+  "_lookup_logic": [
+    "1. Get zone_code (e.g. SUZ1, GRZ, IN1Z) from VicPlan at receiver location",
+    "2. Determine LGA from receiver location",
+    "3. For schedule-specific zones (SUZ, CDZ, UGZ, ACZ, PDZ with a number):",
+    "   a. If receiver is in metro Melbourne: check table_a2_metro_overrides for LGA + zone_code match",
+    "   b. If receiver is in a major urban area (table_a3): check table_a4_regional_overrides for LGA + zone_code match",
+    "   c. If found: use the override type and description",
+    "   d. If not found: use table_a1_defaults for the base zone code (CDZ->2, UGZ->1, ACZ->2)",
+    "4. For standard zones (GRZ, IN1Z, etc): use table_a1_defaults directly"
+  ],
+  "table_a1_defaults": [
+    {
+      "zone_code": "LDRZ",
+      "description": "Low Density Residential Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "MUZ",
+      "description": "Mixed Use Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "TZ",
+      "description": "Township Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "RGZ",
+      "description": "Residential Growth Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "GRZ",
+      "description": "General Residential Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "NRZ",
+      "description": "Neighbourhood Residential Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "IN1Z",
+      "description": "Industrial 1 Zone",
+      "type": 3
+    },
+    {
+      "zone_code": "IN2Z",
+      "description": "Industrial 2 Zone",
+      "type": 3
+    },
+    {
+      "zone_code": "IN3Z",
+      "description": "Industrial 3 Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "B1Z",
+      "description": "Commercial 1 Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "B2Z",
+      "description": "Commercial 1 Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "B5Z",
+      "description": "Commercial 1 Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "C1Z",
+      "description": "Commercial 1 Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "B3Z",
+      "description": "Commercial 2 Zone",
+      "type": 3
+    },
+    {
+      "zone_code": "B4Z",
+      "description": "Commercial 2 Zone",
+      "type": 3
+    },
+    {
+      "zone_code": "C2Z",
+      "description": "Commercial 2 Zone",
+      "type": 3
+    },
+    {
+      "zone_code": "C3Z",
+      "description": "Commercial 3 Zone",
+      "type": 3
+    },
+    {
+      "zone_code": "RLZ",
+      "description": "Rural Living Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "GWZ",
+      "description": "Green Wedge Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "GWAZ",
+      "description": "Green Wedge A Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "RCZ",
+      "description": "Rural Conservation Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "FZ",
+      "description": "Farming Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "RAZ",
+      "description": "Rural Activity Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "PUZ1",
+      "description": "Public Use Zone - Service & Utility",
+      "type": 2
+    },
+    {
+      "zone_code": "PUZ2",
+      "description": "Public Use Zone - Education",
+      "type": 1
+    },
+    {
+      "zone_code": "PUZ3",
+      "description": "Public Use Zone - Health & Community",
+      "type": 2
+    },
+    {
+      "zone_code": "PUZ5",
+      "description": "Public Use Zone - Cemetery/Crematorium",
+      "type": 1
+    },
+    {
+      "zone_code": "PUZ6",
+      "description": "Public Use Zone - Local Government",
+      "type": 2
+    },
+    {
+      "zone_code": "PUZ7",
+      "description": "Public Use Zone - Other Public Use",
+      "type": 2
+    },
+    {
+      "zone_code": "PPRZ",
+      "description": "Public Park and Recreation Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "PCRZ",
+      "description": "Public Conservation and Resource Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "TRZ1",
+      "description": "Transport Zone 1",
+      "type": 2
+    },
+    {
+      "zone_code": "TRZ2",
+      "description": "Transport Zone 2",
+      "type": 3
+    },
+    {
+      "zone_code": "TRZ3",
+      "description": "Transport Zone 3",
+      "type": 2
+    },
+    {
+      "zone_code": "TRZ4",
+      "description": "Transport Zone 4",
+      "type": 2
+    },
+    {
+      "zone_code": "CDZ",
+      "description": "Comprehensive Development Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "UFZ",
+      "description": "Urban Floodway Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "CCZ",
+      "description": "Capital City Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "DZ",
+      "description": "Docklands Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "PDZ",
+      "description": "Priority Development Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "UGZ",
+      "description": "Urban Growth Zone",
+      "type": 1
+    },
+    {
+      "zone_code": "ACZ",
+      "description": "Activity Centre Zone",
+      "type": 2
+    },
+    {
+      "zone_code": "PZ",
+      "description": "Port Zone",
+      "type": 3
+    }
+  ],
+  "table_a2_metro_overrides": [
+    {
+      "lga": "Banyule",
+      "zone_code": "ACZ1",
+      "description": "Greensborough Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Banyule",
+      "zone_code": "SUZ1",
+      "description": "Private Sportsgrounds",
+      "type": 1
+    },
+    {
+      "lga": "Banyule",
+      "zone_code": "SUZ2",
+      "description": "Utility & Service Installations",
+      "type": 2
+    },
+    {
+      "lga": "Banyule",
+      "zone_code": "SUZ3",
+      "description": "Residential and Medical Services Precinct",
+      "type": 1
+    },
+    {
+      "lga": "Bayside",
+      "zone_code": "ACZ1",
+      "description": "Hampton East (Moorabin) Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Boroondara",
+      "zone_code": "CDZ1",
+      "description": "800 Toorak Road Comprehensive Development",
+      "type": 2
+    },
+    {
+      "lga": "Boroondara",
+      "zone_code": "PDZ1",
+      "description": "Tooronga Village Site",
+      "type": 2
+    },
+    {
+      "lga": "Boroondara",
+      "zone_code": "SUZ1",
+      "description": "Golf Courses",
+      "type": 1
+    },
+    {
+      "lga": "Boroondara",
+      "zone_code": "SUZ2",
+      "description": "Private Education Centre",
+      "type": 1
+    },
+    {
+      "lga": "Brimbank",
+      "zone_code": "ACZ1",
+      "description": "Sunshine Town Centre",
+      "type": 2
+    },
+    {
+      "lga": "Brimbank",
+      "zone_code": "CDZ1",
+      "description": "Sydenham Regional Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Brimbank",
+      "zone_code": "CDZ2",
+      "description": "Watergardens Town Centre",
+      "type": 2
+    },
+    {
+      "lga": "Brimbank",
+      "zone_code": "SUZ1",
+      "description": "Racecourse and Showgrounds Areas, Private",
+      "type": 2
+    },
+    {
+      "lga": "Brimbank",
+      "zone_code": "SUZ2",
+      "description": "Private Utility Installations",
+      "type": 2
+    },
+    {
+      "lga": "Brimbank",
+      "zone_code": "SUZ3",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Brimbank",
+      "zone_code": "SUZ4",
+      "description": "Private Sports Grounds",
+      "type": 1
+    },
+    {
+      "lga": "Brimbank",
+      "zone_code": "SUZ5",
+      "description": "Overnewton Anglican Community College",
+      "type": 1
+    },
+    {
+      "lga": "Brimbank",
+      "zone_code": "SUZ6",
+      "description": "Lowther Hall Anglican Grammar School",
+      "type": 1
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "CDZ1",
+      "description": "Pakenham West Comprehensive Development",
+      "type": 1
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "CDZ2",
+      "description": "Former Pakenham Racecourse Comprehensive",
+      "type": 2
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "CDZ3",
+      "description": "Racecourse Road Pakenham Comprehensive",
+      "type": 1
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "SUZ1",
+      "description": "Horticultural Preservation",
+      "type": 2
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "SUZ3",
+      "description": "Tynong Racecourse and Training Facility",
+      "type": 2
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "SUZ4",
+      "description": "Special Use Zone Growth Areas (Cardinia",
+      "type": 2
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "SUZ5",
+      "description": "Cardinia Motor Recreation and Education",
+      "type": 3
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "SUZ6",
+      "description": "Private Education Facility",
+      "type": 1
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "SUZ7",
+      "description": "South East Production, Export and",
+      "type": 2
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "UGZ1",
+      "description": "Cardina Road Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "UGZ2",
+      "description": "Cardinia Road Employment Precinct Structure",
+      "type": 2
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "UGZ3",
+      "description": "Officer Precinct Structure Plan (September",
+      "type": 1
+    },
+    {
+      "lga": "Cardinia",
+      "zone_code": "UGZ4",
+      "description": "Officer Precinct Structure Plan (September",
+      "type": 2
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "ACZ1",
+      "description": "Cranbourne Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "ACZ2",
+      "description": "Fountain Gate-Narre Warren CBD Metropolitan",
+      "type": 2
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "CDZ1",
+      "description": "Lyndhurst Neighbour Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "PDZ1",
+      "description": "Fountain Gate-Narre Warren CBD Incorporated",
+      "type": 2
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "SUZ1",
+      "description": "Earth and Energy Resources",
+      "type": 3
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "SUZ3",
+      "description": "Hillcrest Christian College",
+      "type": 1
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "SUZ4",
+      "description": "Thompsons Road Precinct Structure Plan -",
+      "type": 3
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "SUZ5",
+      "description": "Conservation Areas for Melbourne\\'s Growth",
+      "type": 1
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "SUZ6",
+      "description": "Cranbourne Racing Complex and Surrounds",
+      "type": 2
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ1",
+      "description": "Cranbourne West Precinct Structure Plan",
+      "type": 2
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ10",
+      "description": "Casey Central Town Centre Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ11",
+      "description": "Brompton Lodge Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ12",
+      "description": "Cardinia Creek South Precinct Structure",
+      "type": 1
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ14",
+      "description": "Minta Farm Precinct Structure Plan",
+      "type": 2
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ2",
+      "description": "Cranbourne East Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ3",
+      "description": "Clyde North Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ4",
+      "description": "Botanic Ridge Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ5",
+      "description": "Cranbourne North Stage 2 Precinct Structure",
+      "type": 1
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ6",
+      "description": "Thompsons Road Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ7",
+      "description": "Clyde Creek Precinct Structure Plan",
+      "type": 2
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ8",
+      "description": "Casey Fields South Residential Precinct",
+      "type": 1
+    },
+    {
+      "lga": "Casey",
+      "zone_code": "UGZ9",
+      "description": "Berwick Waterways Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Darebin",
+      "zone_code": "PDZ1",
+      "description": "Preston Market",
+      "type": 2
+    },
+    {
+      "lga": "Darebin",
+      "zone_code": "PDZ2",
+      "description": "Preston Central",
+      "type": 2
+    },
+    {
+      "lga": "Frankston",
+      "zone_code": "CDZ1",
+      "description": "Sandhurst Comprehensive Development Plan",
+      "type": 1
+    },
+    {
+      "lga": "Frankston",
+      "zone_code": "CDZ2",
+      "description": "Kananook Creek Comprehensive Development",
+      "type": 1
+    },
+    {
+      "lga": "Frankston",
+      "zone_code": "SUZ1",
+      "description": "Golf Courses",
+      "type": 1
+    },
+    {
+      "lga": "Frankston",
+      "zone_code": "SUZ2",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Frankston",
+      "zone_code": "SUZ3",
+      "description": "Frankston Safe Boat Harbour",
+      "type": 2
+    },
+    {
+      "lga": "Frankston",
+      "zone_code": "SUZ4",
+      "description": "Peninsula Private Hospital",
+      "type": 2
+    },
+    {
+      "lga": "Glen Eira",
+      "zone_code": "CDZ1",
+      "description": "North Road, Ormond, Comprehensive",
+      "type": 2
+    },
+    {
+      "lga": "Glen Eira",
+      "zone_code": "PDZ2",
+      "description": "Caulfield Mixed Use Zone",
+      "type": 2
+    },
+    {
+      "lga": "Glen Eira",
+      "zone_code": "SUZ1",
+      "description": "Caulfield Racecourse",
+      "type": 2
+    },
+    {
+      "lga": "Greater Dandenong",
+      "zone_code": "CDZ1",
+      "description": "Dandenong Railway Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Greater Dandenong",
+      "zone_code": "CDZ2",
+      "description": "Central Dandenong",
+      "type": 2
+    },
+    {
+      "lga": "Greater Dandenong",
+      "zone_code": "SUZ1",
+      "description": "Sandown Park",
+      "type": 2
+    },
+    {
+      "lga": "Greater Dandenong",
+      "zone_code": "SUZ2",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Greater Dandenong",
+      "zone_code": "SUZ3",
+      "description": "11-53 and part of 55-79 Waterview Close,",
+      "type": 2
+    },
+    {
+      "lga": "Greater Dandenong",
+      "zone_code": "SUZ4",
+      "description": "Keysborough Turkish and Islamic Cultural",
+      "type": 1
+    },
+    {
+      "lga": "Greater Dandenong",
+      "zone_code": "SUZ5",
+      "description": "Polish Catholic Centre 337-343 Green Road",
+      "type": 1
+    },
+    {
+      "lga": "Greater Dandenong",
+      "zone_code": "SUZ6",
+      "description": "Cornish College 65 Riverbend Road Bangholme",
+      "type": 1
+    },
+    {
+      "lga": "Hobsons Bay",
+      "zone_code": "CDZ1",
+      "description": "The Range Estate Williamstown -- Stage 7",
+      "type": 1
+    },
+    {
+      "lga": "Hobsons Bay",
+      "zone_code": "CDZ2",
+      "description": "Altona North Comprehensive Development Plan",
+      "type": 2
+    },
+    {
+      "lga": "Hobsons Bay",
+      "zone_code": "SUZ1",
+      "description": "Private Sportsgrounds & Community",
+      "type": 1
+    },
+    {
+      "lga": "Hobsons Bay",
+      "zone_code": "SUZ2",
+      "description": "Petroleum Refinery Area",
+      "type": 3
+    },
+    {
+      "lga": "Hobsons Bay",
+      "zone_code": "SUZ3",
+      "description": "Petroleum Complex Area",
+      "type": 3
+    },
+    {
+      "lga": "Hobsons Bay",
+      "zone_code": "SUZ4",
+      "description": "Altona Special Industrial Area",
+      "type": 3
+    },
+    {
+      "lga": "Hobsons Bay",
+      "zone_code": "SUZ5",
+      "description": "Marine Engineering Area",
+      "type": 3
+    },
+    {
+      "lga": "Hobsons Bay",
+      "zone_code": "SUZ6",
+      "description": "Brooklyn Terminal Substation",
+      "type": 2
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "CDZ1",
+      "description": "Craigieburn Comprehensive Development",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "CDZ2",
+      "description": "Merrifield Employment Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "CDZ3",
+      "description": "Greenvale\\'s Lakes East",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "CDZ4",
+      "description": "Merrifield Major Town Centre",
+      "type": 2
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "CDZ5",
+      "description": "Greenvale north Neighbourhood Activity",
+      "type": 2
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "SUZ1",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "SUZ10",
+      "description": "Craiglee and Ben Eadie Properties",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "SUZ11",
+      "description": "Lindum Vale Precinct Structure Plan --",
+      "type": 2
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "SUZ2",
+      "description": "Goonwarra Golf Course",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "SUZ4",
+      "description": "Corinella Crescent Educational",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "SUZ5",
+      "description": "Melbourne Greyhound Racing Association",
+      "type": 2
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "SUZ6",
+      "description": "Former Greenvale Hospital",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "SUZ7",
+      "description": "Aitken College Mickleham Road Greenvale",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "SUZ8",
+      "description": "Craigieburn North Employment Area Precinct",
+      "type": 3
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "SUZ9",
+      "description": "Sunbury South -- Electricity Easements",
+      "type": 2
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ1",
+      "description": "Craigieburn R2 Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ10",
+      "description": "Lancefield Road Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ11",
+      "description": "Lindum Vale Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ2",
+      "description": "Greenvale North R1 Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ3",
+      "description": "Greenvale West R3 Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ4",
+      "description": "Merrifield West Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ5",
+      "description": "Lockerbie Precinct Structure Plan",
+      "type": 2
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ6",
+      "description": "Greenvale Central Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ7",
+      "description": "Woodlands Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ8",
+      "description": "Craigieburn North Employment Area Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Hume",
+      "zone_code": "UGZ9",
+      "description": "Sunbury South Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Kingston",
+      "zone_code": "ACZ1",
+      "description": "Cheltenham Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Kingston",
+      "zone_code": "ACZ2",
+      "description": "Mentone Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Kingston",
+      "zone_code": "ACZ3",
+      "description": "Moorabbin Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Kingston",
+      "zone_code": "CDZ1",
+      "description": "Endeavour Cove Comprehensive Development",
+      "type": 2
+    },
+    {
+      "lga": "Kingston",
+      "zone_code": "SUZ1",
+      "description": "Golf Courses",
+      "type": 1
+    },
+    {
+      "lga": "Kingston",
+      "zone_code": "SUZ2",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Kingston",
+      "zone_code": "SUZ3",
+      "description": "Private Community Facilities",
+      "type": 1
+    },
+    {
+      "lga": "Kingston",
+      "zone_code": "SUZ4",
+      "description": "Epsom Racecourse",
+      "type": 2
+    },
+    {
+      "lga": "Kingston",
+      "zone_code": "SUZ5",
+      "description": "Heatherton Christian College",
+      "type": 1
+    },
+    {
+      "lga": "Knox",
+      "zone_code": "CDZ1",
+      "description": "Waterford Valley Comprehensive Development",
+      "type": 1
+    },
+    {
+      "lga": "Knox",
+      "zone_code": "CDZ2",
+      "description": "Burwood Highway and Scoresby Road Knoxfield",
+      "type": 2
+    },
+    {
+      "lga": "Knox",
+      "zone_code": "SUZ1",
+      "description": "Community, Recreation, Education and",
+      "type": 1
+    },
+    {
+      "lga": "Knox",
+      "zone_code": "SUZ2",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Knox",
+      "zone_code": "SUZ3",
+      "description": "Terminal Station",
+      "type": 2
+    },
+    {
+      "lga": "Manningham",
+      "zone_code": "ACZ1",
+      "description": "Doncaster Hill Principal Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Manningham",
+      "zone_code": "SUZ1",
+      "description": "Private Education Centres, Golf Course and",
+      "type": 1
+    },
+    {
+      "lga": "Manningham",
+      "zone_code": "SUZ2",
+      "description": "Terminal Station",
+      "type": 2
+    },
+    {
+      "lga": "Manningham",
+      "zone_code": "SUZ3",
+      "description": "Donvale Christian College",
+      "type": 1
+    },
+    {
+      "lga": "Maribyrnong",
+      "zone_code": "ACZ1",
+      "description": "Footscray Metropolitan Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Maribyrnong",
+      "zone_code": "CDZ1",
+      "description": "Waterford Green Residential Area",
+      "type": 1
+    },
+    {
+      "lga": "Maribyrnong",
+      "zone_code": "CDZ2",
+      "description": "Waterford Green Estate Mixed Use Area",
+      "type": 2
+    },
+    {
+      "lga": "Maribyrnong",
+      "zone_code": "CDZ3",
+      "description": "Footscray Land, Gordon Street",
+      "type": 2
+    },
+    {
+      "lga": "Maribyrnong",
+      "zone_code": "SUZ1",
+      "description": "Sportsgrounds and Religious Establishments",
+      "type": 1
+    },
+    {
+      "lga": "Maribyrnong",
+      "zone_code": "SUZ2",
+      "description": "Utility Installations",
+      "type": 2
+    },
+    {
+      "lga": "Maribyrnong",
+      "zone_code": "SUZ3",
+      "description": "99 Moreland Street, 90 -- 96 Maribyrnong",
+      "type": 3
+    },
+    {
+      "lga": "Melbourne",
+      "zone_code": "CDZ2",
+      "description": "Carlton Brewery",
+      "type": 2
+    },
+    {
+      "lga": "Melbourne",
+      "zone_code": "CDZ3",
+      "description": "Flemington Green Comprehensive Development",
+      "type": 2
+    },
+    {
+      "lga": "Melbourne",
+      "zone_code": "CDZ4",
+      "description": "550 Epsom Road Comprehensive Development",
+      "type": 1
+    },
+    {
+      "lga": "Melbourne",
+      "zone_code": "SUZ1",
+      "description": "Flemington Racecourse",
+      "type": 2
+    },
+    {
+      "lga": "Melbourne",
+      "zone_code": "SUZ2",
+      "description": "Royal Melbourne Showgrounds",
+      "type": 2
+    },
+    {
+      "lga": "Melbourne",
+      "zone_code": "SUZ3",
+      "description": "Private Sports Grounds and Religious and",
+      "type": 1
+    },
+    {
+      "lga": "Melbourne",
+      "zone_code": "SUZ4",
+      "description": "Port of Melbourne",
+      "type": 3
+    },
+    {
+      "lga": "Melbourne",
+      "zone_code": "SUZ5",
+      "description": "Waters of the Port of Melbourne",
+      "type": 2
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "CDZ1",
+      "description": "Caroline Springs Town Centre Area",
+      "type": 2
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "SUZ1",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "SUZ10",
+      "description": "Plumpton Precinct Structure Plan - Electricity Easement",
+      "type": 2
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "SUZ11",
+      "description": "Mt Atkinson & Tarneit Plains Precinct Structure Plan - Electricity Easement",
+      "type": 3
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "SUZ3",
+      "description": "Terminal Stations",
+      "type": 3
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "SUZ5",
+      "description": "Leakes Road Tourist Precinct",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "SUZ6",
+      "description": "Remand Centre at Truganina",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "SUZ7",
+      "description": "Melton Harness Racing Centre",
+      "type": 2
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "SUZ8",
+      "description": "Prison Precinct",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "SUZ9",
+      "description": "Kororoit Precinct Structure Plan - Electricity Easement",
+      "type": 2
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ1",
+      "description": "Taylors Hill West Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ11",
+      "description": "Plumpton Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ12",
+      "description": "Kororoit Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ2",
+      "description": "Melton North Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ3",
+      "description": "Toolern Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ4",
+      "description": "Rockbank North Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ5",
+      "description": "Diggers Rest Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ6",
+      "description": "Toolern Park Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ7",
+      "description": "Rockbank Precinct Structure Plan",
+      "type": 2
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ8",
+      "description": "Payne's Road Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Melton",
+      "zone_code": "UGZ9",
+      "description": "Mt Atkinson & Tarneit Plains Precinct Structure Plan",
+      "type": 2
+    },
+    {
+      "lga": "Mitchell",
+      "zone_code": "CDZ1",
+      "description": "Hidden Valley Comprehensive Development",
+      "type": 1
+    },
+    {
+      "lga": "Mitchell",
+      "zone_code": "CDZ2",
+      "description": "Mandalay Comprehensive Development Plan",
+      "type": 1
+    },
+    {
+      "lga": "Mitchell",
+      "zone_code": "SUZ1",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Mitchell",
+      "zone_code": "UGZ2",
+      "description": "Lockerbie North Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Mitchell",
+      "zone_code": "UGZ5",
+      "description": "Beveridge Central Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Monash",
+      "zone_code": "CDZ1",
+      "description": "Waverley Park Comprehensive Development Plan",
+      "type": 1
+    },
+    {
+      "lga": "Monash",
+      "zone_code": "SUZ2",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Monash",
+      "zone_code": "SUZ3",
+      "description": "Metropolitan and Huntingdale Golf Courses",
+      "type": 1
+    },
+    {
+      "lga": "Monash",
+      "zone_code": "SUZ4",
+      "description": "Oakleigh RSL Site",
+      "type": 2
+    },
+    {
+      "lga": "Monash",
+      "zone_code": "SUZ5",
+      "description": "Australian Synchrotron",
+      "type": 2
+    },
+    {
+      "lga": "Monash",
+      "zone_code": "SUZ6",
+      "description": "Monash Technology Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Moonee Valley",
+      "zone_code": "ACZ1",
+      "description": "Moonee Ponds Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Moonee Valley",
+      "zone_code": "CDZ1",
+      "description": "Flemington Green Comprehensive Development",
+      "type": 2
+    },
+    {
+      "lga": "Moonee Valley",
+      "zone_code": "SUZ2",
+      "description": "Moonee Valley Racecourse",
+      "type": 2
+    },
+    {
+      "lga": "Moonee Valley",
+      "zone_code": "SUZ3",
+      "description": "Private Sports Ground",
+      "type": 1
+    },
+    {
+      "lga": "Moreland",
+      "zone_code": "ACZ1",
+      "description": "Coburg Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Moreland",
+      "zone_code": "SUZ1",
+      "description": "Private Sports Grounds",
+      "type": 1
+    },
+    {
+      "lga": "Moreland",
+      "zone_code": "SUZ3",
+      "description": "Brunswick Terminal Station",
+      "type": 3
+    },
+    {
+      "lga": "Mornington Peninsula",
+      "zone_code": "CDZ1",
+      "description": "Moonah Links Comprehensive Development Plan",
+      "type": 1
+    },
+    {
+      "lga": "Mornington Peninsula",
+      "zone_code": "SUZ1",
+      "description": "Port Related Uses",
+      "type": 3
+    },
+    {
+      "lga": "Mornington Peninsula",
+      "zone_code": "SUZ2",
+      "description": "Private Sportsgrounds, Religious, Health",
+      "type": 1
+    },
+    {
+      "lga": "Mornington Peninsula",
+      "zone_code": "SUZ3",
+      "description": "Airfield Development",
+      "type": 2
+    },
+    {
+      "lga": "Mornington Peninsula",
+      "zone_code": "SUZ4",
+      "description": "Recreational Development",
+      "type": 1
+    },
+    {
+      "lga": "Mornington Peninsula",
+      "zone_code": "SUZ7",
+      "description": "Flinders Christian Community College",
+      "type": 1
+    },
+    {
+      "lga": "Mornington Peninsula",
+      "zone_code": "SUZ8",
+      "description": "Ranelagh Estate Open Spaces",
+      "type": 1
+    },
+    {
+      "lga": "Mornington Peninsula",
+      "zone_code": "SUZ9",
+      "description": "Yaringa Boat Harbour",
+      "type": 2
+    },
+    {
+      "lga": "Nillumbik",
+      "zone_code": "ACZ1",
+      "description": "Eltham Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Nillumbik",
+      "zone_code": "ACZ2",
+      "description": "Diamond Creek Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Nillumbik",
+      "zone_code": "SUZ1",
+      "description": "Heritage Golf and Country Club",
+      "type": 1
+    },
+    {
+      "lga": "Nillumbik",
+      "zone_code": "SUZ2",
+      "description": "Environmental Living - Bend of Islands",
+      "type": 1
+    },
+    {
+      "lga": "Nillumbik",
+      "zone_code": "SUZ3",
+      "description": "Plenty Valley Christian College",
+      "type": 1
+    },
+    {
+      "lga": "Nillumbik",
+      "zone_code": "SUZ4",
+      "description": "Eltham College",
+      "type": 1
+    },
+    {
+      "lga": "Port Phillip",
+      "zone_code": "CDZ1",
+      "description": "Beacon Cove Port Melbourne",
+      "type": 2
+    },
+    {
+      "lga": "Port Phillip",
+      "zone_code": "CDZ2",
+      "description": "St Kilda Station Redevelopment",
+      "type": 2
+    },
+    {
+      "lga": "Port Phillip",
+      "zone_code": "SUZ1",
+      "description": "St Kilda Sea Baths",
+      "type": 1
+    },
+    {
+      "lga": "Port Phillip",
+      "zone_code": "SUZ2",
+      "description": "Luna Park",
+      "type": 2
+    },
+    {
+      "lga": "Port Phillip",
+      "zone_code": "SUZ3",
+      "description": "The Triangle Site - St Kilda",
+      "type": 2
+    },
+    {
+      "lga": "Port of Melbourne",
+      "zone_code": "SUZ1",
+      "description": "Port of Melbourne",
+      "type": 3
+    },
+    {
+      "lga": "Port of Melbourne",
+      "zone_code": "SUZ2",
+      "description": "Marine Engineering Area",
+      "type": 3
+    },
+    {
+      "lga": "Port of Melbourne",
+      "zone_code": "SUZ3",
+      "description": "Foreshore Area - The Strand and Nelson",
+      "type": 2
+    },
+    {
+      "lga": "Port of Melbourne",
+      "zone_code": "SUZ4",
+      "description": "Waters of the Port of Melbourne",
+      "type": 2
+    },
+    {
+      "lga": "Stonnington",
+      "zone_code": "ACZ1",
+      "description": "Chapel Street Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Stonnington",
+      "zone_code": "SUZ1",
+      "description": "Kooyong Lawn Tennis Club St Kevin\\'s",
+      "type": 2
+    },
+    {
+      "lga": "Whitehorse",
+      "zone_code": "SUZ1",
+      "description": "Private Education Centres and Places of",
+      "type": 1
+    },
+    {
+      "lga": "Whitehorse",
+      "zone_code": "SUZ2",
+      "description": "Private Sport and Recreational Facilities",
+      "type": 1
+    },
+    {
+      "lga": "Whitehorse",
+      "zone_code": "SUZ3",
+      "description": "14 Federation Street Box Hill",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "ACZ1",
+      "description": "Epping Centre Metropolitan Centre",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "CDZ1",
+      "description": "Mernda Town Centre Comprehensive",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "CDZ2",
+      "description": "Cooper Street Employment Area Comprehensive",
+      "type": 3
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "CDZ3",
+      "description": "Laurimar Town Centre",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "CDZ4",
+      "description": "Aurora Comprehensive Development Plan",
+      "type": 1
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "CDZ5",
+      "description": "Mernda Villages Neighbourhood Centre",
+      "type": 1
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "CDZ6",
+      "description": "Lyndarum Neighbourhood Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "SUZ1",
+      "description": "Whittlesea Showgrounds",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "SUZ10",
+      "description": "Wollert Precinct Structure Plan -",
+      "type": 3
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "SUZ2",
+      "description": "Epping Soccer Stadium",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "SUZ3",
+      "description": "Janefield Technology Estate",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "SUZ4",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "SUZ5",
+      "description": "Ivanhoe Grammar School (Mernda)",
+      "type": 1
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "SUZ6",
+      "description": "South Morang Terminal Station",
+      "type": 3
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "SUZ7",
+      "description": "Costa Exchange Mushroom Farm - 45 Cookes",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "SUZ8",
+      "description": "Quarry Hills Precinct Structure Plan -",
+      "type": 3
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "SUZ9",
+      "description": "Schedule 9 to the Special Use Zone",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "UGZ1",
+      "description": "Lockerbie Precinct Structure Plan",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "UGZ2",
+      "description": "Lockerbie North Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "UGZ3",
+      "description": "Quarry Hills Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "UGZ4",
+      "description": "English Street Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "UGZ5",
+      "description": "Wollert Precinct Structure Plan",
+      "type": 2
+    },
+    {
+      "lga": "Whittlesea",
+      "zone_code": "UGZ6",
+      "description": "Donnybrook-Woodstock Precinct Structure",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "ACZ1",
+      "description": "Werribee Principal Activity Centre",
+      "type": 2
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "PDZ1",
+      "description": "Laverton Major Activity Centre and",
+      "type": 2
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "SUZ1",
+      "description": "Wyndham Harbour",
+      "type": 2
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "SUZ2",
+      "description": "Werribee Racecourse",
+      "type": 2
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "SUZ3",
+      "description": "Prison",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "SUZ4",
+      "description": "K Road Tourism and Recreational Precinct",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "SUZ6",
+      "description": "Earth and Energy Resources",
+      "type": 3
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "SUZ7",
+      "description": "Truganina Precinct Structure Plan -",
+      "type": 3
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "SUZ8",
+      "description": "Tarneit Electricity Transmission Easement -",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "SUZ9",
+      "description": "Cherry Creek Youth Justice Redevelopment",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ1",
+      "description": "Truganina South Community Precinct",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ10",
+      "description": "Truganina Precinct Structure Plan",
+      "type": 2
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ11",
+      "description": "Riverdale Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ13",
+      "description": "Tarneit North Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ14",
+      "description": "East Werribee Employment Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ15",
+      "description": "Lincoln Heath South Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ2",
+      "description": "Truganina Employment Precinct Structure",
+      "type": 3
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ3",
+      "description": "Manor Lakes Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ4",
+      "description": "Alfred Road Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ5",
+      "description": "Point Cook West Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ6",
+      "description": "Black Forest Road South Precinct Structure",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ7",
+      "description": "Black Forest Road North Precinct Structure",
+      "type": 2
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ8",
+      "description": "Ballan Road Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Wyndham",
+      "zone_code": "UGZ9",
+      "description": "Westbrook Precinct Structure Plan",
+      "type": 2
+    },
+    {
+      "lga": "Yarra",
+      "zone_code": "CDZ1",
+      "description": "Victoria Gardens Comprehensive Development",
+      "type": 2
+    },
+    {
+      "lga": "Yarra",
+      "zone_code": "CDZ2",
+      "description": "Cremorne, Balmain, Dover Streets Project",
+      "type": 2
+    },
+    {
+      "lga": "Yarra",
+      "zone_code": "CDZ3",
+      "description": "Richmond Maltings 2 Gough Street Cremorne",
+      "type": 2
+    },
+    {
+      "lga": "Yarra",
+      "zone_code": "PDZ1",
+      "description": "Victoria Street East Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Yarra",
+      "zone_code": "SUZ1",
+      "description": "Latrobe Golf Course - Farm Road Alphington",
+      "type": 1
+    },
+    {
+      "lga": "Yarra",
+      "zone_code": "SUZ2",
+      "description": "St Heliers Street Abbotsford",
+      "type": 1
+    },
+    {
+      "lga": "Yarra",
+      "zone_code": "SUZ3",
+      "description": "Alphington Grammar School - Old Heidelberg",
+      "type": 1
+    },
+    {
+      "lga": "Yarra",
+      "zone_code": "SUZ4",
+      "description": "Former Convent of the Good Shepherd - St",
+      "type": 2
+    },
+    {
+      "lga": "Yarra",
+      "zone_code": "SUZ5",
+      "description": "Epworth Richmond Private Hospital",
+      "type": 2
+    },
+    {
+      "lga": "Yarra",
+      "zone_code": "SUZ6",
+      "description": "Collingwood Arts Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ1",
+      "description": "Earth and Energy Resources Zone",
+      "type": 3
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ10",
+      "description": "Lots 7 and 8 LP127612 Maroondah Highway",
+      "type": 2
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ11",
+      "description": "Burnham Beeches Residential Hotel and",
+      "type": 1
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ2",
+      "description": "Major Tourist Facility",
+      "type": 1
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ3",
+      "description": "Airfield",
+      "type": 2
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ4",
+      "description": "Educational Facility",
+      "type": 1
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ5",
+      "description": "Chirnside Park Country Club",
+      "type": 1
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ6",
+      "description": "Extractive Resource Environmental Buffer",
+      "type": 1
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ7",
+      "description": "Billanook College",
+      "type": 1
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ8",
+      "description": "Little Yarra Steiner School",
+      "type": 1
+    },
+    {
+      "lga": "Yarra Ranges",
+      "zone_code": "SUZ9",
+      "description": "Eastern Golf Club",
+      "type": 1
+    }
+  ],
+  "table_a3_major_urban_areas": [
+    {
+      "urban_area": "Bacchus Marsh",
+      "lgas": [
+        "Moorabool"
+      ]
+    },
+    {
+      "urban_area": "Bairnsdale",
+      "lgas": [
+        "East Gippsland"
+      ]
+    },
+    {
+      "urban_area": "Ballarat",
+      "lgas": [
+        "Ballarat"
+      ]
+    },
+    {
+      "urban_area": "Benalla",
+      "lgas": [
+        "Benalla"
+      ]
+    },
+    {
+      "urban_area": "Bendigo",
+      "lgas": [
+        "Greater Bendigo"
+      ]
+    },
+    {
+      "urban_area": "Castlemaine",
+      "lgas": [
+        "Mount Alexander"
+      ]
+    },
+    {
+      "urban_area": "Colac",
+      "lgas": [
+        "Colac Otway"
+      ]
+    },
+    {
+      "urban_area": "Drouin",
+      "lgas": [
+        "Baw Baw"
+      ]
+    },
+    {
+      "urban_area": "Drysdale - Clifton Springs",
+      "lgas": [
+        "Greater Geelong"
+      ]
+    },
+    {
+      "urban_area": "Echuca",
+      "lgas": [
+        "Campaspe"
+      ]
+    },
+    {
+      "urban_area": "Geelong",
+      "lgas": [
+        "Greater Geelong"
+      ]
+    },
+    {
+      "urban_area": "Gisborne",
+      "lgas": [
+        "Macedon Ranges"
+      ]
+    },
+    {
+      "urban_area": "Hamilton",
+      "lgas": [
+        "Southern Grampians"
+      ]
+    },
+    {
+      "urban_area": "Horsham",
+      "lgas": [
+        "Horsham"
+      ]
+    },
+    {
+      "urban_area": "Lara",
+      "lgas": [
+        "Greater Geelong"
+      ]
+    },
+    {
+      "urban_area": "Leopold",
+      "lgas": [
+        "Greater Geelong"
+      ]
+    },
+    {
+      "urban_area": "Maryborough",
+      "lgas": [
+        "Central Goldfields"
+      ]
+    },
+    {
+      "urban_area": "Mildura",
+      "lgas": [
+        "Mildura"
+      ]
+    },
+    {
+      "urban_area": "Moe - Newborough",
+      "lgas": [
+        "Latrobe"
+      ]
+    },
+    {
+      "urban_area": "Morwell",
+      "lgas": [
+        "Latrobe"
+      ]
+    },
+    {
+      "urban_area": "Ocean Grove - Barwon Heads",
+      "lgas": [
+        "Greater Geelong"
+      ]
+    },
+    {
+      "urban_area": "Portland",
+      "lgas": [
+        "Glenelg"
+      ]
+    },
+    {
+      "urban_area": "Sale",
+      "lgas": [
+        "Wellington"
+      ]
+    },
+    {
+      "urban_area": "Shepparton - Mooroopna",
+      "lgas": [
+        "Greater Shepparton"
+      ]
+    },
+    {
+      "urban_area": "Swan Hill",
+      "lgas": [
+        "Swan Hill"
+      ]
+    },
+    {
+      "urban_area": "Torquay - Jan Juc",
+      "lgas": [
+        "Surf Coast"
+      ]
+    },
+    {
+      "urban_area": "Traralgon",
+      "lgas": [
+        "Latrobe"
+      ]
+    },
+    {
+      "urban_area": "Wangaratta",
+      "lgas": [
+        "Wangaratta"
+      ]
+    },
+    {
+      "urban_area": "Warragul",
+      "lgas": [
+        "Baw Baw"
+      ]
+    },
+    {
+      "urban_area": "Warrnambool",
+      "lgas": [
+        "Warrnambool",
+        "Moyne"
+      ]
+    },
+    {
+      "urban_area": "Wodonga",
+      "lgas": [
+        "Wodonga"
+      ]
+    },
+    {
+      "urban_area": "Wonthaggi",
+      "lgas": [
+        "Bass Coast"
+      ]
+    },
+    {
+      "urban_area": "Yarrawonga",
+      "lgas": [
+        "Moira"
+      ]
+    }
+  ],
+  "table_a4_regional_overrides": [
+    {
+      "lga": "Ballarat",
+      "zone_code": "CDZ1",
+      "description": "Comprehensive Development Zone",
+      "type": 1
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ1",
+      "description": "Flora and Fauna Wildlife Park",
+      "type": 1
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ10",
+      "description": "Recreation",
+      "type": 1
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ11",
+      "description": "Ballarat Golf Course",
+      "type": 1
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ12",
+      "description": "St. John of God Hospital",
+      "type": 2
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ13",
+      "description": "Thoroughbred Horse Training Facilities",
+      "type": 1
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ14",
+      "description": "Ballarat West Employment Zone (BWEZ)",
+      "type": 2
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ16",
+      "description": "Ballarat Railway Station Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ2",
+      "description": "Emergency Services",
+      "type": 2
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ3",
+      "description": "Sovereign Hill Museums Association",
+      "type": 2
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ4",
+      "description": "Ballarat Showgrounds",
+      "type": 2
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ5",
+      "description": "Private Education Establishment",
+      "type": 1
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ6",
+      "description": "Ballarat Airfield",
+      "type": 2
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ7",
+      "description": "Racecourse",
+      "type": 2
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ8",
+      "description": "Mining and Related Activities",
+      "type": 3
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "SUZ9",
+      "description": "Eureka Historic Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "UGZ1",
+      "description": "Alfredton West Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Ballarat",
+      "zone_code": "UGZ2",
+      "description": "Ballarat West Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Baw Baw",
+      "zone_code": "SUZ5",
+      "description": "Warragul East Bulky Goods Precinct",
+      "type": 3
+    },
+    {
+      "lga": "Baw Baw",
+      "zone_code": "UGZ1",
+      "description": "Warragul Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Baw Baw",
+      "zone_code": "UGZ2",
+      "description": "Drouin Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Benalla",
+      "zone_code": "SUZ1",
+      "description": "Defence Industries Benalla",
+      "type": 3
+    },
+    {
+      "lga": "Benalla",
+      "zone_code": "SUZ3",
+      "description": "CAL Community Farm",
+      "type": 1
+    },
+    {
+      "lga": "Campaspe",
+      "zone_code": "SUZ2",
+      "description": "Private Schools",
+      "type": 1
+    },
+    {
+      "lga": "Campaspe",
+      "zone_code": "SUZ3",
+      "description": "Echuca Aerodrome",
+      "type": 2
+    },
+    {
+      "lga": "Central Goldfields",
+      "zone_code": "SUZ1",
+      "description": "Goldfields Reservoir, Ballarat Road,",
+      "type": 1
+    },
+    {
+      "lga": "Central Goldfields",
+      "zone_code": "SUZ2",
+      "description": "Maryborough Golf Course",
+      "type": 1
+    },
+    {
+      "lga": "Colac Otway",
+      "zone_code": "SUZ3",
+      "description": "Dairy Food Production Plant - Connor and",
+      "type": 3
+    },
+    {
+      "lga": "Colac Otway",
+      "zone_code": "SUZ4",
+      "description": "Colac Abattoir & Food Production Plant",
+      "type": 3
+    },
+    {
+      "lga": "Glenelg",
+      "zone_code": "SUZ1",
+      "description": "Portland Special Education",
+      "type": 1
+    },
+    {
+      "lga": "Glenelg",
+      "zone_code": "SUZ2",
+      "description": "Golf Courses",
+      "type": 1
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "CDZ1",
+      "description": "Fortuna Comprehensive Development Plan",
+      "type": 1
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ1",
+      "description": "Private Educational or Religious",
+      "type": 1
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ10",
+      "description": "Girton Grammar School, Junior and Senior",
+      "type": 1
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ11",
+      "description": "Holdsworth Road Open Space/Recreation",
+      "type": 1
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ12",
+      "description": "Electricity Terminal Station",
+      "type": 2
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ2",
+      "description": "Private Hospital",
+      "type": 1
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ3",
+      "description": "Television or Radio Station",
+      "type": 1
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ4",
+      "description": "Private Sport and Recreation Facilities",
+      "type": 1
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ5",
+      "description": "Racing Facilities",
+      "type": 2
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ6",
+      "description": "Tourism Facility",
+      "type": 1
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ7",
+      "description": "Bendigo Airport",
+      "type": 2
+    },
+    {
+      "lga": "Greater Bendigo",
+      "zone_code": "SUZ9",
+      "description": "Bus Depot",
+      "type": 2
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "CDZ1",
+      "description": "Thirteenth Beach Resort",
+      "type": 1
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "CDZ2",
+      "description": "Rippleside Comprehensive Development",
+      "type": 1
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "SUZ1",
+      "description": "Environmental Wetlands, Salt Production",
+      "type": 2
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "SUZ13",
+      "description": "Drysdale Regional Community and Cultural",
+      "type": 2
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "SUZ14",
+      "description": "Private Teaching Hospital and Education",
+      "type": 2
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "SUZ15",
+      "description": "Private Education Centre",
+      "type": 1
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "SUZ16",
+      "description": "Privately Owned Utility Installations",
+      "type": 3
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "SUZ3",
+      "description": "Private Golf Courses",
+      "type": 1
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "SUZ4",
+      "description": "Geelong Showgrounds and Racecourse, and",
+      "type": 2
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "SUZ5",
+      "description": "Eastern Park",
+      "type": 1
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "SUZ7",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "SUZ8",
+      "description": "Goandra Land, Thacker Street, Ocean",
+      "type": 1
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "UGZ1",
+      "description": "Armstrong Creek North East Industrial",
+      "type": 2
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "UGZ2",
+      "description": "Armstrong Creek East Precinct Structure",
+      "type": 1
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "UGZ3",
+      "description": "Armstrong Creek West Precinct Structure",
+      "type": 1
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "UGZ4",
+      "description": "Armstrong Creek Horseshoe Bend Precinct",
+      "type": 1
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "UGZ5",
+      "description": "Armstrong Creek Town Centre Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Greater Geelong",
+      "zone_code": "UGZ6",
+      "description": "Lara West Precinct Structure Plan (2013)",
+      "type": 1
+    },
+    {
+      "lga": "Greater Shepparton",
+      "zone_code": "SUZ1",
+      "description": "Shepparton Showgrounds",
+      "type": 2
+    },
+    {
+      "lga": "Greater Shepparton",
+      "zone_code": "SUZ10",
+      "description": "Kialla Private School",
+      "type": 1
+    },
+    {
+      "lga": "Greater Shepparton",
+      "zone_code": "SUZ4",
+      "description": "Goulburn Valley Harness and Greyhound",
+      "type": 2
+    },
+    {
+      "lga": "Greater Shepparton",
+      "zone_code": "SUZ7",
+      "description": "Emerald Bank Tourism Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Greater Shepparton",
+      "zone_code": "SUZ8",
+      "description": "Private Education Establishments",
+      "type": 1
+    },
+    {
+      "lga": "Greater Shepparton",
+      "zone_code": "UGZ1",
+      "description": "Shepparton North East Precinct Structure",
+      "type": 1
+    },
+    {
+      "lga": "Horsham",
+      "zone_code": "SUZ1",
+      "description": "Horsham Golf Course",
+      "type": 1
+    },
+    {
+      "lga": "Horsham",
+      "zone_code": "SUZ4",
+      "description": "Horsham Showgrounds",
+      "type": 2
+    },
+    {
+      "lga": "Horsham",
+      "zone_code": "SUZ8",
+      "description": "Horsham Artist in Residence",
+      "type": 1
+    },
+    {
+      "lga": "Latrobe",
+      "zone_code": "SUZ1",
+      "description": "Brown Coal",
+      "type": 2
+    },
+    {
+      "lga": "Latrobe",
+      "zone_code": "SUZ2",
+      "description": "Traralgon car sales precinct",
+      "type": 2
+    },
+    {
+      "lga": "Latrobe",
+      "zone_code": "SUZ3",
+      "description": "Gippsland Heritage Park",
+      "type": 2
+    },
+    {
+      "lga": "Latrobe",
+      "zone_code": "SUZ4",
+      "description": "Victor Street Exchange",
+      "type": 1
+    },
+    {
+      "lga": "Latrobe",
+      "zone_code": "SUZ7",
+      "description": "Latrobe Regional Airport",
+      "type": 2
+    },
+    {
+      "lga": "Latrobe",
+      "zone_code": "SUZ8",
+      "description": "Health and Complementary Uses Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Latrobe",
+      "zone_code": "UGZ1",
+      "description": "Lake Narracan Precinct Structure Plan",
+      "type": 1
+    },
+    {
+      "lga": "Macedon Ranges",
+      "zone_code": "SUZ4",
+      "description": "Private Hospital",
+      "type": 2
+    },
+    {
+      "lga": "Mildura",
+      "zone_code": "CDZ1",
+      "description": "Mildura Golf Resort Redevelopment",
+      "type": 1
+    },
+    {
+      "lga": "Mildura",
+      "zone_code": "SUZ1",
+      "description": "Private Education and Religious",
+      "type": 1
+    },
+    {
+      "lga": "Mildura",
+      "zone_code": "SUZ2",
+      "description": "Tourist Precincts",
+      "type": 2
+    },
+    {
+      "lga": "Mildura",
+      "zone_code": "SUZ3",
+      "description": "Mildura Marina",
+      "type": 1
+    },
+    {
+      "lga": "Mildura",
+      "zone_code": "SUZ4",
+      "description": "Mildura Hospital",
+      "type": 2
+    },
+    {
+      "lga": "Mildura",
+      "zone_code": "SUZ5",
+      "description": "Essential Service Utilities",
+      "type": 2
+    },
+    {
+      "lga": "Mildura",
+      "zone_code": "SUZ6",
+      "description": "Red Cliffs Caravan Park",
+      "type": 1
+    },
+    {
+      "lga": "Mildura",
+      "zone_code": "SUZ8",
+      "description": "Mildura -- Irymple Urban Transition Area",
+      "type": 1
+    },
+    {
+      "lga": "Mildura",
+      "zone_code": "SUZ9",
+      "description": "Mildura -- Irymple Urban Transition Area",
+      "type": 2
+    },
+    {
+      "lga": "Mildura",
+      "zone_code": "UGZ1",
+      "description": "Mildura South Precinct Structure Plan --",
+      "type": 2
+    },
+    {
+      "lga": "Moorabool",
+      "zone_code": "SUZ1",
+      "description": "Coal Mining",
+      "type": 3
+    },
+    {
+      "lga": "Moorabool",
+      "zone_code": "SUZ2",
+      "description": "Earth and Energy Resources Industry",
+      "type": 3
+    },
+    {
+      "lga": "Moorabool",
+      "zone_code": "SUZ3",
+      "description": "Golf Courses",
+      "type": 1
+    },
+    {
+      "lga": "Moorabool",
+      "zone_code": "SUZ4",
+      "description": "Bacchus Marsh Grammar School",
+      "type": 1
+    },
+    {
+      "lga": "Southern Grampians",
+      "zone_code": "SUZ1",
+      "description": "Private Educational Institutions",
+      "type": 1
+    },
+    {
+      "lga": "Southern Grampians",
+      "zone_code": "SUZ2",
+      "description": "Private Golf Course",
+      "type": 1
+    },
+    {
+      "lga": "Southern Grampians",
+      "zone_code": "SUZ3",
+      "description": "Mount Baimbridge Road, Hamilton",
+      "type": 2
+    },
+    {
+      "lga": "Southern Grampians",
+      "zone_code": "SUZ4",
+      "description": "Office and Communications Centre",
+      "type": 2
+    },
+    {
+      "lga": "Southern Grampians",
+      "zone_code": "SUZ5",
+      "description": "RMIT Hamilton",
+      "type": 1
+    },
+    {
+      "lga": "Southern Grampians",
+      "zone_code": "SUZ7",
+      "description": "Western Speedway Hamilton",
+      "type": 2
+    },
+    {
+      "lga": "Surf Coast",
+      "zone_code": "CDZ2",
+      "description": "The Sands Torquay Residential Lakes and",
+      "type": 1
+    },
+    {
+      "lga": "Surf Coast",
+      "zone_code": "SUZ1",
+      "description": "Alcoa Lease Land",
+      "type": 3
+    },
+    {
+      "lga": "Surf Coast",
+      "zone_code": "SUZ4",
+      "description": "Torquay Community Development Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Surf Coast",
+      "zone_code": "SUZ5",
+      "description": "Torquay Tourism Development Precincts",
+      "type": 2
+    },
+    {
+      "lga": "Surf Coast",
+      "zone_code": "SUZ7",
+      "description": "Golf Courses",
+      "type": 1
+    },
+    {
+      "lga": "Surf Coast",
+      "zone_code": "SUZ9",
+      "description": "Surf Coast Christian College Campus",
+      "type": 1
+    },
+    {
+      "lga": "Wangaratta",
+      "zone_code": "SUZ1",
+      "description": "Showgrounds",
+      "type": 2
+    },
+    {
+      "lga": "Wangaratta",
+      "zone_code": "SUZ2",
+      "description": "Racecourse",
+      "type": 2
+    },
+    {
+      "lga": "Wangaratta",
+      "zone_code": "SUZ3",
+      "description": "Avian Park Sport and Recreation Hub",
+      "type": 2
+    },
+    {
+      "lga": "Wangaratta",
+      "zone_code": "SUZ4",
+      "description": "Golf Course",
+      "type": 1
+    },
+    {
+      "lga": "Wangaratta",
+      "zone_code": "SUZ5",
+      "description": "Galen College -- The Farm",
+      "type": 1
+    },
+    {
+      "lga": "Wangaratta",
+      "zone_code": "SUZ6",
+      "description": "South Wangaratta Civic Precinct",
+      "type": 2
+    },
+    {
+      "lga": "Wangaratta",
+      "zone_code": "SUZ7",
+      "description": "Reith Road Equine Precinct",
+      "type": 1
+    },
+    {
+      "lga": "Warrnambool",
+      "zone_code": "SUZ1",
+      "description": "Warrnambool Racecourse",
+      "type": 2
+    },
+    {
+      "lga": "Warrnambool",
+      "zone_code": "SUZ2",
+      "description": "Warrnambool Showgrounds",
+      "type": 2
+    },
+    {
+      "lga": "Warrnambool",
+      "zone_code": "SUZ3",
+      "description": "Warrnambool West Industrial Precinct -",
+      "type": 2
+    },
+    {
+      "lga": "Wellington",
+      "zone_code": "SUZ3",
+      "description": "Lake Guthridge Precinct",
+      "type": 1
+    },
+    {
+      "lga": "Wellington",
+      "zone_code": "SUZ6",
+      "description": "Sale Greyhound Racing Facility",
+      "type": 2
+    },
+    {
+      "lga": "Wodonga",
+      "zone_code": "SUZ1",
+      "description": "Gateway Island",
+      "type": 1
+    },
+    {
+      "lga": "Wodonga",
+      "zone_code": "SUZ2",
+      "description": "Golf Courses and Associated Development",
+      "type": 1
+    },
+    {
+      "lga": "Wodonga",
+      "zone_code": "UGZ1",
+      "description": "Urban Growth Zone",
+      "type": 1
+    }
+  ]
+}
