@@ -22133,7 +22133,7 @@ initCollapse();
       var html = '';
 
       // Sources group
-      var hasSrc = sourcePins.length > 0 || lineSources.length > 0;
+      var hasSrc = sourcePins.length > 0 || lineSources.length > 0 || (typeof buildingSources !== 'undefined' && buildingSources.length > 0);
       html += '<div style="margin-bottom:10px;">';
       html += '<div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Sources</div>';
       if (!hasSrc) {
@@ -22225,6 +22225,24 @@ initCollapse();
           if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'areasource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
           html += '</div>';
         });
+        if (typeof buildingSources !== 'undefined') {
+          buildingSources.forEach(function(bs, i) {
+            var hasVerts = bs.vertices && bs.vertices.length >= 3;
+            var name = escapeHTML(bs.name || ('Building source ' + (i + 1)));
+            var bsHt = Number.isFinite(bs.height_m) ? bs.height_m : 6;
+            var bsRw = bs.defaultConstruction && Number.isFinite(bs.defaultConstruction.rw) ? bs.defaultConstruction.rw : null;
+            var bsDetail = bsHt.toFixed(0) + 'm' + (bsRw !== null ? ', Rw\u00a0' + bsRw : '');
+            html += '<div class="obj-row" data-obj-type="buildingsource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts ? 'pointer' : 'default') + ';">';
+            html += '<span style="width:11px;height:11px;border:2px solid #7c3aed;background:rgba(140,80,180,0.25);border-radius:2px;display:inline-block;flex-shrink:0;"></span>';
+            html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:22px;">BS' + (i + 1) + '</span>';
+            html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+              '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+              '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(bsDetail) + '</div>' +
+              '</span>';
+            if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'buildingsource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
+            html += '</div>';
+          });
+        }
       }
       html += '</div>';
 
@@ -22289,25 +22307,6 @@ initCollapse();
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">G' + (i + 1) + '</span>';
           html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + escapeHTML(name + gStr) + '</span>';
           html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'groundzone\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
-          html += '</div>';
-        });
-        html += '</div>';
-      }
-
-      // Building sources group
-      if (typeof buildingSources !== 'undefined' && buildingSources.length > 0) {
-        html += '<div style="margin-bottom:10px;">';
-        html += '<div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Building Sources</div>';
-        buildingSources.forEach(function(bs, i) {
-          var hasVerts = bs.vertices && bs.vertices.length >= 3;
-          var name = escapeHTML(bs.name || ('Building source ' + (i+1)));
-          var bsRw = bs.defaultConstruction && Number.isFinite(bs.defaultConstruction.rw) ? bs.defaultConstruction.rw : '';
-          var bsDetail = ' <span style="font-size:10px;color:#9ca3af;">(' + (bs.height_m || 6) + 'm' + (bsRw !== '' ? ', Rw\u00a0' + bsRw : '') + ')</span>';
-          html += '<div class="obj-row" data-obj-type="buildingsource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts?'pointer':'default') + ';">';
-          html += '<span style="width:11px;height:11px;border:2px solid #7c3aed;background:rgba(140,80,180,0.25);border-radius:2px;display:inline-block;flex-shrink:0;"></span>';
-          html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:22px;">BS' + (i+1) + '</span>';
-          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + bsDetail + '</span>';
-          if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'buildingsource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
           html += '</div>';
         });
         html += '</div>';
