@@ -2842,7 +2842,7 @@ function getVicZoneType(zoneCode, lga, isMetro) {
       for (var di = 0; di < defs.length; di++) {
         if (defs[di].zone_code === baseCode) return defs[di].type;
       }
-      return null;
+      // No A.1 base match — fall through to VIC_ZONE_TYPE_MAP below
     }
     // Standard zone — look up A.1 directly, then try stripping trailing schedule digit
     var defs2 = window.VIC_ZONE_TYPES.table_a1_defaults;
