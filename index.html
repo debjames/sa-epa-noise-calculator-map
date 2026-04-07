@@ -10775,7 +10775,9 @@ function renderScenariosTable() {
     ['day', 'eve', 'night'].forEach(function(period) {
       var lw = (pin.lw && Number.isFinite(pin.lw[period]) && pin.lw[period] > 0) ? pin.lw[period] : null;
       if (lw !== null) {
-        html += '<td class="num" style="' + cs + '">' + Math.round(lw) + ' dB(A)</td>';
+        var pQty = _getNumUnits(pin, period);
+        var pSfx = pQty > 1 ? ' \u00d7\u202f' + pQty : '';
+        html += '<td class="num" style="' + cs + '">' + Math.round(lw) + ' dB(A)' + pSfx + '</td>';
       } else {
         html += '<td class="num" style="' + ms + '">\u2014</td>';
       }
@@ -10797,7 +10799,9 @@ function renderScenariosTable() {
       var lwm    = _lsGetEffectiveLwm(ls, period);
       var active = !ls.activeInPeriod || ls.activeInPeriod[period] !== false;
       if (Number.isFinite(lwm) && active) {
-        html += '<td class="num" style="' + cs + '">' + Math.round(lwm) + ' dB(A)/m</td>';
+        var lsN   = (ls.movements && ls.movements[period] && Number.isFinite(ls.movements[period].N)) ? ls.movements[period].N : 1;
+        var lsSfx = lsN > 1 ? ' \u00d7\u202f' + lsN : '';
+        html += '<td class="num" style="' + cs + '">' + Math.round(lwm) + ' dB(A)/m' + lsSfx + '</td>';
       } else {
         html += '<td class="num" style="' + ms + '">\u2014</td>';
       }
@@ -10817,7 +10821,9 @@ function renderScenariosTable() {
       var lwVal  = as.lwValue && Number.isFinite(as.lwValue[period]) ? as.lwValue[period] : null;
       var active = !as.activeInPeriod || as.activeInPeriod[period] !== false;
       if (lwVal !== null && active) {
-        html += '<td class="num" style="' + cs + '">' + Math.round(lwVal) + unit + '</td>';
+        var asQty = (as.quantity && Number.isFinite(as.quantity[period])) ? as.quantity[period] : 1;
+        var asSfx = asQty > 1 ? ' \u00d7\u202f' + asQty : '';
+        html += '<td class="num" style="' + cs + '">' + Math.round(lwVal) + unit + asSfx + '</td>';
       } else {
         html += '<td class="num" style="' + ms + '">\u2014</td>';
       }
