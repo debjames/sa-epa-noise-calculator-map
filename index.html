@@ -8987,6 +8987,118 @@ window.runUAT = async function() {
     t(cat, '21.8', Number.isFinite(activeResult) && Math.abs(activeResult - 65) < 0.01, 'active Lw/m='+activeResult.toFixed(2));
   })();
 
+  /* ════════════════════════════════════════════════════════════════════
+     CAT 23 — Building source calculation
+     ════════════════════════════════════════════════════════════════ */
+  C[23] = { label:'Building source calculation', pass:0, fail:0, lines:[] };
+  (function(){
+    var cat = 23;
+    var oneFacade = window._bsCalcOneFacade;
+    var calcDerived = window._bsCalcDerived;
+    var genSubs = window._bsGenerateSubSources;
+
+    if (!oneFacade || !calcDerived || !genSubs) {
+      t(cat, '23.0', false, '_bsCalcOneFacade/_bsCalcDerived/_bsGenerateSubSources not exposed on window');
+      return;
+    }
+
+    // ── 23.1  Facade Lw formula: Lp=75 Rw=25 area=10 hem=6 → 75−25+10+6=66 ──
+    var lw1 = oneFacade(75, null, {rw:25}, 10, null, 6);
+    t(cat, '23.1', Number.isFinite(lw1) && Math.abs(lw1 - 66) < 0.05,
+      '23.1 facade Lw=' + (Number.isFinite(lw1) ? lw1.toFixed(2) : 'null') + ' expected 66.00');
+
+    // ── 23.2  Roof Lw formula: hem=3 → 75−25+10+3=63 ──
+    var lw2 = oneFacade(75, null, {rw:25}, 10, null, 3);
+    t(cat, '23.2', Number.isFinite(lw2) && Math.abs(lw2 - 63) < 0.05,
+      '23.2 roof Lw=' + (Number.isFinite(lw2) ? lw2.toFixed(2) : 'null') + ' expected 63.00');
+
+    // ── 23.3  Element (louvre) override raises Lw when Rw_el < Rw_wall ──
+    //  cons={rw:25}, area=10, element={rw:5, area:2}
+    //  element Lw = 75-5+10·log₁₀(2)+6 = 79.01; residual Lw = 75-25+10·log₁₀(8)+6 = 65.03
+    //  composite ≈ energySum(79.01, 65.03) ≈ 79.07
+    var louvreOverr = { rw:25, elements: [{ construction:{rw:5}, area:2 }] };
+    var lw3 = oneFacade(75, null, {rw:25}, 10, louvreOverr, 6);
+    var wallOnly = oneFacade(75, null, {rw:25}, 10, null, 6);   // 66
+    t(cat, '23.3', Number.isFinite(lw3) && lw3 > 75,
+      '23.3 louvre Lw=' + (Number.isFinite(lw3) ? lw3.toFixed(2) : 'null') + ' expected >75');
+
+    // ── 23.4  Louvre composite > wall-only ──
+    t(cat, '23.4', Number.isFinite(lw3) && Number.isFinite(wallOnly) && lw3 > wallOnly,
+      '23.4 louvre(' + (Number.isFinite(lw3)?lw3.toFixed(2):'?') + ') > wall-only(' + (Number.isFinite(wallOnly)?wallOnly.toFixed(2):'?') + ')');
+
+    // ── 23.5  Composite energy ≥ wall-only ──
+    t(cat, '23.5', Number.isFinite(lw3) && Number.isFinite(wallOnly) && lw3 >= wallOnly,
+      '23.5 composite >= wall-only');
+
+    // ── Mock building source (small rectangle ~Adelaide) ──
+    var mockBs = {
+      id: 'bs-uat-23', name: 'UAT BS', height_m: 6,
+      vertices: [[-34.930,138.600],[-34.930,138.601],[-34.931,138.601],[-34.931,138.600]],
+      defaultConstruction: { rw: 25 },
+      roofConstruction: { rw: 30, enabled: true },
+      facadeOverrides: {},
+      interiorLp: {
+        day:   { broadband: 80, octave: null },
+        eve:   { broadband: 75, octave: null },
+        night: { broadband: 70, octave: null }
+      },
+      activeInPeriod: { day: true, eve: true, night: true },
+      operatingPct: { day: 100, eve: 100, night: 100 }
+    };
+
+    // ── 23.6  Roof disabled → roof contribution absent ──
+    var bsNoRoof = JSON.parse(JSON.stringify(mockBs));
+    bsNoRoof.roofConstruction.enabled = false;
+    var d6 = calcDerived(bsNoRoof);
+    var d6WithRoof = calcDerived(mockBs);
+    t(cat, '23.6', d6 && (d6.roof.day === null || !Number.isFinite(d6.roof.day)),
+      '23.6 roof disabled → roof.day=' + (d6 ? JSON.stringify(d6.roof.day) : 'err'));
+
+    // ── 23.7  Higher Rw → lower total Lw ──
+    var bsLowR  = JSON.parse(JSON.stringify(mockBs));
+    bsLowR.defaultConstruction  = { rw: 15 };
+    bsLowR.roofConstruction     = { rw: 20, enabled: true };
+    var bsHighR = JSON.parse(JSON.stringify(mockBs));
+    bsHighR.defaultConstruction = { rw: 35 };
+    bsHighR.roofConstruction    = { rw: 40, enabled: true };
+    var dLow  = calcDerived(bsLowR);
+    var dHigh = calcDerived(bsHighR);
+    t(cat, '23.7', dLow && dHigh && Number.isFinite(dLow.total.day) && Number.isFinite(dHigh.total.day) && dLow.total.day > dHigh.total.day,
+      '23.7 Rw15→' + (dLow&&dLow.total?dLow.total.day.toFixed(1):'?') + ' > Rw35→' + (dHigh&&dHigh.total?dHigh.total.day.toFixed(1):'?'));
+
+    // ── 23.8  Sub-source count > 0 for active building source ──
+    var subs8 = genSubs(mockBs, 'day');
+    t(cat, '23.8', Array.isArray(subs8) && subs8.length > 0,
+      '23.8 sub-sources=' + (Array.isArray(subs8) ? subs8.length : 'none') + ' expected >0');
+
+    // ── 23.9  Each sub-source has required numeric fields ──
+    var allOk = Array.isArray(subs8) && subs8.length > 0 && subs8.every(function(s) {
+      return Number.isFinite(s.lat) && Number.isFinite(s.lng) &&
+             Number.isFinite(s.heightM) && Number.isFinite(s.lwBB);
+    });
+    t(cat, '23.9', allOk, '23.9 all sub-sources have lat/lng/heightM/lwBB');
+
+    // ── 23.10  Inactive → 0 sub-sources ──
+    var bsOff = JSON.parse(JSON.stringify(mockBs));
+    bsOff.activeInPeriod.day = false;
+    var subsOff = genSubs(bsOff, 'day');
+    t(cat, '23.10', Array.isArray(subsOff) && subsOff.length === 0,
+      '23.10 inactive subs=' + (Array.isArray(subsOff) ? subsOff.length : 'err') + ' expected 0');
+
+    // ── 23.11  Larger building → at least as many sub-sources ──
+    var bigBs = JSON.parse(JSON.stringify(mockBs));
+    bigBs.vertices = [[-34.920,138.590],[-34.920,138.610],[-34.940,138.610],[-34.940,138.590]];
+    var subsBig   = genSubs(bigBs, 'day');
+    var subsSmall = genSubs(mockBs, 'day');
+    t(cat, '23.11', Array.isArray(subsBig) && Array.isArray(subsSmall) && subsBig.length >= subsSmall.length,
+      '23.11 big(' + (Array.isArray(subsBig)?subsBig.length:'?') + ') >= small(' + (Array.isArray(subsSmall)?subsSmall.length:'?') + ')');
+
+    // ── 23.12  calcDerived total.day is finite for a valid building source ──
+    var d12 = calcDerived(mockBs);
+    t(cat, '23.12', d12 && Number.isFinite(d12.total.day),
+      '23.12 calcDerived total.day=' + (d12 && d12.total ? d12.total.day : 'null'));
+  })();
+
   /* ── restore all state ── */
   restore();
 
@@ -9014,10 +9126,12 @@ window.runUAT = async function() {
     18:'Terrain screening',
     19:'Period selector consistency',
     20:'Multiple source energy summation',
-    21:'Line source calculation'
+    21:'Line source calculation',
+    22:'Area source calculation',
+    23:'Building source calculation'
   };
 
-  for (var ci=1; ci<=21; ci++) {
+  for (var ci=1; ci<=23; ci++) {
     var cat = C[ci];
     if (!cat) continue;
     lines.push('\nCAT ' + ci + ' \u2014 ' + catLabels[ci]);
@@ -9028,7 +9142,7 @@ window.runUAT = async function() {
 
   lines.push('\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550');
   lines.push('SUMMARY');
-  for (var cj=1; cj<=21; cj++) {
+  for (var cj=1; cj<=23; cj++) {
     var cc = C[cj];
     if (!cc) continue;
     var tot = cc.pass + cc.fail;
@@ -10573,17 +10687,15 @@ function renderScenariosTable() {
 
   // ── Building sources ───────────────────────────────────────────────────────
   if (typeof buildingSources !== 'undefined' && buildingSources.length > 0) {
-    var _bsDerivedFn = (typeof window._bsCalcDerived === 'function') ? window._bsCalcDerived : null;
     buildingSources.forEach(function(bs) {
-      var derived = _bsDerivedFn ? _bsDerivedFn(bs) : null;
       html += '<tr>';
       html += '<td style="' + cs + '">' + escapeHTML(bs.name || 'Building source') + '</td>';
       html += '<td style="' + cs + 'padding-left:8px;">Building</td>';
       ['day', 'eve', 'night'].forEach(function(period) {
         var active = !bs.activeInPeriod || bs.activeInPeriod[period] !== false;
-        var totalLw = derived && derived.total && Number.isFinite(derived.total[period]) ? derived.total[period] : null;
-        if (totalLw !== null && active) {
-          html += '<td class="num" style="' + cs + '">' + Math.round(totalLw) + ' dB(A)</td>';
+        var lpBB = bs.interiorLp && bs.interiorLp[period] && Number.isFinite(bs.interiorLp[period].broadband) ? bs.interiorLp[period].broadband : null;
+        if (lpBB !== null && active) {
+          html += '<td class="num" style="' + cs + '">' + Math.round(lpBB) + ' dB(A)</td>';
         } else {
           html += '<td class="num" style="' + ms + '">\u2014</td>';
         }
@@ -11695,6 +11807,51 @@ initCollapse();
       return features;
     }
 
+    function buildBuildingSourceFeatures() {
+      var features = [];
+      if (typeof buildingSources === 'undefined') return features;
+      var derivedFn = window._bsCalcDerived;
+      buildingSources.forEach(function(bs) {
+        if (!bs.vertices || bs.vertices.length < 3) return;
+        var ring = bs.vertices.map(function(v) { return [v[1], v[0]]; });
+        ring.push(ring[0].slice());
+        var roofArea = _asPolygonArea(bs.vertices);
+        var n = bs.vertices.length, perim = 0;
+        for (var i = 0; i < n; i++) {
+          var v1 = bs.vertices[i], v2 = bs.vertices[(i+1)%n];
+          var lat1=v1[0]*Math.PI/180, lat2=v2[0]*Math.PI/180;
+          var dLat=(v2[0]-v1[0])*Math.PI/180, dLng=(v2[1]-v1[1])*Math.PI/180;
+          var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)*Math.sin(dLng/2);
+          perim += 6371000*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+        }
+        var derived = derivedFn ? derivedFn(bs) : null;
+        var tot = derived && derived.total ? derived.total : {};
+        features.push({
+          type: 'Feature', id: bs.id,
+          geometry: { type: 'Polygon', coordinates: [ring] },
+          properties: {
+            feature_type:            'building_source',
+            name:                    bs.name || 'Building source',
+            height_m:                bs.height_m || 6,
+            interior_lp_day:         bs.interiorLp && bs.interiorLp.day   && Number.isFinite(bs.interiorLp.day.broadband)   ? bs.interiorLp.day.broadband   : null,
+            interior_lp_eve:         bs.interiorLp && bs.interiorLp.eve   && Number.isFinite(bs.interiorLp.eve.broadband)   ? bs.interiorLp.eve.broadband   : null,
+            interior_lp_night:       bs.interiorLp && bs.interiorLp.night && Number.isFinite(bs.interiorLp.night.broadband) ? bs.interiorLp.night.broadband : null,
+            wall_rw_default:         bs.defaultConstruction && Number.isFinite(bs.defaultConstruction.rw) ? bs.defaultConstruction.rw : null,
+            roof_rw:                 bs.roofConstruction    && Number.isFinite(bs.roofConstruction.rw)    ? bs.roofConstruction.rw    : null,
+            radiated_lw_total_day:   Number.isFinite(tot.day)   ? Math.round(tot.day   * 10)/10 : null,
+            radiated_lw_total_eve:   Number.isFinite(tot.eve)   ? Math.round(tot.eve   * 10)/10 : null,
+            radiated_lw_total_night: Number.isFinite(tot.night) ? Math.round(tot.night * 10)/10 : null,
+            roof_enabled:            !!(bs.roofConstruction && bs.roofConstruction.enabled),
+            num_facade_overrides:    Object.keys(bs.facadeOverrides || {}).length,
+            perimeter_m:             Math.round(perim),
+            wall_area_m2:            Math.round(perim * (bs.height_m || 6)),
+            roof_area_m2:            Math.round(roofArea)
+          }
+        });
+      });
+      return features;
+    }
+
     // ── GeoJSON export ──
     var geoJsonBtn = document.getElementById('exportGeoJsonBtn');
     if (geoJsonBtn) geoJsonBtn.addEventListener('click', function() {
@@ -11709,7 +11866,8 @@ initCollapse();
           buildContourFeatures(),
           buildBuildingFeatures(),
           buildLineSourceFeatures(),
-          buildAreaSourceFeatures()
+          buildAreaSourceFeatures(),
+          buildBuildingSourceFeatures()
         )
       };
       var json = JSON.stringify(fc, null, 2);
@@ -11822,6 +11980,34 @@ initCollapse();
         kml += '</Folder>\n';
       }
 
+      // Building sources folder
+      var bsKmlFeatures = buildBuildingSourceFeatures();
+      if (bsKmlFeatures.length > 0) {
+        kml += '<Folder><name>Building Sources</name>\n';
+        bsKmlFeatures.forEach(function(f) {
+          var p = f.properties;
+          var ring = f.geometry.coordinates[0].map(function(c) { return c[0] + ',' + c[1] + ',0'; }).join(' ');
+          kml += '<Placemark><name>' + escapeXML(p.name) + '</name>\n';
+          kml += '<Polygon><outerBoundaryIs><LinearRing><coordinates>' + ring + '</coordinates></LinearRing></outerBoundaryIs></Polygon>\n';
+          kml += '<ExtendedData>';
+          kml += '<Data name="height_m"><value>'               + p.height_m + '</value></Data>';
+          kml += '<Data name="interior_lp_day"><value>'        + (p.interior_lp_day   !== null ? p.interior_lp_day   : '') + '</value></Data>';
+          kml += '<Data name="interior_lp_eve"><value>'        + (p.interior_lp_eve   !== null ? p.interior_lp_eve   : '') + '</value></Data>';
+          kml += '<Data name="interior_lp_night"><value>'      + (p.interior_lp_night !== null ? p.interior_lp_night : '') + '</value></Data>';
+          kml += '<Data name="radiated_lw_day"><value>'        + (p.radiated_lw_total_day   !== null ? p.radiated_lw_total_day   : '') + '</value></Data>';
+          kml += '<Data name="radiated_lw_eve"><value>'        + (p.radiated_lw_total_eve   !== null ? p.radiated_lw_total_eve   : '') + '</value></Data>';
+          kml += '<Data name="radiated_lw_night"><value>'      + (p.radiated_lw_total_night !== null ? p.radiated_lw_total_night : '') + '</value></Data>';
+          kml += '<Data name="wall_rw_default"><value>'        + (p.wall_rw_default !== null ? p.wall_rw_default : '') + '</value></Data>';
+          kml += '<Data name="roof_rw"><value>'                + (p.roof_rw !== null ? p.roof_rw : '') + '</value></Data>';
+          kml += '<Data name="roof_enabled"><value>'           + p.roof_enabled + '</value></Data>';
+          kml += '<Data name="perimeter_m"><value>'            + p.perimeter_m + '</value></Data>';
+          kml += '<Data name="roof_area_m2"><value>'           + p.roof_area_m2 + '</value></Data>';
+          kml += '</ExtendedData>\n';
+          kml += '</Placemark>\n';
+        });
+        kml += '</Folder>\n';
+      }
+
       kml += '</Document>\n</kml>';
       downloadBlob(kml, getExportFilename('kml'), 'application/vnd.google-earth.kml+xml');
       if (contours.length === 0) {
@@ -11894,6 +12080,29 @@ initCollapse();
             p.lw_m2_day   !== null ? p.lw_m2_day   : '',
             p.lw_m2_eve   !== null ? p.lw_m2_eve   : '',
             p.lw_m2_night !== null ? p.lw_m2_night : ''
+          ].join(',') + '\n';
+        });
+      }
+
+      // ── Building sources section ──
+      var bsRows = buildBuildingSourceFeatures();
+      if (bsRows.length > 0) {
+        csv += '\n# BUILDING SOURCES\n';
+        csv += 'Name,Height_m,Perimeter_m,RoofArea_m2,WallArea_m2,Interior_Lp_Day,Interior_Lp_Eve,Interior_Lp_Night,Radiated_Lw_Day_dBA,Radiated_Lw_Eve_dBA,Radiated_Lw_Night_dBA,Wall_Rw_Default,Roof_Rw,Roof_Enabled\n';
+        bsRows.forEach(function(f) {
+          var p = f.properties;
+          csv += [
+            '"' + (p.name || '') + '"',
+            p.height_m, p.perimeter_m, p.roof_area_m2, p.wall_area_m2,
+            p.interior_lp_day   !== null ? p.interior_lp_day   : '',
+            p.interior_lp_eve   !== null ? p.interior_lp_eve   : '',
+            p.interior_lp_night !== null ? p.interior_lp_night : '',
+            p.radiated_lw_total_day   !== null ? p.radiated_lw_total_day   : '',
+            p.radiated_lw_total_eve   !== null ? p.radiated_lw_total_eve   : '',
+            p.radiated_lw_total_night !== null ? p.radiated_lw_total_night : '',
+            p.wall_rw_default !== null ? p.wall_rw_default : '',
+            p.roof_rw         !== null ? p.roof_rw         : '',
+            p.roof_enabled
           ].join(',') + '\n';
         });
       }
@@ -19070,6 +19279,8 @@ initCollapse();
     window._bsGenerateSubSources      = _bsGenerateSubSources;
     window._bsNearestWallDist         = _bsNearestWallDist;
     window._bsCalcDerived             = _bsCalcDerived;
+    window._bsCalcOneFacade           = _bsCalcOneFacade;
+    window._bsPerimeter               = _bsPerimeter;
     window._calcBuildingSourceAtReceiver = calcBuildingSourceAtReceiver;
     window._bsPerFacadeAtReceiver     = _bsPerFacadeAtReceiver;
 
@@ -21775,10 +21986,12 @@ initCollapse();
         buildingSources.forEach(function(bs, i) {
           var hasVerts = bs.vertices && bs.vertices.length >= 3;
           var name = escapeHTML(bs.name || ('Building source ' + (i+1)));
+          var bsRw = bs.defaultConstruction && Number.isFinite(bs.defaultConstruction.rw) ? bs.defaultConstruction.rw : '';
+          var bsDetail = ' <span style="font-size:10px;color:#9ca3af;">(' + (bs.height_m || 6) + 'm' + (bsRw !== '' ? ', Rw\u00a0' + bsRw : '') + ')</span>';
           html += '<div class="obj-row" data-obj-type="buildingsource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts?'pointer':'default') + ';">';
           html += '<span style="width:11px;height:11px;border:2px solid #7c3aed;background:rgba(140,80,180,0.25);border-radius:2px;display:inline-block;flex-shrink:0;"></span>';
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:22px;">BS' + (i+1) + '</span>';
-          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</span>';
+          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + bsDetail + '</span>';
           if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'buildingsource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
           html += '</div>';
         });
