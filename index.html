@@ -16276,19 +16276,7 @@ initCollapse();
       return ovr;
     }
 
-    // ── Helpers for rotation handle positioning ────────────────
-    // Returns [lat, lng] for a point `extraM` metres above the rotated top-centre.
-    function _soRotHandleLatLng(ovr, extraM) {
-      var b = L.latLngBounds(ovr.bounds);
-      var cLat = (b.getSouth() + b.getNorth()) / 2;
-      var cLng = (b.getWest()  + b.getEast())  / 2;
-      var rot  = (ovr.rotation || 0) * Math.PI / 180;
-      var halfHM = (b.getNorth() - b.getSouth()) * 111000 / 2;
-      var distM  = halfHM + (extraM || 40);
-      var dLat = Math.cos(rot) * distM / 111000;
-      var dLng = Math.sin(rot) * distM / (111320 * Math.cos(cLat * Math.PI / 180));
-      return [cLat + dLat, cLng + dLng];
-    }
+    // ── Rotation / geometry helpers ───────────────────────────
 
     // Snap angle to nearest 45° step when within 3° (unless Shift held)
     function _soSnapAngle(deg, shiftHeld) {
@@ -16308,103 +16296,207 @@ initCollapse();
     }
     window._soApplyRotation = _soApplyRotation;
 
+    // Rotate an [latM, lngM] offset vector by `angleDeg` (clockwise from north)
+    function _soRotateVec(latM, lngM, angleDeg) {
+      var r = angleDeg * Math.PI / 180;
+      var cosR = Math.cos(r), sinR = Math.sin(r);
+      return [cosR * latM - sinR * lngM, sinR * latM + cosR * lngM];
+    }
+
+    // Visual (rotated) positions of the four corners of `ovr` in lat/lng order: [SW, NW, NE, SE]
+    // These are where the corners of the image APPEAR on screen, accounting for CSS rotation.
+    function _soVisualCorners(ovr) {
+      var b = L.latLngBounds(ovr.bounds);
+      var cLat = (b.getSouth() + b.getNorth()) / 2;
+      var cLng = (b.getWest()  + b.getEast())  / 2;
+      var cosLat = Math.cos(cLat * Math.PI / 180);
+      var rot = ovr.rotation || 0;
+      // Bounds corners: SW, NW, NE, SE — convert to metre offsets from centre, rotate, convert back
+      return [
+        [b.getSouth(), b.getWest()],   // SW
+        [b.getNorth(), b.getWest()],   // NW
+        [b.getNorth(), b.getEast()],   // NE
+        [b.getSouth(), b.getEast()]    // SE
+      ].map(function(c) {
+        var dLatM = (c[0] - cLat) * 111000;
+        var dLngM = (c[1] - cLng) * 111320 * cosLat;
+        var rv = _soRotateVec(dLatM, dLngM, rot);
+        return [cLat + rv[0] / 111000, cLng + rv[1] / (111320 * cosLat)];
+      });
+    }
+
+    // Returns [lat, lng] for a point `extraM` metres above the rotated image top-centre
+    function _soRotHandleLatLng(ovr, extraM) {
+      var b = L.latLngBounds(ovr.bounds);
+      var cLat = (b.getSouth() + b.getNorth()) / 2;
+      var cLng = (b.getWest()  + b.getEast())  / 2;
+      var cosLat = Math.cos(cLat * Math.PI / 180);
+      var halfHM = (b.getNorth() - b.getSouth()) * 111000 / 2;
+      var distM  = halfHM + (extraM || 40);
+      // Direction: straight up (north) rotated by ovr.rotation
+      var rv = _soRotateVec(distM, 0, ovr.rotation || 0);
+      return [cLat + rv[0] / 111000, cLng + rv[1] / (111320 * cosLat)];
+    }
+
+    // Apply inverse rotation to a visual lat/lng to get its axis-aligned equivalent
+    function _soUnRotate(lat, lng, cLat, cLng, rot) {
+      var cosLat = Math.cos(cLat * Math.PI / 180);
+      var dLatM = (lat - cLat) * 111000;
+      var dLngM = (lng - cLng) * 111320 * cosLat;
+      var rv = _soRotateVec(dLatM, dLngM, -rot);
+      return [cLat + rv[0] / 111000, cLng + rv[1] / (111320 * cosLat)];
+    }
+
     // ── Placement mode ────────────────────────────────────────
     function _soEnterPlacement(ovr) {
       ovr.locked = false;
       _soRemoveHandles(ovr);
 
-      var b = L.latLngBounds(ovr.bounds);
-      // corners: 0=SW, 1=NW, 2=NE, 3=SE (axis-aligned bounds)
-      var corners = [
-        [b.getSouth(), b.getWest()],
-        [b.getNorth(), b.getWest()],
-        [b.getNorth(), b.getEast()],
-        [b.getSouth(), b.getEast()]
-      ];
+      // ── shared helpers inside placement closure ──
+      function applyNewBounds(nb) {
+        ovr.bounds = [[nb.getSouth(), nb.getWest()], [nb.getNorth(), nb.getEast()]];
+        ovr._layer.setBounds(nb);
+        _soApplyRotation(ovr); // re-apply CSS transform after Leaflet repositions the element
+      }
 
+      // Reposition ALL handles to match current ovr.bounds + ovr.rotation
+      // (pass skipIdx to omit the handle currently being dragged by Leaflet)
+      function syncHandles(skipIdx) {
+        var vc = _soVisualCorners(ovr);
+        handles.forEach(function(h, i) { if (i !== skipIdx) h.setLatLng(vc[i]); });
+        var b2 = L.latLngBounds(ovr.bounds);
+        var nc = [(b2.getSouth() + b2.getNorth()) / 2, (b2.getWest() + b2.getEast()) / 2];
+        if (ovr._centerHandle) ovr._centerHandle.setLatLng(nc);
+        if (ovr._rotHandle) {
+          var hl = _soRotHandleLatLng(ovr, 40);
+          ovr._rotHandle.setLatLng(hl);
+          if (ovr._rotLine) ovr._rotLine.setLatLngs([_soRotHandleLatLng(ovr, 0), hl]);
+        }
+      }
+
+      // ── corner icons ──
+      var cursors = ['sw-resize', 'nw-resize', 'ne-resize', 'se-resize'];
       function cornerIcon(cursor) {
         return L.divIcon({
           className: '',
-          html: '<div style="width:12px;height:12px;background:#1d4ed8;border:2px solid #fff;border-radius:2px;box-shadow:0 1px 5px rgba(0,0,0,0.4);cursor:' + cursor + ';"></div>',
+          html: '<div style="width:12px;height:12px;background:#fff;border:2px solid #1d4ed8;border-radius:2px;box-shadow:0 1px 5px rgba(0,0,0,0.4);cursor:' + cursor + ';"></div>',
           iconSize:   [12, 12],
           iconAnchor: [6, 6]
         });
       }
-      var cursors = ['sw-resize', 'nw-resize', 'ne-resize', 'se-resize'];
 
-      var handles = corners.map(function(c, idx) {
-        var opp = (idx + 2) % 4;
+      // ── create corner handles at VISUAL (rotated) corners ──
+      var vc0 = _soVisualCorners(ovr);
+      // Axis-aligned bounds corners parallel to vc0 (same index order: SW, NW, NE, SE)
+      var handles = vc0.map(function(c, idx) {
+        var opp = (idx + 2) % 4; // opposite corner index (axis-aligned bounds)
         var m = L.marker(c, {
-          draggable: true,
-          icon: cornerIcon(cursors[idx]),
-          zIndexOffset: 1000
+          draggable: true, icon: cornerIcon(cursors[idx]), zIndexOffset: 1000
         }).addTo(map);
 
         m.on('dragstart', function() { map.dragging.disable(); });
         m.on('drag', function(e) {
           var ll = e.latlng;
           var shiftHeld = e.originalEvent && e.originalEvent.shiftKey;
-          if (shiftHeld) {
-            // Proportional resize: constrain to image aspect ratio
-            var oppLL = handles[opp].getLatLng();
-            var dLat = Math.abs(ll.lat - oppLL.lat);
-            var dLng = Math.abs(ll.lng - oppLL.lng);
-            var cLat = (ll.lat + oppLL.lat) / 2;
-            var dLatM = dLat * 111000;
-            var dLngM = dLng * 111320 * Math.cos(cLat * Math.PI / 180);
+
+          // Current image centre (bounds-based)
+          var b2  = L.latLngBounds(ovr.bounds);
+          var cLat = (b2.getSouth() + b2.getNorth()) / 2;
+          var cLng = (b2.getWest()  + b2.getEast())  / 2;
+
+          // Un-rotate dragged visual position → axis-aligned coordinate
+          var ur = _soUnRotate(ll.lat, ll.lng, cLat, cLng, ovr.rotation || 0);
+
+          // Opposite bounds corner (axis-aligned, stays fixed)
+          var oppCorners = [
+            [b2.getSouth(), b2.getWest()], [b2.getNorth(), b2.getWest()],
+            [b2.getNorth(), b2.getEast()], [b2.getSouth(), b2.getEast()]
+          ];
+          var oppBC = oppCorners[opp];
+
+          // Proportional resize (Shift): constrain un-rotated delta to image aspect ratio
+          if (shiftHeld && ovr._imgW > 0 && ovr._imgH > 0) {
+            var cosLat = Math.cos(cLat * Math.PI / 180);
+            var dLatM = Math.abs(ur[0] - oppBC[0]) * 111000;
+            var dLngM = Math.abs(ur[1] - oppBC[1]) * 111320 * cosLat;
+            if (dLatM < 0.01) dLatM = 0.01; // avoid div-by-zero
             var aspect = ovr._imgW / ovr._imgH;
             if (dLngM / dLatM > aspect) {
-              dLng = (dLatM * aspect) / (111320 * Math.cos(cLat * Math.PI / 180));
+              // Too wide — constrain longitude
+              var newDLng = (dLatM * aspect) / (111320 * cosLat);
+              ur[1] = oppBC[1] + (ur[1] >= oppBC[1] ? newDLng : -newDLng);
             } else {
-              dLat = (dLngM / aspect) / 111000;
+              // Too tall — constrain latitude
+              var newDLat = (dLngM / aspect) / 111000;
+              ur[0] = oppBC[0] + (ur[0] >= oppBC[0] ? newDLat : -newDLat);
             }
-            ll = L.latLng(
-              oppLL.lat + (ll.lat > oppLL.lat ?  dLat : -dLat),
-              oppLL.lng + (ll.lng > oppLL.lng ?  dLng : -dLng)
-            );
-            m.setLatLng(ll);
           }
-          corners[idx] = [ll.lat, ll.lng];
-          _soUpdateBoundsFromCorners(ovr, corners, handles);
+
+          // New bounds from un-rotated dragged corner + fixed opposite bounds corner
+          var newBounds = L.latLngBounds([ur[0], ur[1]], [oppBC[0], oppBC[1]]);
+          if (newBounds.getNorth() - newBounds.getSouth() < 0.000001 ||
+              newBounds.getEast()  - newBounds.getWest()  < 0.000001) return; // too small — skip
+          applyNewBounds(newBounds);
+          syncHandles(idx); // reposition all handles except the one Leaflet is dragging
         });
-        m.on('dragend', function() { map.dragging.enable(); });
+        m.on('dragend', function() {
+          syncHandles(-1); // snap all handles perfectly (including dragged one)
+          map.dragging.enable();
+        });
         return m;
       });
 
-      // Centre drag handle — moves the whole overlay
-      var cLat0 = (corners[0][0] + corners[2][0]) / 2;
-      var cLng0 = (corners[0][1] + corners[2][1]) / 2;
-      var centerMark = L.marker([cLat0, cLng0], {
+      // ── centre drag handle (move whole overlay) ──
+      var b0   = L.latLngBounds(ovr.bounds);
+      var cLL0 = [(b0.getSouth() + b0.getNorth()) / 2, (b0.getWest() + b0.getEast()) / 2];
+      var centerMark = L.marker(cLL0, {
         draggable: true,
         icon: L.divIcon({
           className: '',
           html: '<div style="width:20px;height:20px;background:rgba(29,78,216,0.15);border:2px dashed #1d4ed8;border-radius:50%;cursor:move;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>',
-          iconSize:   [20, 20],
-          iconAnchor: [10, 10]
+          iconSize: [20, 20], iconAnchor: [10, 10]
         }),
         zIndexOffset: 999
       }).addTo(map);
 
-      var _prevLL = null;
-      centerMark.on('dragstart', function(e) { _prevLL = e.target.getLatLng(); map.dragging.disable(); });
-      centerMark.on('drag', function(e) {
-        var ll = e.latlng;
-        if (_prevLL) {
-          var dLat = ll.lat - _prevLL.lat;
-          var dLng = ll.lng - _prevLL.lng;
-          corners = corners.map(function(c) { return [c[0] + dLat, c[1] + dLng]; });
-          handles.forEach(function(h, i) { h.setLatLng(corners[i]); });
-          _soUpdateBoundsFromCorners(ovr, corners, null);
-        }
-        _prevLL = ll;
+      var _moveStartLL  = null;  // cursor lat/lng at drag start
+      var _moveStartBounds = null; // bounds snapshot at drag start
+
+      centerMark.on('dragstart', function() {
+        _moveStartLL = centerMark.getLatLng();
+        _moveStartBounds = L.latLngBounds(ovr.bounds); // snapshot to avoid drift
+        map.dragging.disable();
       });
-      centerMark.on('dragend', function() { map.dragging.enable(); });
+      centerMark.on('drag', function(e) {
+        if (!_moveStartLL || !_moveStartBounds) return;
+        var ll   = e.latlng;
+        var dLat = ll.lat - _moveStartLL.lat;
+        var dLng = ll.lng - _moveStartLL.lng;
+        var nb = L.latLngBounds(
+          [_moveStartBounds.getSouth() + dLat, _moveStartBounds.getWest() + dLng],
+          [_moveStartBounds.getNorth() + dLat, _moveStartBounds.getEast() + dLng]
+        );
+        applyNewBounds(nb);
+        // Reposition corner handles + rotation handle — but NOT the centre handle
+        // (Leaflet is already moving it; calling setLatLng on it here causes jitter)
+        var vc = _soVisualCorners(ovr);
+        handles.forEach(function(h, i) { h.setLatLng(vc[i]); });
+        if (ovr._rotHandle) {
+          var hl = _soRotHandleLatLng(ovr, 40);
+          ovr._rotHandle.setLatLng(hl);
+          if (ovr._rotLine) ovr._rotLine.setLatLngs([_soRotHandleLatLng(ovr, 0), hl]);
+        }
+      });
+      centerMark.on('dragend', function() {
+        _moveStartLL = null; _moveStartBounds = null;
+        syncHandles(-1); // snap centre handle to exact computed centre
+        map.dragging.enable();
+      });
 
       ovr._handles      = handles;
       ovr._centerHandle = centerMark;
 
-      // ── Rotation handle + connecting line ──────────────────
-      // Line from image top-centre (at bounds edge) to the handle above it
+      // ── rotation handle + connecting line ──────────────────
       var rotLineStart = _soRotHandleLatLng(ovr, 0);
       var rotLineEnd   = _soRotHandleLatLng(ovr, 40);
       var rotLine = L.polyline([rotLineStart, rotLineEnd], {
@@ -16413,76 +16505,52 @@ initCollapse();
       }).addTo(map);
       ovr._rotLine = rotLine;
 
-      // Rotation handle marker (circle, offset above image)
       var rotMark = L.marker(rotLineEnd, {
         draggable: true,
         icon: L.divIcon({
           className: '',
           html: '<div style="width:14px;height:14px;background:#fff;border:2.5px solid #1d4ed8;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,0.35);cursor:grab;"></div>',
-          iconSize:   [14, 14],
-          iconAnchor: [7, 7]
+          iconSize: [14, 14], iconAnchor: [7, 7]
         }),
         zIndexOffset: 1001
       }).addTo(map);
 
-      // Angle label tooltip (permanent, updates on drag)
       rotMark.bindTooltip(Math.round(ovr.rotation || 0) + '\u00b0', {
-        permanent: true, direction: 'right', className: 'so-rot-label',
-        offset: [8, 0]
+        permanent: true, direction: 'right', className: 'so-rot-label', offset: [8, 0]
       });
 
       rotMark.on('dragstart', function() { map.dragging.disable(); });
       rotMark.on('drag', function(e) {
-        var ll  = e.latlng;
+        var ll = e.latlng;
         var shiftHeld = e.originalEvent && e.originalEvent.shiftKey;
         var b2  = L.latLngBounds(ovr.bounds);
         var cLat = (b2.getSouth() + b2.getNorth()) / 2;
         var cLng = (b2.getWest()  + b2.getEast())  / 2;
-        // Angle from north (clockwise) in metres-space
+        var cosLat = Math.cos(cLat * Math.PI / 180);
+        // Angle from north (clockwise): atan2(east component, north component) in metres
         var dLatM = (ll.lat - cLat) * 111000;
-        var dLngM = (ll.lng - cLng) * 111320 * Math.cos(cLat * Math.PI / 180);
+        var dLngM = (ll.lng - cLng) * 111320 * cosLat;
         var rawDeg = Math.atan2(dLngM, dLatM) * 180 / Math.PI;
         ovr.rotation = _soSnapAngle(rawDeg, shiftHeld);
         _soApplyRotation(ovr);
-        // Update line: start at rotated top-centre, end at current drag position
-        var lineStart = _soRotHandleLatLng(ovr, 0);
-        rotLine.setLatLngs([lineStart, [ll.lat, ll.lng]]);
-        // Update label
+        // Reposition corner handles to new visual corners
+        var vc = _soVisualCorners(ovr);
+        handles.forEach(function(h, i) { h.setLatLng(vc[i]); });
+        // Update line from rotated top-centre to current drag position
+        rotLine.setLatLngs([_soRotHandleLatLng(ovr, 0), [ll.lat, ll.lng]]);
         rotMark.setTooltipContent(Math.round(ovr.rotation) + '\u00b0');
       });
       rotMark.on('dragend', function() {
-        // Snap handle back to correct circle position
+        // Snap handle back to correct position on the rotation circle
         var snapLL = _soRotHandleLatLng(ovr, 40);
         rotMark.setLatLng(snapLL);
-        var lineStart = _soRotHandleLatLng(ovr, 0);
-        rotLine.setLatLngs([lineStart, snapLL]);
+        rotLine.setLatLngs([_soRotHandleLatLng(ovr, 0), snapLL]);
+        rotMark.setTooltipContent(Math.round(ovr.rotation) + '\u00b0');
         map.dragging.enable();
       });
 
       ovr._rotHandle = rotMark;
       _soShowPlacementToolbar(ovr);
-    }
-
-    function _soUpdateBoundsFromCorners(ovr, corners, handles) {
-      var lats = corners.map(function(c) { return c[0]; });
-      var lngs = corners.map(function(c) { return c[1]; });
-      var south = Math.min.apply(null, lats), north = Math.max.apply(null, lats);
-      var west  = Math.min.apply(null, lngs), east  = Math.max.apply(null, lngs);
-      ovr.bounds = [[south, west], [north, east]];
-      if (ovr._layer) ovr._layer.setBounds(L.latLngBounds(ovr.bounds));
-      // Re-apply CSS rotation — Leaflet's setBounds recreates the element transform
-      _soApplyRotation(ovr);
-      if (ovr._centerHandle) {
-        ovr._centerHandle.setLatLng([(south + north) / 2, (west + east) / 2]);
-      }
-      // Reposition rotation handle and line to track the resized image
-      if (ovr._rotHandle) {
-        var newHandleLL = _soRotHandleLatLng(ovr, 40);
-        ovr._rotHandle.setLatLng(newHandleLL);
-        if (ovr._rotLine) {
-          ovr._rotLine.setLatLngs([_soRotHandleLatLng(ovr, 0), newHandleLL]);
-        }
-      }
     }
 
     function _soRemoveHandles(ovr) {
