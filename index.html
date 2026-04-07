@@ -4470,6 +4470,14 @@ function calcTotalISO9613(prefix, receiverIdx) {
     });
   }
 
+  // Building source contributions
+  if (typeof buildingSources !== 'undefined' && window._calcBuildingSourceAtReceiver) {
+    buildingSources.forEach(function(bs) {
+      var bsLp = window._calcBuildingSourceAtReceiver(bs, prefix, receiverIdx);
+      if (Number.isFinite(bsLp)) { totalLin += Math.pow(10, bsLp / 10); anySrc = true; }
+    });
+  }
+
   if (!anySrc) return "";
   return Math.round(10 * log10(totalLin));
 }
@@ -10480,7 +10488,8 @@ function renderScenariosTable() {
   var allLs = lineSources || [];
   var allAs = (typeof areaSources !== 'undefined') ? areaSources : [];
 
-  if (allPins.length === 0 && allLs.length === 0 && allAs.length === 0) {
+  var allBs = (typeof buildingSources !== 'undefined') ? buildingSources : [];
+  if (allPins.length === 0 && allLs.length === 0 && allAs.length === 0 && allBs.length === 0) {
     container.innerHTML = '<p style="color:var(--muted);font-size:12px;margin:4px 0;">No sources defined.</p>';
     return;
   }
@@ -10563,16 +10572,18 @@ function renderScenariosTable() {
   });
 
   // ── Building sources ───────────────────────────────────────────────────────
-  if (typeof buildingSources !== 'undefined') {
+  if (typeof buildingSources !== 'undefined' && buildingSources.length > 0) {
+    var _bsDerivedFn = (typeof window._bsCalcDerived === 'function') ? window._bsCalcDerived : null;
     buildingSources.forEach(function(bs) {
+      var derived = _bsDerivedFn ? _bsDerivedFn(bs) : null;
       html += '<tr>';
       html += '<td style="' + cs + '">' + escapeHTML(bs.name || 'Building source') + '</td>';
       html += '<td style="' + cs + 'padding-left:8px;">Building</td>';
       ['day', 'eve', 'night'].forEach(function(period) {
         var active = !bs.activeInPeriod || bs.activeInPeriod[period] !== false;
-        var lpBB = bs.interiorLp && bs.interiorLp[period] && Number.isFinite(bs.interiorLp[period].broadband) ? bs.interiorLp[period].broadband : null;
-        if (lpBB !== null && active) {
-          html += '<td class="num" style="' + cs + '">' + Math.round(lpBB) + ' dB(A) Lp</td>';
+        var totalLw = derived && derived.total && Number.isFinite(derived.total[period]) ? derived.total[period] : null;
+        if (totalLw !== null && active) {
+          html += '<td class="num" style="' + cs + '">' + Math.round(totalLw) + ' dB(A)</td>';
         } else {
           html += '<td class="num" style="' + ms + '">\u2014</td>';
         }
@@ -10622,8 +10633,13 @@ function renderContributions() {
       if (!as.activeInPeriod || as.activeInPeriod[period] === false) return false;
       return as.lwValue && Number.isFinite(as.lwValue[period]);
     }) : [];
+    var activeBs = (typeof buildingSources !== 'undefined') ? buildingSources.filter(function(bs) {
+      if (!bs.vertices || bs.vertices.length < 3) return false;
+      if (bs.activeInPeriod && bs.activeInPeriod[period] === false) return false;
+      return bs.interiorLp && bs.interiorLp[period] && Number.isFinite(bs.interiorLp[period].broadband);
+    }) : [];
 
-    if (activePins.length === 0 && activeLs.length === 0 && activeAs.length === 0) return; // skip period table
+    if (activePins.length === 0 && activeLs.length === 0 && activeAs.length === 0 && activeBs.length === 0) return; // skip period table
     anyTable = true;
 
     var sectionDiv = document.createElement('div');
@@ -10760,6 +10776,56 @@ function renderContributions() {
             tbody.appendChild(asTr);
           });
         }
+      })(ri, recLL);
+
+      // Building source rows
+      (function(capturedRi, capturedRecLL) {
+        activeBs.forEach(function(bs) {
+          var bsLpRaw = window._calcBuildingSourceAtReceiver ? window._calcBuildingSourceAtReceiver(bs, period, capturedRi) : NaN;
+          var nearestD = capturedRecLL ? window._bsNearestWallDist(bs, capturedRecLL.lat, capturedRecLL.lng) : Infinity;
+          var distStr = (Number.isFinite(nearestD) && nearestD < Infinity) ? String(Math.round(nearestD)) : '\u2014';
+          var lpStr = Number.isFinite(bsLpRaw) ? String(Math.round(bsLpRaw)) : '\u2014';
+          if (Number.isFinite(bsLpRaw)) rawContributions.push(bsLpRaw);
+
+          // Header row — clickable to toggle facade breakdown
+          var bsTr = document.createElement('tr');
+          var bsDisplayName = '\u25a0 ' + escapeHTML(bs.name || 'Building source') +
+            ' <span style="font-size:10px;color:#aaa;">(building)</span>';
+          bsTr.innerHTML = '<td style="padding-left:16px;font-size:12px;color:#7c3aed;cursor:pointer;" title="Click to show facade breakdown">' + bsDisplayName + '</td>' +
+            '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
+            '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
+          tbody.appendChild(bsTr);
+
+          // Facade breakdown sub-rows (hidden by default, toggle on click)
+          var bsBreakdownRows = [];
+          (function(bsCaptured, riCaptured) {
+            bsTr.addEventListener('click', function() {
+              if (bsBreakdownRows.length > 0) {
+                bsBreakdownRows.forEach(function(r) { r.parentNode && r.parentNode.removeChild(r); });
+                bsBreakdownRows = [];
+                return;
+              }
+              if (!window._bsPerFacadeAtReceiver) return;
+              var facadeData = window._bsPerFacadeAtReceiver(bsCaptured, period, riCaptured);
+              var insertAfter = bsTr;
+              facadeData.forEach(function(fd) {
+                var subTr = document.createElement('tr');
+                var dStr = Number.isFinite(fd.distM) ? String(Math.round(fd.distM)) : '\u2014';
+                var pStr = Number.isFinite(fd.lp) ? String(Math.round(fd.lp)) : '\u2014';
+                subTr.innerHTML = '<td style="padding-left:32px;font-size:11px;color:#9333ea;">' + escapeHTML(fd.label) + '</td>' +
+                  '<td class="num" style="font-size:11px;">' + dStr + '</td>' +
+                  '<td class="num" style="font-size:11px;">' + pStr + '</td>';
+                if (insertAfter.nextSibling) {
+                  tbody.insertBefore(subTr, insertAfter.nextSibling);
+                } else {
+                  tbody.appendChild(subTr);
+                }
+                bsBreakdownRows.push(subTr);
+                insertAfter = subTr;
+              });
+            });
+          })(bs, capturedRi);
+        });
       })(ri, recLL);
 
       var totalTr = document.createElement('tr');
@@ -15942,7 +16008,7 @@ initCollapse();
       if (typeof buildingSources !== 'undefined') {
         buildingSources.forEach(function(bs) {
           if (bs.vertices && bs.vertices.length >= 3) {
-            result.push({ polygon: bs.vertices, heightM: bs.height_m || 6, isBuildingSource: true });
+            result.push({ polygon: bs.vertices, heightM: bs.height_m || 6, isBuildingSource: true, buildingSourceId: bs.id });
           }
         });
       }
@@ -18626,20 +18692,22 @@ initCollapse();
     function _bsCompassDir(bearing) {
       return ['N','NE','E','SE','S','SW','W','NW'][Math.round(bearing/45)%8];
     }
-    function _bsCalcOneFacade(lpBB, lpOct, cons, area, overr) {
+    function _bsCalcOneFacade(lpBB, lpOct, cons, area, overr, hemCorrection) {
       if (area <= 0) return null;
+      if (!Number.isFinite(hemCorrection)) hemCorrection = 6;
       var lw;
       if (lpOct && cons && cons.octaveR) {
         var sum = 0;
         BS_OCTAVE_BANDS.forEach(function(b, bi) {
           var lp = lpOct[b], r = cons.octaveR[b];
-          if (Number.isFinite(lp) && Number.isFinite(r)) sum += Math.pow(10, (lp - r + 10*Math.log10(area) + BS_A_WEIGHTS[bi])/10);
+          if (Number.isFinite(lp) && Number.isFinite(r))
+            sum += Math.pow(10, (lp - r + 10*Math.log10(area) + BS_A_WEIGHTS[bi] + hemCorrection)/10);
         });
         lw = sum > 0 ? 10*Math.log10(sum) : null;
       } else if (Number.isFinite(lpBB) && cons && Number.isFinite(cons.rw)) {
-        lw = lpBB - cons.rw + 10*Math.log10(area);
+        lw = lpBB - cons.rw + 10*Math.log10(area) + hemCorrection;
       } else { return null; }
-      // Sub-elements (openings in facade override)
+      // Sub-elements (openings in facade override) — split wall into residual + elements
       if (overr && overr.elements && overr.elements.length > 0) {
         var remArea = area, partials = [];
         overr.elements.forEach(function(el) {
@@ -18650,16 +18718,17 @@ initCollapse();
             var eSum = 0;
             BS_OCTAVE_BANDS.forEach(function(b, bi) {
               var lp = lpOct[b], r = el.construction.octaveR[b];
-              if (Number.isFinite(lp) && Number.isFinite(r)) eSum += Math.pow(10, (lp - r + 10*Math.log10(el.area) + BS_A_WEIGHTS[bi])/10);
+              if (Number.isFinite(lp) && Number.isFinite(r))
+                eSum += Math.pow(10, (lp - r + 10*Math.log10(el.area) + BS_A_WEIGHTS[bi] + hemCorrection)/10);
             });
             elLw = eSum > 0 ? 10*Math.log10(eSum) : null;
           } else if (Number.isFinite(lpBB) && Number.isFinite(el.construction.rw)) {
-            elLw = lpBB - el.construction.rw + 10*Math.log10(el.area);
+            elLw = lpBB - el.construction.rw + 10*Math.log10(el.area) + hemCorrection;
           }
           if (Number.isFinite(elLw)) partials.push(elLw);
         });
         if (remArea > 0) {
-          var remLw = _bsCalcOneFacade(lpBB, lpOct, cons, remArea, null);
+          var remLw = _bsCalcOneFacade(lpBB, lpOct, cons, remArea, null, hemCorrection);
           if (Number.isFinite(remLw)) partials.push(remLw);
         }
         if (partials.length > 0) {
@@ -18690,13 +18759,13 @@ initCollapse();
           var wallArea = w.len * (bs.height_m || 6);
           var overr = bs.facadeOverrides && bs.facadeOverrides[i];
           var cons = overr ? overr : bs.defaultConstruction;
-          var lw = _bsCalcOneFacade(lpBB, lpOct, cons, wallArea, overr);
+          var lw = _bsCalcOneFacade(lpBB, lpOct, cons, wallArea, overr, 6);
           if (Number.isFinite(lw) && pct > 0) lw += 10*Math.log10(pct/100);
           w.lw[period] = Number.isFinite(lw) ? lw : null;
           if (Number.isFinite(w.lw[period])) allLws.push(w.lw[period]);
         });
         if (bs.roofConstruction && bs.roofConstruction.enabled && roofArea > 0) {
-          var rLw = _bsCalcOneFacade(lpBB, lpOct, bs.roofConstruction, roofArea, null);
+          var rLw = _bsCalcOneFacade(lpBB, lpOct, bs.roofConstruction, roofArea, null, 3);
           if (Number.isFinite(rLw) && pct > 0) rLw += 10*Math.log10(pct/100);
           roofByPeriod[period] = Number.isFinite(rLw) ? rLw : null;
           if (Number.isFinite(rLw)) allLws.push(rLw);
@@ -18724,6 +18793,285 @@ initCollapse();
         manualOverride: { day: false, eve: false, night: false }
       };
     }
+
+    // ── Propagation helpers ───────────────────────────────────────────────────
+
+    /** A-weighted octave-band Lw spectrum for one facade element.
+     *  Returns array[8] of Lw_A per band, or null if octave data unavailable. */
+    function _bsOctavSpecA(lpOct, cons, elements, facadeArea, hemCorrection) {
+      if (!lpOct || !cons || !cons.octaveR || facadeArea <= 0) return null;
+      if (!Number.isFinite(hemCorrection)) hemCorrection = 6;
+      var allValid = BS_OCTAVE_BANDS.every(function(b) {
+        return Number.isFinite(lpOct[b]) && Number.isFinite(cons.octaveR[b]);
+      });
+      if (!allValid) return null;
+      var elementAreas = 0, validElements = [];
+      if (elements) elements.forEach(function(el) {
+        if (!Number.isFinite(el.area) || el.area <= 0 || !el.construction || !el.construction.octaveR) return;
+        if (BS_OCTAVE_BANDS.every(function(b) { return Number.isFinite(el.construction.octaveR[b]); })) {
+          elementAreas += el.area; validElements.push(el);
+        }
+      });
+      var residualArea = Math.max(0, facadeArea - elementAreas);
+      return BS_OCTAVE_BANDS.map(function(b, bi) {
+        var linSum = 0;
+        if (residualArea > 0)
+          linSum += Math.pow(10, (lpOct[b] - cons.octaveR[b] + 10*Math.log10(residualArea) + hemCorrection)/10);
+        validElements.forEach(function(el) {
+          linSum += Math.pow(10, (lpOct[b] - el.construction.octaveR[b] + 10*Math.log10(el.area) + hemCorrection)/10);
+        });
+        return linSum > 0 ? 10*Math.log10(linSum) + BS_A_WEIGHTS[bi] : -Infinity;
+      });
+    }
+
+    /** Outward unit normal for a wall, scaled to degrees/metre.
+     *  Returns {dlat, dlng} pointing away from the polygon centroid. */
+    function _bsWallOutwardNormal(v1, v2, centroid) {
+      var midLat = (v1[0] + v2[0]) / 2;
+      var cosLat = Math.cos(midLat * Math.PI / 180);
+      var wx = (v2[1] - v1[1]) * cosLat * 111000;
+      var wy = (v2[0] - v1[0]) * 111000;
+      var wLen = Math.sqrt(wx*wx + wy*wy);
+      if (wLen < 1e-6) return { dlat: 0, dlng: 0 };
+      var nx1 = -wy/wLen, ny1 = wx/wLen;
+      var cmx = ((v1[1]+v2[1])/2 - centroid[1]) * cosLat * 111000;
+      var cmy = ((v1[0]+v2[0])/2 - centroid[0]) * 111000;
+      var dot1 = nx1*cmx + ny1*cmy;
+      var nx = (dot1 >= 0) ? nx1 : -nx1;
+      var ny = (dot1 >= 0) ? ny1 : -ny1;
+      return { dlat: ny / 111000, dlng: nx / (cosLat * 111000) };
+    }
+
+    /** Nearest distance (m) from a lat/lng point to any wall edge of a building source. */
+    function _bsNearestWallDist(bs, recLat, recLng) {
+      var verts = bs.vertices || [];
+      if (!verts.length) return Infinity;
+      var n = verts.length, minD = Infinity;
+      var cosLat = Math.cos(recLat * Math.PI / 180);
+      for (var i = 0; i < n; i++) {
+        var j = (i + 1) % n;
+        var ax = (verts[i][1] - recLng) * 111320 * cosLat, ay = (verts[i][0] - recLat) * 111320;
+        var bx = (verts[j][1] - recLng) * 111320 * cosLat, by = (verts[j][0] - recLat) * 111320;
+        var edx = bx-ax, edy = by-ay, lenSq = edx*edx+edy*edy;
+        var t = lenSq > 0 ? Math.max(0, Math.min(1, -(ax*edx+ay*edy)/lenSq)) : 0;
+        var px = ax+t*edx, py = ay+t*edy;
+        var d = Math.sqrt(px*px+py*py);
+        if (d < minD) minD = d;
+      }
+      return minD;
+    }
+
+    /** Generate flat list of propagation sub-sources for a building source in one period.
+     *  Each entry: {lat, lng, heightM, lwBB, specA, facadeIdx, isRoof}
+     *  Walls placed 0.5 m outward on the outside face; roof at building height. */
+    function _bsGenerateSubSources(bs, period) {
+      if (!bs.vertices || bs.vertices.length < 3) return [];
+      var intLp = bs.interiorLp && bs.interiorLp[period];
+      var lpBB  = intLp ? intLp.broadband : null;
+      var lpOct = intLp ? intLp.octave   : null;
+      if (!Number.isFinite(lpBB)) return [];
+      if (bs.activeInPeriod && bs.activeInPeriod[period] === false) return [];
+      var pct = (bs.operatingPct && Number.isFinite(bs.operatingPct[period])) ? bs.operatingPct[period] : 100;
+      if (pct <= 0) return [];
+      var pctAdj = 10 * Math.log10(pct / 100);
+
+      var verts = bs.vertices, n = verts.length;
+      var bsHeight = bs.height_m || 6;
+
+      var cLat = 0, cLng = 0;
+      verts.forEach(function(v) { cLat += v[0]; cLng += v[1]; });
+      cLat /= n; cLng /= n;
+      var centroid = [cLat, cLng];
+
+      var result = [];
+
+      // ── Facade (wall) sub-sources ───────────────────────────────────────
+      for (var i = 0; i < n; i++) {
+        var v1 = verts[i], v2 = verts[(i+1)%n];
+        var wallLen  = _bsSegLen(v1, v2);
+        var wallArea = wallLen * bsHeight;
+
+        var overr    = bs.facadeOverrides && bs.facadeOverrides[i];
+        var cons     = overr ? overr : bs.defaultConstruction;
+        var elements = (overr && overr.elements && overr.elements.length > 0) ? overr.elements : null;
+
+        var lwFacade = _bsCalcOneFacade(lpBB, lpOct, cons, wallArea, overr, 6);
+        if (!Number.isFinite(lwFacade)) continue;
+        lwFacade += pctAdj;
+
+        var specA_facade = _bsOctavSpecA(lpOct, cons, elements, wallArea, 6);
+        if (specA_facade && pct < 100)
+          specA_facade = specA_facade.map(function(v) { return isFinite(v) ? v + pctAdj : v; });
+
+        // Horizontal subdivisions based on wall length
+        var numH;
+        if      (wallLen < 10) numH = Math.max(1, Math.ceil(wallLen / 2));
+        else if (wallLen <= 30) numH = Math.max(1, Math.ceil(wallLen / 5));
+        else                    numH = Math.max(1, Math.ceil(wallLen / 10));
+
+        // Vertical sub-source heights
+        var vertPositions;
+        if      (bsHeight <= 4) vertPositions = [bsHeight / 2];
+        else if (bsHeight <= 8) vertPositions = [bsHeight / 3, bsHeight * 2 / 3];
+        else                    vertPositions = [bsHeight * 0.25, bsHeight * 0.5, bsHeight * 0.75];
+
+        var numSub  = numH * vertPositions.length;
+        var lwSubBB = lwFacade - 10 * Math.log10(numSub);
+        var specA_sub = specA_facade ? specA_facade.map(function(v) {
+          return isFinite(v) ? v - 10*Math.log10(numSub) : v;
+        }) : null;
+
+        var norm = _bsWallOutwardNormal(v1, v2, centroid);
+        var offLat = norm.dlat * 0.5, offLng = norm.dlng * 0.5;
+
+        for (var hi = 0; hi < numH; hi++) {
+          var t = (hi + 0.5) / numH;
+          var sLat = v1[0] + t * (v2[0]-v1[0]) + offLat;
+          var sLng = v1[1] + t * (v2[1]-v1[1]) + offLng;
+          vertPositions.forEach(function(hm) {
+            result.push({ lat: sLat, lng: sLng, heightM: hm,
+              lwBB: lwSubBB, specA: specA_sub, facadeIdx: i, isRoof: false });
+          });
+        }
+      }
+
+      // ── Roof sub-sources ─────────────────────────────────────────────────
+      if (bs.roofConstruction && bs.roofConstruction.enabled) {
+        var roofArea = _asPolygonArea(verts);
+        if (roofArea > 0) {
+          var lwRoof = _bsCalcOneFacade(lpBB, lpOct, bs.roofConstruction, roofArea, null, 3);
+          if (Number.isFinite(lwRoof)) {
+            lwRoof += pctAdj;
+            var specA_roof = _bsOctavSpecA(lpOct, bs.roofConstruction, null, roofArea, 3);
+            if (specA_roof && pct < 100)
+              specA_roof = specA_roof.map(function(v) { return isFinite(v) ? v + pctAdj : v; });
+
+            var roofSpacing = roofArea < 100 ? 2 : (roofArea < 1000 ? 5 : 10);
+            var minRL=Infinity,maxRL=-Infinity,minRG=Infinity,maxRG=-Infinity;
+            verts.forEach(function(v) {
+              if(v[0]<minRL)minRL=v[0]; if(v[0]>maxRL)maxRL=v[0];
+              if(v[1]<minRG)minRG=v[1]; if(v[1]>maxRG)maxRG=v[1];
+            });
+            var dRL = roofSpacing/111000;
+            var dRG = roofSpacing/(111000*Math.max(0.01,Math.cos((minRL+maxRL)/2*Math.PI/180)));
+            var roofPts = [];
+            for (var rLat=minRL+dRL/2; rLat<=maxRL; rLat+=dRL)
+              for (var rLng=minRG+dRG/2; rLng<=maxRG; rLng+=dRG)
+                if (_pointInPolygon(rLat, rLng, verts)) roofPts.push([rLat, rLng]);
+            if (!roofPts.length) roofPts.push([cLat, cLng]);
+
+            var nRS    = roofPts.length;
+            var lwRS   = lwRoof - 10*Math.log10(nRS);
+            var specRS = specA_roof ? specA_roof.map(function(v) {
+              return isFinite(v) ? v - 10*Math.log10(nRS) : v;
+            }) : null;
+            roofPts.forEach(function(pt) {
+              result.push({ lat: pt[0], lng: pt[1], heightM: bsHeight,
+                lwBB: lwRS, specA: specRS, facadeIdx: -1, isRoof: true });
+            });
+          }
+        }
+      }
+
+      return result;
+    }
+
+    /** Shared propagation path for one building-source sub-source → one receiver.
+     *  Used by calcBuildingSourceAtReceiver and _bsPerFacadeAtReceiver. */
+    function _bsPropagateSub(ss, recLL, recHt, screenableForBs) {
+      var srcLL = { lat: ss.lat, lng: ss.lng };
+      var d = SharedCalc.flatDistM(srcLL, { lat: recLL.lat, lng: recLL.lng });
+      if (d < 0.5) d = 0.5;
+      var barrierDelta=0, endDL=0, endDR=0, bw=null;
+      if (screenableForBs.length > 0) {
+        bw = SharedCalc.getDominantBarrier(srcLL, recLL, ss.heightM, recHt, screenableForBs);
+        if (bw) { barrierDelta=bw.pathLengthDiff||0; endDL=bw.endDeltaLeft||0; endDR=bw.endDeltaRight||0; }
+      }
+      var gf = (typeof _gzComputePathG === 'function')
+        ? _gzComputePathG(ss.lat, ss.lng, recLL.lat, recLL.lng, ss.heightM, recHt, d)
+        : iso_groundFactor;
+      var isoP = { temperature: iso_temperature, humidity: iso_humidity, groundFactor: gf };
+      var lp;
+      if (ss.specA && propagationMethod === 'iso9613') {
+        lp = SharedCalc.calcISOatPoint(ss.specA, ss.heightM, d, 0, barrierDelta, recHt, isoP, endDL, endDR);
+      } else {
+        lp = SharedCalc.attenuatePoint(ss.lwBB, d);
+        if (bw && propagationMethod !== 'iso9613') lp -= Math.max(0, calcBarrierIL_broadband(bw));
+      }
+      return Number.isFinite(lp) ? lp : null;
+    }
+
+    /** ISO 9613-2 prediction at one receiver for one building source in one period.
+     *  Sub-sources on facade/roof; self-screening excluded.
+     *  @returns {number} LAeq (dB) or NaN */
+    function calcBuildingSourceAtReceiver(bs, period, ri) {
+      if (bs.activeInPeriod && bs.activeInPeriod[period] === false) return NaN;
+      var subSources = _bsGenerateSubSources(bs, period);
+      if (!subSources.length) return NaN;
+      var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+      var recLL = allLL['r' + (ri + 1)];
+      if (!recLL) return NaN;
+      var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : 1.5;
+      var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : [];
+      var screenableForBs = screenable.filter(function(b) {
+        return !(b.buildingSourceId && b.buildingSourceId === bs.id);
+      });
+      var contributions = [];
+      subSources.forEach(function(ss) {
+        var lp = _bsPropagateSub(ss, recLL, recHt, screenableForBs);
+        if (lp !== null) contributions.push(lp);
+      });
+      return contributions.length ? SharedCalc.energySum(contributions) : NaN;
+    }
+
+    /** Per-facade contribution breakdown at one receiver (for contribution table detail rows).
+     *  Returns array of {label, distM, lp} per wall + roof. */
+    function _bsPerFacadeAtReceiver(bs, period, ri) {
+      var subSources = _bsGenerateSubSources(bs, period);
+      var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+      var recLL = allLL['r' + (ri + 1)];
+      if (!recLL || !subSources.length) return [];
+      var recHt = (typeof getReceiverHeight === 'function') ? getReceiverHeight(ri) : 1.5;
+      var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : [];
+      var screenableForBs = screenable.filter(function(b) {
+        return !(b.buildingSourceId && b.buildingSourceId === bs.id);
+      });
+      var groups = {};
+      subSources.forEach(function(ss) {
+        var k = ss.isRoof ? 'roof' : String(ss.facadeIdx);
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(ss);
+      });
+      var results = [];
+      var n = bs.vertices ? bs.vertices.length : 0;
+      Object.keys(groups).sort(function(a,b){ return a==='roof'?1:(b==='roof'?-1:parseInt(a)-parseInt(b)); })
+        .forEach(function(k) {
+          var subs = groups[k];
+          var contribs = [];
+          subs.forEach(function(ss) {
+            var lp = _bsPropagateSub(ss, recLL, recHt, screenableForBs);
+            if (lp !== null) contribs.push(lp);
+          });
+          var totalLp = contribs.length ? SharedCalc.energySum(contribs) : NaN;
+          if (k === 'roof') {
+            results.push({ label: 'Roof', distM: NaN, lp: totalLp });
+          } else {
+            var fi = parseInt(k);
+            var v1 = bs.vertices[fi], v2 = bs.vertices[(fi+1)%n];
+            var dir = _bsCompassDir(_bsBearing(v1, v2));
+            var wLen = Math.round(_bsSegLen(v1, v2));
+            var distM = _bsNearestWallDist({ vertices: [v1, v2] }, recLL.lat, recLL.lng);
+            results.push({ label: 'Wall '+(fi+1)+' ('+dir+', '+wLen+'m)', distM: distM, lp: totalLp });
+          }
+        });
+      return results;
+    }
+
+    window._bsGenerateSubSources      = _bsGenerateSubSources;
+    window._bsNearestWallDist         = _bsNearestWallDist;
+    window._bsCalcDerived             = _bsCalcDerived;
+    window._calcBuildingSourceAtReceiver = calcBuildingSourceAtReceiver;
+    window._bsPerFacadeAtReceiver     = _bsPerFacadeAtReceiver;
 
     // ── Map rendering ─────────────────────────────────────────────────────────
 
@@ -20658,6 +21006,25 @@ initCollapse();
         });
       }
 
+      // Building source sub-sources — pre-computed in main thread, passed as flat array
+      if (typeof buildingSources !== 'undefined' && window._bsGenerateSubSources && period !== 'lmax') {
+        buildingSources.forEach(function(bs) {
+          if (bs.activeInPeriod && bs.activeInPeriod[period] === false) return;
+          var subSources = window._bsGenerateSubSources(bs, period);
+          subSources.forEach(function(ss) {
+            var specAdj = ss.specA ? ss.lwBB - SharedCalc.energySum(ss.specA) : 0;
+            result.push({
+              lat: ss.lat, lng: ss.lng,
+              heightM: ss.heightM,
+              equipment: [{ name: bs.name || 'Building source', Lw: ss.lwBB, quantity: 1 }],
+              spectrum: ss.specA || null,
+              spectrumAdj: specAdj,
+              excludeBuildingId: bs.id
+            });
+          });
+        });
+      }
+
       return result;
     }
 
@@ -21019,7 +21386,7 @@ initCollapse();
         gridResolutionM: gridRes,
         sources: workerSources,
         buildings: screenable.map(function(b) {
-          return { polygon: b.polygon, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier };
+          return { polygon: b.polygon, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null };
         }),
         propagationMethod: propagationMethod || 'simple',
         isoParams: {

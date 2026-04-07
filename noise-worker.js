@@ -441,6 +441,7 @@ self.onmessage = function(e) {
         var insideBuilding = false;
         for (var bi = 0; bi < buildings.length; bi++) {
           if (buildings[bi].isBarrier) continue;
+          if (buildings[bi].buildingSourceId) continue; // building sources are not solid buildings
           if (pointInPolygonLatLng(pt, buildings[bi].polygon)) {
             insideBuilding = true;
             break;
@@ -461,8 +462,12 @@ self.onmessage = function(e) {
           // Building / structural barrier IL — applied for all periods including simple Lmax
           var barrierDelta = 0, endDeltaLeft = 0, endDeltaRight = 0;
           var _barrierW = null;
-          if (buildings.length > 0) {
-            _barrierW = getDominantBarrier(srcLL, pt, src.heightM, recvHeight, buildings);
+          // Self-screening exclusion: building source sub-sources skip their own polygon
+          var buildingsForSrc = (src.excludeBuildingId)
+            ? buildings.filter(function(b) { return b.buildingSourceId !== src.excludeBuildingId; })
+            : buildings;
+          if (buildingsForSrc.length > 0) {
+            _barrierW = getDominantBarrier(srcLL, pt, src.heightM, recvHeight, buildingsForSrc);
             if (_barrierW) {
               barrierDelta  = _barrierW.pathLengthDiff;
               endDeltaLeft  = _barrierW.endDeltaLeft  || 0;
