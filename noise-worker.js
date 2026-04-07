@@ -347,7 +347,8 @@ self.onmessage = function(e) {
         combinedLw: sourceCombinedLw(s.equipment),
         equipment: s.equipment,
         spectrum: s.spectrum || null,
-        spectrumAdj: s.spectrumAdj || 0
+        spectrumAdj: s.spectrumAdj || 0,
+        excludeBuildingId: s.excludeBuildingId || null  // C2 fix: preserve self-screening exclusion
       };
     });
 

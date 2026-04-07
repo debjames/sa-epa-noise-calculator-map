@@ -9097,6 +9097,35 @@ window.runUAT = async function() {
     var d12 = calcDerived(mockBs);
     t(cat, '23.12', d12 && Number.isFinite(d12.total.day),
       '23.12 calcDerived total.day=' + (d12 && d12.total ? d12.total.day : 'null'));
+
+    // ── Octave-band tests (cover C1 double A-weighting regression) ──
+    // Uniform octave spectrum: all bands Lp=75, Rw=25, area=10, hem=6.
+    // _bsCalcOneFacade octave path expected LwA:
+    //   per band: 75-25+10*log10(10)+BS_A_WEIGHTS[bi]+6 = 66+A_weight[bi]
+    //   = energySum([39.8,49.9,57.4,62.8,66.0,67.2,67.0,64.9]) ≈ 73.0 dB(A)
+    // _bsOctavSpecA: per-band UNWEIGHTED Lw — each band should be 66 dB (no A-weight).
+    //   Old buggy code returned 66+A_weight[bi]; at 125 Hz that was 66-16.1=49.9 (not 66).
+    var octLp = {63:75,125:75,250:75,500:75,1000:75,2000:75,4000:75,8000:75};
+    var octCons = {rw:25, octaveR:{63:25,125:25,250:25,500:25,1000:25,2000:25,4000:25,8000:25}};
+
+    // ── 23.13  _bsCalcOneFacade octave path: LwA ≈ 73.0 dB(A) ──
+    var lw13 = oneFacade(75, octLp, octCons, 10, null, 6);
+    t(cat, '23.13', Number.isFinite(lw13) && Math.abs(lw13 - 73.0) < 0.5,
+      '23.13 octave _bsCalcOneFacade LwA=' + (Number.isFinite(lw13)?lw13.toFixed(2):'null') + ' expected ≈73.0');
+
+    // ── 23.14  _bsOctavSpecA: per-band Lw is unweighted (no double A-weight) ──
+    //   With uniform Lp=75, Rw=25, area=10, hem=6: each band = 66 dB (unweighted).
+    //   Old buggy code: 125 Hz band = 66 + (-16.1) = 49.9 dB. Correct: 66 dB.
+    var octSpecFn = window._bsOctavSpecA || null;
+    if (octSpecFn) {
+      var specA14 = octSpecFn(octLp, octCons, null, 10, 6);
+      var band125idx = 1; // BS_OCTAVE_BANDS index for 125 Hz
+      var v125 = specA14 ? specA14[band125idx] : null;
+      t(cat, '23.14', v125 !== null && Math.abs(v125 - 66) < 0.5,
+        '23.14 specA[125Hz]=' + (v125!==null?v125.toFixed(2):'null') + ' expected 66.00 (unweighted); old bug=49.90');
+    } else {
+      t(cat, '23.14', false, '23.14 _bsOctavSpecA not exposed on window');
+    }
   })();
 
   /* ── restore all state ── */
@@ -12023,7 +12052,7 @@ initCollapse();
 
       // ── Sources section ──
       csv += '\n# SOURCES\n';
-      csv += 'Name,Lat,Lng,Lw_day_dBA,Lw_eve_dBA,Lw_night_dBA,Height_m,Building_height_m,Effective_height_m,Ground_elev_m,Operational_time_min\n';
+      csv += 'Name,Lat,Lng,Lw_day_dBA,Lw_eve_dBA,Lw_night_dBA,Height_m,Building_height_m,Effective_height_m,Ground_elev_m,Op_pct_day,Op_pct_eve,Op_pct_night\n';
       buildSourceFeatures().forEach(function(f) {
         var p = f.properties;
         var c = f.geometry.coordinates;
@@ -18921,18 +18950,22 @@ initCollapse();
         var remArea = area, partials = [];
         overr.elements.forEach(function(el) {
           if (!Number.isFinite(el.area) || el.area <= 0 || !el.construction) return;
-          remArea -= el.area;
+          // M3 fix: clamp element area to remaining facade area so cumulative openings
+          // cannot exceed total wall area (prevents acoustic over-counting).
+          var elArea = Math.min(el.area, remArea);
+          if (elArea <= 0) return;
+          remArea -= elArea;
           var elLw;
           if (lpOct && el.construction.octaveR) {
             var eSum = 0;
             BS_OCTAVE_BANDS.forEach(function(b, bi) {
               var lp = lpOct[b], r = el.construction.octaveR[b];
               if (Number.isFinite(lp) && Number.isFinite(r))
-                eSum += Math.pow(10, (lp - r + 10*Math.log10(el.area) + BS_A_WEIGHTS[bi] + hemCorrection)/10);
+                eSum += Math.pow(10, (lp - r + 10*Math.log10(elArea) + BS_A_WEIGHTS[bi] + hemCorrection)/10);
             });
             elLw = eSum > 0 ? 10*Math.log10(eSum) : null;
           } else if (Number.isFinite(lpBB) && Number.isFinite(el.construction.rw)) {
-            elLw = lpBB - el.construction.rw + 10*Math.log10(el.area) + hemCorrection;
+            elLw = lpBB - el.construction.rw + 10*Math.log10(elArea) + hemCorrection;
           }
           if (Number.isFinite(elLw)) partials.push(elLw);
         });
@@ -18974,6 +19007,9 @@ initCollapse();
           if (Number.isFinite(w.lw[period])) allLws.push(w.lw[period]);
         });
         if (bs.roofConstruction && bs.roofConstruction.enabled && roofArea > 0) {
+          // M2 note: +3 dB hemisphere correction for roof is a deliberate design decision
+          // (not the EN 12354-4 standard value of +6 dB). It acknowledges that upward-radiating
+          // roof energy contributes less to ground-level receiver levels than a facade would.
           var rLw = _bsCalcOneFacade(lpBB, lpOct, bs.roofConstruction, roofArea, null, 3);
           if (Number.isFinite(rLw) && pct > 0) rLw += 10*Math.log10(pct/100);
           roofByPeriod[period] = Number.isFinite(rLw) ? rLw : null;
@@ -19029,7 +19065,8 @@ initCollapse();
         validElements.forEach(function(el) {
           linSum += Math.pow(10, (lpOct[b] - el.construction.octaveR[b] + 10*Math.log10(el.area) + hemCorrection)/10);
         });
-        return linSum > 0 ? 10*Math.log10(linSum) + BS_A_WEIGHTS[bi] : -Infinity;
+        // C1 fix: return unweighted per-band Lw; A-weighting is applied by calcISOatPoint during propagation
+        return linSum > 0 ? 10*Math.log10(linSum) : -Infinity;
       });
     }
 
@@ -19087,9 +19124,25 @@ initCollapse();
       var verts = bs.vertices, n = verts.length;
       var bsHeight = bs.height_m || 6;
 
-      var cLat = 0, cLng = 0;
-      verts.forEach(function(v) { cLat += v[0]; cLng += v[1]; });
-      cLat /= n; cLng /= n;
+      // M4 fix: shoelace-based polygon centroid (correct for concave/L-shaped buildings).
+      // Arithmetic mean of vertices fails when the centroid falls outside the polygon.
+      var _area2 = 0, cLat = 0, cLng = 0;
+      for (var ci = 0; ci < n; ci++) {
+        var ci1 = (ci + 1) % n;
+        var cross = verts[ci][1] * verts[ci1][0] - verts[ci1][1] * verts[ci][0];
+        cLat += (verts[ci][0] + verts[ci1][0]) * cross;
+        cLng += (verts[ci][1] + verts[ci1][1]) * cross;
+        _area2 += cross;
+      }
+      if (Math.abs(_area2) < 1e-14) {
+        // Degenerate polygon — fall back to arithmetic mean
+        cLat = 0; cLng = 0;
+        verts.forEach(function(v) { cLat += v[0]; cLng += v[1]; });
+        cLat /= n; cLng /= n;
+      } else {
+        cLat /= (3 * _area2);
+        cLng /= (3 * _area2);
+      }
       var centroid = [cLat, cLng];
 
       var result = [];
@@ -19280,6 +19333,7 @@ initCollapse();
     window._bsNearestWallDist         = _bsNearestWallDist;
     window._bsCalcDerived             = _bsCalcDerived;
     window._bsCalcOneFacade           = _bsCalcOneFacade;
+    window._bsOctavSpecA              = _bsOctavSpecA;
     window._bsPerimeter               = _bsPerimeter;
     window._calcBuildingSourceAtReceiver = calcBuildingSourceAtReceiver;
     window._bsPerFacadeAtReceiver     = _bsPerFacadeAtReceiver;
