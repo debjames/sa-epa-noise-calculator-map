@@ -10428,76 +10428,90 @@ function renderScenariosTable() {
   var allPins = sourcePins.filter(function(p) {
     return p.name || (p.lw && (Number.isFinite(p.lw.day) || Number.isFinite(p.lw.eve) || Number.isFinite(p.lw.night))) || Number.isFinite(p.lw_max);
   });
+  var allLs = lineSources || [];
+  var allAs = (typeof areaSources !== 'undefined') ? areaSources : [];
 
-  if (allPins.length === 0) {
+  if (allPins.length === 0 && allLs.length === 0 && allAs.length === 0) {
     container.innerHTML = '<p style="color:var(--muted);font-size:12px;margin:4px 0;">No sources defined.</p>';
     return;
   }
 
+  // Strip "—Lw ..." suffix that library source names embed (e.g. "Fan—Lw 60 dB(A)")
+  function stripLwSuffix(name) {
+    return (name || '').replace(/\s*\u2014Lw\b.*$/i, '').trim();
+  }
+
+  var cs = 'font-size:12px;color:#111;';       // cell style — plain black
+  var ms = 'font-size:12px;color:var(--muted);'; // muted style for "—"
+
   var html = '<div class="table-scroll"><table style="width:100%;font-size:12px;">';
   html += '<thead><tr>';
   html += '<th style="text-align:left;">Source</th>';
+  html += '<th style="text-align:left;padding-left:8px;">Type</th>';
   html += '<th class="num">Day</th>';
   html += '<th class="num">Evening</th>';
   html += '<th class="num">Night</th>';
   html += '<th class="num">L<sub>max</sub></th>';
   html += '</tr></thead><tbody>';
 
+  // ── Point sources ──────────────────────────────────────────
   allPins.forEach(function(pin) {
     html += '<tr>';
-    html += '<td style="font-size:12px;">' + escapeHTML(pin.name || 'Source') + '</td>';
+    html += '<td style="' + cs + '">' + escapeHTML(stripLwSuffix(pin.name) || 'Source') + '</td>';
+    html += '<td style="' + cs + 'padding-left:8px;">Point</td>';
     ['day', 'eve', 'night'].forEach(function(period) {
       var lw = (pin.lw && Number.isFinite(pin.lw[period]) && pin.lw[period] > 0) ? pin.lw[period] : null;
       if (lw !== null) {
-        html += '<td class="num" style="color:#16a34a;font-size:12px;">\u2713 ' + Math.round(lw) + ' dB</td>';
+        html += '<td class="num" style="' + cs + '">' + Math.round(lw) + ' dB(A)</td>';
       } else {
-        html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
+        html += '<td class="num" style="' + ms + '">\u2014</td>';
       }
     });
     if (Number.isFinite(pin.lw_max)) {
-      html += '<td class="num" style="color:#16a34a;font-size:12px;">\u2713 ' + Math.round(pin.lw_max) + ' dB</td>';
+      html += '<td class="num" style="' + cs + '">' + Math.round(pin.lw_max) + ' dB(A)</td>';
     } else {
-      html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
+      html += '<td class="num" style="' + ms + '">\u2014</td>';
     }
     html += '</tr>';
   });
 
-  // Line sources in scenarios table
-  lineSources.forEach(function(ls) {
+  // ── Line sources ───────────────────────────────────────────
+  allLs.forEach(function(ls) {
     html += '<tr>';
-    html += '<td style="font-size:12px;color:#d32f2f;">&#9135; ' + escapeHTML(ls.name || 'Line source') + '</td>';
+    html += '<td style="' + cs + '">' + escapeHTML(ls.name || 'Line source') + '</td>';
+    html += '<td style="' + cs + 'padding-left:8px;">Line</td>';
     ['day', 'eve', 'night'].forEach(function(period) {
-      var lwm = _lsGetEffectiveLwm(ls, period);
-      var active = ls.activeInPeriod && ls.activeInPeriod[period] !== false;
+      var lwm    = _lsGetEffectiveLwm(ls, period);
+      var active = !ls.activeInPeriod || ls.activeInPeriod[period] !== false;
       if (Number.isFinite(lwm) && active) {
-        html += '<td class="num" style="color:#d32f2f;font-size:12px;">\u2713 ' + Math.round(lwm) + ' dB/m</td>';
+        html += '<td class="num" style="' + cs + '">' + Math.round(lwm) + ' dB(A)/m</td>';
       } else {
-        html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
+        html += '<td class="num" style="' + ms + '">\u2014</td>';
       }
     });
-    // Lmax not supported in new model — show —
-    html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
+    html += '<td class="num" style="' + ms + '">\u2014</td>';
     html += '</tr>';
   });
 
-  // Area sources in scenarios table
-  if (typeof areaSources !== 'undefined') {
-    areaSources.forEach(function(as) {
-      html += '<tr>';
-      html += '<td style="font-size:12px;color:#d97706;">\u25a0 ' + escapeHTML(as.name || 'Area source') + '</td>';
-      ['day','eve','night'].forEach(function(period) {
-        var lw     = _asGetEffectiveLw(as, period);
-        var active = as.activeInPeriod && as.activeInPeriod[period] !== false;
-        if (Number.isFinite(lw) && active) {
-          html += '<td class="num" style="color:#d97706;font-size:12px;">\u2713 ' + Math.round(lw) + ' dB</td>';
-        } else {
-          html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
-        }
-      });
-      html += '<td class="num" style="color:var(--muted);font-size:12px;">\u2014</td>';
-      html += '</tr>';
+  // ── Area sources ───────────────────────────────────────────
+  allAs.forEach(function(as) {
+    var lwMode = as.lwMode || 'per_m2';
+    var unit   = (lwMode === 'per_m2') ? ' dB(A)/m\u00b2' : ' dB(A)';
+    html += '<tr>';
+    html += '<td style="' + cs + '">' + escapeHTML(as.name || 'Area source') + '</td>';
+    html += '<td style="' + cs + 'padding-left:8px;">Area</td>';
+    ['day', 'eve', 'night'].forEach(function(period) {
+      var lwVal  = as.lwValue && Number.isFinite(as.lwValue[period]) ? as.lwValue[period] : null;
+      var active = !as.activeInPeriod || as.activeInPeriod[period] !== false;
+      if (lwVal !== null && active) {
+        html += '<td class="num" style="' + cs + '">' + Math.round(lwVal) + unit + '</td>';
+      } else {
+        html += '<td class="num" style="' + ms + '">\u2014</td>';
+      }
     });
-  }
+    html += '<td class="num" style="' + ms + '">\u2014</td>';
+    html += '</tr>';
+  });
 
   html += '</tbody></table></div>';
   container.innerHTML = html;
@@ -16323,55 +16337,59 @@ initCollapse();
     }
     window._soApplyRotation = _soApplyRotation;
 
-    // Rotate an [latM, lngM] offset vector by `angleDeg` (clockwise from north)
-    function _soRotateVec(latM, lngM, angleDeg) {
-      var r = angleDeg * Math.PI / 180;
-      var cosR = Math.cos(r), sinR = Math.sin(r);
-      return [cosR * latM - sinR * lngM, sinR * latM + cosR * lngM];
-    }
-
-    // Visual (rotated) positions of the four corners of `ovr` in lat/lng order: [SW, NW, NE, SE]
-    // These are where the corners of the image APPEAR on screen, accounting for CSS rotation.
+    // Visual (rotated) positions of the four corners of `ovr`, returned as [lat,lng] pairs.
+    // Corner order: [SW, NW, NE, SE].  Uses pixel-space rotation so handles land exactly on
+    // the visual corners that Leaflet's CSS "transform: rotate(Xdeg)" produces.
     function _soVisualCorners(ovr) {
-      var b = L.latLngBounds(ovr.bounds);
-      var cLat = (b.getSouth() + b.getNorth()) / 2;
-      var cLng = (b.getWest()  + b.getEast())  / 2;
-      var cosLat = Math.cos(cLat * Math.PI / 180);
-      var rot = ovr.rotation || 0;
-      // Bounds corners: SW, NW, NE, SE — convert to metre offsets from centre, rotate, convert back
-      return [
-        [b.getSouth(), b.getWest()],   // SW
-        [b.getNorth(), b.getWest()],   // NW
-        [b.getNorth(), b.getEast()],   // NE
-        [b.getSouth(), b.getEast()]    // SE
-      ].map(function(c) {
-        var dLatM = (c[0] - cLat) * 111000;
-        var dLngM = (c[1] - cLng) * 111320 * cosLat;
-        var rv = _soRotateVec(dLatM, dLngM, rot);
-        return [cLat + rv[0] / 111000, cLng + rv[1] / (111320 * cosLat)];
+      var b    = L.latLngBounds(ovr.bounds);
+      var cPt  = map.latLngToLayerPoint(b.getCenter());
+      var rot  = (ovr.rotation || 0) * Math.PI / 180;
+      var cosR = Math.cos(rot), sinR = Math.sin(rot);
+      return [b.getSouthWest(), b.getNorthWest(), b.getNorthEast(), b.getSouthEast()].map(function(ll) {
+        var pt = map.latLngToLayerPoint(ll);
+        var dx = pt.x - cPt.x, dy = pt.y - cPt.y;
+        var rl = map.layerPointToLatLng(L.point(
+          cPt.x + dx * cosR - dy * sinR,
+          cPt.y + dx * sinR + dy * cosR
+        ));
+        return [rl.lat, rl.lng];
       });
     }
 
-    // Returns [lat, lng] for a point `extraM` metres above the rotated image top-centre
-    function _soRotHandleLatLng(ovr, extraM) {
-      var b = L.latLngBounds(ovr.bounds);
-      var cLat = (b.getSouth() + b.getNorth()) / 2;
-      var cLng = (b.getWest()  + b.getEast())  / 2;
-      var cosLat = Math.cos(cLat * Math.PI / 180);
-      var halfHM = (b.getNorth() - b.getSouth()) * 111000 / 2;
-      var distM  = halfHM + (extraM || 40);
-      // Direction: straight up (north) rotated by ovr.rotation
-      var rv = _soRotateVec(distM, 0, ovr.rotation || 0);
-      return [cLat + rv[0] / 111000, cLng + rv[1] / (111320 * cosLat)];
+    // Returns [lat, lng] for a point `extraPx` screen-pixels beyond the rotated top-centre.
+    // Used to position the rotation handle stem above the image.
+    function _soRotHandleLatLng(ovr, extraPx) {
+      var b    = L.latLngBounds(ovr.bounds);
+      var cPt  = map.latLngToLayerPoint(b.getCenter());
+      var rot  = (ovr.rotation || 0) * Math.PI / 180;
+      var cosR = Math.cos(rot), sinR = Math.sin(rot);
+      // Pixel position of the unrotated top-centre
+      var nPt  = map.latLngToLayerPoint(L.latLng(b.getNorth(), (b.getWest() + b.getEast()) / 2));
+      var dx = nPt.x - cPt.x, dy = nPt.y - cPt.y;
+      // Rotate it around the image centre
+      var rx = dx * cosR - dy * sinR;
+      var ry = dx * sinR + dy * cosR;
+      // Extend further by extraPx in the same outward direction
+      var len = Math.sqrt(rx * rx + ry * ry);
+      if (len > 0.5) { rx += rx / len * (extraPx || 0); ry += ry / len * (extraPx || 0); }
+      else            { ry -= (extraPx || 0); }
+      var rl = map.layerPointToLatLng(L.point(cPt.x + rx, cPt.y + ry));
+      return [rl.lat, rl.lng];
     }
 
-    // Apply inverse rotation to a visual lat/lng to get its axis-aligned equivalent
+    // Apply inverse rotation to a visual lat/lng to get its axis-aligned equivalent.
+    // Used by corner-drag to convert the dragged screen position back to unrotated lat/lng.
     function _soUnRotate(lat, lng, cLat, cLng, rot) {
-      var cosLat = Math.cos(cLat * Math.PI / 180);
-      var dLatM = (lat - cLat) * 111000;
-      var dLngM = (lng - cLng) * 111320 * cosLat;
-      var rv = _soRotateVec(dLatM, dLngM, -rot);
-      return [cLat + rv[0] / 111000, cLng + rv[1] / (111320 * cosLat)];
+      var cPt  = map.latLngToLayerPoint(L.latLng(cLat, cLng));
+      var pt   = map.latLngToLayerPoint(L.latLng(lat, lng));
+      var dx = pt.x - cPt.x, dy = pt.y - cPt.y;
+      var r    = -rot * Math.PI / 180;
+      var cosR = Math.cos(r), sinR = Math.sin(r);
+      var rl   = map.layerPointToLatLng(L.point(
+        cPt.x + dx * cosR - dy * sinR,
+        cPt.y + dx * sinR + dy * cosR
+      ));
+      return [rl.lat, rl.lng];
     }
 
     // ── Placement mode ────────────────────────────────────────
@@ -16550,14 +16568,15 @@ initCollapse();
       rotMark.on('drag', function(e) {
         var ll = e.latlng;
         var shiftHeld = e.originalEvent && e.originalEvent.shiftKey;
-        var b2  = L.latLngBounds(ovr.bounds);
+        var b2   = L.latLngBounds(ovr.bounds);
         var cLat = (b2.getSouth() + b2.getNorth()) / 2;
         var cLng = (b2.getWest()  + b2.getEast())  / 2;
-        var cosLat = Math.cos(cLat * Math.PI / 180);
-        // Angle from north (clockwise): atan2(east component, north component) in metres
-        var dLatM = (ll.lat - cLat) * 111000;
-        var dLngM = (ll.lng - cLng) * 111320 * cosLat;
-        var rawDeg = Math.atan2(dLngM, dLatM) * 180 / Math.PI;
+        // Angle in pixel space — matches CSS rotate() axes (y increases downward on screen)
+        var cPt  = map.latLngToLayerPoint(L.latLng(cLat, cLng));
+        var dPt  = map.latLngToLayerPoint(ll);
+        var dpx  = dPt.x - cPt.x, dpy = dPt.y - cPt.y;
+        // atan2(dx, -dy): 0° = screen-up (north), positive = clockwise — matches CSS rotate()
+        var rawDeg = Math.atan2(dpx, -dpy) * 180 / Math.PI;
         ovr.rotation = _soSnapAngle(rawDeg, shiftHeld);
         _soApplyRotation(ovr);
         // Reposition corner handles to new visual corners
@@ -16577,10 +16596,22 @@ initCollapse();
       });
 
       ovr._rotHandle = rotMark;
+
+      // Re-sync handle positions whenever the map view changes (zoom / pan changes
+      // latLngToLayerPoint values, so pixel-space rotated corners must be recomputed).
+      function _onViewChange() { syncHandles(-1); }
+      ovr._viewChangeFn = _onViewChange;
+      map.on('zoom moveend', _onViewChange);
+
       _soShowPlacementToolbar(ovr);
     }
 
     function _soRemoveHandles(ovr) {
+      // Remove zoom/pan listener added by _soEnterPlacement
+      if (ovr._viewChangeFn) {
+        map.off('zoom moveend', ovr._viewChangeFn);
+        ovr._viewChangeFn = null;
+      }
       (ovr._handles || []).forEach(function(h) { if (h && map.hasLayer(h)) map.removeLayer(h); });
       ovr._handles = [];
       if (ovr._centerHandle && map.hasLayer(ovr._centerHandle)) map.removeLayer(ovr._centerHandle);
@@ -16601,6 +16632,7 @@ initCollapse();
       tb.innerHTML =
         '<button class="so-done" style="padding:4px 12px;background:#1d4ed8;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;">Done</button>' +
         '<button class="so-cancel" style="padding:4px 10px;background:#f3f4f6;border:1px solid #ddd;border-radius:5px;cursor:pointer;font-size:12px;">Cancel</button>' +
+        '<button class="so-toggle-vis" style="padding:4px 10px;background:#f3f4f6;border:1px solid #ddd;border-radius:5px;cursor:pointer;font-size:12px;" title="Toggle overlay visibility">' + (ovr.visible ? 'Hide' : 'Show') + '</button>' +
         '<label style="display:flex;align-items:center;gap:5px;">Opacity&nbsp;<input type="range" class="so-opacity" min="0" max="100" value="' + Math.round(ovr.opacity * 100) + '" style="width:80px;cursor:pointer;"></label>';
 
       tb.querySelector('.so-done').onclick = function() {
@@ -16610,6 +16642,10 @@ initCollapse();
       };
       tb.querySelector('.so-cancel').onclick = function() {
         _soDelete(ovr.id, true);
+      };
+      tb.querySelector('.so-toggle-vis').onclick = function() {
+        _soToggleVisible(ovr.id);
+        this.textContent = ovr.visible ? 'Hide' : 'Show';
       };
       tb.querySelector('.so-opacity').oninput = function() {
         ovr.opacity = this.value / 100;
@@ -20473,7 +20509,7 @@ initCollapse();
           var visIcon = ovr.visible
             ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
             : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2" style="vertical-align:-1px;"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
-          html += '<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:4px;">';
+          html += '<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:4px;' + (ovr.visible ? '' : 'opacity:0.45;') + '">';
           // visibility toggle
           html += '<button onclick="event.stopPropagation();_soToggleVisible(\'' + ovr.id + '\')" title="Toggle visibility" style="background:none;border:none;cursor:pointer;padding:0;line-height:1;flex-shrink:0;color:#6b7280;">' + visIcon + '</button>';
           // index label
