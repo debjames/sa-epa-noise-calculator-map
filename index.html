@@ -11689,9 +11689,11 @@ initCollapse();
           data.buildingSources = buildingSources.map(function(bs) {
             return {
               id: bs.id, name: bs.name, vertices: bs.vertices, height_m: bs.height_m,
+              lpSource: bs.lpSource || 'broadband',
               interiorLp: bs.interiorLp, activeInPeriod: bs.activeInPeriod,
               operatingPct: bs.operatingPct, defaultConstruction: bs.defaultConstruction,
               facadeOverrides: bs.facadeOverrides, roofConstruction: bs.roofConstruction,
+              roofElements: bs.roofElements || [],
               manualOverride: bs.manualOverride
             };
           });
@@ -19139,7 +19141,10 @@ initCollapse();
           if (!Number.isFinite(el.area) || el.area <= 0 || !el.construction) return;
           // M3 fix: clamp element area to remaining facade area so cumulative openings
           // cannot exceed total wall area (prevents acoustic over-counting).
-          var elArea = Math.min(el.area, remArea);
+          // Use width×height when both are defined, otherwise fall back to el.area.
+          var elRawArea = (Number.isFinite(el.width) && Number.isFinite(el.height) && el.width > 0 && el.height > 0)
+            ? el.width * el.height : (Number.isFinite(el.area) ? el.area : 0);
+          var elArea = Math.min(elRawArea, remArea);
           if (elArea <= 0) return;
           remArea -= elArea;
           var elLw;
@@ -19185,8 +19190,9 @@ initCollapse();
         if (!active || !Number.isFinite(lpBB)) { return; }
         var allLws = [];
         walls.forEach(function(w, i) {
-          var wallArea = w.len * (bs.height_m || 6);
           var overr = bs.facadeOverrides && bs.facadeOverrides[i];
+          var wallHt = (overr && Number.isFinite(overr.heightOverride)) ? overr.heightOverride : (bs.height_m || 6);
+          var wallArea = w.len * wallHt;
           var cons = overr ? overr : bs.defaultConstruction;
           var lw = _bsCalcOneFacade(lpBB, lpOct, cons, wallArea, overr, 6);
           if (Number.isFinite(lw) && pct > 0) lw += 10*Math.log10(pct/100);
@@ -19212,6 +19218,7 @@ initCollapse();
         name: 'Building source ' + _bsIdCtr,
         vertices: verts,
         height_m: ht || 6,
+        lpSource: 'broadband',
         interiorLp: {
           day:   { broadband: null, octave: {63:null,125:null,250:null,500:null,1000:null,2000:null,4000:null,8000:null} },
           eve:   { broadband: null, octave: {63:null,125:null,250:null,500:null,1000:null,2000:null,4000:null,8000:null} },
@@ -19222,6 +19229,7 @@ initCollapse();
         defaultConstruction: JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.walls[0])),
         facadeOverrides: {},
         roofConstruction: Object.assign(JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.roof[0])), { enabled: true }),
+        roofElements: [],
         manualOverride: { day: false, eve: false, night: false }
       };
     }
@@ -19239,9 +19247,12 @@ initCollapse();
       if (!allValid) return null;
       var elementAreas = 0, validElements = [];
       if (elements) elements.forEach(function(el) {
-        if (!Number.isFinite(el.area) || el.area <= 0 || !el.construction || !el.construction.octaveR) return;
+        var elA = (Number.isFinite(el.width) && Number.isFinite(el.height) && el.width > 0 && el.height > 0)
+          ? el.width * el.height : (Number.isFinite(el.area) ? el.area : 0);
+        if (elA <= 0 || !el.construction || !el.construction.octaveR) return;
         if (BS_OCTAVE_BANDS.every(function(b) { return Number.isFinite(el.construction.octaveR[b]); })) {
-          elementAreas += el.area; validElements.push(el);
+          // Store effective area on a shadow property for use in the map below
+          elementAreas += elA; validElements.push(Object.assign({}, el, { _effectiveArea: elA }));
         }
       });
       var residualArea = Math.max(0, facadeArea - elementAreas);
@@ -19250,7 +19261,8 @@ initCollapse();
         if (residualArea > 0)
           linSum += Math.pow(10, (lpOct[b] - cons.octaveR[b] + 10*Math.log10(residualArea) + hemCorrection)/10);
         validElements.forEach(function(el) {
-          linSum += Math.pow(10, (lpOct[b] - el.construction.octaveR[b] + 10*Math.log10(el.area) + hemCorrection)/10);
+          var ea = el._effectiveArea || el.area;
+          linSum += Math.pow(10, (lpOct[b] - el.construction.octaveR[b] + 10*Math.log10(ea) + hemCorrection)/10);
         });
         // C1 fix: return unweighted per-band Lw; A-weighting is applied by calcISOatPoint during propagation
         return linSum > 0 ? 10*Math.log10(linSum) : -Infinity;
@@ -19664,6 +19676,179 @@ initCollapse();
       return html;
     }
 
+    // ── Composite Rw and SVG diagram helpers ─────────────────────────────────
+
+    /** Compute composite broadband Rw for a wall with elements.
+     *  Formula: -10·log10( Σ(Si/Stot · 10^(-Ri/10)) )
+     *  Returns null if construction has no valid rw. */
+    function _bsEffectiveRw(cons, elements, wallLen, wallHt) {
+      if (!cons || !Number.isFinite(cons.rw)) return null;
+      var totalArea = (Number.isFinite(wallLen) && Number.isFinite(wallHt)) ? wallLen * wallHt : 0;
+      if (totalArea <= 0 || !elements || elements.length === 0) return cons.rw;
+      var usedArea = 0, linSum = 0;
+      elements.forEach(function(el) {
+        var elA = (Number.isFinite(el.width) && Number.isFinite(el.height) && el.width > 0 && el.height > 0)
+          ? el.width * el.height : (Number.isFinite(el.area) ? el.area : 0);
+        if (elA <= 0 || !el.construction || !Number.isFinite(el.construction.rw)) return;
+        var clamped = Math.min(elA, totalArea - usedArea);
+        if (clamped <= 0) return;
+        usedArea += clamped;
+        linSum += (clamped / totalArea) * Math.pow(10, -el.construction.rw / 10);
+      });
+      var remFrac = Math.max(0, totalArea - usedArea) / totalArea;
+      linSum += remFrac * Math.pow(10, -cons.rw / 10);
+      return linSum > 0 ? -10 * Math.log10(linSum) : cons.rw;
+    }
+
+    /** SVG face diagram of a wall showing element rectangles at their x/y positions. */
+    function _bsWallFaceSVG(wallLen, wallHt, cons, elements) {
+      var W = 260, H = 80;
+      if (!Number.isFinite(wallLen) || wallLen <= 0 || !Number.isFinite(wallHt) || wallHt <= 0) {
+        return '<svg width="' + W + '" height="' + H + '" style="display:block;"><text x="8" y="20" font-size="11" fill="#9ca3af">No dimensions</text></svg>';
+      }
+      var scaleX = (W - 30) / wallLen, scaleY = (H - 20) / wallHt;
+      var sc = Math.min(scaleX, scaleY);
+      var svgW = Math.round(wallLen * sc), svgH = Math.round(wallHt * sc);
+      var offX = Math.round((W - svgW) / 2), offY = 4;
+      var EL_COLORS = ['#60a5fa','#34d399','#fbbf24','#f87171','#a78bfa','#fb923c'];
+      var svg = '<svg width="' + W + '" height="' + H + '" style="display:block;border:1px solid #e9d5ff;border-radius:3px;background:#f5f3ff;">';
+      svg += '<rect x="' + offX + '" y="' + offY + '" width="' + svgW + '" height="' + svgH + '" fill="rgba(140,80,180,0.15)" stroke="#8b5cf6" stroke-width="1.5"/>';
+      if (elements && elements.length > 0) {
+        elements.forEach(function(el, ei) {
+          var elW = Number.isFinite(el.width) && el.width > 0 ? el.width : (Number.isFinite(el.area) && wallHt > 0 ? Math.sqrt(el.area) : 0);
+          var elH = Number.isFinite(el.height) && el.height > 0 ? el.height : (Number.isFinite(el.area) && elW > 0 ? el.area / elW : 0);
+          var elX = Number.isFinite(el.x) ? el.x : 0;
+          var elY = Number.isFinite(el.y) ? el.y : 0;
+          if (elW <= 0 || elH <= 0) return;
+          var px = offX + elX * sc, py = offY + (wallHt - elY - elH) * sc;
+          var pw = elW * sc, ph = elH * sc;
+          var col = EL_COLORS[ei % EL_COLORS.length];
+          svg += '<rect x="' + px.toFixed(1) + '" y="' + py.toFixed(1) + '" width="' + pw.toFixed(1) + '" height="' + ph.toFixed(1) + '" fill="' + col + '" fill-opacity="0.65" stroke="' + col + '" stroke-width="1"/>';
+          svg += '<text x="' + (px + pw / 2).toFixed(1) + '" y="' + (py + ph / 2 + 4).toFixed(1) + '" text-anchor="middle" font-size="9" fill="#1f2937">' + (ei + 1) + '</text>';
+        });
+      }
+      svg += '<text x="' + (offX + svgW / 2) + '" y="' + (offY + svgH + 13) + '" text-anchor="middle" font-size="9" fill="#6b7280">' + wallLen.toFixed(1) + 'm</text>';
+      svg += '<text x="' + (offX - 4) + '" y="' + (offY + svgH / 2) + '" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#6b7280">' + wallHt.toFixed(1) + 'm</text>';
+      svg += '</svg>';
+      return svg;
+    }
+
+    /** HTML showing composite Rw with element breakdown. */
+    function _bsCompositeRwHTML(cons, elements, wallLen, wallHt) {
+      if (!cons || !Number.isFinite(cons.rw)) return '';
+      var compRw = _bsEffectiveRw(cons, elements, wallLen, wallHt);
+      if (!Number.isFinite(compRw)) return '';
+      var totalArea = (Number.isFinite(wallLen) && Number.isFinite(wallHt)) ? wallLen * wallHt : 0;
+      var h = '<div style="font-size:10px;color:#6b7280;margin-top:3px;padding:3px 4px;background:#ede9fe;border-radius:3px;">';
+      h += '<b style="color:#5b21b6;">Composite Rw: ' + compRw.toFixed(1) + ' dB</b>';
+      if (elements && elements.length > 0 && totalArea > 0) {
+        h += ' <span style="color:#7c3aed;">(wall\u00a0' + cons.rw + '\u00a0dB';
+        var usedArea = 0;
+        elements.forEach(function(el, ei) {
+          var elA = (Number.isFinite(el.width) && Number.isFinite(el.height) && el.width > 0 && el.height > 0)
+            ? el.width * el.height : (Number.isFinite(el.area) ? el.area : 0);
+          var clamped = Math.min(elA, totalArea - usedArea);
+          if (clamped <= 0 || !el.construction || !Number.isFinite(el.construction.rw)) return;
+          usedArea += clamped;
+          var pct = (clamped / totalArea * 100).toFixed(0);
+          h += ', el.' + (ei + 1) + '\u00a0' + el.construction.rw + '\u00a0dB\u00a0(' + pct + '%)';
+        });
+        h += ')</span>';
+      }
+      h += '</div>';
+      return h;
+    }
+
+    /** Single wall detail row (collapsible). */
+    function _bsWallDetailHTML(bs, wallIdx, dir, len) {
+      var overr = bs.facadeOverrides && bs.facadeOverrides[wallIdx];
+      var cons = overr || bs.defaultConstruction;
+      var wallHt = (overr && Number.isFinite(overr.heightOverride)) ? overr.heightOverride : (bs.height_m || 6);
+      var elements = overr ? (overr.elements || []) : [];
+      var effRw = _bsEffectiveRw(cons, elements, len, wallHt);
+      var hasOverride = !!overr;
+      var h = '<div class="bs-wall-row" data-wall="' + wallIdx + '" style="border:1px solid ' + (hasOverride ? '#c4b5fd' : '#e5e7eb') + ';border-radius:5px;margin-bottom:5px;overflow:hidden;">';
+      // Header
+      h += '<div class="bs-wall-header" data-wall="' + wallIdx + '" style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;cursor:pointer;background:' + (hasOverride ? '#f5f3ff' : '#f9fafb') + ';">';
+      h += '<span style="font-size:11px;font-weight:600;">Wall ' + (wallIdx + 1) + ' <span style="font-weight:400;color:#6b7280;">(' + dir + ', ' + len.toFixed(0) + '\u00a0m)</span>';
+      if (hasOverride) h += ' <span style="font-size:10px;background:#ede9fe;color:#6d28d9;padding:1px 4px;border-radius:3px;">custom</span>';
+      h += '</span>';
+      h += '<div style="display:flex;align-items:center;gap:6px;">';
+      if (Number.isFinite(effRw)) h += '<span style="font-size:10px;color:#6b7280;">Rw\u00a0' + effRw.toFixed(0) + '\u00a0dB</span>';
+      h += '<span class="bs-wall-chevron" style="font-size:10px;color:#9ca3af;">\u25bc</span>';
+      h += '</div></div>';
+      // Detail (initially collapsed)
+      h += '<div class="bs-wall-detail" data-wall="' + wallIdx + '" style="padding:8px;display:none;">';
+      // Height override
+      h += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">';
+      h += '<span style="font-size:11px;color:#6b7280;white-space:nowrap;">Ht override (m):</span>';
+      h += '<input type="number" class="bs-wall-ht" data-wall="' + wallIdx + '" value="' + (overr && Number.isFinite(overr.heightOverride) ? overr.heightOverride : '') + '" placeholder="' + wallHt + '" step="0.1" min="0.1" style="width:64px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;">';
+      h += '</div>';
+      // Construction select
+      h += '<select class="bs-wall-cons-sel" data-wall="' + wallIdx + '" style="width:100%;padding:3px 5px;border:1px solid #ddd;border-radius:4px;font-size:11px;margin-bottom:4px;">';
+      if (!hasOverride) h += '<option value="">(Default construction)</option>';
+      h += _bsConsOptions(cons.name || '', ['Walls', 'Openings']);
+      h += '</select>';
+      // SVG diagram
+      h += '<div class="bs-wall-svg" data-wall="' + wallIdx + '" style="margin:5px 0;">' + _bsWallFaceSVG(len, wallHt, cons, elements) + '</div>';
+      // Composite Rw
+      h += '<div class="bs-wall-rw" data-wall="' + wallIdx + '">' + _bsCompositeRwHTML(cons, elements, len, wallHt) + '</div>';
+      // Elements list
+      h += '<div class="bs-elements-list" data-wall="' + wallIdx + '" style="margin-top:6px;">';
+      elements.forEach(function(el, ei) { h += _bsElementRow(wallIdx, ei, el); });
+      h += '</div>';
+      h += '<button class="bs-add-element" data-wall="' + wallIdx + '" style="font-size:10px;padding:1px 7px;cursor:pointer;background:#ede9fe;border:1px solid #c4b5fd;border-radius:3px;color:#6d28d9;margin-top:3px;">+ Add opening</button>';
+      if (hasOverride) {
+        h += ' <button class="bs-del-override" data-wall="' + wallIdx + '" style="font-size:10px;padding:1px 7px;cursor:pointer;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;color:#b91c1c;margin-top:3px;">Remove override</button>';
+      }
+      h += '</div>'; // end detail
+      h += '</div>'; // end wall-row
+      return h;
+    }
+
+    /** Full wall list HTML for all walls of a building source. */
+    function _bsAllWallsHTML(bs) {
+      if (!bs.vertices || bs.vertices.length < 3) return '<em style="font-size:11px;color:#9ca3af;">Draw polygon first</em>';
+      var n = bs.vertices.length, h = '';
+      for (var i = 0; i < n; i++) {
+        var v1 = bs.vertices[i], v2 = bs.vertices[(i + 1) % n];
+        var len = _bsSegLen(v1, v2);
+        var dir = _bsCompassDir(_bsBearing(v1, v2));
+        h += _bsWallDetailHTML(bs, i, dir, len);
+      }
+      return h;
+    }
+
+    /** One roof element row (plan-view opening). */
+    function _bsRoofElementRow(ei, el) {
+      var w = Number.isFinite(el.width) ? el.width : '', d2 = Number.isFinite(el.depth) ? el.depth : '';
+      var x = Number.isFinite(el.x) ? el.x : '', y = Number.isFinite(el.y) ? el.y : '';
+      var h = '<div class="bs-roof-el-row" data-el="' + ei + '" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr auto;gap:3px;align-items:end;margin-bottom:4px;padding:3px;background:#f9fafb;border-radius:3px;">';
+      h += '<label style="font-size:9px;color:#6b7280;text-align:center;">W\u00a0(m)<br><input type="number" class="bs-roof-el-w" data-el="' + ei + '" placeholder="W" value="' + w + '" step="0.01" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
+      h += '<label style="font-size:9px;color:#6b7280;text-align:center;">D\u00a0(m)<br><input type="number" class="bs-roof-el-d" data-el="' + ei + '" placeholder="D" value="' + d2 + '" step="0.01" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
+      h += '<label style="font-size:9px;color:#6b7280;text-align:center;">X\u00a0(m)<br><input type="number" class="bs-roof-el-x" data-el="' + ei + '" placeholder="0" value="' + x + '" step="0.1" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
+      h += '<label style="font-size:9px;color:#6b7280;text-align:center;">Y\u00a0(m)<br><input type="number" class="bs-roof-el-y" data-el="' + ei + '" placeholder="0" value="' + y + '" step="0.1" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
+      h += '<select class="bs-roof-el-sel" data-el="' + ei + '" style="font-size:10px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;">';
+      h += _bsConsOptions(el.construction ? el.construction.name : '', ['Openings', 'Roof']);
+      h += '</select>';
+      h += '<button class="bs-del-roof-el" data-el="' + ei + '" style="font-size:10px;padding:2px 6px;cursor:pointer;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;color:#b91c1c;">\u2715</button>';
+      h += '</div>';
+      return h;
+    }
+
+    /** Roof elements section HTML (inserted inside roof section). */
+    function _bsRoofDetailHTML(bs) {
+      var elements = bs.roofElements || [];
+      var h = '<div id="bsRoofElements" style="margin-top:6px;">';
+      if (elements.length > 0) {
+        h += '<div style="font-size:10px;color:#6b7280;margin-bottom:3px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr auto;gap:3px;padding:0 3px;"><span style="text-align:center;">Width</span><span style="text-align:center;">Depth</span><span style="text-align:center;">X pos</span><span style="text-align:center;">Y pos</span><span>Construction</span><span></span></div>';
+      }
+      elements.forEach(function(el, ei) { h += _bsRoofElementRow(ei, el); });
+      h += '<button id="bsAddRoofEl" style="font-size:10px;padding:1px 7px;cursor:pointer;background:#ede9fe;border:1px solid #c4b5fd;border-radius:3px;color:#6d28d9;margin-top:3px;">+ Add roof element</button>';
+      h += '</div>';
+      return h;
+    }
+
     function buildBsPanelHTML(bs) {
       var ctr = _asPolygonCentroid(bs.vertices);
       var perim = _bsPerimeter(bs.vertices);
@@ -19688,8 +19873,14 @@ initCollapse();
       // Body
       h += '<div style="max-height:75vh;overflow-y:auto;padding:14px;">';
 
-      // Name field
-      h += '<div style="margin-bottom:8px;"><input id="bsPanelName" type="text" value="' + escapeHTML(bs.name || '') + '" placeholder="Building name" style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #ddd;border-radius:5px;font-size:12px;"></div>';
+      // Name field + lpSource dropdown
+      h += '<div style="display:flex;gap:6px;margin-bottom:8px;">';
+      h += '<input id="bsPanelName" type="text" value="' + escapeHTML(bs.name || '') + '" placeholder="Building name" style="flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:5px;font-size:12px;">';
+      h += '<select id="bsLpSource" style="padding:4px 6px;border:1px solid #ddd;border-radius:5px;font-size:11px;" title="Interior Lp measurement source">';
+      h += '<option value="broadband"' + (bs.lpSource !== 'octave' ? ' selected' : '') + '>Broadband Lp</option>';
+      h += '<option value="octave"' + (bs.lpSource === 'octave' ? ' selected' : '') + '>Octave Lp</option>';
+      h += '</select>';
+      h += '</div>';
 
       // Coords + geometry
       h += '<div style="display:flex;gap:10px;font-size:11px;color:#6b7280;margin-bottom:8px;">';
@@ -19743,27 +19934,15 @@ initCollapse();
       h += '</select>';
       h += '<div id="bsRoofOctave">' + _bsOctaveRRow('bs_roof', bs.roofConstruction, true) + '</div>';
       h += '<label style="font-size:11px;display:flex;align-items:center;gap:4px;margin-top:4px;"><input type="checkbox" id="bsRoofManual"> Manual R values</label>';
+      h += _bsRoofDetailHTML(bs);
       h += '</div>';
 
-      // Facade overrides
-      h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin:10px 0 6px;">Facade Overrides</div>';
-      h += '<div id="bsFacadeOverrides">';
-      if (bs.facadeOverrides) {
-        Object.keys(bs.facadeOverrides).forEach(function(iStr) {
-          var i = parseInt(iStr);
-          var overr = bs.facadeOverrides[i];
-          if (!overr) return;
-          var v1 = bs.vertices[i], v2 = bs.vertices[(i+1)%bs.vertices.length];
-          var len = _bsSegLen(v1, v2).toFixed(0);
-          var dir = _bsCompassDir(_bsBearing(v1, v2));
-          h += _bsFacadeOverrideRow(bs, i, overr, dir, len);
-        });
-      }
-      h += '</div>';
-      h += '<button id="bsAddOverride" style="margin-top:4px;padding:4px 10px;font-size:11px;background:#ede9fe;border:1px solid #c4b5fd;border-radius:5px;cursor:pointer;color:#6d28d9;">+ Add facade override</button>';
+      // Walls — all walls shown, click to expand
+      h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin:10px 0 6px;">Walls</div>';
+      h += '<div id="bsWallList">' + _bsAllWallsHTML(bs) + '</div>';
 
       // Derived levels
-      h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin:10px 0 6px;">Radiated Sound Power (Day)</div>';
+      h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin:10px 0 6px;">Radiated Sound Power (D\u202f/\u202fE\u202f/\u202fN)</div>';
       h += '<div id="bsDerivedLw" style="font-size:11px;background:#f5f3ff;border-radius:6px;padding:8px;">';
       h += _bsDerivedLwHTML(bs, derived);
       h += '</div>';
@@ -19802,40 +19981,53 @@ initCollapse();
     }
 
     function _bsElementRow(wallIdx, elIdx, el) {
-      var h = '<div class="bs-element-row" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="display:flex;gap:5px;align-items:center;margin-bottom:3px;">';
-      h += '<input type="number" class="bs-el-area" data-wall="' + wallIdx + '" data-el="' + elIdx + '" placeholder="Area m²" value="' + (el.area||'') + '" style="width:60px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:3px;">';
-      h += '<span style="font-size:10px;color:#6b7280;">m²</span>';
-      h += '<select class="bs-el-sel" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="flex:1;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:3px;">';
-      h += _bsConsOptions(el.construction ? el.construction.name : '', ['Openings','Walls']);
+      var elW = Number.isFinite(el.width) ? el.width : '', elH = Number.isFinite(el.height) ? el.height : '';
+      var elX = Number.isFinite(el.x) ? el.x : '', elY = Number.isFinite(el.y) ? el.y : '';
+      var h = '<div class="bs-element-row" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr auto;gap:3px;align-items:end;margin-bottom:4px;padding:3px;background:#f9fafb;border-radius:3px;">';
+      h += '<label style="font-size:9px;color:#6b7280;text-align:center;">W\u00a0(m)<br><input type="number" class="bs-el-width" data-wall="' + wallIdx + '" data-el="' + elIdx + '" placeholder="W" value="' + elW + '" step="0.01" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
+      h += '<label style="font-size:9px;color:#6b7280;text-align:center;">H\u00a0(m)<br><input type="number" class="bs-el-height" data-wall="' + wallIdx + '" data-el="' + elIdx + '" placeholder="H" value="' + elH + '" step="0.01" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
+      h += '<label style="font-size:9px;color:#6b7280;text-align:center;">X\u00a0(m)<br><input type="number" class="bs-el-x" data-wall="' + wallIdx + '" data-el="' + elIdx + '" placeholder="0" value="' + elX + '" step="0.1" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
+      h += '<label style="font-size:9px;color:#6b7280;text-align:center;">Y\u00a0(m)<br><input type="number" class="bs-el-y" data-wall="' + wallIdx + '" data-el="' + elIdx + '" placeholder="0" value="' + elY + '" step="0.1" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
+      h += '<select class="bs-el-sel" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="font-size:10px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;">';
+      h += _bsConsOptions(el.construction ? el.construction.name : '', ['Openings', 'Walls']);
       h += '</select>';
-      h += '<button class="bs-del-element" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="font-size:10px;padding:1px 5px;cursor:pointer;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;color:#b91c1c;">\u2715</button>';
+      h += '<button class="bs-del-element" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="font-size:10px;padding:2px 6px;cursor:pointer;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;color:#b91c1c;">\u2715</button>';
       h += '</div>';
       return h;
     }
 
     function _bsDerivedLwHTML(bs, derived) {
       if (!derived) derived = _bsCalcDerived(bs);
-      var h = '';
       if (!bs.vertices || bs.vertices.length < 3) return '<em style="color:#9ca3af;">Draw polygon first</em>';
-      var n = bs.vertices.length;
+      var PKEYS = ['day','eve','night'], PLBLS = {day:'D',eve:'E',night:'N'};
+      var PCOLS = {day:'#1f2937',eve:'#92400e',night:'#1e3a5f'};
+      function lwCell(lw, pk) {
+        return '<span style="margin-left:6px;color:' + PCOLS[pk] + ';">' + PLBLS[pk] + ':\u202f' + (Number.isFinite(lw) ? lw.toFixed(1) : '\u2014') + '</span>';
+      }
+      var h = '';
       derived.walls.forEach(function(w) {
-        var lw = w.lw.day;
-        h += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #ede9fe;">';
-        h += '<span>Wall ' + (w.idx+1) + ' (' + w.dir + ', ' + w.len.toFixed(0) + ' m)</span>';
-        h += '<b>' + (Number.isFinite(lw) ? lw.toFixed(1) + ' dB(A)' : '\u2014') + '</b>';
+        var overr = bs.facadeOverrides && bs.facadeOverrides[w.idx];
+        var cons = overr || bs.defaultConstruction;
+        var wallHt = (overr && Number.isFinite(overr.heightOverride)) ? overr.heightOverride : (bs.height_m || 6);
+        var elements = overr ? (overr.elements || []) : [];
+        var effRw = _bsEffectiveRw(cons, elements, w.len, wallHt);
+        h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid #ede9fe;font-size:11px;">';
+        h += '<span style="flex:0 0 auto;">Wall\u00a0' + (w.idx + 1) + ' <span style="color:#9ca3af;">(' + w.dir + ', ' + w.len.toFixed(0) + '\u00a0m' + (Number.isFinite(effRw) ? ', Rw\u00a0' + effRw.toFixed(0) : '') + ')</span></span>';
+        h += '<span style="flex:0 0 auto;">';
+        PKEYS.forEach(function(pk) { h += lwCell(w.lw[pk], pk); });
+        h += ' <span style="color:#6b7280;">dB(A)</span></span>';
         h += '</div>';
       });
       if (bs.roofConstruction && bs.roofConstruction.enabled) {
-        var rLw = derived.roof.day;
-        h += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #ede9fe;">';
-        h += '<span>Roof</span>';
-        h += '<b>' + (Number.isFinite(rLw) ? rLw.toFixed(1) + ' dB(A)' : '\u2014') + '</b>';
-        h += '</div>';
+        h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid #ede9fe;font-size:11px;">';
+        h += '<span>Roof</span><span>';
+        PKEYS.forEach(function(pk) { h += lwCell(derived.roof[pk], pk); });
+        h += ' <span style="color:#6b7280;">dB(A)</span></span></div>';
       }
-      var tot = derived.total.day;
-      h += '<div style="display:flex;justify-content:space-between;padding:3px 0;font-weight:700;color:#6d28d9;">';
-      h += '<span>Total radiated</span><span>' + (Number.isFinite(tot) ? tot.toFixed(1) + ' dB(A)' : '\u2014') + '</span>';
-      h += '</div>';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-weight:700;color:#6d28d9;font-size:11px;">';
+      h += '<span>Total radiated</span><span>';
+      PKEYS.forEach(function(pk) { h += lwCell(derived.total[pk], pk); });
+      h += ' <span style="font-weight:400;color:#6b7280;">dB(A)</span></span></div>';
       return h;
     }
 
@@ -19874,84 +20066,170 @@ initCollapse();
         document.addEventListener('mouseup', function(){_drg=false;});
       }
 
-      function refreshPanel() {
-        var bs2 = buildingSources.find(function(b){return b.id===_bsPanelId;});
-        if (!bs2) return;
-        var derived = _bsCalcDerived(bs2);
-        var derivedEl = document.getElementById('bsDerivedLw');
-        if (derivedEl) derivedEl.innerHTML = _bsDerivedLwHTML(bs2, derived);
-        var perim = _bsPerimeter(bs2.vertices);
-        var roofArea = _asPolygonArea(bs2.vertices);
+      // ── Partial refresh helpers ───────────────────────────────────────────
+      function _bsRefreshDerived() {
+        var el = document.getElementById('bsDerivedLw');
+        if (el) el.innerHTML = _bsDerivedLwHTML(bs, _bsCalcDerived(bs));
+        if (window._renderObjectList) window._renderObjectList();
+      }
+      function _bsRefreshStats() {
+        var perim = _bsPerimeter(bs.vertices);
+        var roofArea = _asPolygonArea(bs.vertices);
         var perimEl = document.getElementById('bsPanelPerim');
         var wallAreaEl = document.getElementById('bsPanelWallArea');
         var roofAreaEl = document.getElementById('bsPanelRoofArea');
         if (perimEl) perimEl.textContent = perim.toFixed(0) + ' m';
-        if (wallAreaEl) wallAreaEl.textContent = (perim*(bs2.height_m||6)).toFixed(0) + ' m\u00b2';
+        if (wallAreaEl) wallAreaEl.textContent = (perim * (bs.height_m || 6)).toFixed(0) + ' m\u00b2';
         if (roofAreaEl) roofAreaEl.textContent = roofArea.toFixed(0) + ' m\u00b2';
         var hdrTitle = panel.querySelector('#bsPanelHeader span');
         if (hdrTitle) {
-          var lpD = bs2.interiorLp && bs2.interiorLp.day && Number.isFinite(bs2.interiorLp.day.broadband) ? Math.round(bs2.interiorLp.day.broadband)+' dB(A)' : '\u2014';
-          hdrTitle.textContent = '\uD83C\uDFED ' + (bs2.name||'Building source') + ' \u2014 Lp ' + lpD + ' inside';
+          var lpD = bs.interiorLp && bs.interiorLp.day && Number.isFinite(bs.interiorLp.day.broadband) ? Math.round(bs.interiorLp.day.broadband) + ' dB(A)' : '\u2014';
+          hdrTitle.textContent = '\uD83C\uDFED ' + (bs.name || 'Building source') + ' \u2014 Lp ' + lpD + ' inside';
         }
       }
+      /** Ensure a facadeOverride exists for wallIdx; return it. */
+      function _bsEnsureOverride(wallIdx) {
+        if (!bs.facadeOverrides) bs.facadeOverrides = {};
+        if (!bs.facadeOverrides[wallIdx]) {
+          bs.facadeOverrides[wallIdx] = JSON.parse(JSON.stringify(bs.defaultConstruction));
+          bs.facadeOverrides[wallIdx].elements = [];
+        }
+        return bs.facadeOverrides[wallIdx];
+      }
+      /** Update wall SVG + Rw + derived for wallIdx. */
+      function _bsRefreshWallVisuals(wallIdx) {
+        var v1 = bs.vertices[wallIdx], v2 = bs.vertices[(wallIdx + 1) % bs.vertices.length];
+        var len = _bsSegLen(v1, v2);
+        var overr = bs.facadeOverrides && bs.facadeOverrides[wallIdx];
+        var cons = overr || bs.defaultConstruction;
+        var wallHt = (overr && Number.isFinite(overr.heightOverride)) ? overr.heightOverride : (bs.height_m || 6);
+        var elements = overr ? (overr.elements || []) : [];
+        var svgEl = panel.querySelector('.bs-wall-svg[data-wall="' + wallIdx + '"]');
+        if (svgEl) svgEl.innerHTML = _bsWallFaceSVG(len, wallHt, cons, elements);
+        var rwEl = panel.querySelector('.bs-wall-rw[data-wall="' + wallIdx + '"]');
+        if (rwEl) rwEl.innerHTML = _bsCompositeRwHTML(cons, elements, len, wallHt);
+        // Update header Rw badge
+        var hdr = panel.querySelector('.bs-wall-header[data-wall="' + wallIdx + '"]');
+        if (hdr) {
+          var effRw = _bsEffectiveRw(cons, elements, len, wallHt);
+          var badges = hdr.querySelectorAll('span');
+          // Find the Rw badge — the second-to-last span in the right group
+          var rightGroup = hdr.lastElementChild;
+          if (rightGroup) {
+            var rwSpan = rightGroup.querySelector('span:first-child');
+            if (rwSpan) rwSpan.textContent = Number.isFinite(effRw) ? 'Rw\u00a0' + effRw.toFixed(0) + '\u00a0dB' : '';
+          }
+        }
+        _bsRefreshDerived();
+      }
+      /** Re-render the elements list for a wall. */
+      function _bsRefreshElementsList(wallIdx) {
+        var elListEl = panel.querySelector('.bs-elements-list[data-wall="' + wallIdx + '"]');
+        if (!elListEl) return;
+        var overr = bs.facadeOverrides && bs.facadeOverrides[wallIdx];
+        var elements = overr ? (overr.elements || []) : [];
+        var html = '';
+        elements.forEach(function(el, ei) { html += _bsElementRow(wallIdx, ei, el); });
+        elListEl.innerHTML = html;
+      }
+      /** Re-render the full wall row (keeps detail open if it was). */
+      function _bsRefreshWallRow(wallIdx) {
+        var rowEl = panel.querySelector('.bs-wall-row[data-wall="' + wallIdx + '"]');
+        if (!rowEl) return;
+        var wasOpen = rowEl.querySelector('.bs-wall-detail') && rowEl.querySelector('.bs-wall-detail').style.display !== 'none';
+        var v1 = bs.vertices[wallIdx], v2 = bs.vertices[(wallIdx + 1) % bs.vertices.length];
+        var len = _bsSegLen(v1, v2);
+        var dir = _bsCompassDir(_bsBearing(v1, v2));
+        var newHtml = _bsWallDetailHTML(bs, wallIdx, dir, len);
+        var tmp = document.createElement('div');
+        tmp.innerHTML = newHtml;
+        var newRow = tmp.firstChild;
+        if (wasOpen) {
+          var detailEl = newRow.querySelector('.bs-wall-detail');
+          if (detailEl) { detailEl.style.display = ''; var chevron = newRow.querySelector('.bs-wall-chevron'); if (chevron) chevron.textContent = '\u25b2'; }
+        }
+        rowEl.parentNode.replaceChild(newRow, rowEl);
+      }
+      /** Re-render the roof elements section. */
+      function _bsRefreshRoofElements() {
+        var el = document.getElementById('bsRoofElements');
+        if (el) el.outerHTML = _bsRoofDetailHTML(bs);
+      }
 
-      // Name
+      // ── Name ─────────────────────────────────────────────────────────────
       var nameInp = document.getElementById('bsPanelName');
       if (nameInp) nameInp.addEventListener('change', function() {
         bs.name = this.value.trim() || 'Building source';
-        renderBuildingSourceLayer(); refreshPanel();
+        renderBuildingSourceLayer(); _bsRefreshStats();
       });
 
-      // Height
+      // ── lpSource ─────────────────────────────────────────────────────────
+      var lpSourceSel = document.getElementById('bsLpSource');
+      if (lpSourceSel) lpSourceSel.addEventListener('change', function() {
+        bs.lpSource = this.value;
+      });
+
+      // ── Height ───────────────────────────────────────────────────────────
       var htInp = document.getElementById('bsPanelHeight');
       if (htInp) htInp.addEventListener('change', function() {
         var v = parseFloat(this.value);
-        if (Number.isFinite(v) && v > 0) { bs.height_m = v; refreshPanel(); if (typeof render==='function') render(); if (window._recomputeNoiseMap) window._recomputeNoiseMap(); }
+        if (Number.isFinite(v) && v > 0) {
+          bs.height_m = v;
+          _bsRefreshStats();
+          // Refresh all wall rows that use default height (no heightOverride)
+          var wallListEl = document.getElementById('bsWallList');
+          if (wallListEl) wallListEl.innerHTML = _bsAllWallsHTML(bs);
+          _bsRefreshDerived();
+          if (typeof render === 'function') render();
+          if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+        }
       });
 
-      // Interior Lp + active + pct per period
-      ['day','eve','night'].forEach(function(period) {
-        var lpInp = document.getElementById('bsLp_'+period);
-        var pctInp = document.getElementById('bsPct_'+period);
-        var actChk = document.getElementById('bsActive_'+period);
-        if (!bs.interiorLp[period]) bs.interiorLp[period] = {broadband:null, octave:{}};
+      // ── Interior Lp + active + pct per period ────────────────────────────
+      ['day', 'eve', 'night'].forEach(function(period) {
+        var lpInp = document.getElementById('bsLp_' + period);
+        var pctInp = document.getElementById('bsPct_' + period);
+        var actChk = document.getElementById('bsActive_' + period);
+        if (!bs.interiorLp[period]) bs.interiorLp[period] = { broadband: null, octave: {} };
         if (lpInp) lpInp.addEventListener('input', function() {
           var v = parseFloat(this.value);
           bs.interiorLp[period].broadband = Number.isFinite(v) ? v : null;
-          refreshPanel(); if (typeof render==='function') render();
+          _bsRefreshStats(); _bsRefreshDerived(); if (typeof render === 'function') render();
         });
         if (pctInp) pctInp.addEventListener('input', function() {
           var v = parseFloat(this.value);
-          bs.operatingPct[period] = Number.isFinite(v) ? Math.max(0,Math.min(100,v)) : 100;
-          refreshPanel(); if (typeof render==='function') render();
+          bs.operatingPct[period] = Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 100;
+          _bsRefreshDerived(); if (typeof render === 'function') render();
         });
         if (actChk) actChk.addEventListener('change', function() {
           bs.activeInPeriod[period] = this.checked;
-          refreshPanel(); if (typeof render==='function') render();
+          _bsRefreshDerived(); if (typeof render === 'function') render();
         });
-        // Octave Lp
         BS_OCTAVE_BANDS.forEach(function(b) {
-          var inp = document.getElementById('bs_'+period+'_lp_'+b);
+          var inp = document.getElementById('bs_' + period + '_lp_' + b);
           if (inp) inp.addEventListener('input', function() {
             var v = parseFloat(this.value);
             if (!bs.interiorLp[period].octave) bs.interiorLp[period].octave = {};
             bs.interiorLp[period].octave[b] = Number.isFinite(v) ? v : null;
-            refreshPanel(); if (typeof render==='function') render();
+            _bsRefreshDerived(); if (typeof render === 'function') render();
           });
         });
       });
 
-      // Default wall construction
+      // ── Default wall construction ─────────────────────────────────────────
       var defWallSel = document.getElementById('bsDefWallSel');
       var defWallManual = document.getElementById('bsDefWallManual');
       if (defWallSel) defWallSel.addEventListener('change', function() {
         var found = null;
-        CONSTRUCTION_LIBRARY.walls.forEach(function(e){if(e.name===this.value)found=e;}.bind(this));
+        CONSTRUCTION_LIBRARY.walls.forEach(function(e) { if (e.name === this.value) found = e; }.bind(this));
         if (found) {
           bs.defaultConstruction = JSON.parse(JSON.stringify(found));
           var octaveDiv = document.getElementById('bsDefWallOctave');
           if (octaveDiv) octaveDiv.innerHTML = _bsOctaveRRow('bs_defwall', bs.defaultConstruction, !defWallManual.checked);
-          refreshPanel(); if (typeof render==='function') render();
+          // Refresh all walls that don't have overrides
+          var wallListEl = document.getElementById('bsWallList');
+          if (wallListEl) wallListEl.innerHTML = _bsAllWallsHTML(bs);
+          _bsRefreshDerived(); if (typeof render === 'function') render();
         }
       });
       if (defWallManual) defWallManual.addEventListener('change', function() {
@@ -19959,18 +20237,18 @@ initCollapse();
         if (octaveDiv) octaveDiv.innerHTML = _bsOctaveRRow('bs_defwall', bs.defaultConstruction, !this.checked);
         if (this.checked) {
           BS_OCTAVE_BANDS.forEach(function(b) {
-            var inp = document.getElementById('bs_defwall_r_'+b);
+            var inp = document.getElementById('bs_defwall_r_' + b);
             if (inp) inp.addEventListener('input', function() {
               if (!bs.defaultConstruction.octaveR) bs.defaultConstruction.octaveR = {};
               var v = parseFloat(this.value);
               bs.defaultConstruction.octaveR[b] = Number.isFinite(v) ? v : 0;
-              refreshPanel(); if (typeof render==='function') render();
+              _bsRefreshDerived(); if (typeof render === 'function') render();
             });
           });
         }
       });
 
-      // Roof construction
+      // ── Roof construction ─────────────────────────────────────────────────
       var roofEnabledChk = document.getElementById('bsRoofEnabled');
       var roofSel = document.getElementById('bsRoofSel');
       var roofManual = document.getElementById('bsRoofManual');
@@ -19979,18 +20257,18 @@ initCollapse();
         bs.roofConstruction.enabled = this.checked;
         var sec = document.getElementById('bsRoofSection');
         if (sec) { sec.style.opacity = this.checked ? '1' : '0.4'; sec.style.pointerEvents = this.checked ? '' : 'none'; }
-        refreshPanel(); if (typeof render==='function') render();
+        _bsRefreshDerived(); if (typeof render === 'function') render();
       });
       if (roofSel) roofSel.addEventListener('change', function() {
         var found = null;
-        CONSTRUCTION_LIBRARY.roof.forEach(function(e){if(e.name===this.value)found=e;}.bind(this));
+        CONSTRUCTION_LIBRARY.roof.forEach(function(e) { if (e.name === this.value) found = e; }.bind(this));
         if (found) {
           var wasEnabled = bs.roofConstruction && bs.roofConstruction.enabled;
           bs.roofConstruction = JSON.parse(JSON.stringify(found));
           bs.roofConstruction.enabled = wasEnabled !== false;
           var octaveDiv = document.getElementById('bsRoofOctave');
           if (octaveDiv) octaveDiv.innerHTML = _bsOctaveRRow('bs_roof', bs.roofConstruction, !roofManual.checked);
-          refreshPanel(); if (typeof render==='function') render();
+          _bsRefreshDerived(); if (typeof render === 'function') render();
         }
       });
       if (roofManual) roofManual.addEventListener('change', function() {
@@ -19998,137 +20276,202 @@ initCollapse();
         if (octaveDiv) octaveDiv.innerHTML = _bsOctaveRRow('bs_roof', bs.roofConstruction, !this.checked);
         if (this.checked) {
           BS_OCTAVE_BANDS.forEach(function(b) {
-            var inp = document.getElementById('bs_roof_r_'+b);
+            var inp = document.getElementById('bs_roof_r_' + b);
             if (inp) inp.addEventListener('input', function() {
               if (!bs.roofConstruction.octaveR) bs.roofConstruction.octaveR = {};
               var v = parseFloat(this.value);
               bs.roofConstruction.octaveR[b] = Number.isFinite(v) ? v : 0;
-              refreshPanel(); if (typeof render==='function') render();
+              _bsRefreshDerived(); if (typeof render === 'function') render();
             });
           });
         }
       });
 
-      // Facade override: add button
-      var addOverrideBtn = document.getElementById('bsAddOverride');
-      if (addOverrideBtn) addOverrideBtn.addEventListener('click', function() {
-        // Build wall selector popup
-        var n = bs.vertices.length;
-        var wallOpts = '<select id="bsWallPickSel" style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin:6px 0;">';
-        for (var wi = 0; wi < n; wi++) {
-          if (bs.facadeOverrides && bs.facadeOverrides[wi]) continue; // already has override
-          var v1 = bs.vertices[wi], v2 = bs.vertices[(wi+1)%n];
-          var dir = _bsCompassDir(_bsBearing(v1, v2));
-          var len = _bsSegLen(v1, v2).toFixed(0);
-          wallOpts += '<option value="' + wi + '">Wall ' + (wi+1) + ' (' + dir + ', ' + len + ' m)</option>';
-        }
-        wallOpts += '</select>';
-        var existing = document.getElementById('bsWallPickBox');
-        if (existing) { existing.remove(); return; }
-        var box = document.createElement('div');
-        box.id = 'bsWallPickBox';
-        box.style.cssText = 'background:#fff;border:1px solid #c4b5fd;border-radius:6px;padding:8px;margin-top:6px;';
-        box.innerHTML = '<div style="font-size:11px;font-weight:700;color:#6d28d9;margin-bottom:4px;">Select wall to override:</div>' + wallOpts +
-          '<button id="bsWallPickOK" style="font-size:11px;padding:2px 8px;cursor:pointer;background:#7c3aed;color:#fff;border:none;border-radius:4px;margin-right:4px;">Add</button>' +
-          '<button id="bsWallPickCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;">Cancel</button>';
-        addOverrideBtn.parentNode.insertBefore(box, addOverrideBtn.nextSibling);
-        document.getElementById('bsWallPickCancel').onclick = function() { box.remove(); };
-        document.getElementById('bsWallPickOK').onclick = function() {
-          var selEl = document.getElementById('bsWallPickSel');
-          if (!selEl) return;
-          var wi = parseInt(selEl.value);
-          if (!bs.facadeOverrides) bs.facadeOverrides = {};
-          if (!bs.facadeOverrides[wi]) {
-            bs.facadeOverrides[wi] = JSON.parse(JSON.stringify(bs.defaultConstruction));
-            bs.facadeOverrides[wi].elements = [];
+      // ── Wall list: toggle, construction change, height override, elements ─
+      var wallListEl = document.getElementById('bsWallList');
+      if (wallListEl) {
+        // Toggle wall detail open/close
+        wallListEl.addEventListener('click', function(ev) {
+          var hdr = ev.target.closest('.bs-wall-header');
+          if (hdr) {
+            var wi = parseInt(hdr.getAttribute('data-wall'));
+            var detail = wallListEl.querySelector('.bs-wall-detail[data-wall="' + wi + '"]');
+            if (detail) {
+              var open = detail.style.display !== 'none';
+              detail.style.display = open ? 'none' : '';
+              var chevron = hdr.querySelector('.bs-wall-chevron');
+              if (chevron) chevron.textContent = open ? '\u25bc' : '\u25b2';
+            }
+            return;
           }
-          box.remove();
-          // Re-open panel to show new override
-          openBsPanel(_bsPanelId, parseInt(panel.style.left)||200, parseInt(panel.style.top)||60);
-        };
-      });
+          // Remove override
+          var delBtn2 = ev.target.closest('.bs-del-override');
+          if (delBtn2) {
+            var wi2 = parseInt(delBtn2.getAttribute('data-wall'));
+            if (bs.facadeOverrides) delete bs.facadeOverrides[wi2];
+            _bsRefreshWallRow(wi2);
+            _bsRefreshDerived();
+            if (typeof render === 'function') render();
+            return;
+          }
+          // Add element
+          var addElBtn = ev.target.closest('.bs-add-element');
+          if (addElBtn) {
+            var wi3 = parseInt(addElBtn.getAttribute('data-wall'));
+            var overr = _bsEnsureOverride(wi3);
+            if (!overr.elements) overr.elements = [];
+            overr.elements.push({ width: 1, height: 1, x: 0, y: 0, construction: JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.openings[0])) });
+            _bsRefreshElementsList(wi3);
+            _bsRefreshWallVisuals(wi3);
+            if (typeof render === 'function') render();
+            return;
+          }
+          // Delete element
+          var delElBtn = ev.target.closest('.bs-del-element');
+          if (delElBtn) {
+            var wi4 = parseInt(delElBtn.getAttribute('data-wall'));
+            var ei = parseInt(delElBtn.getAttribute('data-el'));
+            if (bs.facadeOverrides && bs.facadeOverrides[wi4] && bs.facadeOverrides[wi4].elements) {
+              bs.facadeOverrides[wi4].elements.splice(ei, 1);
+              _bsRefreshElementsList(wi4);
+              _bsRefreshWallVisuals(wi4);
+              if (typeof render === 'function') render();
+            }
+            return;
+          }
+        });
 
-      // Facade override: remove + construction change + add element
-      panel.addEventListener('click', function(ev) {
-        var btn = ev.target;
-        // Remove override
-        if (btn.classList.contains('bs-del-override')) {
-          var wi = parseInt(btn.getAttribute('data-wall'));
-          if (bs.facadeOverrides) delete bs.facadeOverrides[wi];
-          openBsPanel(_bsPanelId, parseInt(panel.style.left)||200, parseInt(panel.style.top)||60);
-          return;
-        }
-        // Add element
-        if (btn.classList.contains('bs-add-element')) {
-          var wi2 = parseInt(btn.getAttribute('data-wall'));
-          if (!bs.facadeOverrides || !bs.facadeOverrides[wi2]) return;
-          if (!bs.facadeOverrides[wi2].elements) bs.facadeOverrides[wi2].elements = [];
-          bs.facadeOverrides[wi2].elements.push({ area: 1, construction: JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.openings[0])) });
-          openBsPanel(_bsPanelId, parseInt(panel.style.left)||200, parseInt(panel.style.top)||60);
-          return;
-        }
-        // Delete element
-        if (btn.classList.contains('bs-del-element')) {
-          var wi3 = parseInt(btn.getAttribute('data-wall'));
-          var ei = parseInt(btn.getAttribute('data-el'));
-          if (bs.facadeOverrides && bs.facadeOverrides[wi3] && bs.facadeOverrides[wi3].elements) {
-            bs.facadeOverrides[wi3].elements.splice(ei, 1);
-            openBsPanel(_bsPanelId, parseInt(panel.style.left)||200, parseInt(panel.style.top)||60);
+        wallListEl.addEventListener('change', function(ev) {
+          var sel = ev.target;
+          // Wall construction select
+          if (sel.classList.contains('bs-wall-cons-sel')) {
+            var wi = parseInt(sel.getAttribute('data-wall'));
+            var found = null;
+            Object.keys(CONSTRUCTION_LIBRARY_GROUPED).forEach(function(cat) {
+              CONSTRUCTION_LIBRARY_GROUPED[cat].forEach(function(e) { if (e.name === sel.value) found = e; });
+            });
+            if (found) {
+              var overr = _bsEnsureOverride(wi);
+              var prevElements = overr.elements || [];
+              var prevHtOverride = overr.heightOverride;
+              Object.assign(overr, JSON.parse(JSON.stringify(found)));
+              overr.elements = prevElements;
+              if (Number.isFinite(prevHtOverride)) overr.heightOverride = prevHtOverride;
+              _bsRefreshWallVisuals(wi);
+              if (typeof render === 'function') render();
+            }
+            return;
           }
-          return;
-        }
-      });
+          // Element construction select
+          if (sel.classList.contains('bs-el-sel')) {
+            var wi2 = parseInt(sel.getAttribute('data-wall'));
+            var ei2 = parseInt(sel.getAttribute('data-el'));
+            var found2 = null;
+            Object.keys(CONSTRUCTION_LIBRARY_GROUPED).forEach(function(cat) {
+              CONSTRUCTION_LIBRARY_GROUPED[cat].forEach(function(e) { if (e.name === sel.value) found2 = e; });
+            });
+            if (found2 && bs.facadeOverrides && bs.facadeOverrides[wi2] && bs.facadeOverrides[wi2].elements && bs.facadeOverrides[wi2].elements[ei2]) {
+              bs.facadeOverrides[wi2].elements[ei2].construction = JSON.parse(JSON.stringify(found2));
+              _bsRefreshWallVisuals(wi2);
+              if (typeof render === 'function') render();
+            }
+            return;
+          }
+        });
 
-      // Facade sel changes
-      panel.addEventListener('change', function(ev) {
-        var sel = ev.target;
-        if (sel.classList.contains('bs-facade-sel')) {
-          var wi = parseInt(sel.getAttribute('data-wall'));
-          var found = null;
-          ['Walls','Openings'].forEach(function(cat){ CONSTRUCTION_LIBRARY_GROUPED[cat].forEach(function(e){if(e.name===sel.value)found=e;}); });
-          if (found && bs.facadeOverrides && bs.facadeOverrides[wi]) {
-            var prevElements = bs.facadeOverrides[wi].elements || [];
-            bs.facadeOverrides[wi] = JSON.parse(JSON.stringify(found));
-            bs.facadeOverrides[wi].elements = prevElements;
-            var octDiv = panel.querySelector('.bs-facade-octave[data-wall="'+wi+'"]');
-            if (octDiv) octDiv.innerHTML = _bsOctaveRRow('bs_wall_'+wi, bs.facadeOverrides[wi], true);
-            refreshPanel(); if (typeof render==='function') render();
+        wallListEl.addEventListener('input', function(ev) {
+          var inp = ev.target;
+          // Wall height override
+          if (inp.classList.contains('bs-wall-ht')) {
+            var wi = parseInt(inp.getAttribute('data-wall'));
+            var v = parseFloat(inp.value);
+            var overr = _bsEnsureOverride(wi);
+            if (Number.isFinite(v) && v > 0) { overr.heightOverride = v; } else { delete overr.heightOverride; }
+            _bsRefreshWallVisuals(wi);
+            if (typeof render === 'function') render();
+            if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+            return;
           }
-          return;
-        }
-        // Element area / construction changes
-        if (sel.classList.contains('bs-el-sel')) {
-          var wi4 = parseInt(sel.getAttribute('data-wall'));
-          var ei2 = parseInt(sel.getAttribute('data-el'));
-          var found2 = null;
-          Object.keys(CONSTRUCTION_LIBRARY_GROUPED).forEach(function(cat){ CONSTRUCTION_LIBRARY_GROUPED[cat].forEach(function(e){if(e.name===sel.value)found2=e;}); });
-          if (found2 && bs.facadeOverrides && bs.facadeOverrides[wi4] && bs.facadeOverrides[wi4].elements && bs.facadeOverrides[wi4].elements[ei2]) {
-            bs.facadeOverrides[wi4].elements[ei2].construction = JSON.parse(JSON.stringify(found2));
-            refreshPanel(); if (typeof render==='function') render();
+          // Element dimension inputs (width, height, x, y)
+          var fieldMap = { 'bs-el-width': 'width', 'bs-el-height': 'height', 'bs-el-x': 'x', 'bs-el-y': 'y' };
+          for (var cls in fieldMap) {
+            if (inp.classList.contains(cls)) {
+              var wi2 = parseInt(inp.getAttribute('data-wall'));
+              var ei = parseInt(inp.getAttribute('data-el'));
+              var v2 = parseFloat(inp.value);
+              if (bs.facadeOverrides && bs.facadeOverrides[wi2] && bs.facadeOverrides[wi2].elements && bs.facadeOverrides[wi2].elements[ei]) {
+                bs.facadeOverrides[wi2].elements[ei][fieldMap[cls]] = Number.isFinite(v2) && v2 >= 0 ? v2 : 0;
+                _bsRefreshWallVisuals(wi2);
+                if (typeof render === 'function') render();
+              }
+              return;
+            }
           }
-          return;
-        }
-        if (sel.classList.contains('bs-el-area')) {
-          var wi5 = parseInt(sel.getAttribute('data-wall'));
-          var ei3 = parseInt(sel.getAttribute('data-el'));
-          var v = parseFloat(sel.value);
-          if (bs.facadeOverrides && bs.facadeOverrides[wi5] && bs.facadeOverrides[wi5].elements && bs.facadeOverrides[wi5].elements[ei3]) {
-            bs.facadeOverrides[wi5].elements[ei3].area = Number.isFinite(v) ? v : 0;
-            refreshPanel(); if (typeof render==='function') render();
-          }
-          return;
-        }
-      });
+        });
+      }
 
-      // Delete button
+      // ── Roof elements ─────────────────────────────────────────────────────
+      var roofSection = document.getElementById('bsRoofSection');
+      if (roofSection) {
+        roofSection.addEventListener('click', function(ev) {
+          if (ev.target.id === 'bsAddRoofEl') {
+            if (!bs.roofElements) bs.roofElements = [];
+            bs.roofElements.push({ width: 1, depth: 1, x: 0, y: 0, construction: JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.openings[0])) });
+            _bsRefreshRoofElements();
+            _bsRefreshDerived();
+            return;
+          }
+          var delBtn3 = ev.target.closest('.bs-del-roof-el');
+          if (delBtn3) {
+            var ei = parseInt(delBtn3.getAttribute('data-el'));
+            if (bs.roofElements && bs.roofElements[ei] !== undefined) {
+              bs.roofElements.splice(ei, 1);
+              _bsRefreshRoofElements();
+              _bsRefreshDerived();
+              if (typeof render === 'function') render();
+            }
+            return;
+          }
+        });
+        roofSection.addEventListener('change', function(ev) {
+          if (ev.target.classList.contains('bs-roof-el-sel')) {
+            var ei = parseInt(ev.target.getAttribute('data-el'));
+            var found3 = null;
+            Object.keys(CONSTRUCTION_LIBRARY_GROUPED).forEach(function(cat) {
+              CONSTRUCTION_LIBRARY_GROUPED[cat].forEach(function(e) { if (e.name === ev.target.value) found3 = e; });
+            });
+            if (found3 && bs.roofElements && bs.roofElements[ei]) {
+              bs.roofElements[ei].construction = JSON.parse(JSON.stringify(found3));
+              _bsRefreshDerived(); if (typeof render === 'function') render();
+            }
+          }
+        });
+        roofSection.addEventListener('input', function(ev) {
+          var inp = ev.target;
+          var rfMap = { 'bs-roof-el-w': 'width', 'bs-roof-el-d': 'depth', 'bs-roof-el-x': 'x', 'bs-roof-el-y': 'y' };
+          for (var cls in rfMap) {
+            if (inp.classList.contains(cls)) {
+              var ei = parseInt(inp.getAttribute('data-el'));
+              var v = parseFloat(inp.value);
+              if (bs.roofElements && bs.roofElements[ei]) {
+                bs.roofElements[ei][rfMap[cls]] = Number.isFinite(v) && v >= 0 ? v : 0;
+                _bsRefreshDerived(); if (typeof render === 'function') render();
+              }
+              return;
+            }
+          }
+        });
+      }
+
+      // ── Delete building source ────────────────────────────────────────────
       var delBtn = document.getElementById('bsPanelDelete');
       if (delBtn) delBtn.addEventListener('click', function() {
-        if (!confirm('Delete "' + (bs.name||'Building source') + '"?')) return;
+        if (!confirm('Delete "' + (bs.name || 'Building source') + '"?')) return;
         var idx = buildingSources.indexOf(bs);
         if (idx !== -1) buildingSources.splice(idx, 1);
         closeBsPanel();
         renderBuildingSourceLayer();
-        if (typeof render==='function') render();
+        if (typeof render === 'function') render();
         if (window._recomputeNoiseMap) window._recomputeNoiseMap();
       });
     }
@@ -20143,6 +20486,24 @@ initCollapse();
         if (!bs.roofConstruction) bs.roofConstruction = Object.assign(JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.roof[0])),{enabled:true});
         if (!bs.defaultConstruction) bs.defaultConstruction = JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.walls[0]));
         if (!bs.interiorLp) bs.interiorLp = { day:{broadband:null,octave:{}}, eve:{broadband:null,octave:{}}, night:{broadband:null,octave:{}} };
+        // Migrate new fields with defaults
+        if (!bs.lpSource) bs.lpSource = 'broadband';
+        if (!bs.roofElements) bs.roofElements = [];
+        // Migrate old element area-only records to width×height
+        if (bs.facadeOverrides) {
+          Object.keys(bs.facadeOverrides).forEach(function(iStr) {
+            var overr = bs.facadeOverrides[iStr];
+            if (overr && overr.elements) {
+              overr.elements.forEach(function(el) {
+                // If element has area but no width/height, derive width from area using wall height guess
+                if (!Number.isFinite(el.width) && !Number.isFinite(el.height) && Number.isFinite(el.area) && el.area > 0) {
+                  el.width = parseFloat(Math.sqrt(el.area).toFixed(2));
+                  el.height = parseFloat(Math.sqrt(el.area).toFixed(2));
+                }
+              });
+            }
+          });
+        }
         buildingSources.push(bs);
         var num = parseInt((bs.id||'').replace(/\D/g,''));
         if (num > _bsIdCtr) _bsIdCtr = num;
