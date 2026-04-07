@@ -6168,7 +6168,7 @@ function buildSrcPanelHTML(pin, pinIdx) {
     '<div class="sfp-terrain-info" style="font-size:11px;color:#6b7280;padding:0 14px 6px;min-height:0;"></div>' +
   '</div>' +
   '<div class="sfp-footer" style="flex-shrink:0;border-top:1px solid #f0f0f0;padding:8px 14px 14px;">' +
-    '<div style="font-size:12px;color:#555;background:#f9f9f9;border-radius:4px;padding:6px 8px;margin-bottom:8px;">Total Lw (Day): <b id="sfp-total-lw">' + ((pin.lw && pin.lw.day !== undefined && pin.lw.day !== null) ? pin.lw.day : '\u2014') + '</b> dB(A)</div>' +
+    '<div style="font-size:12px;color:#555;background:#f9f9f9;border-radius:4px;padding:6px 8px;margin-bottom:8px;"><div style="font-weight:600;margin-bottom:3px;">Total Lw:</div><div id="sfp-total-lw-block"></div></div>' +
     '<div style="display:flex;justify-content:space-between;">' +
       '<button id="sfp-delete" style="background:#c0392b;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px;"' + (sourcePins.length <= 1 ? ' disabled' : '') + '>Delete</button>' +
       '<button id="sfp-close-btn" style="background:#7f8c8d;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px;">Close</button>' +
@@ -6261,6 +6261,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
         pin._userEdited[p] = true;
       }
       if (typeof window.updateAll === 'function') window.updateAll();
+      _sfpUpdateTotalLw(pin, panel);
     });
   });
 
@@ -6274,6 +6275,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
       var section = panel.querySelector('.sfp-period-section[data-period="' + period + '"]');
       if (section) section.style.opacity = this.checked ? '' : '0.5';
       if (typeof window.updateAll === 'function') window.updateAll();
+      _sfpUpdateTotalLw(pin, panel);
     });
   });
 
@@ -6310,6 +6312,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
         }
       }
       if (typeof window.updateAll === 'function') window.updateAll();
+      _sfpUpdateTotalLw(pin, panel);
     }
     function _buildLmaxDropdown(q) {
       lmaxLibDrop.innerHTML = '';
@@ -6363,6 +6366,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
       var val = parseFloat(this.value);
       pin.lw_max = (this.value.trim() === '' || !Number.isFinite(val)) ? null : val;
       if (typeof window.updateAll === 'function') window.updateAll();
+      _sfpUpdateTotalLw(pin, panel);
     });
   }
 
@@ -6389,6 +6393,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
         lmaxContent.style.pointerEvents = this.checked ? '' : 'none';
       }
       if (typeof window.updateAll === 'function') window.updateAll();
+      _sfpUpdateTotalLw(pin, panel);
     });
   }
 
@@ -6421,6 +6426,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
       if (typeof window._setSrcMarkerTitle === 'function') window._setSrcMarkerTitle(pinIdx, 'S' + (pinIdx + 1) + ' \u2014 ' + pin.name);
       updateSrcPanelPeriodDots(pin, panel);
       if (typeof window.updateAll === 'function') window.updateAll();
+      _sfpUpdateTotalLw(pin, panel);
     }
     function _buildLeqDropdown(q) {
       libDrop.innerHTML = '';
@@ -6525,6 +6531,7 @@ function attachSrcPeriodListeners(pin, pinIdx, period, panel) {
         pin._userEdited[period] = true;
       }
       if (typeof window.updateAll === 'function') window.updateAll();
+      _sfpUpdateTotalLw(pin, panel);
     });
   }
 
@@ -6549,16 +6556,15 @@ function attachSrcPeriodListeners(pin, pinIdx, period, panel) {
         if (!pin._userEdited) pin._userEdited = { eve: false, night: false };
         pin._userEdited[period] = true;
       }
-      // Update Total Lw (Day) display and header title
+      // Update header title (day only) and Total Lw block
       if (period === 'day') {
-        var totalLwEl = panel.querySelector('#sfp-total-lw');
-        if (totalLwEl) totalLwEl.textContent = newLw !== null ? newLw : '\u2014';
         var titleEl2 = panel.querySelector('#sfp-header-title');
         if (titleEl2) {
           var lwSum2 = newLw !== null ? ' \u2014 Lw ' + newLw + ' dB(A)' : '';
           titleEl2.textContent = (pin.name || 'Source') + lwSum2;
         }
       }
+      _sfpUpdateTotalLw(pin, panel);
       updateSrcPanelPeriodDots(pin, panel);
       if (typeof window.updateAll === 'function') window.updateAll();
     });
@@ -6612,6 +6618,36 @@ function updateSrcPanelPeriodDots(pin, panel) {
   });
 }
 
+/** Render the multi-period Total Lw block in the source panel footer */
+function _sfpUpdateTotalLw(pin, panel) {
+  var el = panel ? panel.querySelector('#sfp-total-lw-block') : null;
+  if (!el) return;
+  var log10 = function(x) { return Math.log(x) / Math.LN10; };
+  var PERIODS = [
+    { key: 'day',   label: 'Day' },
+    { key: 'eve',   label: 'Eve' },
+    { key: 'night', label: 'Night' }
+  ];
+  var html = '';
+  PERIODS.forEach(function(p) {
+    var active = !pin.activeInPeriod || pin.activeInPeriod[p.key] !== false;
+    if (!active) return;
+    var lw = pin.lw && Number.isFinite(pin.lw[p.key]) ? pin.lw[p.key] : null;
+    if (lw === null) return;
+    var qty = _getNumUnits(pin, p.key);
+    var pct = _getPinOpPct(pin, p.key);
+    var total = lw + log10(qty) * 10 + log10(pct / 100) * 10;
+    html += '<div><span style="display:inline-block;width:46px;">' + p.label + ':</span><b>' + total.toFixed(1) + ' dB(A)</b></div>';
+  });
+  // Lmax row (no opPct)
+  if (pin.activeInPeriod && pin.activeInPeriod.lmax && Number.isFinite(pin.lw_max)) {
+    var qtyLmax = _getNumUnits(pin, 'lmax');
+    var totalLmax = pin.lw_max + log10(qtyLmax) * 10;
+    html += '<div><span style="display:inline-block;width:46px;">L<sub>max</sub>:</span><b>' + totalLmax.toFixed(1) + ' dB(A)</b></div>';
+  }
+  el.innerHTML = html || '<span style="color:var(--muted);">\u2014</span>';
+}
+
 /** Open (or reopen) the floating source panel */
 function openSrcPanel(pinIdx, clientX, clientY) {
   var pin = sourcePins[pinIdx];
@@ -6663,6 +6699,7 @@ function openSrcPanel(pinIdx, clientX, clientY) {
   }
 
   attachSrcPanelListeners(pin, pinIdx);
+  _sfpUpdateTotalLw(pin, panel);
 }
 
 /** Close the floating source panel */
@@ -18568,8 +18605,17 @@ initCollapse();
         '</div>';
       }
 
-      var totalLw    = _asGetEffectiveLw(as, 'day');
-      var totalLwStr = Number.isFinite(totalLw) ? totalLw.toFixed(1) : '\u2014';
+      // Build initial multi-period Total Lw HTML
+      var _asLbls = { day: 'Day', eve: 'Eve', night: 'Night' };
+      var totalLwStr = (function() {
+        var h = '';
+        ['day', 'eve', 'night'].forEach(function(p) {
+          var lw = _asGetEffectiveLw(as, p);
+          if (!Number.isFinite(lw)) return;
+          h += '<div><span style="display:inline-block;width:46px;">' + _asLbls[p] + ':</span><b>' + lw.toFixed(1) + ' dB(A)</b></div>';
+        });
+        return h || '<span style="color:var(--muted);">\u2014</span>';
+      })();
       var lwHdrStr   = (as.lwValue && Number.isFinite(as.lwValue.day))
         ? ' \u2014 ' + (lwMode === 'per_m2' ? 'Lw/m\u00b2 ' : 'Lw ') + as.lwValue.day + ' dB(A)' : '';
 
@@ -18608,7 +18654,8 @@ initCollapse();
           '<div id="asPanelTerrainInfo" style="font-size:11px;color:#6b7280;min-height:0;"></div>' +
           '<div id="asPanelBuildingOverlap" style="font-size:11px;min-height:0;"></div>' +
           '<div style="font-size:12px;color:#555;background:#f9f9f9;border-radius:4px;padding:6px 8px;">' +
-            '<span>Total Lw (Day): </span><b id="asPanelTotalLw">' + totalLwStr + '</b> dB(A)' +
+            '<div style="font-weight:600;margin-bottom:3px;">Total Lw:</div>' +
+            '<div id="asPanelTotalLw">' + totalLwStr + '</div>' +
           '</div>' +
           '<button id="asPanelEditShape" style="padding:5px 12px;font-size:12px;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;cursor:pointer;text-align:left;">\u270f Edit shape</button>' +
           '<div style="display:flex;gap:8px;margin-top:4px;border-top:1px solid #f0f0f0;padding-top:8px;">' +
@@ -18657,14 +18704,18 @@ initCollapse();
         var el = document.getElementById('asPanelCalcLw_' + p);
         if (el) el.textContent = Number.isFinite(derivedVal) ? derivedVal.toFixed(1) : '\u2014';
       });
-      // Show Total Lw for the first active period (day → eve → night fallback).
-      // Using 'day' alone would show '—' for night-only sources.
-      var totalLw = NaN;
-      ['day', 'eve', 'night'].forEach(function(p) {
-        if (!Number.isFinite(totalLw)) totalLw = _asGetEffectiveLw(as, p);
-      });
+      // Show Total Lw per active period
       var tlEl = document.getElementById('asPanelTotalLw');
-      if (tlEl) tlEl.textContent = Number.isFinite(totalLw) ? totalLw.toFixed(1) : '\u2014';
+      if (tlEl) {
+        var asHtml = '';
+        var asLbls = { day: 'Day', eve: 'Eve', night: 'Night' };
+        ['day', 'eve', 'night'].forEach(function(p) {
+          var lw = _asGetEffectiveLw(as, p);
+          if (!Number.isFinite(lw)) return;
+          asHtml += '<div><span style="display:inline-block;width:46px;">' + asLbls[p] + ':</span><b>' + lw.toFixed(1) + ' dB(A)</b></div>';
+        });
+        tlEl.innerHTML = asHtml || '<span style="color:var(--muted);">\u2014</span>';
+      }
       var areaEl = document.getElementById('asPanelArea');
       if (areaEl) areaEl.textContent = _asFormatArea(area);
       // Update header title
@@ -20214,10 +20265,20 @@ initCollapse();
         '</div>';
       }
 
-      var totalLwDay = _lsGetEffectiveLwm(ls, 'day');
       var totalLenM = Math.round(lsLen);
-      var totalLwStr = (Number.isFinite(totalLwDay) && lsLen > 0)
-        ? (totalLwDay + 10*Math.log10(lsLen)).toFixed(1) : '—';
+      // Build initial multi-period Total Lw HTML
+      var _lsLbls = { day: 'Day', eve: 'Eve', night: 'Night' };
+      var totalLwStr = (function() {
+        var h = '';
+        ['day', 'eve', 'night'].forEach(function(p) {
+          if (!ls.activeInPeriod || !ls.activeInPeriod[p]) return;
+          var lwm = _lsGetEffectiveLwm(ls, p);
+          if (!Number.isFinite(lwm) || lsLen <= 0) return;
+          var t = lwm + 10 * Math.log10(lsLen);
+          h += '<div><span style="display:inline-block;width:46px;">' + _lsLbls[p] + ':</span><b>' + t.toFixed(1) + ' dB(A)</b></div>';
+        });
+        return h || '<span style="color:var(--muted);">\u2014</span>';
+      })();
 
       var lsDayLwm = _lsGetEffectiveLwm(ls, 'day');
       var lsHeaderLwStr = Number.isFinite(lsDayLwm) ? ' \u2014 Lw/m ' + lsDayLwm.toFixed(1) + ' dB(A)' : '';
@@ -20248,7 +20309,8 @@ initCollapse();
           '</div>' +
           '<div id="lsPanelTerrainInfo" style="font-size:11px;color:#6b7280;min-height:0;"></div>' +
           '<div style="font-size:12px;color:#555;background:#f9f9f9;border-radius:4px;padding:6px 8px;">' +
-            '<span>Total Lw (Day): </span><b id="lsPanelTotalLw">' + totalLwStr + '</b> dB(A)' +
+            '<div style="font-weight:600;margin-bottom:3px;">Total Lw:</div>' +
+            '<div id="lsPanelTotalLw">' + totalLwStr + '</div>' +
           '</div>' +
           '<button id="lsPanelEditShape" style="padding:5px 12px;font-size:12px;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;cursor:pointer;text-align:left;">\u270f Edit shape</button>' +
           '<div style="display:flex;gap:8px;margin-top:4px;border-top:1px solid #f0f0f0;padding-top:8px;">' +
@@ -20286,11 +20348,19 @@ initCollapse();
         if (el) el.textContent = Number.isFinite(lwm) ? lwm.toFixed(1) : '—';
       });
       var lsLen = _lsTotalLength(ls.vertices);
-      var totalLwDay = _lsGetEffectiveLwm(ls, 'day');
-      var totalLwStr = (Number.isFinite(totalLwDay) && lsLen > 0)
-        ? (totalLwDay + 10*Math.log10(lsLen)).toFixed(1) : '—';
       var tlEl = document.getElementById('lsPanelTotalLw');
-      if (tlEl) tlEl.textContent = totalLwStr;
+      if (tlEl) {
+        var lsHtml = '';
+        var lsLabels = { day: 'Day', eve: 'Eve', night: 'Night' };
+        ['day', 'eve', 'night'].forEach(function(p) {
+          if (!ls.activeInPeriod || !ls.activeInPeriod[p]) return;
+          var lwm = _lsGetEffectiveLwm(ls, p);
+          if (!Number.isFinite(lwm) || lsLen <= 0) return;
+          var total = lwm + 10 * Math.log10(lsLen);
+          lsHtml += '<div><span style="display:inline-block;width:46px;">' + lsLabels[p] + ':</span><b>' + total.toFixed(1) + ' dB(A)</b></div>';
+        });
+        tlEl.innerHTML = lsHtml || '<span style="color:var(--muted);">\u2014</span>';
+      }
       // Update header title with new Lw/m
       var titleEl = document.getElementById('lsPanelTitle');
       if (titleEl) {
