@@ -612,6 +612,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
                 <button class="mp-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Point source</button>
                 <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.)" style="border-left:3px solid #d32f2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#d32f2f"/><circle cx="19" cy="5" r="2" fill="#d32f2f"/></svg> Line source</button>
                 <button class="mp-btn" id="drawAreaSourceBtn" title="Draw an area source polygon (car park, outdoor dining, industrial activity, etc.)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(217,119,6,0.25)" stroke="#d97706" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="2" fill="#d97706" stroke="none"/></svg> Area source</button>
+                <button class="mp-btn" id="drawBuildingSourceBtn" title="Draw a building source polygon (noise radiating from building facade/roof)" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(124,58,237,0.18)" stroke="#7c3aed" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#7c3aed" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#7c3aed" stroke-width="1.5"/></svg> Building source</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
@@ -3498,6 +3499,54 @@ LINE_SOURCE_LIBRARY.forEach(function(e) {
           libraryEntry, _poly, _userEdited}
    ═══════════════════════════════════════════════════════════════════════════ */
 var areaSources = [];
+
+// ── Building Sources ──────────────────────────────────────────────────────────
+var buildingSources = [];
+var _bsIdCtr = 0;
+var _bsPanel = null, _bsPanelId = null, _bsDrawHandler = null, _drawingBuildingSource = false;
+
+var BS_OCTAVE_BANDS = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+var BS_A_WEIGHTS    = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
+
+var CONSTRUCTION_LIBRARY = {
+  walls: [
+    { name: 'Colorbond steel (single skin)', rw: 25,
+      octaveR: {63:12,125:15,250:18,500:22,1000:25,2000:28,4000:30,8000:28} },
+    { name: 'Double skin insulated metal wall', rw: 35,
+      octaveR: {63:18,125:22,250:28,500:32,1000:35,2000:38,4000:40,8000:38} },
+    { name: '200mm concrete block', rw: 45,
+      octaveR: {63:30,125:33,250:38,500:42,1000:45,2000:48,4000:50,8000:48} },
+    { name: '150mm precast concrete', rw: 42,
+      octaveR: {63:28,125:30,250:35,500:40,1000:42,2000:45,4000:47,8000:45} },
+    { name: 'Lightweight timber frame', rw: 30,
+      octaveR: {63:15,125:18,250:22,500:28,1000:30,2000:33,4000:35,8000:33} }
+  ],
+  roof: [
+    { name: 'Metal deck (single skin)', rw: 20,
+      octaveR: {63:10,125:12,250:15,500:18,1000:20,2000:23,4000:25,8000:23} },
+    { name: 'Metal deck with insulation', rw: 30,
+      octaveR: {63:16,125:20,250:24,500:28,1000:30,2000:33,4000:35,8000:33} },
+    { name: 'Concrete slab roof', rw: 45,
+      octaveR: {63:30,125:33,250:38,500:42,1000:45,2000:48,4000:50,8000:48} }
+  ],
+  openings: [
+    { name: 'Roller door (steel)', rw: 15,
+      octaveR: {63:8,125:10,250:12,500:14,1000:15,2000:18,4000:20,8000:18} },
+    { name: 'Louvre (open)', rw: 5,
+      octaveR: {63:3,125:4,250:5,500:5,1000:5,2000:5,4000:5,8000:5} },
+    { name: 'Louvre (with attenuator)', rw: 15,
+      octaveR: {63:8,125:10,250:12,500:14,1000:15,2000:18,4000:20,8000:18} },
+    { name: 'Single glazed window (6mm)', rw: 28,
+      octaveR: {63:15,125:18,250:22,500:26,1000:28,2000:30,4000:32,8000:28} },
+    { name: 'Open door/window', rw: 0,
+      octaveR: {63:0,125:0,250:0,500:0,1000:0,2000:0,4000:0,8000:0} }
+  ]
+};
+var CONSTRUCTION_LIBRARY_GROUPED = {
+  'Walls':    CONSTRUCTION_LIBRARY.walls,
+  'Roof':     CONSTRUCTION_LIBRARY.roof,
+  'Openings': CONSTRUCTION_LIBRARY.openings
+};
 var _asIdCtr = 0;
 var _asPanel = null;
 var _asPanelId = null;
@@ -10513,6 +10562,26 @@ function renderScenariosTable() {
     html += '</tr>';
   });
 
+  // ── Building sources ───────────────────────────────────────────────────────
+  if (typeof buildingSources !== 'undefined') {
+    buildingSources.forEach(function(bs) {
+      html += '<tr>';
+      html += '<td style="' + cs + '">' + escapeHTML(bs.name || 'Building source') + '</td>';
+      html += '<td style="' + cs + 'padding-left:8px;">Building</td>';
+      ['day', 'eve', 'night'].forEach(function(period) {
+        var active = !bs.activeInPeriod || bs.activeInPeriod[period] !== false;
+        var lpBB = bs.interiorLp && bs.interiorLp[period] && Number.isFinite(bs.interiorLp[period].broadband) ? bs.interiorLp[period].broadband : null;
+        if (lpBB !== null && active) {
+          html += '<td class="num" style="' + cs + '">' + Math.round(lpBB) + ' dB(A) Lp</td>';
+        } else {
+          html += '<td class="num" style="' + ms + '">\u2014</td>';
+        }
+      });
+      html += '<td class="num" style="' + ms + '">\u2014</td>';
+      html += '</tr>';
+    });
+  }
+
   html += '</tbody></table></div>';
   container.innerHTML = html;
 }
@@ -11246,6 +11315,19 @@ initCollapse();
               quantity: as.quantity,
               manualOverride: as.manualOverride,
               libraryEntry: as.libraryEntry ? { name: as.libraryEntry.name } : null
+            };
+          });
+        }
+
+        // Building sources
+        if (typeof buildingSources !== 'undefined' && buildingSources.length > 0) {
+          data.buildingSources = buildingSources.map(function(bs) {
+            return {
+              id: bs.id, name: bs.name, vertices: bs.vertices, height_m: bs.height_m,
+              interiorLp: bs.interiorLp, activeInPeriod: bs.activeInPeriod,
+              operatingPct: bs.operatingPct, defaultConstruction: bs.defaultConstruction,
+              facadeOverrides: bs.facadeOverrides, roofConstruction: bs.roofConstruction,
+              manualOverride: bs.manualOverride
             };
           });
         }
@@ -12292,6 +12374,11 @@ initCollapse();
       // Restore area sources
       if (data.areaSources && data.areaSources.length > 0 && window._setAreaSources) {
         window._setAreaSources(data.areaSources);
+      }
+
+      // Restore building sources
+      if (data.buildingSources && data.buildingSources.length > 0 && window._setBuildingSources) {
+        window._setBuildingSources(data.buildingSources);
       }
 
       // 16. Re-render detected zones panel for VIC
@@ -15851,6 +15938,14 @@ initCollapse();
           }
         });
       }
+      // Building sources act as barriers for other sources
+      if (typeof buildingSources !== 'undefined') {
+        buildingSources.forEach(function(bs) {
+          if (bs.vertices && bs.vertices.length >= 3) {
+            result.push({ polygon: bs.vertices, heightM: bs.height_m || 6, isBuildingSource: true });
+          }
+        });
+      }
       return result;
     }
     window._getScreenableBuildings = getScreenableBuildings;
@@ -17554,6 +17649,45 @@ initCollapse();
           return;
         }
 
+        // ── Building source branch ───────────────────────────────────────────
+        if (_drawingBuildingSource) {
+          _drawingBuildingSource = false;
+          _bsDrawHandler = null;
+          _drawingActive = false;
+          var _bsDrawBtn2 = document.getElementById('drawBuildingSourceBtn');
+          if (_bsDrawBtn2) _bsDrawBtn2.classList.remove('active');
+          var bsVerts = e.layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+          var ctr = _asPolygonCentroid(bsVerts);
+          // Height popup
+          var htHtml = '<div style="min-width:200px;font-size:13px;"><b>Building source height</b><br>';
+          htHtml += '<div style="margin:6px 0;">Height (m): <input type="number" id="newBsHeight" value="6.0" step="0.1" min="0.1" style="width:70px;padding:2px 4px;font-size:12px;" autofocus></div>';
+          htHtml += '<button id="newBsAdd" style="font-size:11px;padding:2px 10px;cursor:pointer;background:#7c3aed;color:#fff;border:none;border-radius:4px;">OK</button> ';
+          htHtml += '<button id="newBsCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button></div>';
+          L.popup({ maxWidth: 260, closeOnClick: false })
+            .setLatLng([ctr.lat, ctr.lng])
+            .setContent(htHtml)
+            .openOn(map);
+          setTimeout(function() {
+            var addBtnBs = document.getElementById('newBsAdd');
+            var cancelBtnBs = document.getElementById('newBsCancel');
+            var htInpBs = document.getElementById('newBsHeight');
+            if (htInpBs) htInpBs.focus();
+            if (addBtnBs) addBtnBs.addEventListener('click', function() {
+              var ht = parseFloat(document.getElementById('newBsHeight').value);
+              if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid height.'); return; }
+              map.closePopup();
+              var newBs = _bsMakeDefault(bsVerts, ht);
+              buildingSources.push(newBs);
+              renderBuildingSourceLayer();
+              openBsPanel(newBs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
+              if (typeof render === 'function') render();
+              if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+            });
+            if (cancelBtnBs) cancelBtnBs.addEventListener('click', function() { map.closePopup(); });
+          }, 50);
+          return;
+        }
+
         // ── Area source branch ───────────────────────────────────────────────
         if (_drawingAreaSource) {
           _drawingAreaSource = false;
@@ -18463,6 +18597,758 @@ initCollapse();
       });
       if (window._renderObjectList) window._renderObjectList();
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       BUILDING SOURCES — map layer, drawing, panel, acoustics
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    var buildingSourceLayer = L.layerGroup().addTo(map);
+    var BS_STYLE = { color: 'rgba(120,60,160,0.85)', weight: 2.5, fillColor: 'rgba(140,80,180,0.28)', fillOpacity: 1, interactive: true };
+
+    // ── Acoustic helpers ──────────────────────────────────────────────────────
+
+    function _bsSegLen(v1, v2) {
+      var R = 6371000, lat1 = v1[0]*Math.PI/180, lat2 = v2[0]*Math.PI/180;
+      var dLat = (v2[0]-v1[0])*Math.PI/180, dLng = (v2[1]-v1[1])*Math.PI/180;
+      var a = Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)*Math.sin(dLng/2);
+      return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    }
+    function _bsPerimeter(verts) {
+      var p = 0, n = verts.length;
+      for (var i = 0; i < n; i++) p += _bsSegLen(verts[i], verts[(i+1)%n]);
+      return p;
+    }
+    function _bsBearing(v1, v2) {
+      var lat1=v1[0]*Math.PI/180, lat2=v2[0]*Math.PI/180, dLng=(v2[1]-v1[1])*Math.PI/180;
+      var y=Math.sin(dLng)*Math.cos(lat2), x=Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLng);
+      return (Math.atan2(y,x)*180/Math.PI+360)%360;
+    }
+    function _bsCompassDir(bearing) {
+      return ['N','NE','E','SE','S','SW','W','NW'][Math.round(bearing/45)%8];
+    }
+    function _bsCalcOneFacade(lpBB, lpOct, cons, area, overr) {
+      if (area <= 0) return null;
+      var lw;
+      if (lpOct && cons && cons.octaveR) {
+        var sum = 0;
+        BS_OCTAVE_BANDS.forEach(function(b, bi) {
+          var lp = lpOct[b], r = cons.octaveR[b];
+          if (Number.isFinite(lp) && Number.isFinite(r)) sum += Math.pow(10, (lp - r + 10*Math.log10(area) + BS_A_WEIGHTS[bi])/10);
+        });
+        lw = sum > 0 ? 10*Math.log10(sum) : null;
+      } else if (Number.isFinite(lpBB) && cons && Number.isFinite(cons.rw)) {
+        lw = lpBB - cons.rw + 10*Math.log10(area);
+      } else { return null; }
+      // Sub-elements (openings in facade override)
+      if (overr && overr.elements && overr.elements.length > 0) {
+        var remArea = area, partials = [];
+        overr.elements.forEach(function(el) {
+          if (!Number.isFinite(el.area) || el.area <= 0 || !el.construction) return;
+          remArea -= el.area;
+          var elLw;
+          if (lpOct && el.construction.octaveR) {
+            var eSum = 0;
+            BS_OCTAVE_BANDS.forEach(function(b, bi) {
+              var lp = lpOct[b], r = el.construction.octaveR[b];
+              if (Number.isFinite(lp) && Number.isFinite(r)) eSum += Math.pow(10, (lp - r + 10*Math.log10(el.area) + BS_A_WEIGHTS[bi])/10);
+            });
+            elLw = eSum > 0 ? 10*Math.log10(eSum) : null;
+          } else if (Number.isFinite(lpBB) && Number.isFinite(el.construction.rw)) {
+            elLw = lpBB - el.construction.rw + 10*Math.log10(el.area);
+          }
+          if (Number.isFinite(elLw)) partials.push(elLw);
+        });
+        if (remArea > 0) {
+          var remLw = _bsCalcOneFacade(lpBB, lpOct, cons, remArea, null);
+          if (Number.isFinite(remLw)) partials.push(remLw);
+        }
+        if (partials.length > 0) {
+          lw = 10*Math.log10(partials.reduce(function(s,v){return s+Math.pow(10,v/10);},0));
+        }
+      }
+      return lw;
+    }
+    function _bsCalcDerived(bs) {
+      var walls = [], roofByPeriod = {day:null,eve:null,night:null}, totalByPeriod = {day:null,eve:null,night:null};
+      if (!bs.vertices || bs.vertices.length < 3) return {walls:walls, roof:roofByPeriod, total:totalByPeriod};
+      var n = bs.vertices.length;
+      bs.vertices.forEach(function(v, i) {
+        var len = _bsSegLen(v, bs.vertices[(i+1)%n]);
+        var bear = _bsBearing(v, bs.vertices[(i+1)%n]);
+        walls.push({ idx:i, len:len, dir:_bsCompassDir(bear), lw:{day:null,eve:null,night:null} });
+      });
+      var roofArea = _asPolygonArea(bs.vertices);
+      ['day','eve','night'].forEach(function(period) {
+        var active = !bs.activeInPeriod || bs.activeInPeriod[period] !== false;
+        var intLp = bs.interiorLp && bs.interiorLp[period];
+        var lpBB = intLp ? intLp.broadband : null;
+        var lpOct = intLp ? intLp.octave : null;
+        var pct = (bs.operatingPct && Number.isFinite(bs.operatingPct[period])) ? bs.operatingPct[period] : 100;
+        if (!active || !Number.isFinite(lpBB)) { return; }
+        var allLws = [];
+        walls.forEach(function(w, i) {
+          var wallArea = w.len * (bs.height_m || 6);
+          var overr = bs.facadeOverrides && bs.facadeOverrides[i];
+          var cons = overr ? overr : bs.defaultConstruction;
+          var lw = _bsCalcOneFacade(lpBB, lpOct, cons, wallArea, overr);
+          if (Number.isFinite(lw) && pct > 0) lw += 10*Math.log10(pct/100);
+          w.lw[period] = Number.isFinite(lw) ? lw : null;
+          if (Number.isFinite(w.lw[period])) allLws.push(w.lw[period]);
+        });
+        if (bs.roofConstruction && bs.roofConstruction.enabled && roofArea > 0) {
+          var rLw = _bsCalcOneFacade(lpBB, lpOct, bs.roofConstruction, roofArea, null);
+          if (Number.isFinite(rLw) && pct > 0) rLw += 10*Math.log10(pct/100);
+          roofByPeriod[period] = Number.isFinite(rLw) ? rLw : null;
+          if (Number.isFinite(rLw)) allLws.push(rLw);
+        }
+        if (allLws.length > 0) totalByPeriod[period] = 10*Math.log10(allLws.reduce(function(s,v){return s+Math.pow(10,v/10);},0));
+      });
+      return {walls:walls, roof:roofByPeriod, total:totalByPeriod};
+    }
+    function _bsMakeDefault(verts, ht) {
+      return {
+        id: 'bs_' + (++_bsIdCtr),
+        name: 'Building source ' + _bsIdCtr,
+        vertices: verts,
+        height_m: ht || 6,
+        interiorLp: {
+          day:   { broadband: null, octave: {63:null,125:null,250:null,500:null,1000:null,2000:null,4000:null,8000:null} },
+          eve:   { broadband: null, octave: {63:null,125:null,250:null,500:null,1000:null,2000:null,4000:null,8000:null} },
+          night: { broadband: null, octave: {63:null,125:null,250:null,500:null,1000:null,2000:null,4000:null,8000:null} }
+        },
+        activeInPeriod: { day: true, eve: true, night: true },
+        operatingPct: { day: 100, eve: 100, night: 100 },
+        defaultConstruction: JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.walls[0])),
+        facadeOverrides: {},
+        roofConstruction: Object.assign(JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.roof[0])), { enabled: true }),
+        manualOverride: { day: false, eve: false, night: false }
+      };
+    }
+
+    // ── Map rendering ─────────────────────────────────────────────────────────
+
+    function renderBuildingSourceLayer() {
+      buildingSourceLayer.clearLayers();
+      buildingSources.forEach(function(bs, bsIdx) {
+        if (!bs.vertices || bs.vertices.length < 3) return;
+        var poly = L.polygon(bs.vertices, BS_STYLE);
+        poly.bindTooltip('<b>🏭 ' + escapeHTML(bs.name || 'Building source') + '</b><br>Height: ' + (bs.height_m || 6) + ' m', { sticky: true });
+        poly.on('mouseover', function() {
+          if (_drawingActive || _drawingBuildingSource) return;
+          poly.setStyle({ weight: 5, color: 'rgba(109,40,217,1)' });
+          map.getContainer().style.cursor = 'pointer';
+        });
+        poly.on('mouseout', function() {
+          poly.setStyle(BS_STYLE);
+          map.getContainer().style.cursor = '';
+        });
+        poly.on('click', (function(capturedBs) {
+          return function(e) {
+            if (_drawingActive || _drawingBuildingSource) return;
+            L.DomEvent.stopPropagation(e);
+            openBsPanel(capturedBs.id, e.originalEvent.clientX, e.originalEvent.clientY);
+          };
+        })(bs));
+        poly.on('contextmenu', (function(capturedBs) {
+          return function(e) {
+            if (_drawingActive || _drawingBuildingSource) return;
+            L.DomEvent.stopPropagation(e); L.DomEvent.preventDefault(e);
+            var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
+            _showMapCtxMenu(cx, cy, [
+              { id:'dup', label:'Duplicate', icon:'\u29c9', action:function() {
+                var nb = JSON.parse(JSON.stringify(capturedBs));
+                nb.id = 'bs_' + (++_bsIdCtr);
+                nb.name = (capturedBs.name||'Building source') + ' (copy)';
+                nb.vertices = capturedBs.vertices.map(function(v){return[v[0]-0.00005,v[1]+0.00005];});
+                buildingSources.push(nb); renderBuildingSourceLayer();
+                if (typeof render==='function') render();
+                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              }},
+              'sep',
+              { id:'del', label:'Delete', icon:'\ud83d\uddd1', cls:'ctx-danger', action:function() {
+                var idx = buildingSources.indexOf(capturedBs);
+                if (idx !== -1) buildingSources.splice(idx, 1);
+                renderBuildingSourceLayer();
+                if (typeof render==='function') render();
+                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              }}
+            ]);
+          };
+        })(bs));
+        var ctr = _asPolygonCentroid(bs.vertices);
+        var lbl = L.marker([ctr.lat, ctr.lng], {
+          icon: L.divIcon({
+            html: '<div style="font-size:10px;font-weight:700;color:#7c3aed;text-shadow:0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none;">BS' + (bsIdx+1) + '</div>',
+            className:'', iconSize:[30,14], iconAnchor:[15,-4]
+          }), interactive:false
+        });
+        buildingSourceLayer.addLayer(lbl);
+        bs._poly = poly;
+        buildingSourceLayer.addLayer(poly);
+      });
+      if (window._renderObjectList) window._renderObjectList();
+    }
+
+    // ── Draw Building Source button ───────────────────────────────────────────
+
+    var drawBuildingSourceBtn = document.getElementById('drawBuildingSourceBtn');
+    if (drawBuildingSourceBtn && typeof L.Draw !== 'undefined') {
+      drawBuildingSourceBtn.addEventListener('click', function() {
+        if (_drawingBuildingSource && _bsDrawHandler) {
+          _bsDrawHandler.disable(); _bsDrawHandler = null;
+          _drawingBuildingSource = false; _drawingActive = false;
+          drawBuildingSourceBtn.classList.remove('active'); return;
+        }
+        if (_drawHandler)       { _drawHandler.disable(); stopDrawing(); }
+        if (_barrierDrawHandler){ _barrierDrawHandler.disable(); _barrierDrawHandler = null; _drawingActive = false; var dbBtn = document.getElementById('drawBarrierBtn'); if (dbBtn) dbBtn.classList.remove('active'); }
+        if (_gzDrawHandler)     { _gzDrawHandler.disable(); _gzDrawHandler = null; _drawingGroundZone = false; _drawingActive = false; var gzBtn = document.getElementById('drawGroundZoneBtn'); if (gzBtn) gzBtn.classList.remove('active'); }
+        if (_asDrawHandler)     { _asDrawHandler.disable(); _asDrawHandler = null; _drawingAreaSource = false; _drawingActive = false; var asBtn = document.getElementById('drawAreaSourceBtn'); if (asBtn) asBtn.classList.remove('active'); }
+        _drawingActive = true; _drawingBuildingSource = true;
+        document.querySelectorAll('.map-mode-btn').forEach(function(b){b.classList.remove('active');});
+        _bsDrawHandler = new L.Draw.Polygon(map, { shapeOptions: BS_STYLE, showArea: false });
+        _bsDrawHandler.enable();
+        drawBuildingSourceBtn.classList.add('active');
+      });
+    }
+
+    // ── Floating panel ────────────────────────────────────────────────────────
+
+    function closeBsPanel() {
+      var ex = document.getElementById('bsFloatPanel');
+      if (ex && ex.parentNode) ex.parentNode.removeChild(ex);
+      _bsPanel = null; _bsPanelId = null;
+    }
+    window.closeBsPanel = closeBsPanel;
+
+    function _bsConsOptions(selectedName, categories) {
+      var opts = '<option value="">— Custom / manual —</option>';
+      categories.forEach(function(cat) {
+        opts += '<optgroup label="' + escapeHTML(cat) + '">';
+        CONSTRUCTION_LIBRARY_GROUPED[cat].forEach(function(e) {
+          var sel = selectedName === e.name ? ' selected' : '';
+          opts += '<option value="' + escapeHTML(e.name) + '"' + sel + '>' + escapeHTML(e.name) + ' — Rw ' + e.rw + ' dB</option>';
+        });
+        opts += '</optgroup>';
+      });
+      return opts;
+    }
+
+    function _bsOctaveRRow(prefix, cons, readOnly) {
+      var bands = [63,125,250,500,1000,2000,4000,8000];
+      var html = '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:2px;margin-top:4px;">';
+      bands.forEach(function(b) {
+        var label = b >= 1000 ? (b/1000)+'k' : b;
+        html += '<div style="text-align:center;font-size:10px;color:#6b7280;">' + label + '</div>';
+      });
+      bands.forEach(function(b) {
+        var val = cons && cons.octaveR && Number.isFinite(cons.octaveR[b]) ? cons.octaveR[b] : '';
+        var ro = readOnly ? ' readonly style="background:#f9fafb;width:100%;font-size:11px;text-align:center;border:1px solid #e5e7eb;border-radius:3px;padding:1px 0;"' : ' style="width:100%;font-size:11px;text-align:center;border:1px solid #ddd;border-radius:3px;padding:1px 0;"';
+        html += '<input type="number" data-band="' + b + '" id="' + prefix + '_r_' + b + '" value="' + val + '"' + ro + '>';
+      });
+      html += '</div>';
+      return html;
+    }
+
+    function _bsOctaveLpRow(prefix, lpOct) {
+      var bands = [63,125,250,500,1000,2000,4000,8000];
+      var html = '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:2px;margin-top:4px;">';
+      bands.forEach(function(b) {
+        var label = b >= 1000 ? (b/1000)+'k' : b;
+        html += '<div style="text-align:center;font-size:10px;color:#6b7280;">' + label + '</div>';
+      });
+      bands.forEach(function(b) {
+        var val = lpOct && Number.isFinite(lpOct[b]) ? lpOct[b] : '';
+        html += '<input type="number" data-band="' + b + '" id="' + prefix + '_lp_' + b + '" value="' + val + '" style="width:100%;font-size:11px;text-align:center;border:1px solid #ddd;border-radius:3px;padding:1px 0;">';
+      });
+      html += '</div>';
+      return html;
+    }
+
+    function buildBsPanelHTML(bs) {
+      var ctr = _asPolygonCentroid(bs.vertices);
+      var perim = _bsPerimeter(bs.vertices);
+      var roofArea = _asPolygonArea(bs.vertices);
+      var wallArea = perim * (bs.height_m || 6);
+      var coordStr = ctr ? ctr.lat.toFixed(5) + ', ' + ctr.lng.toFixed(5) : '—';
+
+      var derived = _bsCalcDerived(bs);
+      var totalDay = derived.total.day;
+      var headerLp = Number.isFinite(bs.interiorLp && bs.interiorLp.day && bs.interiorLp.day.broadband) ? Math.round(bs.interiorLp.day.broadband) + ' dB(A)' : '—';
+      var defWallName = bs.defaultConstruction ? bs.defaultConstruction.name : '';
+      var roofName = bs.roofConstruction ? bs.roofConstruction.name : '';
+
+      var h = '<div id="bsFloatPanel" style="position:fixed;z-index:3100;width:400px;background:#fff;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,0.18);font-family:sans-serif;font-size:12px;user-select:none;left:200px;top:60px;">';
+
+      // Header
+      h += '<div id="bsPanelHeader" style="background:linear-gradient(90deg,#6d28d9,#8b5cf6);color:#fff;padding:10px 14px;border-radius:10px 10px 0 0;cursor:move;display:flex;align-items:center;justify-content:space-between;">';
+      h += '<span style="font-weight:700;font-size:13px;">\uD83C\uDFED ' + escapeHTML(bs.name || 'Building source') + ' \u2014 Lp ' + headerLp + ' inside</span>';
+      h += '<button onclick="closeBsPanel()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;padding:0;line-height:1;">\u2715</button>';
+      h += '</div>';
+
+      // Body
+      h += '<div style="max-height:75vh;overflow-y:auto;padding:14px;">';
+
+      // Name field
+      h += '<div style="margin-bottom:8px;"><input id="bsPanelName" type="text" value="' + escapeHTML(bs.name || '') + '" placeholder="Building name" style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #ddd;border-radius:5px;font-size:12px;"></div>';
+
+      // Coords + geometry
+      h += '<div style="display:flex;gap:10px;font-size:11px;color:#6b7280;margin-bottom:8px;">';
+      h += '<span>' + coordStr + '</span><span>&middot;</span><span>Area: <b>' + _asFormatArea(roofArea) + '</b></span></div>';
+      h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px;padding:8px;background:#f5f3ff;border-radius:6px;border:1px solid #e9d5ff;">';
+      h += '<div><span style="color:#6b7280;">Height (m)</span><br><input id="bsPanelHeight" type="number" value="' + (bs.height_m||6) + '" step="0.1" min="0.1" style="width:70px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></div>';
+      h += '<div><span style="color:#6b7280;">Perimeter</span><br><b id="bsPanelPerim">' + perim.toFixed(0) + ' m</b></div>';
+      h += '<div><span style="color:#6b7280;">Wall area</span><br><b id="bsPanelWallArea">' + wallArea.toFixed(0) + ' m\u00b2</b></div>';
+      h += '<div><span style="color:#6b7280;">Roof area</span><br><b id="bsPanelRoofArea">' + roofArea.toFixed(0) + ' m\u00b2</b></div>';
+      h += '</div>';
+
+      // Interior levels per period
+      h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin-bottom:6px;">Interior Noise Levels</div>';
+      ['day','eve','night'].forEach(function(period) {
+        var label = {day:'Day',eve:'Evening',night:'Night'}[period];
+        var intLp = (bs.interiorLp && bs.interiorLp[period]) || {broadband:null, octave:{}};
+        var lpBB = Number.isFinite(intLp.broadband) ? intLp.broadband : '';
+        var active = !bs.activeInPeriod || bs.activeInPeriod[period] !== false;
+        var pct = (bs.operatingPct && Number.isFinite(bs.operatingPct[period])) ? bs.operatingPct[period] : 100;
+        h += '<div style="border:1px solid #e9d5ff;border-radius:6px;padding:8px;margin-bottom:8px;">';
+        h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+        h += '<b>' + label + '</b>';
+        h += '<label style="display:flex;align-items:center;gap:4px;font-size:11px;">';
+        h += '<input type="checkbox" id="bsActive_'+period+'"' + (active?' checked':'') + '> Active</label>';
+        h += '</div>';
+        h += '<div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;">';
+        h += '<label style="font-size:11px;">Interior Lp (dB(A)):<input type="number" id="bsLp_'+period+'" value="' + lpBB + '" step="0.5" style="width:60px;margin-left:4px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></label>';
+        h += '<label style="font-size:11px;">Op. %:<input type="number" id="bsPct_'+period+'" value="' + pct + '" min="0" max="100" style="width:50px;margin-left:4px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></label>';
+        h += '</div>';
+        h += '<details style="font-size:11px;"><summary style="cursor:pointer;color:#6b7280;">Octave band Lp (optional)</summary>';
+        h += _bsOctaveLpRow('bs_' + period, intLp.octave);
+        h += '</details>';
+        h += '</div>';
+      });
+
+      // Default wall construction
+      h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin:10px 0 6px;">Wall Construction (Default)</div>';
+      h += '<select id="bsDefWallSel" style="width:100%;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-bottom:4px;">';
+      h += _bsConsOptions(defWallName, ['Walls']);
+      h += '</select>';
+      h += '<div id="bsDefWallOctave">' + _bsOctaveRRow('bs_defwall', bs.defaultConstruction, true) + '</div>';
+      h += '<label style="font-size:11px;display:flex;align-items:center;gap:4px;margin-top:4px;"><input type="checkbox" id="bsDefWallManual"> Manual R values</label>';
+
+      // Roof construction
+      h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin:10px 0 6px;">Roof Construction</div>';
+      var roofEnabled = bs.roofConstruction && bs.roofConstruction.enabled !== false;
+      h += '<label style="font-size:11px;display:flex;align-items:center;gap:4px;margin-bottom:6px;"><input type="checkbox" id="bsRoofEnabled"' + (roofEnabled?' checked':'') + '> Roof radiates noise</label>';
+      h += '<div id="bsRoofSection" style="' + (roofEnabled?'':'opacity:0.4;pointer-events:none;') + '">';
+      h += '<select id="bsRoofSel" style="width:100%;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-bottom:4px;">';
+      h += _bsConsOptions(roofName, ['Roof']);
+      h += '</select>';
+      h += '<div id="bsRoofOctave">' + _bsOctaveRRow('bs_roof', bs.roofConstruction, true) + '</div>';
+      h += '<label style="font-size:11px;display:flex;align-items:center;gap:4px;margin-top:4px;"><input type="checkbox" id="bsRoofManual"> Manual R values</label>';
+      h += '</div>';
+
+      // Facade overrides
+      h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin:10px 0 6px;">Facade Overrides</div>';
+      h += '<div id="bsFacadeOverrides">';
+      if (bs.facadeOverrides) {
+        Object.keys(bs.facadeOverrides).forEach(function(iStr) {
+          var i = parseInt(iStr);
+          var overr = bs.facadeOverrides[i];
+          if (!overr) return;
+          var v1 = bs.vertices[i], v2 = bs.vertices[(i+1)%bs.vertices.length];
+          var len = _bsSegLen(v1, v2).toFixed(0);
+          var dir = _bsCompassDir(_bsBearing(v1, v2));
+          h += _bsFacadeOverrideRow(bs, i, overr, dir, len);
+        });
+      }
+      h += '</div>';
+      h += '<button id="bsAddOverride" style="margin-top:4px;padding:4px 10px;font-size:11px;background:#ede9fe;border:1px solid #c4b5fd;border-radius:5px;cursor:pointer;color:#6d28d9;">+ Add facade override</button>';
+
+      // Derived levels
+      h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin:10px 0 6px;">Radiated Sound Power (Day)</div>';
+      h += '<div id="bsDerivedLw" style="font-size:11px;background:#f5f3ff;border-radius:6px;padding:8px;">';
+      h += _bsDerivedLwHTML(bs, derived);
+      h += '</div>';
+
+      h += '</div>'; // end body
+
+      // Footer
+      h += '<div style="padding:10px 14px;border-top:1px solid #eee;display:flex;justify-content:space-between;">';
+      h += '<button id="bsPanelDelete" style="padding:4px 12px;background:#fee2e2;border:1px solid #fca5a5;border-radius:5px;cursor:pointer;font-size:12px;color:#b91c1c;">Delete</button>';
+      h += '<button onclick="closeBsPanel()" style="padding:4px 12px;background:#f3f4f6;border:1px solid #ddd;border-radius:5px;cursor:pointer;font-size:12px;">Close</button>';
+      h += '</div>';
+
+      h += '</div>';
+      return h;
+    }
+
+    function _bsFacadeOverrideRow(bs, i, overr, dir, len) {
+      var h = '<div class="bs-facade-row" data-wall="' + i + '" style="border:1px solid #e9d5ff;border-radius:5px;padding:7px;margin-bottom:6px;">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">';
+      h += '<b style="font-size:11px;">Wall ' + (i+1) + ' (' + dir + ', ' + len + ' m)</b>';
+      h += '<button class="bs-del-override" data-wall="' + i + '" style="font-size:10px;padding:1px 6px;cursor:pointer;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;color:#b91c1c;">Remove</button>';
+      h += '</div>';
+      h += '<select class="bs-facade-sel" data-wall="' + i + '" style="width:100%;padding:3px 5px;border:1px solid #ddd;border-radius:4px;font-size:11px;margin-bottom:3px;">';
+      h += _bsConsOptions(overr.name||'', ['Walls','Openings']);
+      h += '</select>';
+      h += '<div class="bs-facade-octave" data-wall="' + i + '">' + _bsOctaveRRow('bs_wall_'+i, overr, true) + '</div>';
+      // Sub-elements
+      h += '<div class="bs-elements-list" data-wall="' + i + '" style="margin-top:5px;">';
+      (overr.elements||[]).forEach(function(el, ei) {
+        h += _bsElementRow(i, ei, el);
+      });
+      h += '</div>';
+      h += '<button class="bs-add-element" data-wall="' + i + '" style="font-size:10px;padding:1px 7px;cursor:pointer;background:#ede9fe;border:1px solid #c4b5fd;border-radius:3px;color:#6d28d9;margin-top:3px;">+ Add opening</button>';
+      h += '</div>';
+      return h;
+    }
+
+    function _bsElementRow(wallIdx, elIdx, el) {
+      var h = '<div class="bs-element-row" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="display:flex;gap:5px;align-items:center;margin-bottom:3px;">';
+      h += '<input type="number" class="bs-el-area" data-wall="' + wallIdx + '" data-el="' + elIdx + '" placeholder="Area m²" value="' + (el.area||'') + '" style="width:60px;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:3px;">';
+      h += '<span style="font-size:10px;color:#6b7280;">m²</span>';
+      h += '<select class="bs-el-sel" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="flex:1;font-size:11px;padding:1px 3px;border:1px solid #ddd;border-radius:3px;">';
+      h += _bsConsOptions(el.construction ? el.construction.name : '', ['Openings','Walls']);
+      h += '</select>';
+      h += '<button class="bs-del-element" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="font-size:10px;padding:1px 5px;cursor:pointer;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;color:#b91c1c;">\u2715</button>';
+      h += '</div>';
+      return h;
+    }
+
+    function _bsDerivedLwHTML(bs, derived) {
+      if (!derived) derived = _bsCalcDerived(bs);
+      var h = '';
+      if (!bs.vertices || bs.vertices.length < 3) return '<em style="color:#9ca3af;">Draw polygon first</em>';
+      var n = bs.vertices.length;
+      derived.walls.forEach(function(w) {
+        var lw = w.lw.day;
+        h += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #ede9fe;">';
+        h += '<span>Wall ' + (w.idx+1) + ' (' + w.dir + ', ' + w.len.toFixed(0) + ' m)</span>';
+        h += '<b>' + (Number.isFinite(lw) ? lw.toFixed(1) + ' dB(A)' : '\u2014') + '</b>';
+        h += '</div>';
+      });
+      if (bs.roofConstruction && bs.roofConstruction.enabled) {
+        var rLw = derived.roof.day;
+        h += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #ede9fe;">';
+        h += '<span>Roof</span>';
+        h += '<b>' + (Number.isFinite(rLw) ? rLw.toFixed(1) + ' dB(A)' : '\u2014') + '</b>';
+        h += '</div>';
+      }
+      var tot = derived.total.day;
+      h += '<div style="display:flex;justify-content:space-between;padding:3px 0;font-weight:700;color:#6d28d9;">';
+      h += '<span>Total radiated</span><span>' + (Number.isFinite(tot) ? tot.toFixed(1) + ' dB(A)' : '\u2014') + '</span>';
+      h += '</div>';
+      return h;
+    }
+
+    function openBsPanel(bsId, clientX, clientY) {
+      closeBsPanel();
+      var bs = buildingSources.find(function(b){return b.id===bsId;});
+      if (!bs) return;
+      _bsPanelId = bsId;
+      var div = document.createElement('div');
+      div.innerHTML = buildBsPanelHTML(bs);
+      var panel = div.firstChild;
+      document.body.appendChild(panel);
+      _bsPanel = panel;
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var pw = 400;
+      var left = Math.min(clientX + 10, vw - pw - 10);
+      var top  = Math.min(clientY - 30, vh - 600);
+      if (top < 10) top = 10;
+      if (left < 10) left = 10;
+      panel.style.left = left + 'px';
+      panel.style.top  = top  + 'px';
+
+      // Drag
+      var _drg=false,_dX=0,_dY=0,_pX=0,_pY=0;
+      var hdr = document.getElementById('bsPanelHeader');
+      if (hdr) {
+        hdr.addEventListener('mousedown', function(ev) {
+          if (ev.target.tagName==='BUTTON'||ev.target.tagName==='INPUT') return;
+          _drg=true; _dX=ev.clientX; _dY=ev.clientY;
+          var r=panel.getBoundingClientRect(); _pX=r.left; _pY=r.top;
+        });
+        document.addEventListener('mousemove', function(ev) {
+          if (!_drg) return;
+          panel.style.left=(_pX+ev.clientX-_dX)+'px'; panel.style.top=(_pY+ev.clientY-_dY)+'px';
+        });
+        document.addEventListener('mouseup', function(){_drg=false;});
+      }
+
+      function refreshPanel() {
+        var bs2 = buildingSources.find(function(b){return b.id===_bsPanelId;});
+        if (!bs2) return;
+        var derived = _bsCalcDerived(bs2);
+        var derivedEl = document.getElementById('bsDerivedLw');
+        if (derivedEl) derivedEl.innerHTML = _bsDerivedLwHTML(bs2, derived);
+        var perim = _bsPerimeter(bs2.vertices);
+        var roofArea = _asPolygonArea(bs2.vertices);
+        var perimEl = document.getElementById('bsPanelPerim');
+        var wallAreaEl = document.getElementById('bsPanelWallArea');
+        var roofAreaEl = document.getElementById('bsPanelRoofArea');
+        if (perimEl) perimEl.textContent = perim.toFixed(0) + ' m';
+        if (wallAreaEl) wallAreaEl.textContent = (perim*(bs2.height_m||6)).toFixed(0) + ' m\u00b2';
+        if (roofAreaEl) roofAreaEl.textContent = roofArea.toFixed(0) + ' m\u00b2';
+        var hdrTitle = panel.querySelector('#bsPanelHeader span');
+        if (hdrTitle) {
+          var lpD = bs2.interiorLp && bs2.interiorLp.day && Number.isFinite(bs2.interiorLp.day.broadband) ? Math.round(bs2.interiorLp.day.broadband)+' dB(A)' : '\u2014';
+          hdrTitle.textContent = '\uD83C\uDFED ' + (bs2.name||'Building source') + ' \u2014 Lp ' + lpD + ' inside';
+        }
+      }
+
+      // Name
+      var nameInp = document.getElementById('bsPanelName');
+      if (nameInp) nameInp.addEventListener('change', function() {
+        bs.name = this.value.trim() || 'Building source';
+        renderBuildingSourceLayer(); refreshPanel();
+      });
+
+      // Height
+      var htInp = document.getElementById('bsPanelHeight');
+      if (htInp) htInp.addEventListener('change', function() {
+        var v = parseFloat(this.value);
+        if (Number.isFinite(v) && v > 0) { bs.height_m = v; refreshPanel(); if (typeof render==='function') render(); if (window._recomputeNoiseMap) window._recomputeNoiseMap(); }
+      });
+
+      // Interior Lp + active + pct per period
+      ['day','eve','night'].forEach(function(period) {
+        var lpInp = document.getElementById('bsLp_'+period);
+        var pctInp = document.getElementById('bsPct_'+period);
+        var actChk = document.getElementById('bsActive_'+period);
+        if (!bs.interiorLp[period]) bs.interiorLp[period] = {broadband:null, octave:{}};
+        if (lpInp) lpInp.addEventListener('input', function() {
+          var v = parseFloat(this.value);
+          bs.interiorLp[period].broadband = Number.isFinite(v) ? v : null;
+          refreshPanel(); if (typeof render==='function') render();
+        });
+        if (pctInp) pctInp.addEventListener('input', function() {
+          var v = parseFloat(this.value);
+          bs.operatingPct[period] = Number.isFinite(v) ? Math.max(0,Math.min(100,v)) : 100;
+          refreshPanel(); if (typeof render==='function') render();
+        });
+        if (actChk) actChk.addEventListener('change', function() {
+          bs.activeInPeriod[period] = this.checked;
+          refreshPanel(); if (typeof render==='function') render();
+        });
+        // Octave Lp
+        BS_OCTAVE_BANDS.forEach(function(b) {
+          var inp = document.getElementById('bs_'+period+'_lp_'+b);
+          if (inp) inp.addEventListener('input', function() {
+            var v = parseFloat(this.value);
+            if (!bs.interiorLp[period].octave) bs.interiorLp[period].octave = {};
+            bs.interiorLp[period].octave[b] = Number.isFinite(v) ? v : null;
+            refreshPanel(); if (typeof render==='function') render();
+          });
+        });
+      });
+
+      // Default wall construction
+      var defWallSel = document.getElementById('bsDefWallSel');
+      var defWallManual = document.getElementById('bsDefWallManual');
+      if (defWallSel) defWallSel.addEventListener('change', function() {
+        var found = null;
+        CONSTRUCTION_LIBRARY.walls.forEach(function(e){if(e.name===this.value)found=e;}.bind(this));
+        if (found) {
+          bs.defaultConstruction = JSON.parse(JSON.stringify(found));
+          var octaveDiv = document.getElementById('bsDefWallOctave');
+          if (octaveDiv) octaveDiv.innerHTML = _bsOctaveRRow('bs_defwall', bs.defaultConstruction, !defWallManual.checked);
+          refreshPanel(); if (typeof render==='function') render();
+        }
+      });
+      if (defWallManual) defWallManual.addEventListener('change', function() {
+        var octaveDiv = document.getElementById('bsDefWallOctave');
+        if (octaveDiv) octaveDiv.innerHTML = _bsOctaveRRow('bs_defwall', bs.defaultConstruction, !this.checked);
+        if (this.checked) {
+          BS_OCTAVE_BANDS.forEach(function(b) {
+            var inp = document.getElementById('bs_defwall_r_'+b);
+            if (inp) inp.addEventListener('input', function() {
+              if (!bs.defaultConstruction.octaveR) bs.defaultConstruction.octaveR = {};
+              var v = parseFloat(this.value);
+              bs.defaultConstruction.octaveR[b] = Number.isFinite(v) ? v : 0;
+              refreshPanel(); if (typeof render==='function') render();
+            });
+          });
+        }
+      });
+
+      // Roof construction
+      var roofEnabledChk = document.getElementById('bsRoofEnabled');
+      var roofSel = document.getElementById('bsRoofSel');
+      var roofManual = document.getElementById('bsRoofManual');
+      if (roofEnabledChk) roofEnabledChk.addEventListener('change', function() {
+        if (!bs.roofConstruction) bs.roofConstruction = JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.roof[0]));
+        bs.roofConstruction.enabled = this.checked;
+        var sec = document.getElementById('bsRoofSection');
+        if (sec) { sec.style.opacity = this.checked ? '1' : '0.4'; sec.style.pointerEvents = this.checked ? '' : 'none'; }
+        refreshPanel(); if (typeof render==='function') render();
+      });
+      if (roofSel) roofSel.addEventListener('change', function() {
+        var found = null;
+        CONSTRUCTION_LIBRARY.roof.forEach(function(e){if(e.name===this.value)found=e;}.bind(this));
+        if (found) {
+          var wasEnabled = bs.roofConstruction && bs.roofConstruction.enabled;
+          bs.roofConstruction = JSON.parse(JSON.stringify(found));
+          bs.roofConstruction.enabled = wasEnabled !== false;
+          var octaveDiv = document.getElementById('bsRoofOctave');
+          if (octaveDiv) octaveDiv.innerHTML = _bsOctaveRRow('bs_roof', bs.roofConstruction, !roofManual.checked);
+          refreshPanel(); if (typeof render==='function') render();
+        }
+      });
+      if (roofManual) roofManual.addEventListener('change', function() {
+        var octaveDiv = document.getElementById('bsRoofOctave');
+        if (octaveDiv) octaveDiv.innerHTML = _bsOctaveRRow('bs_roof', bs.roofConstruction, !this.checked);
+        if (this.checked) {
+          BS_OCTAVE_BANDS.forEach(function(b) {
+            var inp = document.getElementById('bs_roof_r_'+b);
+            if (inp) inp.addEventListener('input', function() {
+              if (!bs.roofConstruction.octaveR) bs.roofConstruction.octaveR = {};
+              var v = parseFloat(this.value);
+              bs.roofConstruction.octaveR[b] = Number.isFinite(v) ? v : 0;
+              refreshPanel(); if (typeof render==='function') render();
+            });
+          });
+        }
+      });
+
+      // Facade override: add button
+      var addOverrideBtn = document.getElementById('bsAddOverride');
+      if (addOverrideBtn) addOverrideBtn.addEventListener('click', function() {
+        // Build wall selector popup
+        var n = bs.vertices.length;
+        var wallOpts = '<select id="bsWallPickSel" style="width:100%;padding:4px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin:6px 0;">';
+        for (var wi = 0; wi < n; wi++) {
+          if (bs.facadeOverrides && bs.facadeOverrides[wi]) continue; // already has override
+          var v1 = bs.vertices[wi], v2 = bs.vertices[(wi+1)%n];
+          var dir = _bsCompassDir(_bsBearing(v1, v2));
+          var len = _bsSegLen(v1, v2).toFixed(0);
+          wallOpts += '<option value="' + wi + '">Wall ' + (wi+1) + ' (' + dir + ', ' + len + ' m)</option>';
+        }
+        wallOpts += '</select>';
+        var existing = document.getElementById('bsWallPickBox');
+        if (existing) { existing.remove(); return; }
+        var box = document.createElement('div');
+        box.id = 'bsWallPickBox';
+        box.style.cssText = 'background:#fff;border:1px solid #c4b5fd;border-radius:6px;padding:8px;margin-top:6px;';
+        box.innerHTML = '<div style="font-size:11px;font-weight:700;color:#6d28d9;margin-bottom:4px;">Select wall to override:</div>' + wallOpts +
+          '<button id="bsWallPickOK" style="font-size:11px;padding:2px 8px;cursor:pointer;background:#7c3aed;color:#fff;border:none;border-radius:4px;margin-right:4px;">Add</button>' +
+          '<button id="bsWallPickCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;">Cancel</button>';
+        addOverrideBtn.parentNode.insertBefore(box, addOverrideBtn.nextSibling);
+        document.getElementById('bsWallPickCancel').onclick = function() { box.remove(); };
+        document.getElementById('bsWallPickOK').onclick = function() {
+          var selEl = document.getElementById('bsWallPickSel');
+          if (!selEl) return;
+          var wi = parseInt(selEl.value);
+          if (!bs.facadeOverrides) bs.facadeOverrides = {};
+          if (!bs.facadeOverrides[wi]) {
+            bs.facadeOverrides[wi] = JSON.parse(JSON.stringify(bs.defaultConstruction));
+            bs.facadeOverrides[wi].elements = [];
+          }
+          box.remove();
+          // Re-open panel to show new override
+          openBsPanel(_bsPanelId, parseInt(panel.style.left)||200, parseInt(panel.style.top)||60);
+        };
+      });
+
+      // Facade override: remove + construction change + add element
+      panel.addEventListener('click', function(ev) {
+        var btn = ev.target;
+        // Remove override
+        if (btn.classList.contains('bs-del-override')) {
+          var wi = parseInt(btn.getAttribute('data-wall'));
+          if (bs.facadeOverrides) delete bs.facadeOverrides[wi];
+          openBsPanel(_bsPanelId, parseInt(panel.style.left)||200, parseInt(panel.style.top)||60);
+          return;
+        }
+        // Add element
+        if (btn.classList.contains('bs-add-element')) {
+          var wi2 = parseInt(btn.getAttribute('data-wall'));
+          if (!bs.facadeOverrides || !bs.facadeOverrides[wi2]) return;
+          if (!bs.facadeOverrides[wi2].elements) bs.facadeOverrides[wi2].elements = [];
+          bs.facadeOverrides[wi2].elements.push({ area: 1, construction: JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.openings[0])) });
+          openBsPanel(_bsPanelId, parseInt(panel.style.left)||200, parseInt(panel.style.top)||60);
+          return;
+        }
+        // Delete element
+        if (btn.classList.contains('bs-del-element')) {
+          var wi3 = parseInt(btn.getAttribute('data-wall'));
+          var ei = parseInt(btn.getAttribute('data-el'));
+          if (bs.facadeOverrides && bs.facadeOverrides[wi3] && bs.facadeOverrides[wi3].elements) {
+            bs.facadeOverrides[wi3].elements.splice(ei, 1);
+            openBsPanel(_bsPanelId, parseInt(panel.style.left)||200, parseInt(panel.style.top)||60);
+          }
+          return;
+        }
+      });
+
+      // Facade sel changes
+      panel.addEventListener('change', function(ev) {
+        var sel = ev.target;
+        if (sel.classList.contains('bs-facade-sel')) {
+          var wi = parseInt(sel.getAttribute('data-wall'));
+          var found = null;
+          ['Walls','Openings'].forEach(function(cat){ CONSTRUCTION_LIBRARY_GROUPED[cat].forEach(function(e){if(e.name===sel.value)found=e;}); });
+          if (found && bs.facadeOverrides && bs.facadeOverrides[wi]) {
+            var prevElements = bs.facadeOverrides[wi].elements || [];
+            bs.facadeOverrides[wi] = JSON.parse(JSON.stringify(found));
+            bs.facadeOverrides[wi].elements = prevElements;
+            var octDiv = panel.querySelector('.bs-facade-octave[data-wall="'+wi+'"]');
+            if (octDiv) octDiv.innerHTML = _bsOctaveRRow('bs_wall_'+wi, bs.facadeOverrides[wi], true);
+            refreshPanel(); if (typeof render==='function') render();
+          }
+          return;
+        }
+        // Element area / construction changes
+        if (sel.classList.contains('bs-el-sel')) {
+          var wi4 = parseInt(sel.getAttribute('data-wall'));
+          var ei2 = parseInt(sel.getAttribute('data-el'));
+          var found2 = null;
+          Object.keys(CONSTRUCTION_LIBRARY_GROUPED).forEach(function(cat){ CONSTRUCTION_LIBRARY_GROUPED[cat].forEach(function(e){if(e.name===sel.value)found2=e;}); });
+          if (found2 && bs.facadeOverrides && bs.facadeOverrides[wi4] && bs.facadeOverrides[wi4].elements && bs.facadeOverrides[wi4].elements[ei2]) {
+            bs.facadeOverrides[wi4].elements[ei2].construction = JSON.parse(JSON.stringify(found2));
+            refreshPanel(); if (typeof render==='function') render();
+          }
+          return;
+        }
+        if (sel.classList.contains('bs-el-area')) {
+          var wi5 = parseInt(sel.getAttribute('data-wall'));
+          var ei3 = parseInt(sel.getAttribute('data-el'));
+          var v = parseFloat(sel.value);
+          if (bs.facadeOverrides && bs.facadeOverrides[wi5] && bs.facadeOverrides[wi5].elements && bs.facadeOverrides[wi5].elements[ei3]) {
+            bs.facadeOverrides[wi5].elements[ei3].area = Number.isFinite(v) ? v : 0;
+            refreshPanel(); if (typeof render==='function') render();
+          }
+          return;
+        }
+      });
+
+      // Delete button
+      var delBtn = document.getElementById('bsPanelDelete');
+      if (delBtn) delBtn.addEventListener('click', function() {
+        if (!confirm('Delete "' + (bs.name||'Building source') + '"?')) return;
+        var idx = buildingSources.indexOf(bs);
+        if (idx !== -1) buildingSources.splice(idx, 1);
+        closeBsPanel();
+        renderBuildingSourceLayer();
+        if (typeof render==='function') render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      });
+    }
+    window.openBsPanel = openBsPanel;
+
+    window._setBuildingSources = function(arr) {
+      buildingSources = [];
+      _bsIdCtr = 0;
+      (arr||[]).forEach(function(d) {
+        var bs = JSON.parse(JSON.stringify(d));
+        if (!bs.facadeOverrides) bs.facadeOverrides = {};
+        if (!bs.roofConstruction) bs.roofConstruction = Object.assign(JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.roof[0])),{enabled:true});
+        if (!bs.defaultConstruction) bs.defaultConstruction = JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.walls[0]));
+        if (!bs.interiorLp) bs.interiorLp = { day:{broadband:null,octave:{}}, eve:{broadband:null,octave:{}}, night:{broadband:null,octave:{}} };
+        buildingSources.push(bs);
+        var num = parseInt((bs.id||'').replace(/\D/g,''));
+        if (num > _bsIdCtr) _bsIdCtr = num;
+      });
+      renderBuildingSourceLayer();
+    };
 
     /* Draw Area Source button */
     var drawAreaSourceBtn = document.getElementById('drawAreaSourceBtn');
@@ -20515,6 +21401,23 @@ initCollapse();
         html += '</div>';
       }
 
+      // Building sources group
+      if (typeof buildingSources !== 'undefined' && buildingSources.length > 0) {
+        html += '<div style="margin-bottom:10px;">';
+        html += '<div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Building Sources</div>';
+        buildingSources.forEach(function(bs, i) {
+          var hasVerts = bs.vertices && bs.vertices.length >= 3;
+          var name = escapeHTML(bs.name || ('Building source ' + (i+1)));
+          html += '<div class="obj-row" data-obj-type="buildingsource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts?'pointer':'default') + ';">';
+          html += '<span style="width:11px;height:11px;border:2px solid #7c3aed;background:rgba(140,80,180,0.25);border-radius:2px;display:inline-block;flex-shrink:0;"></span>';
+          html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:22px;">BS' + (i+1) + '</span>';
+          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</span>';
+          if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'buildingsource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+
       // Overlays group
       if (window._siteOverlays && window._siteOverlays.length > 0) {
         html += '<div style="margin-bottom:10px;">';
@@ -20593,6 +21496,13 @@ initCollapse();
         map.panTo([asCtr.lat, asCtr.lng]);
         if (as._poly) { as._poly.setStyle({ weight: 5, color: 'rgba(200,120,30,1)' }); setTimeout(function() { if (as._poly) as._poly.setStyle(AS_STYLE); }, 1000); }
         if (typeof openAsPanel === 'function') openAsPanel(as.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
+      } else if (type === 'buildingsource') {
+        var bsrc = buildingSources[idx];
+        if (!bsrc || !bsrc.vertices || bsrc.vertices.length < 3) return;
+        var bsCtr = _asPolygonCentroid(bsrc.vertices);
+        map.panTo([bsCtr.lat, bsCtr.lng]);
+        if (bsrc._poly) { bsrc._poly.setStyle({ weight: 5, color: 'rgba(109,40,217,1)' }); setTimeout(function(){ if (bsrc._poly) bsrc._poly.setStyle(BS_STYLE); }, 1000); }
+        if (typeof openBsPanel === 'function') openBsPanel(bsrc.id, Math.round(window.innerWidth/2), Math.round(window.innerHeight/2));
       } else if (type === 'barrier') {
         var ub = userBarriers[idx];
         if (!ub || !ub.vertices || !ub.vertices.length) return;
@@ -20661,6 +21571,16 @@ initCollapse();
         areaSources.push(newAs);
         renderAreaSourceLayer();
         if (typeof render === 'function') render();
+      } else if (type === 'buildingsource') {
+        var bsrc2 = buildingSources[idx];
+        if (!bsrc2) return;
+        var newBs = JSON.parse(JSON.stringify(bsrc2));
+        newBs.id = 'bs_' + (++_bsIdCtr);
+        newBs.name = (bsrc2.name||'Building source') + ' (copy)';
+        newBs.vertices = bsrc2.vertices.map(function(v){return[v[0]-0.00005,v[1]+0.00005];});
+        buildingSources.push(newBs); renderBuildingSourceLayer();
+        if (typeof render==='function') render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
       } else if (type === 'barrier') {
         var ub = userBarriers[idx];
         if (!ub) return;
@@ -20722,6 +21642,13 @@ initCollapse();
         if (as && as._poly) areaSourceLayer.removeLayer(as._poly);
         renderAreaSourceLayer();
         if (typeof render === 'function') render();
+      } else if (type === 'buildingsource') {
+        var bsrc3 = buildingSources[idx];
+        if (!confirm('Delete "' + (bsrc3 ? bsrc3.name||'Building source' : 'Building source') + '"?')) return;
+        buildingSources.splice(idx, 1);
+        renderBuildingSourceLayer();
+        if (typeof render==='function') render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
       } else if (type === 'barrier') {
         var ub = userBarriers[idx];
         if (!confirm('Delete barrier "' + (ub ? ub.name || 'Barrier' : 'Barrier') + '"?')) return;
