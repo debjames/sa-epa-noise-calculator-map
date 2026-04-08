@@ -4838,7 +4838,8 @@ window._sourceDistances = [];
 // Populated asynchronously when pins are placed. Used synchronously in calcPredAtReceiver.
 var _terrainIL = [];
 window._terrainIL = _terrainIL; // expose for console debugging
-var _terrainEnabled = false; // controlled by Terrain toolbar button (opt-in)
+var _terrainEnabled = false;    // controlled by Terrain toolbar button (opt-in)
+var _terrainContourOn = false;  // controlled by terrain contour button
 
 function isTerrainEnabled() { return _terrainEnabled; }
 
@@ -9977,7 +9978,7 @@ function initPropagationMethod() {
   });
 
   // ── Terrain contour lines ────────────────────────────────────────────────
-  var _terrainContourOn = false;
+  // _terrainContourOn declared at top level (line ~4841) for save/load access
 
   function generateTerrainContours() {
     if (window._terrainContourLayer) window._terrainContourLayer.clearLayers();
