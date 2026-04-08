@@ -10812,20 +10812,23 @@ function renderScenariosTable() {
   var ms = 'font-size:12px;color:var(--muted);'; // muted style for "—"
 
   var html = '<div class="table-scroll"><table style="width:100%;font-size:12px;">';
+  var greyTh = 'background:#f3f4f6;font-weight:600;font-size:11px;color:#6b7280;';
   html += '<thead>';
   html += '<tr>';
-  html += '<th style="text-align:left;" rowspan="2">Source</th>';
-  html += '<th style="text-align:left;padding-left:8px;" rowspan="2">Type</th>';
+  html += '<th style="text-align:left;">Source</th>';
+  html += '<th style="text-align:left;padding-left:8px;">Type</th>';
   html += '<th class="num">Day</th>';
   html += '<th class="num">Evening</th>';
   html += '<th class="num">Night</th>';
   html += '<th class="num">Night</th>';
   html += '</tr>';
   html += '<tr>';
-  html += '<th class="num">L<sub>Aeq</sub></th>';
-  html += '<th class="num">L<sub>Aeq</sub></th>';
-  html += '<th class="num">L<sub>Aeq</sub></th>';
-  html += '<th class="num">L<sub>Amax</sub></th>';
+  html += '<th style="' + greyTh + '"></th>';
+  html += '<th style="' + greyTh + '"></th>';
+  html += '<th class="num" style="' + greyTh + '">L<sub>Aeq</sub> dB</th>';
+  html += '<th class="num" style="' + greyTh + '">L<sub>Aeq</sub> dB</th>';
+  html += '<th class="num" style="' + greyTh + '">L<sub>Aeq</sub> dB</th>';
+  html += '<th class="num" style="' + greyTh + '">L<sub>Amax</sub> dB</th>';
   html += '</tr>';
   html += '</thead><tbody>';
 
