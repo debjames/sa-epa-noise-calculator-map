@@ -10812,14 +10812,22 @@ function renderScenariosTable() {
   var ms = 'font-size:12px;color:var(--muted);'; // muted style for "—"
 
   var html = '<div class="table-scroll"><table style="width:100%;font-size:12px;">';
-  html += '<thead><tr>';
-  html += '<th style="text-align:left;">Source</th>';
-  html += '<th style="text-align:left;padding-left:8px;">Type</th>';
+  html += '<thead>';
+  html += '<tr>';
+  html += '<th style="text-align:left;" rowspan="2">Source</th>';
+  html += '<th style="text-align:left;padding-left:8px;" rowspan="2">Type</th>';
   html += '<th class="num">Day</th>';
   html += '<th class="num">Evening</th>';
   html += '<th class="num">Night</th>';
-  html += '<th class="num">L<sub>max</sub></th>';
-  html += '</tr></thead><tbody>';
+  html += '<th class="num">Night</th>';
+  html += '</tr>';
+  html += '<tr>';
+  html += '<th class="num">L<sub>Aeq</sub></th>';
+  html += '<th class="num">L<sub>Aeq</sub></th>';
+  html += '<th class="num">L<sub>Aeq</sub></th>';
+  html += '<th class="num">L<sub>Amax</sub></th>';
+  html += '</tr>';
+  html += '</thead><tbody>';
 
   // ── Point sources ──────────────────────────────────────────
   allPins.forEach(function(pin) {
@@ -10832,13 +10840,13 @@ function renderScenariosTable() {
       if (lw !== null && active) {
         var pQty = _getNumUnits(pin, period);
         var pSfx = pQty > 1 ? ' \u00d7\u202f' + pQty : '';
-        html += '<td class="num" style="' + cs + '">' + Math.round(lw) + ' dB(A)' + pSfx + '</td>';
+        html += '<td class="num" style="' + cs + '">' + Math.round(lw) + ' dB' + pSfx + '</td>';
       } else {
         html += '<td class="num" style="' + ms + '">\u2014</td>';
       }
     });
     if (Number.isFinite(pin.lw_max)) {
-      html += '<td class="num" style="' + cs + '">' + Math.round(pin.lw_max) + ' dB(A)</td>';
+      html += '<td class="num" style="' + cs + '">' + Math.round(pin.lw_max) + ' dB</td>';
     } else {
       html += '<td class="num" style="' + ms + '">\u2014</td>';
     }
@@ -10856,7 +10864,7 @@ function renderScenariosTable() {
       if (Number.isFinite(lwm) && active) {
         var lsN   = (ls.movements && ls.movements[period] && Number.isFinite(ls.movements[period].N)) ? ls.movements[period].N : 1;
         var lsSfx = lsN > 1 ? ' \u00d7\u202f' + lsN : '';
-        html += '<td class="num" style="' + cs + '">' + Math.round(lwm) + ' dB(A)/m' + lsSfx + '</td>';
+        html += '<td class="num" style="' + cs + '">' + Math.round(lwm) + ' dB/m' + lsSfx + '</td>';
       } else {
         html += '<td class="num" style="' + ms + '">\u2014</td>';
       }
@@ -10868,7 +10876,7 @@ function renderScenariosTable() {
   // ── Area sources ───────────────────────────────────────────
   allAs.forEach(function(as) {
     var lwMode = as.lwMode || 'per_m2';
-    var unit   = (lwMode === 'per_m2') ? ' dB(A)/m\u00b2' : ' dB(A)';
+    var unit   = (lwMode === 'per_m2') ? ' dB/m\u00b2' : ' dB';
     html += '<tr>';
     html += '<td style="' + cs + '">' + escapeHTML(as.name || 'Area source') + '</td>';
     html += '<td style="' + cs + 'padding-left:8px;">Area</td>';
@@ -10897,7 +10905,7 @@ function renderScenariosTable() {
         var active = !bs.activeInPeriod || bs.activeInPeriod[period] !== false;
         var lpBB = bs.interiorLp && bs.interiorLp[period] && Number.isFinite(bs.interiorLp[period].broadband) ? bs.interiorLp[period].broadband : null;
         if (lpBB !== null && active) {
-          html += '<td class="num" style="' + cs + '">' + Math.round(lpBB) + ' dB(A)</td>';
+          html += '<td class="num" style="' + cs + '">' + Math.round(lpBB) + ' dB</td>';
         } else {
           html += '<td class="num" style="' + ms + '">\u2014</td>';
         }
