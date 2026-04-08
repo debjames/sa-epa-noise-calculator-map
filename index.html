@@ -19214,7 +19214,9 @@ initCollapse();
         var active = !bs.activeInPeriod || bs.activeInPeriod[period] !== false;
         var intLp = bs.interiorLp && bs.interiorLp[period];
         var lpBB = intLp ? intLp.broadband : null;
-        var lpOct = intLp ? intLp.octave : null;
+        // Only use octave data when lpSource === 'octave'; the default octave object
+        // {63:null,…} is truthy but empty and would block the broadband path otherwise.
+        var lpOct = (bs.lpSource === 'octave' && intLp) ? intLp.octave : null;
         var pct = (bs.operatingPct && Number.isFinite(bs.operatingPct[period])) ? bs.operatingPct[period] : 100;
         if (!active || !Number.isFinite(lpBB)) { return; }
         var allLws = [];
@@ -19346,7 +19348,8 @@ initCollapse();
       if (!bs.vertices || bs.vertices.length < 3) return [];
       var intLp = bs.interiorLp && bs.interiorLp[period];
       var lpBB  = intLp ? intLp.broadband : null;
-      var lpOct = intLp ? intLp.octave   : null;
+      // Only use octave data when lpSource === 'octave'; same guard as _bsCalcDerived.
+      var lpOct = (bs.lpSource === 'octave' && intLp) ? intLp.octave : null;
       if (!Number.isFinite(lpBB)) return [];
       if (bs.activeInPeriod && bs.activeInPeriod[period] === false) return [];
       var pct = (bs.operatingPct && Number.isFinite(bs.operatingPct[period])) ? bs.operatingPct[period] : 100;
