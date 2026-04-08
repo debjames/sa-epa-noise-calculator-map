@@ -4774,7 +4774,7 @@ function detectBuildingUnderSource(pinIdx) {
     // Custom buildings (isCustom) always checked; OSM buildings only when layer is on
     if (!b.isCustom && !buildingsLayerOn) continue;
     if (_pointInPolygon(pin.lat, pin.lng, b.polygon)) {
-      var h = (b.heightM && b.heightM > 0) ? b.heightM : 3.0;
+      var h = ((b.baseHeightM || 0) + (b.heightM && b.heightM > 0 ? b.heightM : 3.0));
       if (h > maxH) maxH = h;
     }
   }
@@ -11642,7 +11642,7 @@ initCollapse();
         var customs = window._getCustomBuildings ? window._getCustomBuildings() : [];
         if (customs.length > 0) {
           data.customBuildings = customs.map(function(cb) {
-            return { id: cb.id, polygon: cb.polygon, heightM: cb.heightM, name: cb.name };
+            return { id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0, heightM: cb.heightM, name: cb.name };
           });
         }
 
@@ -12821,8 +12821,8 @@ initCollapse();
       if (data.customBuildings && data.customBuildings.length > 0 && window._setCustomBuildings) {
         window._setCustomBuildings(data.customBuildings.map(function(cb) {
           return {
-            id: cb.id, polygon: cb.polygon, heightM: cb.heightM,
-            name: cb.name, isCustom: true, userHeightOverride: true
+            id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0,
+            heightM: cb.heightM, name: cb.name, isCustom: true, userHeightOverride: true
           };
         }));
       }
@@ -17810,18 +17810,29 @@ initCollapse();
       customBuildings.forEach(function(cb) {
         var poly = L.polygon(cb.polygon, CUSTOM_STYLE);
         var htStr = cb.heightM ? cb.heightM.toFixed(0) + 'm' : '?';
-        poly.bindTooltip((cb.name ? '<b>' + escapeHTML(cb.name) + '</b><br>' : '') + 'Height: ' + htStr + ' (custom)');
+        var topStr = (cb.baseHeightM && cb.baseHeightM > 0)
+          ? 'Base: ' + cb.baseHeightM.toFixed(1) + 'm + Height: ' + htStr + ' = Top: ' + (cb.baseHeightM + (cb.heightM || 0)).toFixed(1) + 'm'
+          : 'Height: ' + htStr;
+        poly.bindTooltip((cb.name ? '<b>' + escapeHTML(cb.name) + '</b><br>' : '') + topStr + ' (custom)');
 
         // Click popup for edit/delete (only when not placing markers)
         poly.on('click', function(e) {
           if (_drawingActive) return;
           if (currentMode) return;
           L.DomEvent.stopPropagation(e);
-          var html = '<div style="min-width:200px;font-size:13px;">';
+          var html = '<div style="min-width:220px;font-size:13px;">';
           html += '<b>' + escapeHTML(cb.name || 'Custom building') + '</b><br>';
           html += '<div style="margin:6px 0;">';
           html += 'Name: <input type="text" id="cbName" value="' + (cb.name || '') + '" style="width:120px;padding:2px 4px;font-size:12px;"><br>';
-          html += 'Height: <input type="number" id="cbHeight" value="' + (cb.heightM || 3) + '" step="0.5" min="0" style="width:60px;padding:2px 4px;font-size:12px;"> m';
+          html += '<table style="border-collapse:collapse;margin-top:4px;">';
+          html += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Base height (m):</td>';
+          html += '<td><input type="number" id="cbBase" value="' + (cb.baseHeightM || 0).toFixed(1) + '" step="0.1" min="0" style="width:60px;padding:2px 4px;font-size:12px;"></td></tr>';
+          html += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Building height (m):</td>';
+          html += '<td><input type="number" id="cbHeight" value="' + (cb.heightM || 3) + '" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;"></td></tr>';
+          html += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Top of building:</td>';
+          html += '<td id="cbTopDisplay" style="font-size:12px;color:#555;">' + ((cb.baseHeightM || 0) + (cb.heightM || 3)).toFixed(1) + 'm above ground</td></tr>';
+          html += '</table>';
+          html += '<div id="cbFloatNote" style="display:' + ((cb.baseHeightM || 0) > 0 ? 'block' : 'none') + ';font-size:11px;color:#c0392b;margin-top:3px;">&#9888; Elevated building (e.g. rooftop plant room)</div>';
           html += '</div>';
           html += '<button id="cbApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
           html += '<button id="cbEditShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#922b21;">Edit shape</button> ';
@@ -17834,10 +17845,25 @@ initCollapse();
             var applyBtn = document.getElementById('cbApply');
             var deleteBtn = document.getElementById('cbDelete');
 
+            function updateCbTop() {
+              var b = parseFloat(document.getElementById('cbBase').value) || 0;
+              var h = parseFloat(document.getElementById('cbHeight').value) || 0;
+              var topEl = document.getElementById('cbTopDisplay');
+              var noteEl = document.getElementById('cbFloatNote');
+              if (topEl) topEl.textContent = (b + h).toFixed(1) + 'm above ground';
+              if (noteEl) noteEl.style.display = b > 0 ? 'block' : 'none';
+            }
+            var baseInpE = document.getElementById('cbBase');
+            var htInpE   = document.getElementById('cbHeight');
+            if (baseInpE) baseInpE.addEventListener('input', updateCbTop);
+            if (htInpE)   htInpE.addEventListener('input', updateCbTop);
+
             if (applyBtn) applyBtn.addEventListener('click', function() {
               var nameVal = document.getElementById('cbName').value;
+              var baseVal = parseFloat(document.getElementById('cbBase').value);
               var htVal = parseFloat(document.getElementById('cbHeight').value);
               if (nameVal) cb.name = nameVal;
+              if (Number.isFinite(baseVal) && baseVal >= 0) cb.baseHeightM = baseVal;
               if (Number.isFinite(htVal) && htVal > 0) cb.heightM = htVal;
               map.closePopup();
               renderCustomBuildings();
@@ -18222,11 +18248,19 @@ initCollapse();
         var center = e.layer.getBounds().getCenter();
 
         // Show popup for height/name input
-        var html = '<div style="min-width:200px;font-size:13px;">';
+        var html = '<div style="min-width:220px;font-size:13px;">';
         html += '<b>New building</b><br>';
         html += '<div style="margin:6px 0;">';
-        html += 'Height: <input type="number" id="newCbHeight" value="6" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;" autofocus> m (required)<br>';
-        html += 'Name: <input type="text" id="newCbName" placeholder="e.g. Proposed office" style="width:140px;padding:2px 4px;font-size:12px;">';
+        html += '<table style="border-collapse:collapse;margin-top:4px;">';
+        html += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Base height (m):</td>';
+        html += '<td><input type="number" id="newCbBase" value="0.0" step="0.1" min="0" style="width:60px;padding:2px 4px;font-size:12px;"></td></tr>';
+        html += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Building height (m):</td>';
+        html += '<td><input type="number" id="newCbHeight" value="6" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;" autofocus></td></tr>';
+        html += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Top of building:</td>';
+        html += '<td id="newCbTopDisplay" style="font-size:12px;color:#555;">6.0m above ground</td></tr>';
+        html += '</table>';
+        html += '<div id="newCbFloatNote" style="display:none;font-size:11px;color:#c0392b;margin-top:3px;">&#9888; Elevated building (e.g. rooftop plant room)</div>';
+        html += 'Name: <input type="text" id="newCbName" placeholder="e.g. Rooftop plant room" style="width:140px;padding:2px 4px;font-size:12px;margin-top:4px;">';
         html += '</div>';
         html += '<button id="newCbAdd" style="font-size:11px;padding:2px 8px;cursor:pointer;">Add Building</button> ';
         html += '<button id="newCbCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button>';
@@ -18241,7 +18275,21 @@ initCollapse();
           var addBtn = document.getElementById('newCbAdd');
           var cancelBtn = document.getElementById('newCbCancel');
 
+          function updateNewCbTop() {
+            var b = parseFloat(document.getElementById('newCbBase').value) || 0;
+            var h = parseFloat(document.getElementById('newCbHeight').value) || 0;
+            var topEl = document.getElementById('newCbTopDisplay');
+            var noteEl = document.getElementById('newCbFloatNote');
+            if (topEl) topEl.textContent = (b + h).toFixed(1) + 'm above ground';
+            if (noteEl) noteEl.style.display = b > 0 ? 'block' : 'none';
+          }
+          var baseInpN = document.getElementById('newCbBase');
+          var htInpN   = document.getElementById('newCbHeight');
+          if (baseInpN) baseInpN.addEventListener('input', updateNewCbTop);
+          if (htInpN)   htInpN.addEventListener('input', updateNewCbTop);
+
           if (addBtn) addBtn.addEventListener('click', function() {
+            var base = parseFloat(document.getElementById('newCbBase').value) || 0;
             var ht = parseFloat(document.getElementById('newCbHeight').value);
             var name = document.getElementById('newCbName').value || 'Custom building';
             if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid height.'); return; }
@@ -18249,6 +18297,7 @@ initCollapse();
             customBuildings.push({
               id: 'custom_' + Date.now(),
               polygon: latLngs,
+              baseHeightM: base,
               heightM: ht,
               name: name,
               isCustom: true,
