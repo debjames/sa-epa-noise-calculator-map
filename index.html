@@ -18060,10 +18060,9 @@ initCollapse();
 
       map.on(L.Draw.Event.CREATED, function(e) {
         if (e.layerType === 'polyline') {
-          // If line source draw is active, skip — handled by the line source listener
-          if (_lsDrawHandler) return;
-          // Barrier polyline completed
-          if (_barrierDrawHandler) { _barrierDrawHandler = null; }
+          // Only handle if the barrier tool was active — not line sources or anything else
+          if (!_barrierDrawHandler) return;
+          _barrierDrawHandler = null;
           _drawingActive = false;
           var drawBarrierBtnEl = document.getElementById('drawBarrierBtn');
           if (drawBarrierBtnEl) drawBarrierBtnEl.classList.remove('active');
