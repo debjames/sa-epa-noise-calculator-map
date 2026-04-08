@@ -19138,12 +19138,13 @@ initCollapse();
       if (overr && overr.elements && overr.elements.length > 0) {
         var remArea = area, partials = [];
         overr.elements.forEach(function(el) {
-          if (!Number.isFinite(el.area) || el.area <= 0 || !el.construction) return;
+          if (!el.construction) return;
+          // Use width×height when both are defined, otherwise fall back to el.area.
           // M3 fix: clamp element area to remaining facade area so cumulative openings
           // cannot exceed total wall area (prevents acoustic over-counting).
-          // Use width×height when both are defined, otherwise fall back to el.area.
           var elRawArea = (Number.isFinite(el.width) && Number.isFinite(el.height) && el.width > 0 && el.height > 0)
             ? el.width * el.height : (Number.isFinite(el.area) ? el.area : 0);
+          if (!(elRawArea > 0)) return;
           var elArea = Math.min(elRawArea, remArea);
           if (elArea <= 0) return;
           remArea -= elArea;
@@ -20001,33 +20002,41 @@ initCollapse();
       if (!bs.vertices || bs.vertices.length < 3) return '<em style="color:#9ca3af;">Draw polygon first</em>';
       var PKEYS = ['day','eve','night'], PLBLS = {day:'D',eve:'E',night:'N'};
       var PCOLS = {day:'#1f2937',eve:'#92400e',night:'#1e3a5f'};
+      // Only show periods that have at least one active wall Lw value
+      var activePkeys = PKEYS.filter(function(pk) {
+        return Number.isFinite(derived.total[pk]);
+      });
       function lwCell(lw, pk) {
-        return '<span style="margin-left:6px;color:' + PCOLS[pk] + ';">' + PLBLS[pk] + ':\u202f' + (Number.isFinite(lw) ? lw.toFixed(1) : '\u2014') + '</span>';
+        if (!Number.isFinite(lw)) return '';
+        return '<span style="margin-left:6px;color:' + PCOLS[pk] + ';">' + PLBLS[pk] + ':\u202f' + lw.toFixed(1) + '</span>';
       }
       var h = '';
+      if (activePkeys.length === 0) {
+        return '<em style="color:#9ca3af;">No active periods with valid Lp</em>';
+      }
       derived.walls.forEach(function(w) {
         var overr = bs.facadeOverrides && bs.facadeOverrides[w.idx];
         var cons = overr || bs.defaultConstruction;
         var wallHt = (overr && Number.isFinite(overr.heightOverride)) ? overr.heightOverride : (bs.height_m || 6);
         var elements = overr ? (overr.elements || []) : [];
         var effRw = _bsEffectiveRw(cons, elements, w.len, wallHt);
+        var cellsHtml = activePkeys.map(function(pk) { return lwCell(w.lw[pk], pk); }).join('');
+        if (!cellsHtml) return;
         h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid #ede9fe;font-size:11px;">';
         h += '<span style="flex:0 0 auto;">Wall\u00a0' + (w.idx + 1) + ' <span style="color:#9ca3af;">(' + w.dir + ', ' + w.len.toFixed(0) + '\u00a0m' + (Number.isFinite(effRw) ? ', Rw\u00a0' + effRw.toFixed(0) : '') + ')</span></span>';
-        h += '<span style="flex:0 0 auto;">';
-        PKEYS.forEach(function(pk) { h += lwCell(w.lw[pk], pk); });
-        h += ' <span style="color:#6b7280;">dB(A)</span></span>';
+        h += '<span style="flex:0 0 auto;">' + cellsHtml + ' <span style="color:#6b7280;">dB(A)</span></span>';
         h += '</div>';
       });
       if (bs.roofConstruction && bs.roofConstruction.enabled) {
-        h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid #ede9fe;font-size:11px;">';
-        h += '<span>Roof</span><span>';
-        PKEYS.forEach(function(pk) { h += lwCell(derived.roof[pk], pk); });
-        h += ' <span style="color:#6b7280;">dB(A)</span></span></div>';
+        var roofCells = activePkeys.map(function(pk) { return lwCell(derived.roof[pk], pk); }).join('');
+        if (roofCells) {
+          h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid #ede9fe;font-size:11px;">';
+          h += '<span>Roof</span><span>' + roofCells + ' <span style="color:#6b7280;">dB(A)</span></span></div>';
+        }
       }
+      var totalCells = activePkeys.map(function(pk) { return lwCell(derived.total[pk], pk); }).join('');
       h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-weight:700;color:#6d28d9;font-size:11px;">';
-      h += '<span>Total radiated</span><span>';
-      PKEYS.forEach(function(pk) { h += lwCell(derived.total[pk], pk); });
-      h += ' <span style="font-weight:400;color:#6b7280;">dB(A)</span></span></div>';
+      h += '<span>Total radiated</span><span>' + totalCells + ' <span style="font-weight:400;color:#6b7280;">dB(A)</span></span></div>';
       return h;
     }
 
