@@ -768,7 +768,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
                 <div class="nsw-intrusiveness-display" id="nswIntNight">Intrusiveness: 35</div>
               </div>
             </div>
-            <div class="small" style="margin-top:4px;">Minimums: Day 35, Evening 30, Night 30. Intrusiveness = RBL + 5 dB (Table 2.1).</div>
+            <div class="small" style="margin-top:4px;">Minimums: Day 35, Evening 30, Night 30. Intrusiveness = RBL + 5 dB (Table 2.1) — residential receivers only.</div>
           </div>
         </div>
         <div style="margin-top:12px;">
@@ -959,10 +959,10 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <span class="badge nsw-only">Evening = 6 pm–10 pm</span>
           <span class="badge nsw-only">Night = 10 pm–7 am</span>
 <span class="badge tooltip nsw-only">
-  Trigger = min(Intrusiveness, Amenity criterion)
+  Residential: min(Intrusiveness, Amenity) | Non-residential: Amenity only
   <span class="tooltiptext">
-    Project noise trigger level = lower of the project intrusiveness noise level
-    (RBL + 5 dB) and the amenity criterion (Table 2.2 ANL − 5 dB + 3 dB facade correction).
+    Residential: trigger = lower of intrusiveness (RBL + 5 dB) and amenity criterion (Table 2.2 ANL − 5 dB + 3 dB facade correction).
+    Non-residential (incl. hotel/motel): intrusiveness does not apply (NPI §2.1); trigger = amenity criterion only.
     NSW Noise Policy for Industry (2017).
   </span>
 </span>
@@ -3016,27 +3016,20 @@ function calcCriteriaNSW(receiverIndex) {
   }
 
   if (recType === 'hotel') {
-    // Hotel recommended amenity = residential + 5 dB; project amenity = recommended - 5 = residential level
-    // Still compare against intrusiveness (RBL+5) per NPI Section 2.3
-    var hotelAmenity = NSW_AMENITY_RESIDENTIAL[amenityArea] || NSW_AMENITY_RESIDENTIAL.suburban;
-    var rblDayInp = document.getElementById('nswRblDay');
-    var rblEveInp = document.getElementById('nswRblEve');
-    var rblNightInp = document.getElementById('nswRblNight');
-    var rblDay = rblDayInp && rblDayInp.value !== '' ? Math.max(Number(rblDayInp.value), NSW_MIN_RBLS.day) : NSW_MIN_RBLS.day;
-    var rblEve = rblEveInp && rblEveInp.value !== '' ? Math.max(Number(rblEveInp.value), NSW_MIN_RBLS.evening) : NSW_MIN_RBLS.evening;
-    var rblNight = rblNightInp && rblNightInp.value !== '' ? Math.max(Number(rblNightInp.value), NSW_MIN_RBLS.night) : NSW_MIN_RBLS.night;
-    var intDay = Math.max(rblDay + 5, NSW_MIN_INTRUSIVENESS.day);
-    var intEve = Math.max(rblEve + 5, NSW_MIN_INTRUSIVENESS.evening);
-    var intNight = Math.max(rblNight + 5, NSW_MIN_INTRUSIVENESS.night);
-    intEve = Math.min(intEve, intDay);
-    intNight = Math.min(intNight, intEve);
+    // Hotel recommended amenity = residential ANL + 5 dB (NPI Table 2.3).
+    // Intrusiveness does NOT apply to non-residential receivers (NPI §2.1).
+    // Project trigger = hotel ANL − 5 dB (single source) + 3 dB (facade) = residential ANL + 3 dB.
+    var resAmenity = NSW_AMENITY_RESIDENTIAL[amenityArea] || NSW_AMENITY_RESIDENTIAL.suburban;
+    var hotelAnlDay   = resAmenity.day     + 5;
+    var hotelAnlEve   = resAmenity.evening + 5;
+    var hotelAnlNight = resAmenity.night   + 5;
     return {
-      day: Math.min(intDay, hotelAmenity.day),
-      evening: Math.min(intEve, hotelAmenity.evening),
-      night: Math.min(intNight, hotelAmenity.night),
+      day:     hotelAnlDay   - 5 + 3,
+      evening: hotelAnlEve   - 5 + 3,
+      night:   hotelAnlNight - 5 + 3,
       lmax: '',
-      _intDay: intDay, _intEve: intEve, _intNight: intNight,
-      _amenDay: hotelAmenity.day, _amenEve: hotelAmenity.evening, _amenNight: hotelAmenity.night
+      _recType: 'hotel',
+      _anlDay: hotelAnlDay, _anlEve: hotelAnlEve, _anlNight: hotelAnlNight
     };
   }
 
@@ -5300,7 +5293,7 @@ function updatePolicyNote() {
     el.innerHTML = 'Environmental noise criteria calculated in accordance with <i>EPA Victoria Publication 1826.5 — Noise limit and assessment protocol for the control of noise from commercial, industrial and trade premises and entertainment venues</i>.';
     el.style.display = '';
   } else if (currentState === 'NSW') {
-    el.innerHTML = 'Project noise trigger levels calculated in accordance with the <i>NSW Noise Policy for Industry (October 2017)</i>. Trigger level = lower of intrusiveness (RBL + 5 dB) and project amenity noise level.';
+    el.innerHTML = 'Project noise trigger levels calculated in accordance with the <i>NSW Noise Policy for Industry (October 2017)</i>. Residential: trigger = lower of intrusiveness (RBL\u00a0+\u00a05\u00a0dB) and amenity criterion. Non-residential: amenity criterion only (NPI \u00a72.1).';
     el.style.display = '';
   } else if (currentState === 'OTHER') {
     el.innerHTML = 'Manual criteria entry — enter Day, Evening, Night and L<sub>max</sub> criteria values directly in the table below.';
@@ -10745,7 +10738,8 @@ function renderNSWDerivTable() {
       html += '<tr><td>Night L<sub>Aeq,15min</sub> screening level — max(40, RBL + 5)</td><td class="num"></td><td class="num"></td><td class="num">' + val(sleepLeq) + '</td></tr>';
       html += '<tr><td>Night L<sub>Amax</sub> screening level — max(52, RBL + 15)</td><td class="num"></td><td class="num"></td><td class="num">' + val(sleepLmax) + '</td></tr>';
     } else {
-      // Non-residential: only ANL and amenity criterion rows
+      // Non-residential: amenity criterion only — intrusiveness does not apply (NPI §2.1)
+      html += '<tr><td colspan="4" style="font-size:11px;color:#6b7280;font-style:italic;">Intrusiveness criterion does not apply to non-residential receivers (NPI \u00a72.1). Trigger\u00a0=\u00a0amenity criterion only.</td></tr>';
       html += '<tr><td>Amenity noise level (ANL) — ' + typeLabel + '</td><td class="num">' + val(c._anlDay) + '</td><td class="num">' + val(c._anlEve) + '</td><td class="num">' + val(c._anlNight) + '</td></tr>';
       html += '<tr><td>Amenity criterion (ANL − 5 dB + 3 dB)</td><td class="num">' + val(c._anlDay != null ? c._anlDay - 5 + 3 : null) + '</td><td class="num">' + val(c._anlEve != null ? c._anlEve - 5 + 3 : null) + '</td><td class="num">' + val(c._anlNight != null ? c._anlNight - 5 + 3 : null) + '</td></tr>';
       html += '<tr style="font-weight:700;background:#D9D9D9;"><td>Project noise trigger level</td><td class="num">' + val(c.day) + '</td><td class="num">' + val(c.evening) + '</td><td class="num">' + val(c.night) + '</td></tr>';
