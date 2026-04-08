@@ -6029,10 +6029,10 @@ function srcPanelPeriodSectionHTML(pin, period, periodLabel) {
     '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
       '<label style="font-size:11px;white-space:nowrap;">Lw (dB):</label>' +
       '<input type="number" class="sfp-lw-' + period + '" value="' + lwVal + '" style="width:64px;text-align:center;font-size:13px;">' +
-      '<label style="font-size:11px;white-space:nowrap;margin-left:4px;">Quantity: <input type="number" class="sfp-units-' + period + '" value="' + (_getNumUnits(pin, period)) + '" min="1" step="1" style="width:46px;text-align:center;font-size:12px;"></label>' +
+      '<label style="font-size:11px;white-space:nowrap;margin-left:4px;">Quantity: <input type="number" class="sfp-units-' + period + '" value="' + (_getNumUnits(pin, period)) + '" min="1" step="1" style="width:54px;text-align:center;font-size:12px;"></label>' +
     '</div>' +
     '<div style="margin-bottom:4px;">' +
-      '<label style="font-size:11px;white-space:nowrap;">Operating % of period: <input type="number" class="sfp-oppct-' + period + '" value="' + opPct + '" min="1" max="100" step="1" style="width:52px;text-align:center;font-size:12px;"></label>' +
+      '<label style="font-size:11px;white-space:nowrap;">Operating % of period: <input type="number" class="sfp-oppct-' + period + '" value="' + opPct + '" min="1" max="800" step="1" style="width:62px;text-align:center;font-size:12px;"></label>' +
     '</div>' +
     '<div style="border-top:1px solid #e5e7eb;margin:4px 0 6px;"></div>' +
     '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;">' + bandsHTML + '</div>' +
@@ -6085,7 +6085,7 @@ function srcPanelLmaxSectionHTML(pin) {
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
         '<label style="font-size:11px;white-space:nowrap;">Lw,max (dB):</label>' +
         '<input type="number" class="sfp-lw-lmax" value="' + lwMax + '" placeholder="\u2014" style="width:64px;text-align:center;font-size:13px;">' +
-        '<label style="font-size:11px;white-space:nowrap;margin-left:4px;">Quantity: <input type="number" class="sfp-units-lmax" value="' + (_getNumUnits(pin, 'lmax')) + '" min="1" step="1" style="width:46px;text-align:center;font-size:12px;"></label>' +
+        '<label style="font-size:11px;white-space:nowrap;margin-left:4px;">Quantity: <input type="number" class="sfp-units-lmax" value="' + (_getNumUnits(pin, 'lmax')) + '" min="1" step="1" style="width:54px;text-align:center;font-size:12px;"></label>' +
       '</div>' +
       '<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Octave band spectrum (reference only):</div>' +
       '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;">' + bandsHTML + '</div>' +
@@ -10827,8 +10827,9 @@ function renderScenariosTable() {
     html += '<td style="' + cs + '">' + escapeHTML(stripLwSuffix(pin.name) || 'Source') + '</td>';
     html += '<td style="' + cs + 'padding-left:8px;">Point</td>';
     ['day', 'eve', 'night'].forEach(function(period) {
-      var lw = (pin.lw && Number.isFinite(pin.lw[period]) && pin.lw[period] > 0) ? pin.lw[period] : null;
-      if (lw !== null) {
+      var lw     = (pin.lw && Number.isFinite(pin.lw[period]) && pin.lw[period] > 0) ? pin.lw[period] : null;
+      var active = !pin.activeInPeriod || pin.activeInPeriod[period] !== false;
+      if (lw !== null && active) {
         var pQty = _getNumUnits(pin, period);
         var pSfx = pQty > 1 ? ' \u00d7\u202f' + pQty : '';
         html += '<td class="num" style="' + cs + '">' + Math.round(lw) + ' dB(A)' + pSfx + '</td>';
