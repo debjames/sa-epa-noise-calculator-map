@@ -19569,7 +19569,7 @@ initCollapse();
             var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
             _showMapCtxMenu(cx, cy, [
               { id:'dup', label:'Duplicate', icon:'\u29c9', action:function() {
-                var nb = JSON.parse(JSON.stringify(capturedBs));
+                var nb = JSON.parse(JSON.stringify(capturedBs, function(k,v){ return k==='_poly'?undefined:v; }));
                 nb.id = 'bs_' + (++_bsIdCtr);
                 nb.name = (capturedBs.name||'Building source') + ' (copy)';
                 nb.vertices = capturedBs.vertices.map(function(v){return[v[0]-0.00005,v[1]+0.00005];});
