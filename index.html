@@ -19194,7 +19194,11 @@ initCollapse();
           var overr = bs.facadeOverrides && bs.facadeOverrides[i];
           var wallHt = (overr && Number.isFinite(overr.heightOverride)) ? overr.heightOverride : (bs.height_m || 6);
           var wallArea = w.len * wallHt;
-          var cons = overr ? overr : bs.defaultConstruction;
+          // Use overr as construction only if it carries its own Rw/octaveR (wall-level
+          // construction override). If overr has only elements/heightOverride, fall back
+          // to defaultConstruction so _bsCalcOneFacade can compute the residual wall Lw.
+          var cons = (overr && (Number.isFinite(overr.rw) || overr.octaveR))
+                     ? overr : bs.defaultConstruction;
           var lw = _bsCalcOneFacade(lpBB, lpOct, cons, wallArea, overr, 6);
           if (Number.isFinite(lw) && pct > 0) lw += 10*Math.log10(pct/100);
           w.lw[period] = Number.isFinite(lw) ? lw : null;
@@ -19324,23 +19328,14 @@ initCollapse();
       var verts = bs.vertices, n = verts.length;
       var bsHeight = bs.height_m || 6;
 
-      // Shoelace-based polygon centroid (correct for concave/L-shaped buildings).
-      var _area2 = 0, cLat = 0, cLng = 0;
-      for (var ci = 0; ci < n; ci++) {
-        var ci1 = (ci + 1) % n;
-        var cross = verts[ci][1] * verts[ci1][0] - verts[ci1][1] * verts[ci][0];
-        cLat += (verts[ci][0] + verts[ci1][0]) * cross;
-        cLng += (verts[ci][1] + verts[ci1][1]) * cross;
-        _area2 += cross;
-      }
-      if (Math.abs(_area2) < 1e-14) {
-        cLat = 0; cLng = 0;
-        verts.forEach(function(v) { cLat += v[0]; cLng += v[1]; });
-        cLat /= n; cLng /= n;
-      } else {
-        cLat /= (3 * _area2);
-        cLng /= (3 * _area2);
-      }
+      // Simple vertex mean for centroid — used only to determine outward normal direction,
+      // not for acoustic area. The shoelace formula suffers catastrophic cancellation for
+      // small polygons in geographic coordinates (large absolute values, tiny differences),
+      // causing incorrect outward normal directions. Vertex mean is numerically robust and
+      // always lies inside any convex polygon.
+      var cLat = 0, cLng = 0;
+      verts.forEach(function(v) { cLat += v[0]; cLng += v[1]; });
+      cLat /= n; cLng /= n;
       var centroid = [cLat, cLng];
 
       var result = [];
@@ -19406,7 +19401,10 @@ initCollapse();
         var v1 = verts[i], v2 = verts[(i+1)%n];
         var wallLen  = _bsSegLen(v1, v2);
         var overr    = bs.facadeOverrides && bs.facadeOverrides[i];
-        var cons     = overr ? overr : bs.defaultConstruction;
+        // Use overr as construction only when it carries its own Rw/octaveR; otherwise
+        // fall back to defaultConstruction (same logic as _bsCalcDerived fix).
+        var cons     = (overr && (Number.isFinite(overr.rw) || overr.octaveR))
+                       ? overr : bs.defaultConstruction;
         // Per-wall height override (CHUNK 2: was incorrectly using bsHeight for all walls)
         var wallHt   = (overr && Number.isFinite(overr.heightOverride)) ? overr.heightOverride : bsHeight;
         var wallArea = wallLen * wallHt;
@@ -20609,7 +20607,7 @@ initCollapse();
       buildingSources = [];
       _bsIdCtr = 0;
       (arr||[]).forEach(function(d) {
-        var bs = JSON.parse(JSON.stringify(d));
+        var bs = JSON.parse(JSON.stringify(d, function(k,v){ return k==='_poly'?undefined:v; }));
         if (!bs.facadeOverrides) bs.facadeOverrides = {};
         if (!bs.roofConstruction) bs.roofConstruction = Object.assign(JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.roof[0])),{enabled:true});
         if (!bs.defaultConstruction) bs.defaultConstruction = JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.walls[0]));
