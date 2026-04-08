@@ -19201,10 +19201,9 @@ initCollapse();
           if (Number.isFinite(w.lw[period])) allLws.push(w.lw[period]);
         });
         if (bs.roofConstruction && bs.roofConstruction.enabled && roofArea > 0) {
-          // M2 note: +3 dB hemisphere correction for roof is a deliberate design decision
-          // (not the EN 12354-4 standard value of +6 dB). It acknowledges that upward-radiating
-          // roof energy contributes less to ground-level receiver levels than a facade would.
-          var rLw = _bsCalcOneFacade(lpBB, lpOct, bs.roofConstruction, roofArea, null, 3);
+          // CHUNK 2: roof uses +6 (same as walls) — both see the same interior reverberant field.
+          // Ref: CHUNK 2 Step 2 spec; ISO 15665 / EN 12354-4 standard value.
+          var rLw = _bsCalcOneFacade(lpBB, lpOct, bs.roofConstruction, roofArea, null, 6);
           if (Number.isFinite(rLw) && pct > 0) rLw += 10*Math.log10(pct/100);
           roofByPeriod[period] = Number.isFinite(rLw) ? rLw : null;
           if (Number.isFinite(rLw)) allLws.push(rLw);
@@ -19308,8 +19307,9 @@ initCollapse();
     }
 
     /** Generate flat list of propagation sub-sources for a building source in one period.
-     *  Each entry: {lat, lng, heightM, lwBB, specA, facadeIdx, isRoof}
-     *  Walls placed 0.5 m outward on the outside face; roof at building height. */
+     *  Each entry: {lat, lng, heightM, lwBB, specA, wallNormal, facadeIdx, isRoof}
+     *  Wall sub-sources placed 0.5 m outward; roof at building height (no wallNormal/directivity).
+     *  CHUNK 2: element-specific positions, height override, directivity normal, roof +6. */
     function _bsGenerateSubSources(bs, period) {
       if (!bs.vertices || bs.vertices.length < 3) return [];
       var intLp = bs.interiorLp && bs.interiorLp[period];
@@ -19324,8 +19324,7 @@ initCollapse();
       var verts = bs.vertices, n = verts.length;
       var bsHeight = bs.height_m || 6;
 
-      // M4 fix: shoelace-based polygon centroid (correct for concave/L-shaped buildings).
-      // Arithmetic mean of vertices fails when the centroid falls outside the polygon.
+      // Shoelace-based polygon centroid (correct for concave/L-shaped buildings).
       var _area2 = 0, cLat = 0, cLng = 0;
       for (var ci = 0; ci < n; ci++) {
         var ci1 = (ci + 1) % n;
@@ -19335,7 +19334,6 @@ initCollapse();
         _area2 += cross;
       }
       if (Math.abs(_area2) < 1e-14) {
-        // Degenerate polygon — fall back to arithmetic mean
         cLat = 0; cLng = 0;
         verts.forEach(function(v) { cLat += v[0]; cLng += v[1]; });
         cLat /= n; cLng /= n;
@@ -19347,66 +19345,179 @@ initCollapse();
 
       var result = [];
 
+      // ── Helpers ──────────────────────────────────────────────────────────
+
+      /** Return sub-source positions on a single element in wall-face coords.
+       *  Small (<5m²): 1 at centroid. Medium (5-20m²): 2. Large (>20m²): grid of ~5m² cells. */
+      function _elSubPositions(el) {
+        var elW = Math.max(0.01, el.width || 0);
+        var elH = Math.max(0.01, el.height || 0);
+        var elX = el.x || 0, elY = el.y || 0;
+        var area = elW * elH;
+        var pos = [];
+        if (area < 5) {
+          pos.push({ xAlong: elX + elW/2, heightM: elY + elH/2 });
+        } else if (area <= 20) {
+          if (elW >= elH) {
+            pos.push({ xAlong: elX + elW/4, heightM: elY + elH/2 });
+            pos.push({ xAlong: elX + 3*elW/4, heightM: elY + elH/2 });
+          } else {
+            pos.push({ xAlong: elX + elW/2, heightM: elY + elH/4 });
+            pos.push({ xAlong: elX + elW/2, heightM: elY + 3*elH/4 });
+          }
+        } else {
+          var cellSide = Math.sqrt(5);
+          var numX = Math.max(1, Math.ceil(elW / cellSide));
+          var numY = Math.max(1, Math.ceil(elH / cellSide));
+          for (var iy = 0; iy < numY; iy++)
+            for (var ix2 = 0; ix2 < numX; ix2++)
+              pos.push({ xAlong: elX + (ix2 + 0.5)*elW/numX, heightM: elY + (iy + 0.5)*elH/numY });
+        }
+        return pos;
+      }
+
+      /** True if wall-face position (xAlong m, heightM) falls inside any element rectangle. */
+      function _inAnyElement(xAlong, heightM, els) {
+        for (var ei = 0; ei < els.length; ei++) {
+          var e = els[ei];
+          var eX = e.x || 0, eY = e.y || 0;
+          var eW = Number.isFinite(e.width) ? e.width : 0;
+          var eH = Number.isFinite(e.height) ? e.height : 0;
+          if (eW > 0 && eH > 0 && xAlong >= eX && xAlong <= eX+eW && heightM >= eY && heightM <= eY+eH) return true;
+        }
+        return false;
+      }
+
+      /** Vertical sub-source row positions for a given wall height. */
+      function _vertRows(wallHt) {
+        if (wallHt <= 4) return [wallHt / 2];
+        if (wallHt <= 8) return [wallHt / 3, wallHt * 2 / 3];
+        return [wallHt * 0.25, wallHt * 0.5, wallHt * 0.75];
+      }
+
+      /** Number of horizontal sub-source columns based on wall length. */
+      function _numH(wallLen) {
+        var sp = wallLen < 10 ? 3 : (wallLen <= 30 ? 5 : 10);
+        return Math.max(1, Math.ceil(wallLen / sp));
+      }
+
       // ── Facade (wall) sub-sources ───────────────────────────────────────
       for (var i = 0; i < n; i++) {
         var v1 = verts[i], v2 = verts[(i+1)%n];
         var wallLen  = _bsSegLen(v1, v2);
-        var wallArea = wallLen * bsHeight;
-
         var overr    = bs.facadeOverrides && bs.facadeOverrides[i];
         var cons     = overr ? overr : bs.defaultConstruction;
+        // Per-wall height override (CHUNK 2: was incorrectly using bsHeight for all walls)
+        var wallHt   = (overr && Number.isFinite(overr.heightOverride)) ? overr.heightOverride : bsHeight;
+        var wallArea = wallLen * wallHt;
+        var norm     = _bsWallOutwardNormal(v1, v2, centroid);
+        var offLat   = norm.dlat * 0.5, offLng = norm.dlng * 0.5;
+
         var elements = (overr && overr.elements && overr.elements.length > 0) ? overr.elements : null;
 
-        var lwFacade = _bsCalcOneFacade(lpBB, lpOct, cons, wallArea, overr, 6);
-        if (!Number.isFinite(lwFacade)) continue;
-        lwFacade += pctAdj;
-
-        var specA_facade = _bsOctavSpecA(lpOct, cons, elements, wallArea, 6);
-        if (specA_facade && pct < 100)
-          specA_facade = specA_facade.map(function(v) { return isFinite(v) ? v + pctAdj : v; });
-
-        // Horizontal subdivisions based on wall length
-        var numH;
-        if      (wallLen < 10) numH = Math.max(1, Math.ceil(wallLen / 2));
-        else if (wallLen <= 30) numH = Math.max(1, Math.ceil(wallLen / 5));
-        else                    numH = Math.max(1, Math.ceil(wallLen / 10));
-
-        // Vertical sub-source heights
-        var vertPositions;
-        if      (bsHeight <= 4) vertPositions = [bsHeight / 2];
-        else if (bsHeight <= 8) vertPositions = [bsHeight / 3, bsHeight * 2 / 3];
-        else                    vertPositions = [bsHeight * 0.25, bsHeight * 0.5, bsHeight * 0.75];
-
-        var numSub  = numH * vertPositions.length;
-        var lwSubBB = lwFacade - 10 * Math.log10(numSub);
-        var specA_sub = specA_facade ? specA_facade.map(function(v) {
-          return isFinite(v) ? v - 10*Math.log10(numSub) : v;
-        }) : null;
-
-        var norm = _bsWallOutwardNormal(v1, v2, centroid);
-        var offLat = norm.dlat * 0.5, offLng = norm.dlng * 0.5;
-
-        for (var hi = 0; hi < numH; hi++) {
-          var t = (hi + 0.5) / numH;
-          var sLat = v1[0] + t * (v2[0]-v1[0]) + offLat;
-          var sLng = v1[1] + t * (v2[1]-v1[1]) + offLng;
-          vertPositions.forEach(function(hm) {
-            result.push({ lat: sLat, lng: sLng, heightM: hm,
-              lwBB: lwSubBB, specA: specA_sub, facadeIdx: i, isRoof: false });
+        if (elements) {
+          // ── A) Element sub-sources at actual positions on the wall face ──
+          var validEls = [], totalElArea = 0;
+          elements.forEach(function(el) {
+            if (!el.construction) return;
+            var elW = Number.isFinite(el.width)  && el.width  > 0 ? el.width  : 0;
+            var elH = Number.isFinite(el.height) && el.height > 0 ? el.height : 0;
+            var rawA = elW * elH;
+            if (rawA <= 0) return;
+            var clampedA = Math.min(rawA, Math.max(0, wallArea - totalElArea));
+            if (clampedA <= 0) return;
+            totalElArea += clampedA;
+            validEls.push(Object.assign({}, el, { _clampedArea: clampedA }));
           });
+
+          validEls.forEach(function(el) {
+            var elLwBB = _bsCalcOneFacade(lpBB, lpOct, el.construction, el._clampedArea, null, 6);
+            if (!Number.isFinite(elLwBB)) return;
+            elLwBB += pctAdj;
+            var elSpecA = _bsOctavSpecA(lpOct, el.construction, null, el._clampedArea, 6);
+            if (elSpecA && pct < 100) elSpecA = elSpecA.map(function(v){ return isFinite(v) ? v + pctAdj : v; });
+
+            var positions = _elSubPositions(el);
+            var nPos = positions.length;
+            var lwSub   = elLwBB - 10*Math.log10(nPos);
+            var specSub = elSpecA ? elSpecA.map(function(v){ return isFinite(v) ? v - 10*Math.log10(nPos) : v; }) : null;
+            positions.forEach(function(pos) {
+              var t = wallLen > 0 ? pos.xAlong / wallLen : 0;
+              result.push({ lat: v1[0] + t*(v2[0]-v1[0]) + offLat,
+                            lng: v1[1] + t*(v2[1]-v1[1]) + offLng,
+                            heightM: pos.heightM, lwBB: lwSub, specA: specSub,
+                            wallNormal: norm, facadeIdx: i, isRoof: false });
+            });
+          });
+
+          // ── B) Residual wall sub-sources — grid skipping element rectangles ──
+          var residualArea = Math.max(0, wallArea - totalElArea);
+          if (residualArea > 0) {
+            var residLwBB = _bsCalcOneFacade(lpBB, lpOct, cons, residualArea, null, 6);
+            if (Number.isFinite(residLwBB)) {
+              residLwBB += pctAdj;
+              var residSpecA = _bsOctavSpecA(lpOct, cons, null, residualArea, 6);
+              if (residSpecA && pct < 100) residSpecA = residSpecA.map(function(v){ return isFinite(v) ? v + pctAdj : v; });
+              var rows2 = _vertRows(wallHt), numH2 = _numH(wallLen);
+              var residPts = [];
+              for (var hi2 = 0; hi2 < numH2; hi2++) {
+                var xAlong = (hi2 + 0.5) * wallLen / numH2;
+                rows2.forEach(function(hm) {
+                  if (!_inAnyElement(xAlong, hm, validEls)) residPts.push({ xAlong: xAlong, heightM: hm });
+                });
+              }
+              if (residPts.length > 0) {
+                var nRes = residPts.length;
+                var lwRes   = residLwBB - 10*Math.log10(nRes);
+                var specRes = residSpecA ? residSpecA.map(function(v){ return isFinite(v) ? v - 10*Math.log10(nRes) : v; }) : null;
+                residPts.forEach(function(pos) {
+                  var t = wallLen > 0 ? pos.xAlong / wallLen : 0;
+                  result.push({ lat: v1[0] + t*(v2[0]-v1[0]) + offLat,
+                                lng: v1[1] + t*(v2[1]-v1[1]) + offLng,
+                                heightM: pos.heightM, lwBB: lwRes, specA: specRes,
+                                wallNormal: norm, facadeIdx: i, isRoof: false });
+                });
+              }
+            }
+          }
+
+        } else {
+          // ── No elements: uniform grid across full wall face ──
+          var lwFacade = _bsCalcOneFacade(lpBB, lpOct, cons, wallArea, null, 6);
+          if (!Number.isFinite(lwFacade)) continue;
+          lwFacade += pctAdj;
+          var specA_facade = _bsOctavSpecA(lpOct, cons, null, wallArea, 6);
+          if (specA_facade && pct < 100) specA_facade = specA_facade.map(function(v){ return isFinite(v) ? v + pctAdj : v; });
+
+          var numH  = _numH(wallLen);
+          var vertP = _vertRows(wallHt);
+          var numSub  = numH * vertP.length;
+          var lwSubBB = lwFacade - 10 * Math.log10(numSub);
+          var specA_sub = specA_facade ? specA_facade.map(function(v){ return isFinite(v) ? v - 10*Math.log10(numSub) : v; }) : null;
+
+          for (var hi = 0; hi < numH; hi++) {
+            var t = (hi + 0.5) / numH;
+            var sLat = v1[0] + t*(v2[0]-v1[0]) + offLat;
+            var sLng = v1[1] + t*(v2[1]-v1[1]) + offLng;
+            vertP.forEach(function(hm) {
+              result.push({ lat: sLat, lng: sLng, heightM: hm,
+                lwBB: lwSubBB, specA: specA_sub, wallNormal: norm, facadeIdx: i, isRoof: false });
+            });
+          }
         }
       }
 
       // ── Roof sub-sources ─────────────────────────────────────────────────
+      // CHUNK 2: +6 for roof (same as walls) — both see the same interior reverberant field.
+      // Roof sub-sources carry no wallNormal; they contribute to all receivers (no directivity).
       if (bs.roofConstruction && bs.roofConstruction.enabled) {
         var roofArea = _asPolygonArea(verts);
         if (roofArea > 0) {
-          var lwRoof = _bsCalcOneFacade(lpBB, lpOct, bs.roofConstruction, roofArea, null, 3);
+          var lwRoof = _bsCalcOneFacade(lpBB, lpOct, bs.roofConstruction, roofArea, null, 6);
           if (Number.isFinite(lwRoof)) {
             lwRoof += pctAdj;
-            var specA_roof = _bsOctavSpecA(lpOct, bs.roofConstruction, null, roofArea, 3);
-            if (specA_roof && pct < 100)
-              specA_roof = specA_roof.map(function(v) { return isFinite(v) ? v + pctAdj : v; });
+            var specA_roof = _bsOctavSpecA(lpOct, bs.roofConstruction, null, roofArea, 6);
+            if (specA_roof && pct < 100) specA_roof = specA_roof.map(function(v){ return isFinite(v) ? v + pctAdj : v; });
 
             var roofSpacing = roofArea < 100 ? 2 : (roofArea < 1000 ? 5 : 10);
             var minRL=Infinity,maxRL=-Infinity,minRG=Infinity,maxRG=-Infinity;
@@ -19422,11 +19533,9 @@ initCollapse();
                 if (_pointInPolygon(rLat, rLng, verts)) roofPts.push([rLat, rLng]);
             if (!roofPts.length) roofPts.push([cLat, cLng]);
 
-            var nRS    = roofPts.length;
+            var nRS = roofPts.length;
             var lwRS   = lwRoof - 10*Math.log10(nRS);
-            var specRS = specA_roof ? specA_roof.map(function(v) {
-              return isFinite(v) ? v - 10*Math.log10(nRS) : v;
-            }) : null;
+            var specRS = specA_roof ? specA_roof.map(function(v){ return isFinite(v) ? v - 10*Math.log10(nRS) : v; }) : null;
             roofPts.forEach(function(pt) {
               result.push({ lat: pt[0], lng: pt[1], heightM: bsHeight,
                 lwBB: lwRS, specA: specRS, facadeIdx: -1, isRoof: true });
@@ -19441,6 +19550,16 @@ initCollapse();
     /** Shared propagation path for one building-source sub-source → one receiver.
      *  Used by calcBuildingSourceAtReceiver and _bsPerFacadeAtReceiver. */
     function _bsPropagateSub(ss, recLL, recHt, screenableForBs) {
+      // Directivity filter: wall sub-sources only radiate into the outward half-space.
+      // Roof sub-sources have no wallNormal and always contribute.
+      if (ss.wallNormal) {
+        var _cosLat = Math.cos(ss.lat * Math.PI / 180);
+        var _normX  = ss.wallNormal.dlng * _cosLat * 111000;
+        var _normY  = ss.wallNormal.dlat * 111000;
+        var _dx     = (recLL.lng - ss.lng) * _cosLat * 111000;
+        var _dy     = (recLL.lat - ss.lat) * 111000;
+        if (_normX * _dx + _normY * _dy <= 0) return null; // receiver behind wall
+      }
       var srcLL = { lat: ss.lat, lng: ss.lng };
       var d = SharedCalc.flatDistM(srcLL, { lat: recLL.lat, lng: recLL.lng });
       if (d < 0.5) d = 0.5;
@@ -21860,7 +21979,8 @@ initCollapse();
               equipment: [{ name: bs.name || 'Building source', Lw: ss.lwBB, quantity: 1 }],
               spectrum: ss.specA || null,
               spectrumAdj: specAdj,
-              excludeBuildingId: bs.id
+              excludeBuildingId: bs.id,
+              wallNormal: ss.wallNormal || null   // CHUNK 2: directivity filter in worker
             });
           });
         });

@@ -348,7 +348,8 @@ self.onmessage = function(e) {
         equipment: s.equipment,
         spectrum: s.spectrum || null,
         spectrumAdj: s.spectrumAdj || 0,
-        excludeBuildingId: s.excludeBuildingId || null  // C2 fix: preserve self-screening exclusion
+        excludeBuildingId: s.excludeBuildingId || null,  // C2 fix: preserve self-screening exclusion
+        wallNormal: s.wallNormal || null  // CHUNK 2: {dlat, dlng} outward normal for directivity
       };
     });
 
@@ -456,6 +457,17 @@ self.onmessage = function(e) {
         var contributions = [];
         for (var si = 0; si < srcData.length; si++) {
           var src = srcData[si];
+
+          // CHUNK 2: directivity filter — wall sub-sources only radiate into outward half-space
+          if (src.wallNormal) {
+            var _wCosLat = Math.cos(src.lat * Math.PI / 180);
+            var _wNX = src.wallNormal.dlng * _wCosLat * 111000;
+            var _wNY = src.wallNormal.dlat * 111000;
+            var _wDX = (pt.lng - src.lng) * _wCosLat * 111000;
+            var _wDY = (pt.lat - src.lat) * 111000;
+            if (_wNX * _wDX + _wNY * _wDY <= 0) continue; // receiver behind wall — skip
+          }
+
           var srcLL = { lat: src.lat, lng: src.lng };
           var dist = flatDistM(srcLL, pt);
           if (dist < 0.1) dist = 0.1;
