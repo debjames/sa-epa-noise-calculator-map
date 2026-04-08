@@ -16093,18 +16093,23 @@ initCollapse();
         // Wire up the height input (the element was just (re)created by setPopupContent above)
         var inp = document.getElementById('recv-popup-ht-' + mode);
         if (!inp) return;
-        inp.addEventListener('change', function() {
-          var v = parseFloat(this.value);
+        function applyRecvHt() {
+          var v = parseFloat(inp.value);
           if (Number.isFinite(v) && v >= 0.1) {
             recvHeights[mode] = v;
-            this.style.color = '#2563eb';
+            inp.style.color = '#2563eb';
           } else {
             recvHeights[mode] = null;
-            this.style.color = '';
+            inp.style.color = '';
           }
           refreshRecvPopupTerrain(mode);
           render();
-          if (typeof _renderObjectList === 'function') _renderObjectList(); // update Objects panel height display
+          if (typeof _renderObjectList === 'function') _renderObjectList();
+        }
+        inp.addEventListener('change', applyRecvHt);
+        inp.addEventListener('blur', applyRecvHt);
+        inp.addEventListener('keydown', function(ev) {
+          if (ev.key === 'Enter') { applyRecvHt(); inp.blur(); }
         });
       });
     });
