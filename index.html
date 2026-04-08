@@ -4755,28 +4755,24 @@ function _pointInPolygon(lat, lng, polygon) {
   return inside;
 }
 
-/** Check all loaded OSM building polygons for the given source pin.
- *  Sets pin.buildingHeight_m to the tallest overlapping building (0 if none or layer off).
+/** Check building polygons under the given source pin.
+ *  OSM buildings are only checked when the buildings layer is active.
+ *  User-drawn custom buildings are always checked regardless of the layer toggle.
+ *  Sets pin.buildingHeight_m to the tallest overlapping building (0 if none).
  *  Then refreshes the floating panel display if it is open for that pin. */
 function detectBuildingUnderSource(pinIdx) {
   var pin = sourcePins[pinIdx];
   if (!pin || pin.lat === null) return;
 
-  // If buildings layer is not active, clear height silently
-  if (!window._getBuildingsOn || !window._getBuildingsOn()) {
-    if (pin.buildingHeight_m !== 0) {
-      pin.buildingHeight_m = 0;
-      _updateSrcPanelBuildingDisplay(pinIdx);
-    }
-    return;
-  }
-
+  var buildingsLayerOn = window._getBuildingsOn && window._getBuildingsOn();
   var buildings = window._buildings || [];
   var maxH = 0;
   for (var i = 0; i < buildings.length; i++) {
     var b = buildings[i];
     if (b.excluded || b.demolished) continue;
     if (!b.polygon || b.polygon.length < 3) continue;
+    // Custom buildings (isCustom) always checked; OSM buildings only when layer is on
+    if (!b.isCustom && !buildingsLayerOn) continue;
     if (_pointInPolygon(pin.lat, pin.lng, b.polygon)) {
       var h = (b.heightM && b.heightM > 0) ? b.heightM : 3.0;
       if (h > maxH) maxH = h;
@@ -6762,15 +6758,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Re-detect whenever window._buildings is replaced (async Overpass fetch
-    // completes, or rebuild after user edits).
+    // completes, or rebuild after user edits).  Always redetect — custom
+    // buildings (isCustom) are always in _buildings regardless of the OSM
+    // layer toggle, and detectBuildingUnderSource filters them correctly.
     var _bInternal = window._buildings || [];
     Object.defineProperty(window, '_buildings', {
       get: function() { return _bInternal; },
       set: function(v) {
         _bInternal = v;
-        if (window._getBuildingsOn && window._getBuildingsOn()) {
-          setTimeout(_redetectAllSources, 0);
-        }
+        setTimeout(_redetectAllSources, 0);
       },
       configurable: true
     });
