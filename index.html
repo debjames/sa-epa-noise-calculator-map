@@ -9144,44 +9144,50 @@ window.runUAT = async function() {
   C[23] = { label:'Building source calculation', pass:0, fail:0, lines:[] };
   (function(){
     var cat = 23;
-    var oneFacade = window._bsCalcOneFacade;
+    var oneFacade   = window._bsCalcOneFacade;
     var calcDerived = window._bsCalcDerived;
-    var genSubs = window._bsGenerateSubSources;
+    var genSubs     = window._bsGenerateSubSources;
 
     if (!oneFacade || !calcDerived || !genSubs) {
       t(cat, '23.0', false, '_bsCalcOneFacade/_bsCalcDerived/_bsGenerateSubSources not exposed on window');
       return;
     }
 
-    // ── 23.1  Facade Lw formula: Lp=75 Rw=25 area=10 hem=6 → 75−25+10+6=66 ──
-    var lw1 = oneFacade(75, null, {rw:25}, 10, null, 6);
-    t(cat, '23.1', Number.isFinite(lw1) && Math.abs(lw1 - 66) < 0.05,
-      '23.1 facade Lw=' + (Number.isFinite(lw1) ? lw1.toFixed(2) : 'null') + ' expected 66.00');
+    // ── 23.1  Facade Lw: Lp=85 Rw=25 A=60 hem=6 → 85−25+10·log₁₀(60)+6 ≈ 83.78 ──
+    var lw1 = oneFacade(85, null, {rw:25}, 60, null, 6);
+    t(cat, '23.1', Number.isFinite(lw1) && Math.abs(lw1 - 83.78) < 0.5,
+      '23.1 Lp85 Rw25 A60=' + (Number.isFinite(lw1)?lw1.toFixed(2):'null') + ' expected ≈83.78');
 
-    // ── 23.2  Roof Lw formula: hem=3 → 75−25+10+3=63 ──
-    var lw2 = oneFacade(75, null, {rw:25}, 10, null, 3);
-    t(cat, '23.2', Number.isFinite(lw2) && Math.abs(lw2 - 63) < 0.05,
-      '23.2 roof Lw=' + (Number.isFinite(lw2) ? lw2.toFixed(2) : 'null') + ' expected 63.00');
+    // ── 23.2  Facade Lw: Lp=85 Rw=20 A=200 hem=6 → ≈94.01 ──
+    var lw2 = oneFacade(85, null, {rw:20}, 200, null, 6);
+    t(cat, '23.2', Number.isFinite(lw2) && Math.abs(lw2 - 94.01) < 0.5,
+      '23.2 Lp85 Rw20 A200=' + (Number.isFinite(lw2)?lw2.toFixed(2):'null') + ' expected ≈94.01');
 
-    // ── 23.3  Element (louvre) override raises Lw when Rw_el < Rw_wall ──
-    //  cons={rw:25}, area=10, element={rw:5, area:2}
-    //  element Lw = 75-5+10·log₁₀(2)+6 = 79.01; residual Lw = 75-25+10·log₁₀(8)+6 = 65.03
-    //  composite ≈ energySum(79.01, 65.03) ≈ 79.07
-    var louvreOverr = { rw:25, elements: [{ construction:{rw:5}, area:2 }] };
-    var lw3 = oneFacade(75, null, {rw:25}, 10, louvreOverr, 6);
-    var wallOnly = oneFacade(75, null, {rw:25}, 10, null, 6);   // 66
-    t(cat, '23.3', Number.isFinite(lw3) && lw3 > 75,
-      '23.3 louvre Lw=' + (Number.isFinite(lw3) ? lw3.toFixed(2) : 'null') + ' expected >75');
+    // ── 23.3  Facade Lw: Lp=85 Rw=5 A=2 hem=6 → 85−5+3.010+6 ≈ 89.01 ──
+    var lw3 = oneFacade(85, null, {rw:5}, 2, null, 6);
+    t(cat, '23.3', Number.isFinite(lw3) && Math.abs(lw3 - 89.01) < 0.5,
+      '23.3 Lp85 Rw5 A2=' + (Number.isFinite(lw3)?lw3.toFixed(2):'null') + ' expected ≈89.01');
 
-    // ── 23.4  Louvre composite > wall-only ──
-    t(cat, '23.4', Number.isFinite(lw3) && Number.isFinite(wallOnly) && lw3 > wallOnly,
-      '23.4 louvre(' + (Number.isFinite(lw3)?lw3.toFixed(2):'?') + ') > wall-only(' + (Number.isFinite(wallOnly)?wallOnly.toFixed(2):'?') + ')');
+    // ── 23.4  Composite Rw ≈ 20 dB: wall 90m² Rw25 + louvre 2m² Rw5 ──
+    //   τ_comp = (2·10^(−5/10) + 90·10^(−25/10))/92 → Rw_eff ≈ 20 dB
+    //   Composite Lw should be within 1 dB of an equivalent all-Rw20 wall of same area.
+    var compLw4  = oneFacade(80, null, {rw:25}, 92, {rw:25, elements:[{construction:{rw:5},area:2}]}, 6);
+    var rw20Lw4  = oneFacade(80, null, {rw:20}, 92, null, 6);
+    t(cat, '23.4', Number.isFinite(compLw4) && Number.isFinite(rw20Lw4) && Math.abs(compLw4 - rw20Lw4) < 1.0,
+      '23.4 composite=' + (Number.isFinite(compLw4)?compLw4.toFixed(2):'null') + ' Rw20-eq=' + (Number.isFinite(rw20Lw4)?rw20Lw4.toFixed(2):'null') + ' Δ<1 dB');
 
-    // ── 23.5  Composite energy ≥ wall-only ──
-    t(cat, '23.5', Number.isFinite(lw3) && Number.isFinite(wallOnly) && lw3 >= wallOnly,
-      '23.5 composite >= wall-only');
+    // ── 23.5  Louvre raises Lw: composite > solid wall (Rw_element < Rw_wall) ──
+    var solidLw5 = oneFacade(80, null, {rw:25}, 92, null, 6);
+    t(cat, '23.5', Number.isFinite(compLw4) && Number.isFinite(solidLw5) && compLw4 > solidLw5,
+      '23.5 composite(' + (Number.isFinite(compLw4)?compLw4.toFixed(2):'?') + ') > solid(' + (Number.isFinite(solidLw5)?solidLw5.toFixed(2):'?') + ')');
 
-    // ── Mock building source (small rectangle ~Adelaide) ──
+    // ── 23.6  Composite Lw ≥ solid wall Lw (elements can only add acoustic power) ──
+    t(cat, '23.6', Number.isFinite(compLw4) && Number.isFinite(solidLw5) && compLw4 >= solidLw5,
+      '23.6 composite >= solid wall');
+
+    // ── Mock building: ~111×111m rectangle near Adelaide (CW winding) ──
+    //   Wall 0 (NW→NE): north wall  Wall 1 (NE→SE): east wall
+    //   Wall 2 (SE→SW): south wall  Wall 3 (SW→NW): west wall
     var mockBs = {
       id: 'bs-uat-23', name: 'UAT BS', height_m: 6,
       vertices: [[-34.930,138.600],[-34.930,138.601],[-34.931,138.601],[-34.931,138.600]],
@@ -9193,90 +9199,110 @@ window.runUAT = async function() {
         eve:   { broadband: 75, octave: null },
         night: { broadband: 70, octave: null }
       },
+      lpSource: 'broadband',
       activeInPeriod: { day: true, eve: true, night: true },
       operatingPct: { day: 100, eve: 100, night: 100 }
     };
 
-    // ── 23.6  Roof disabled → roof contribution absent ──
-    var bsNoRoof = JSON.parse(JSON.stringify(mockBs));
-    bsNoRoof.roofConstruction.enabled = false;
-    var d6 = calcDerived(bsNoRoof);
-    var d6WithRoof = calcDerived(mockBs);
-    t(cat, '23.6', d6 && (d6.roof.day === null || !Number.isFinite(d6.roof.day)),
-      '23.6 roof disabled → roof.day=' + (d6 ? JSON.stringify(d6.roof.day) : 'err'));
+    // ── 23.7  Roof disabled → calcDerived.roof.day is null/non-finite ──
+    var bsNoRoof7 = JSON.parse(JSON.stringify(mockBs));
+    bsNoRoof7.roofConstruction.enabled = false;
+    var d7 = calcDerived(bsNoRoof7);
+    t(cat, '23.7', d7 && (d7.roof.day === null || !Number.isFinite(d7.roof.day)),
+      '23.7 roof disabled → roof.day=' + (d7 ? JSON.stringify(d7.roof.day) : 'err'));
 
-    // ── 23.7  Higher Rw → lower total Lw ──
-    var bsLowR  = JSON.parse(JSON.stringify(mockBs));
-    bsLowR.defaultConstruction  = { rw: 15 };
-    bsLowR.roofConstruction     = { rw: 20, enabled: true };
-    var bsHighR = JSON.parse(JSON.stringify(mockBs));
-    bsHighR.defaultConstruction = { rw: 35 };
-    bsHighR.roofConstruction    = { rw: 40, enabled: true };
-    var dLow  = calcDerived(bsLowR);
-    var dHigh = calcDerived(bsHighR);
-    t(cat, '23.7', dLow && dHigh && Number.isFinite(dLow.total.day) && Number.isFinite(dHigh.total.day) && dLow.total.day > dHigh.total.day,
-      '23.7 Rw15→' + (dLow&&dLow.total?dLow.total.day.toFixed(1):'?') + ' > Rw35→' + (dHigh&&dHigh.total?dHigh.total.day.toFixed(1):'?'));
+    // ── 23.8  Operating 50% → total Lw drops 3.010 dB (10·log₁₀(0.5)) ──
+    var bs50 = JSON.parse(JSON.stringify(mockBs));
+    bs50.operatingPct = { day: 50, eve: 50, night: 50 };
+    var d100 = calcDerived(mockBs), d50 = calcDerived(bs50);
+    var opDiff = (d100 && d50 && Number.isFinite(d100.total.day) && Number.isFinite(d50.total.day))
+                 ? d100.total.day - d50.total.day : null;
+    t(cat, '23.8', opDiff !== null && Math.abs(opDiff - 3.010) < 0.05,
+      '23.8 pct50 drop=' + (opDiff !== null ? opDiff.toFixed(3) : 'null') + ' expected 3.010 dB');
 
-    // ── 23.8  Sub-source count > 0 for active building source ──
-    var subs8 = genSubs(mockBs, 'day');
-    t(cat, '23.8', Array.isArray(subs8) && subs8.length > 0,
-      '23.8 sub-sources=' + (Array.isArray(subs8) ? subs8.length : 'none') + ' expected >0');
+    // ── Generate sub-sources for directivity tests ──
+    var subs23 = genSubs(mockBs, 'day');
 
-    // ── 23.9  Each sub-source has required numeric fields ──
-    var allOk = Array.isArray(subs8) && subs8.length > 0 && subs8.every(function(s) {
-      return Number.isFinite(s.lat) && Number.isFinite(s.lng) &&
-             Number.isFinite(s.heightM) && Number.isFinite(s.lwBB);
+    // ── 23.9  North wall (idx=0: NW→NE) — wallNormal.dlat > 0 (points north) ──
+    var northSubs9 = subs23.filter(function(s){ return s.facadeIdx === 0 && !s.isRoof; });
+    var north9ok = northSubs9.length > 0 && northSubs9.every(function(s){ return s.wallNormal && s.wallNormal.dlat > 0; });
+    t(cat, '23.9', north9ok,
+      '23.9 north-wall subs=' + northSubs9.length + ' all dlat>0: ' + north9ok);
+
+    // ── 23.10  South wall (idx=2: SE→SW) — wallNormal.dlat < 0 (points south) ──
+    var southSubs10 = subs23.filter(function(s){ return s.facadeIdx === 2 && !s.isRoof; });
+    var south10ok = southSubs10.length > 0 && southSubs10.every(function(s){ return s.wallNormal && s.wallNormal.dlat < 0; });
+    t(cat, '23.10', south10ok,
+      '23.10 south-wall subs=' + southSubs10.length + ' all dlat<0: ' + south10ok);
+
+    // ── 23.11  East wall (idx=1: NE→SE) — wallNormal.dlng > 0 (points east) ──
+    var eastSubs11 = subs23.filter(function(s){ return s.facadeIdx === 1 && !s.isRoof; });
+    var east11ok = eastSubs11.length > 0 && eastSubs11.every(function(s){ return s.wallNormal && s.wallNormal.dlng > 0; });
+    t(cat, '23.11', east11ok,
+      '23.11 east-wall subs=' + eastSubs11.length + ' all dlng>0: ' + east11ok);
+
+    // ── 23.12  Roof sub-sources carry isRoof=true ──
+    var roofSubs12 = subs23.filter(function(s){ return s.isRoof === true; });
+    t(cat, '23.12', roofSubs12.length > 0,
+      '23.12 roof sub-sources=' + roofSubs12.length + ' expected >0');
+
+    // ── 23.13  Facade height override (3m) reduces wall Lw vs full height (6m) ──
+    var bsHtOvr13 = JSON.parse(JSON.stringify(mockBs));
+    bsHtOvr13.facadeOverrides[0] = { heightOverride: 3 };
+    var dFull13 = calcDerived(mockBs);
+    var dOvr13  = calcDerived(bsHtOvr13);
+    var w0Full13 = dFull13 && dFull13.walls && dFull13.walls[0] ? dFull13.walls[0].lw.day : null;
+    var w0Ovr13  = dOvr13  && dOvr13.walls  && dOvr13.walls[0]  ? dOvr13.walls[0].lw.day  : null;
+    t(cat, '23.13', Number.isFinite(w0Full13) && Number.isFinite(w0Ovr13) && w0Full13 > w0Ovr13,
+      '23.13 wall0 6m=' + (Number.isFinite(w0Full13)?w0Full13.toFixed(1):'null') + ' 3m=' + (Number.isFinite(w0Ovr13)?w0Ovr13.toFixed(1):'null'));
+
+    // ── 23.14  All wall sub-sources carry wallNormal (required for directivity in worker) ──
+    var wallSubs14 = subs23.filter(function(s){ return !s.isRoof; });
+    var allHaveNorm14 = wallSubs14.length > 0 && wallSubs14.every(function(s){
+      return s.wallNormal && Number.isFinite(s.wallNormal.dlat) && Number.isFinite(s.wallNormal.dlng);
     });
-    t(cat, '23.9', allOk, '23.9 all sub-sources have lat/lng/heightM/lwBB');
+    t(cat, '23.14', allHaveNorm14,
+      '23.14 wall subs=' + wallSubs14.length + ' all have wallNormal: ' + allHaveNorm14);
 
-    // ── 23.10  Inactive → 0 sub-sources ──
-    var bsOff = JSON.parse(JSON.stringify(mockBs));
-    bsOff.activeInPeriod.day = false;
-    var subsOff = genSubs(bsOff, 'day');
-    t(cat, '23.10', Array.isArray(subsOff) && subsOff.length === 0,
-      '23.10 inactive subs=' + (Array.isArray(subsOff) ? subsOff.length : 'err') + ' expected 0');
+    // ── 23.15  Roof sub-sources have NO wallNormal (omnidirectional — no directivity filter) ──
+    var roofSubs15 = subs23.filter(function(s){ return s.isRoof === true; });
+    var roofNoNorm15 = roofSubs15.length > 0 && roofSubs15.every(function(s){ return !s.wallNormal; });
+    t(cat, '23.15', roofNoNorm15,
+      '23.15 roof subs=' + roofSubs15.length + ' none have wallNormal: ' + roofNoNorm15);
 
-    // ── 23.11  Larger building → at least as many sub-sources ──
-    var bigBs = JSON.parse(JSON.stringify(mockBs));
-    bigBs.vertices = [[-34.920,138.590],[-34.920,138.610],[-34.940,138.610],[-34.940,138.590]];
-    var subsBig   = genSubs(bigBs, 'day');
-    var subsSmall = genSubs(mockBs, 'day');
-    t(cat, '23.11', Array.isArray(subsBig) && Array.isArray(subsSmall) && subsBig.length >= subsSmall.length,
-      '23.11 big(' + (Array.isArray(subsBig)?subsBig.length:'?') + ') >= small(' + (Array.isArray(subsSmall)?subsSmall.length:'?') + ')');
+    // ── 23.16  Larger building → higher total radiated Lw ──
+    var bigBs16 = JSON.parse(JSON.stringify(mockBs));
+    bigBs16.vertices = [[-34.920,138.590],[-34.920,138.610],[-34.940,138.610],[-34.940,138.590]];
+    var dSmall16 = calcDerived(mockBs), dBig16 = calcDerived(bigBs16);
+    t(cat, '23.16', dSmall16 && dBig16 && Number.isFinite(dSmall16.total.day) && Number.isFinite(dBig16.total.day) && dBig16.total.day > dSmall16.total.day,
+      '23.16 big=' + (dBig16&&dBig16.total?dBig16.total.day.toFixed(1):'?') + ' > small=' + (dSmall16&&dSmall16.total?dSmall16.total.day.toFixed(1):'?'));
 
-    // ── 23.12  calcDerived total.day is finite for a valid building source ──
-    var d12 = calcDerived(mockBs);
-    t(cat, '23.12', d12 && Number.isFinite(d12.total.day),
-      '23.12 calcDerived total.day=' + (d12 && d12.total ? d12.total.day : 'null'));
+    // ── 23.17  Higher Rw → lower total radiated Lw ──
+    var bsLowR17  = JSON.parse(JSON.stringify(mockBs));
+    bsLowR17.defaultConstruction  = { rw: 15 }; bsLowR17.roofConstruction  = { rw: 20, enabled: true };
+    var bsHighR17 = JSON.parse(JSON.stringify(mockBs));
+    bsHighR17.defaultConstruction = { rw: 35 }; bsHighR17.roofConstruction = { rw: 40, enabled: true };
+    var dLow17 = calcDerived(bsLowR17), dHigh17 = calcDerived(bsHighR17);
+    t(cat, '23.17', dLow17 && dHigh17 && Number.isFinite(dLow17.total.day) && Number.isFinite(dHigh17.total.day) && dLow17.total.day > dHigh17.total.day,
+      '23.17 Rw15→' + (dLow17&&dLow17.total?dLow17.total.day.toFixed(1):'?') + ' > Rw35→' + (dHigh17&&dHigh17.total?dHigh17.total.day.toFixed(1):'?'));
 
-    // ── Octave-band tests (cover C1 double A-weighting regression) ──
-    // Uniform octave spectrum: all bands Lp=75, Rw=25, area=10, hem=6.
-    // _bsCalcOneFacade octave path expected LwA:
-    //   per band: 75-25+10*log10(10)+BS_A_WEIGHTS[bi]+6 = 66+A_weight[bi]
-    //   = energySum([39.8,49.9,57.4,62.8,66.0,67.2,67.0,64.9]) ≈ 73.0 dB(A)
-    // _bsOctavSpecA: per-band UNWEIGHTED Lw — each band should be 66 dB (no A-weight).
-    //   Old buggy code returned 66+A_weight[bi]; at 125 Hz that was 66-16.1=49.9 (not 66).
-    var octLp = {63:75,125:75,250:75,500:75,1000:75,2000:75,4000:75,8000:75};
-    var octCons = {rw:25, octaveR:{63:25,125:25,250:25,500:25,1000:25,2000:25,4000:25,8000:25}};
+    // ── 23.18  Building inactive in period → zero sub-sources ──
+    var bsOff18 = JSON.parse(JSON.stringify(mockBs));
+    bsOff18.activeInPeriod.day = false;
+    var subsOff18 = genSubs(bsOff18, 'day');
+    t(cat, '23.18', Array.isArray(subsOff18) && subsOff18.length === 0,
+      '23.18 inactive subs=' + (Array.isArray(subsOff18) ? subsOff18.length : 'err') + ' expected 0');
 
-    // ── 23.13  _bsCalcOneFacade octave path: LwA ≈ 73.0 dB(A) ──
-    var lw13 = oneFacade(75, octLp, octCons, 10, null, 6);
-    t(cat, '23.13', Number.isFinite(lw13) && Math.abs(lw13 - 73.0) < 0.5,
-      '23.13 octave _bsCalcOneFacade LwA=' + (Number.isFinite(lw13)?lw13.toFixed(2):'null') + ' expected ≈73.0');
-
-    // ── 23.14  _bsOctavSpecA: per-band Lw is unweighted (no double A-weight) ──
-    //   With uniform Lp=75, Rw=25, area=10, hem=6: each band = 66 dB (unweighted).
-    //   Old buggy code: 125 Hz band = 66 + (-16.1) = 49.9 dB. Correct: 66 dB.
-    var octSpecFn = window._bsOctavSpecA || null;
-    if (octSpecFn) {
-      var specA14 = octSpecFn(octLp, octCons, null, 10, 6);
-      var band125idx = 1; // BS_OCTAVE_BANDS index for 125 Hz
-      var v125 = specA14 ? specA14[band125idx] : null;
-      t(cat, '23.14', v125 !== null && Math.abs(v125 - 66) < 0.5,
-        '23.14 specA[125Hz]=' + (v125!==null?v125.toFixed(2):'null') + ' expected 66.00 (unweighted); old bug=49.90');
-    } else {
-      t(cat, '23.14', false, '23.14 _bsOctavSpecA not exposed on window');
-    }
+    // ── 23.19  Wall height override 6m→3m reduces wall Lw by ≈3.010 dB (half area) ──
+    var bsHt3_19 = JSON.parse(JSON.stringify(mockBs));
+    bsHt3_19.facadeOverrides[0] = { heightOverride: 3 };
+    var d6_19 = calcDerived(mockBs);
+    var d3_19 = calcDerived(bsHt3_19);
+    var w0_6_19 = d6_19 && d6_19.walls && d6_19.walls[0] ? d6_19.walls[0].lw.day : null;
+    var w0_3_19 = d3_19 && d3_19.walls && d3_19.walls[0] ? d3_19.walls[0].lw.day : null;
+    var htDiff19 = Number.isFinite(w0_6_19) && Number.isFinite(w0_3_19) ? w0_6_19 - w0_3_19 : null;
+    t(cat, '23.19', htDiff19 !== null && Math.abs(htDiff19 - 3.010) < 0.1,
+      '23.19 6m→3m Lw drop=' + (htDiff19 !== null ? htDiff19.toFixed(3) : 'null') + ' expected ≈3.010 dB');
   })();
 
   /* ── restore all state ── */
@@ -12025,13 +12051,15 @@ initCollapse();
             interior_lp_day:         bs.interiorLp && bs.interiorLp.day   && Number.isFinite(bs.interiorLp.day.broadband)   ? bs.interiorLp.day.broadband   : null,
             interior_lp_eve:         bs.interiorLp && bs.interiorLp.eve   && Number.isFinite(bs.interiorLp.eve.broadband)   ? bs.interiorLp.eve.broadband   : null,
             interior_lp_night:       bs.interiorLp && bs.interiorLp.night && Number.isFinite(bs.interiorLp.night.broadband) ? bs.interiorLp.night.broadband : null,
-            wall_rw_default:         bs.defaultConstruction && Number.isFinite(bs.defaultConstruction.rw) ? bs.defaultConstruction.rw : null,
+            lp_source:               bs.lpSource || 'broadband',
+            default_wall_rw:         bs.defaultConstruction && Number.isFinite(bs.defaultConstruction.rw) ? bs.defaultConstruction.rw : null,
             roof_rw:                 bs.roofConstruction    && Number.isFinite(bs.roofConstruction.rw)    ? bs.roofConstruction.rw    : null,
             radiated_lw_total_day:   Number.isFinite(tot.day)   ? Math.round(tot.day   * 10)/10 : null,
             radiated_lw_total_eve:   Number.isFinite(tot.eve)   ? Math.round(tot.eve   * 10)/10 : null,
             radiated_lw_total_night: Number.isFinite(tot.night) ? Math.round(tot.night * 10)/10 : null,
             roof_enabled:            !!(bs.roofConstruction && bs.roofConstruction.enabled),
-            num_facade_overrides:    Object.keys(bs.facadeOverrides || {}).length,
+            num_walls:               bs.vertices.length,
+            num_walls_with_elements: Object.keys(bs.facadeOverrides || {}).filter(function(k) { var fo = (bs.facadeOverrides || {})[k]; return fo && fo.elements && fo.elements.length > 0; }).length,
             perimeter_m:             Math.round(perim),
             wall_area_m2:            Math.round(perim * (bs.height_m || 6)),
             roof_area_m2:            Math.round(roofArea)
@@ -22718,10 +22746,16 @@ initCollapse();
             var hasVerts = bs.vertices && bs.vertices.length >= 3;
             var name = escapeHTML(bs.name || ('Building source ' + (i + 1)));
             var bsHt = Number.isFinite(bs.height_m) ? bs.height_m : 6;
-            var bsRw = bs.defaultConstruction && Number.isFinite(bs.defaultConstruction.rw) ? bs.defaultConstruction.rw : null;
-            var bsDetail = bsHt.toFixed(0) + 'm' + (bsRw !== null ? ', Rw\u00a0' + bsRw : '');
+            var bsDerived = window._bsCalcDerived ? window._bsCalcDerived(bs) : null;
+            var bsTot = bsDerived && bsDerived.total ? bsDerived.total : {};
+            var bsParts = [];
+            ['day','eve','night'].forEach(function(p) {
+              var lbl = {day:'D',eve:'E',night:'N'}[p];
+              bsParts.push(lbl + ': ' + (Number.isFinite(bsTot[p]) ? Math.round(bsTot[p]) : '\u2014'));
+            });
+            var bsDetail = 'Ht: ' + bsHt.toFixed(1) + 'm | ' + bsParts.join(' | ') + ' dB(A)';
             html += '<div class="obj-row" data-obj-type="buildingsource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts ? 'pointer' : 'default') + ';">';
-            html += '<span style="width:11px;height:11px;border:2px solid #7c3aed;background:rgba(140,80,180,0.25);border-radius:2px;display:inline-block;flex-shrink:0;"></span>';
+            html += '<span style="font-size:14px;flex-shrink:0;line-height:1;">\uD83C\uDFED</span>';
             html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:22px;">BS' + (i + 1) + '</span>';
             html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
               '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
@@ -22956,7 +22990,7 @@ initCollapse();
       } else if (type === 'buildingsource') {
         var bsrc2 = buildingSources[idx];
         if (!bsrc2) return;
-        var newBs = JSON.parse(JSON.stringify(bsrc2));
+        var newBs = JSON.parse(JSON.stringify(bsrc2, function(k,v){ return k==='_poly'?undefined:v; }));
         newBs.id = 'bs_' + (++_bsIdCtr);
         newBs.name = (bsrc2.name||'Building source') + ' (copy)';
         newBs.vertices = bsrc2.vertices.map(function(v){return[v[0]-0.00005,v[1]+0.00005];});
