@@ -18877,6 +18877,7 @@ initCollapse();
       var nameInp = document.getElementById('asPanelName');
       if (nameInp) {
         nameInp.addEventListener('input', function() {
+          as._nameManuallyEdited = true;
           as.name = this.value;
           _asPanelUpdateCalc(as);
           renderAreaSourceLayer();
@@ -18891,6 +18892,13 @@ initCollapse();
         if (selName) AREA_SOURCE_LIBRARY.forEach(function(e) { if (e.name === selName) found = e; });
         as.libraryEntry = found || null;
         if (found) {
+          if (!as._nameManuallyEdited) {
+            as.name = found.name;
+            var nameInpEl = document.getElementById('asPanelName');
+            if (nameInpEl) nameInpEl.value = found.name;
+            renderAreaSourceLayer();
+            if (window._renderObjectList) window._renderObjectList();
+          }
           as.height_m = found.height_m;
           var htInp = document.getElementById('asPanelHeight');
           if (htInp) htInp.value = found.height_m;
