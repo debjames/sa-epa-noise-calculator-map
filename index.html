@@ -10971,7 +10971,7 @@ function renderContributions() {
     var table = document.createElement('table');
     table.style.width = '100%';
     var thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th style="width:44%;">Receiver / Source</th><th class="num">Distance (m)</th><th class="num">L<sub>p</sub> (dB)</th></tr>';
+    thead.innerHTML = '<tr><th style="width:35%;">Receiver / Source</th><th style="width:9%;">Type</th><th class="num" style="width:14%;">Total L<sub>w</sub> (dB)</th><th class="num">Distance (m)</th><th class="num">L<sub>p</sub> (dB)</th></tr>';
     table.appendChild(thead);
     var tbody = document.createElement('tbody');
 
@@ -10991,7 +10991,7 @@ function renderContributions() {
 
       var recvHdr = document.createElement('tr');
       recvHdr.className = 'contrib-recv-hdr';
-      recvHdr.innerHTML = '<td colspan="3" style="cursor:pointer;" title="Click for per-band ISO 9613-2 breakdown"><b>' + escapeHTML(recvLabel) + ' \u2014 click for ISO breakdown</b></td>';
+      recvHdr.innerHTML = '<td colspan="5" style="cursor:pointer;" title="Click for per-band ISO 9613-2 breakdown"><b>' + escapeHTML(recvLabel) + ' \u2014 click for ISO breakdown</b></td>';
       (function(recvIdx) {
         recvHdr.addEventListener('click', function() {
           var firstSrcIdx = 0;
@@ -11042,8 +11042,12 @@ function renderContributions() {
         }
         var srcTr = document.createElement('tr');
         var _pinUnits = _getNumUnits(pin, period);
-        var pinDisplayName = escapeHTML(pin.name || 'Source') + (_pinUnits > 1 ? ' \u00d7 ' + _pinUnits : '');
-        srcTr.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + pinDisplayName + '</td>' +
+        var _pinOpPct = _getPinOpPct(pin, period);
+        var pinTotalLw = Number.isFinite(pin.lw[period]) ? Math.round(pin.lw[period] + 10 * Math.log10(_pinUnits) + 10 * Math.log10(_pinOpPct / 100)) : null;
+        var pinTotalLwStr = pinTotalLw !== null ? String(pinTotalLw) : '\u2014';
+        srcTr.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + escapeHTML(pin.name || 'Source') + '</td>' +
+          '<td style="font-size:12px;color:#555;">Point</td>' +
+          '<td class="num" style="font-size:12px;">' + pinTotalLwStr + '</td>' +
           '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
           '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
         tbody.appendChild(srcTr);
@@ -11059,9 +11063,13 @@ function renderContributions() {
           if (Number.isFinite(lsLpRaw)) rawContributions.push(lsLpRaw);
           var lsTr = document.createElement('tr');
           var lsLen = _lsTotalLength(ls.vertices);
-          var lsDisplayName = '&#9135; ' + escapeHTML(ls.name || 'Line source') +
-            ' <span style="font-size:10px;color:#aaa;">(' + Math.round(lsLen) + 'm)</span>';
-          lsTr.innerHTML = '<td style="padding-left:16px;font-size:12px;color:#d32f2f;">' + lsDisplayName + '</td>' +
+          var lsLwm = (typeof _lsGetEffectiveLwm === 'function') ? _lsGetEffectiveLwm(ls, period) : null;
+          var lsLwStr = Number.isFinite(lsLwm) ? String(Math.round(lsLwm)) + '\u202f/m' : '\u2014';
+          var lsDisplayName = escapeHTML(ls.name || 'Line source') +
+            ' <span style="font-size:10px;color:#888;">(' + Math.round(lsLen) + 'm)</span>';
+          lsTr.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + lsDisplayName + '</td>' +
+            '<td style="font-size:12px;color:#555;">Line</td>' +
+            '<td class="num" style="font-size:12px;">' + lsLwStr + '</td>' +
             '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
             '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
           tbody.appendChild(lsTr);
@@ -11082,9 +11090,15 @@ function renderContributions() {
             if (Number.isFinite(asLpRaw)) rawContributions.push(asLpRaw);
             var asTr = document.createElement('tr');
             var asArea = _asPolygonArea(as.vertices);
-            var asDisplayName = '\u25a0 ' + escapeHTML(as.name || 'Area source') +
-              ' <span style="font-size:10px;color:#aaa;">(' + _asFormatArea(asArea) + ')</span>';
-            asTr.innerHTML = '<td style="padding-left:16px;font-size:12px;color:#d97706;">' + asDisplayName + '</td>' +
+            var asQty = (as.quantity && Number.isFinite(as.quantity[period])) ? as.quantity[period] : 1;
+            var asLwBase = as.lwValue[period];
+            var asTotalLw = Number.isFinite(asLwBase) ? Math.round(asLwBase + 10 * Math.log10(asQty)) : null;
+            var asTotalLwStr = asTotalLw !== null ? String(asTotalLw) + '\u202f/m\u00b2' : '\u2014';
+            var asDisplayName = escapeHTML(as.name || 'Area source') +
+              ' <span style="font-size:10px;color:#888;">(' + _asFormatArea(asArea) + ')</span>';
+            asTr.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + asDisplayName + '</td>' +
+              '<td style="font-size:12px;color:#555;">Area</td>' +
+              '<td class="num" style="font-size:12px;">' + asTotalLwStr + '</td>' +
               '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
               '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
             tbody.appendChild(asTr);
@@ -11103,9 +11117,10 @@ function renderContributions() {
 
           // Header row — clickable to toggle facade breakdown
           var bsTr = document.createElement('tr');
-          var bsDisplayName = '\u25a0 ' + escapeHTML(bs.name || 'Building source') +
-            ' <span style="font-size:10px;color:#aaa;">(building)</span>';
-          bsTr.innerHTML = '<td style="padding-left:16px;font-size:12px;color:#7c3aed;cursor:pointer;" title="Click to show facade breakdown">' + bsDisplayName + '</td>' +
+          var bsDisplayName = escapeHTML(bs.name || 'Building source');
+          bsTr.innerHTML = '<td style="padding-left:16px;font-size:12px;cursor:pointer;" title="Click to show facade breakdown">' + bsDisplayName + '</td>' +
+            '<td style="font-size:12px;color:#555;">Building</td>' +
+            '<td class="num" style="font-size:12px;">\u2014</td>' +
             '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
             '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
           tbody.appendChild(bsTr);
@@ -11126,7 +11141,9 @@ function renderContributions() {
                 var subTr = document.createElement('tr');
                 var dStr = Number.isFinite(fd.distM) ? String(Math.round(fd.distM)) : '\u2014';
                 var pStr = Number.isFinite(fd.lp) ? String(Math.round(fd.lp)) : '\u2014';
-                subTr.innerHTML = '<td style="padding-left:32px;font-size:11px;color:#9333ea;">' + escapeHTML(fd.label) + '</td>' +
+                subTr.innerHTML = '<td style="padding-left:32px;font-size:11px;color:#555;">' + escapeHTML(fd.label) + '</td>' +
+                  '<td style="font-size:11px;"></td>' +
+                  '<td class="num" style="font-size:11px;"></td>' +
                   '<td class="num" style="font-size:11px;">' + dStr + '</td>' +
                   '<td class="num" style="font-size:11px;">' + pStr + '</td>';
                 if (insertAfter.nextSibling) {
@@ -11147,6 +11164,8 @@ function renderContributions() {
       var totalStr = rawContributions.length > 0
         ? String(Math.round(SharedCalc.energySum(rawContributions))) : '\u2014';
       totalTr.innerHTML = '<td style="padding-left:16px;font-size:12px;"><b>Total</b></td>' +
+        '<td style="font-size:12px;"></td>' +
+        '<td class="num" style="font-size:12px;"></td>' +
         '<td class="num" style="font-size:12px;">\u2014</td>' +
         '<td class="num" style="font-size:12px;"><b>' + totalStr + '</b></td>';
       tbody.appendChild(totalTr);
@@ -11183,7 +11202,7 @@ function renderContributions() {
       var lmaxTable = document.createElement('table');
       lmaxTable.style.width = '100%';
       var lmaxThead = document.createElement('thead');
-      lmaxThead.innerHTML = '<tr><th style="width:44%;">Receiver / Source</th><th class="num">Distance (m)</th><th class="num">L<sub>max</sub> (dB)</th></tr>';
+      lmaxThead.innerHTML = '<tr><th style="width:35%;">Receiver / Source</th><th style="width:9%;">Type</th><th class="num" style="width:14%;">Total L<sub>w</sub> (dB)</th><th class="num">Distance (m)</th><th class="num">L<sub>max</sub> (dB)</th></tr>';
       lmaxTable.appendChild(lmaxThead);
       var lmaxTbody = document.createElement('tbody');
 
@@ -11202,7 +11221,7 @@ function renderContributions() {
 
         var recvHdrLmax = document.createElement('tr');
         recvHdrLmax.className = 'contrib-recv-hdr';
-        recvHdrLmax.innerHTML = '<td colspan="3"><b>' + escapeHTML(recvLabelLmax) + '</b></td>';
+        recvHdrLmax.innerHTML = '<td colspan="5"><b>' + escapeHTML(recvLabelLmax) + '</b></td>';
         lmaxTbody.appendChild(recvHdrLmax);
 
         var rawLmax = [];
@@ -11225,7 +11244,12 @@ function renderContributions() {
             }
           }
           var srcTrLmax = document.createElement('tr');
+          var _lmaxUnits = _getNumUnits(pin, 'lmax');
+          var lmaxTotalLw = Number.isFinite(pin.lw_max) ? Math.round(pin.lw_max + 10 * Math.log10(_lmaxUnits)) : null;
+          var lmaxTotalLwStr = lmaxTotalLw !== null ? String(lmaxTotalLw) : '\u2014';
           srcTrLmax.innerHTML = '<td style="padding-left:16px;font-size:12px;">' + escapeHTML(pin.name || 'Source') + '</td>' +
+            '<td style="font-size:12px;color:#555;">Point</td>' +
+            '<td class="num" style="font-size:12px;">' + lmaxTotalLwStr + '</td>' +
             '<td class="num" style="font-size:12px;">' + distStr + '</td>' +
             '<td class="num" style="font-size:12px;">' + lpStr + '</td>';
           lmaxTbody.appendChild(srcTrLmax);
@@ -11235,6 +11259,8 @@ function renderContributions() {
         totalLmaxTr.className = 'contrib-total-row';
         var totalLmaxStr = rawLmax.length > 0 ? String(Math.round(SharedCalc.energySum(rawLmax))) : '\u2014';
         totalLmaxTr.innerHTML = '<td style="padding-left:16px;font-size:12px;"><b>Total</b></td>' +
+          '<td style="font-size:12px;"></td>' +
+          '<td class="num" style="font-size:12px;"></td>' +
           '<td class="num" style="font-size:12px;">\u2014</td>' +
           '<td class="num" style="font-size:12px;"><b>' + totalLmaxStr + '</b></td>';
         lmaxTbody.appendChild(totalLmaxTr);
