@@ -671,7 +671,7 @@ body.map-fs-active { overflow: hidden; }
   right: 20px;
   width: 350px;
   height: 450px;
-  z-index: 2000;
+  z-index: 9999;                    /* above fullscreen map overlay at 9998 */
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -874,7 +874,6 @@ body.map-fs-active { overflow: hidden; }
             <div class="mp" id="mp-help" style="pointer-events:all;">
               <div class="mp-hdr" id="helpToggleBtn" title="Quick reference guide" style="cursor:pointer;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round" stroke-width="3"/></svg>
-                <span>?</span>
               </div>
             </div>
 
@@ -24686,7 +24685,7 @@ initCollapse();
   </div>
   <div id="helpPanelContent">
 
-    <details open>
+    <details>
       <summary><span class="help-arrow">&#9658;</span> Derive criteria (SA / Vic / NSW)</summary>
       <div class="help-body">
         <ul>
@@ -24699,7 +24698,7 @@ initCollapse();
     </details>
 
     <details>
-      <summary><span class="help-arrow">&#9658;</span> Save images</summary>
+      <summary><span class="help-arrow">&#9658;</span> Save images <span class="help-tag">Save JPG</span></summary>
       <div class="help-body">
         <ul>
           <li>Use toolbars to set up the scenario to save</li>
@@ -24730,7 +24729,12 @@ initCollapse();
           <li>Ground absorption values (general ground absorption set in Propagation method panel)</li>
           <li>Point / line / area / building sources</li>
         </ul>
-        <div class="help-sub">Predictions</div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> Predictions</summary>
+      <div class="help-body">
         <ul>
           <li>Levels predicted and shown vs derived criteria</li>
           <li>Scenarios for day / evening / night</li>
