@@ -18251,6 +18251,7 @@ initCollapse();
           html += '<td id="editBarTopDisplay" style="font-size:12px;color:#555;">' + curTop.toFixed(1) + 'm above ground</td></tr>';
           html += '</table>';
           html += '<div id="editBarFloatNote" style="font-size:11px;color:#4CAF50;margin-top:2px;display:' + (curBase > 0 ? 'block' : 'none') + ';">⚠ Floating barrier</div>';
+          html += '<div id="editBarTerrainInfo" style="font-size:11px;color:#6b7280;margin-top:2px;min-height:0;"></div>';
           html += '<label style="font-size:12px;cursor:pointer;display:block;margin-top:6px;">';
           html += '<input type="checkbox" id="editBarSuppressed"' + (ub.suppressed ? ' checked' : '') + '> Suppressed (excluded from calculations)</label>';
           html += '</div>';
@@ -18273,7 +18274,28 @@ initCollapse();
               var noteEl = document.getElementById('editBarFloatNote');
               if (topEl) topEl.textContent = (b + h).toFixed(1) + 'm above ground';
               if (noteEl) noteEl.style.display = b > 0 ? 'block' : 'none';
+              updateBarTerrainInfo();
             }
+            function updateBarTerrainInfo() {
+              var el = document.getElementById('editBarTerrainInfo');
+              if (!el) return;
+              if (!_terrainEnabled) { el.textContent = ''; return; }
+              var mid = _lsPolylineMidpoint(ub.vertices || []);
+              if (!mid || !Number.isFinite(mid.lat)) { el.textContent = ''; return; }
+              if (typeof DEMCache !== 'undefined' && DEMCache.getElevation) {
+                var b = parseFloat(document.getElementById('editBarBase') && document.getElementById('editBarBase').value) || (ub.baseHeightM || 0);
+                var h = parseFloat(document.getElementById('editBarHeight') && document.getElementById('editBarHeight').value) || (ub.heightM || 2);
+                DEMCache.getElevation(mid.lat, mid.lng).then(function(elev) {
+                  if (elev !== null && elev !== undefined && Number.isFinite(elev)) {
+                    var topAHD = (elev + b + h).toFixed(1);
+                    if (el && el.isConnected) {
+                      el.innerHTML = 'Terrain: ' + elev.toFixed(1) + '\u202fm\u202fAHD \u2014 Top: ' + topAHD + '\u202fm\u202fAHD';
+                    }
+                  }
+                }).catch(function() {});
+              }
+            }
+            updateBarTerrainInfo();
             var baseInp = document.getElementById('editBarBase');
             var htInp   = document.getElementById('editBarHeight');
             if (baseInp) baseInp.addEventListener('input', updateTopDisplay);
@@ -18464,6 +18486,7 @@ initCollapse();
           html += '<td id="cbTopDisplay" style="font-size:12px;color:#555;">' + ((cb.baseHeightM || 0) + (cb.heightM || 3)).toFixed(1) + 'm above ground</td></tr>';
           html += '</table>';
           html += '<div id="cbFloatNote" style="display:' + ((cb.baseHeightM || 0) > 0 ? 'block' : 'none') + ';font-size:11px;color:#c0392b;margin-top:3px;">&#9888; Elevated building (e.g. rooftop plant room)</div>';
+          html += '<div id="cbTerrainInfo" style="font-size:11px;color:#6b7280;margin-top:2px;min-height:0;"></div>';
           html += '</div>';
           html += '<button id="cbApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
           html += '<button id="cbEditShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#922b21;">Edit shape</button> ';
@@ -18476,6 +18499,27 @@ initCollapse();
             var applyBtn = document.getElementById('cbApply');
             var deleteBtn = document.getElementById('cbDelete');
 
+            function updateCbTerrainInfo() {
+              var el = document.getElementById('cbTerrainInfo');
+              if (!el) return;
+              if (!_terrainEnabled) { el.textContent = ''; return; }
+              var ctr = _asPolygonCentroid(cb.polygon || []);
+              if (!ctr || !Number.isFinite(ctr.lat)) { el.textContent = ''; return; }
+              if (typeof DEMCache !== 'undefined' && DEMCache.getElevation) {
+                var b = parseFloat(document.getElementById('cbBase') && document.getElementById('cbBase').value) || (cb.baseHeightM || 0);
+                var h = parseFloat(document.getElementById('cbHeight') && document.getElementById('cbHeight').value) || (cb.heightM || 3);
+                DEMCache.getElevation(ctr.lat, ctr.lng).then(function(elev) {
+                  if (elev !== null && elev !== undefined && Number.isFinite(elev)) {
+                    var roofAHD = (elev + b + h).toFixed(1);
+                    if (el && el.isConnected) {
+                      el.innerHTML = 'Terrain: ' + elev.toFixed(1) + '\u202fm\u202fAHD \u2014 Roof: ' + roofAHD + '\u202fm\u202fAHD';
+                    }
+                  }
+                }).catch(function() {});
+              }
+            }
+            updateCbTerrainInfo();
+
             function updateCbTop() {
               var b = parseFloat(document.getElementById('cbBase').value) || 0;
               var h = parseFloat(document.getElementById('cbHeight').value) || 0;
@@ -18483,6 +18527,7 @@ initCollapse();
               var noteEl = document.getElementById('cbFloatNote');
               if (topEl) topEl.textContent = (b + h).toFixed(1) + 'm above ground';
               if (noteEl) noteEl.style.display = b > 0 ? 'block' : 'none';
+              updateCbTerrainInfo();
             }
             var baseInpE = document.getElementById('cbBase');
             var htInpE   = document.getElementById('cbHeight');
@@ -20809,7 +20854,8 @@ initCollapse();
       h += '<div><span style="color:#6b7280;">Perimeter</span><br><b id="bsPanelPerim">' + perim.toFixed(0) + ' m</b></div>';
       h += '<div><span style="color:#6b7280;">Wall area</span><br><b id="bsPanelWallArea">' + wallArea.toFixed(0) + ' m\u00b2</b></div>';
       h += '</div>';
-      h += '<div style="font-size:11px;color:#555;margin-bottom:8px;padding:0 2px;" id="bsPanelTopDisplay">&#128307; Top of building: <b>' + bsTopM.toFixed(1) + ' m</b> above ground' + ((bs.baseHeightM||0) > 0 ? ' <span style="color:#c0392b;">(elevated)</span>' : '') + '</div>';
+      h += '<div style="font-size:11px;color:#555;margin-bottom:2px;padding:0 2px;" id="bsPanelTopDisplay">&#128307; Top of building: <b>' + bsTopM.toFixed(1) + ' m</b> above ground' + ((bs.baseHeightM||0) > 0 ? ' <span style="color:#c0392b;">(elevated)</span>' : '') + '</div>';
+      h += '<div id="bsPanelTerrainInfo" style="font-size:11px;color:#6b7280;margin-bottom:8px;padding:0 2px;min-height:0;"></div>';
       h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;padding:0 2px;">';
       h += '<div><span style="color:#6b7280;">Roof area</span><br><b id="bsPanelRoofArea">' + roofArea.toFixed(0) + ' m\u00b2</b></div>';
       h += '</div>';
@@ -21108,12 +21154,33 @@ initCollapse();
         topEl.innerHTML = '&#128307; Top of building: <b>' + top.toFixed(1) + ' m</b> above ground' +
           ((bs.baseHeightM || 0) > 0 ? ' <span style="color:#c0392b;">(elevated)</span>' : '');
       }
+      function _bsPanelUpdateTerrainInfo() {
+        var el = document.getElementById('bsPanelTerrainInfo');
+        if (!el) return;
+        if (!_terrainEnabled) { el.textContent = ''; return; }
+        var ctr = _asPolygonCentroid(bs.vertices || []);
+        if (!ctr || !Number.isFinite(ctr.lat)) { el.textContent = ''; return; }
+        if (typeof DEMCache !== 'undefined' && DEMCache.getElevation) {
+          DEMCache.getElevation(ctr.lat, ctr.lng).then(function(elev) {
+            if (elev !== null && elev !== undefined && Number.isFinite(elev)) {
+              var base  = bs.baseHeightM || 0;
+              var wallH = bs.height_m    || 6;
+              var roofAHD = (elev + base + wallH).toFixed(1);
+              if (el && el.isConnected) {
+                el.innerHTML = 'Terrain: ' + elev.toFixed(1) + '\u202fm\u202fAHD \u2014 Roof: ' + roofAHD + '\u202fm\u202fAHD';
+              }
+            }
+          }).catch(function() {});
+        }
+      }
+      _bsPanelUpdateTerrainInfo();
       var baseInp = document.getElementById('bsPanelBase');
       if (baseInp) baseInp.addEventListener('change', function() {
         var v = parseFloat(this.value);
         if (Number.isFinite(v) && v >= 0) {
           bs.baseHeightM = v;
           _bsUpdateTopDisplay();
+          _bsPanelUpdateTerrainInfo();
           if (typeof render === 'function') render();
           if (window._recomputeNoiseMap) window._recomputeNoiseMap();
         }
@@ -21124,6 +21191,7 @@ initCollapse();
         if (Number.isFinite(v) && v > 0) {
           bs.height_m = v;
           _bsUpdateTopDisplay();
+          _bsPanelUpdateTerrainInfo();
           _bsRefreshStats();
           // Refresh all wall rows that use default height (no heightOverride)
           var wallListEl = document.getElementById('bsWallList');
