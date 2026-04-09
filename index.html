@@ -20835,7 +20835,7 @@ initCollapse();
 
       // Header
       h += '<div id="bsPanelHeader" style="background:linear-gradient(90deg,#6d28d9,#8b5cf6);color:#fff;padding:10px 14px;border-radius:10px 10px 0 0;cursor:move;display:flex;align-items:center;justify-content:space-between;">';
-      h += '<span style="font-weight:700;font-size:13px;">\uD83C\uDFED ' + escapeHTML(bs.name || 'Building source') + ' \u2014 Lp ' + headerLp + ' inside</span>';
+      h += '<span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(255,255,255,0.25)" stroke="#fff" stroke-width="2" style="flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#fff" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#fff" stroke-width="1.5"/></svg>' + escapeHTML(bs.name || 'Building source') + ' \u2014 Lp ' + headerLp + ' inside</span>';
       h += '<button onclick="closeBsPanel()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;padding:0;line-height:1;">\u2715</button>';
       h += '</div>';
 
@@ -21068,7 +21068,7 @@ initCollapse();
         var hdrTitle = panel.querySelector('#bsPanelHeader span');
         if (hdrTitle) {
           var lpD = bs.interiorLp && bs.interiorLp.day && Number.isFinite(bs.interiorLp.day.broadband) ? Math.round(bs.interiorLp.day.broadband) + ' dB(A)' : '\u2014';
-          hdrTitle.textContent = '\uD83C\uDFED ' + (bs.name || 'Building source') + ' \u2014 Lp ' + lpD + ' inside';
+          hdrTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(255,255,255,0.25)" stroke="#fff" stroke-width="2" style="flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#fff" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#fff" stroke-width="1.5"/></svg>' + escapeHTML(bs.name || 'Building source') + ' \u2014 Lp ' + lpD + ' inside';
         }
       }
       /** Ensure a facadeOverride exists for wallIdx; return it. */
@@ -23650,7 +23650,7 @@ initCollapse();
             });
             var bsDetail = 'Ht: ' + bsHt.toFixed(1) + 'm | ' + bsParts.join(' | ') + ' dB(A)';
             html += '<div class="obj-row" data-obj-type="buildingsource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts ? 'pointer' : 'default') + ';">';
-            html += '<span style="font-size:14px;flex-shrink:0;line-height:1;">\uD83C\uDFED</span>';
+            html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(124,58,237,0.18)" stroke="#7c3aed" stroke-width="2" style="flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#7c3aed" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#7c3aed" stroke-width="1.5"/></svg>';
             html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:22px;">BS' + (i + 1) + '</span>';
             html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
               '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
