@@ -570,6 +570,99 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 /* Prevent background scroll while fullscreen */
 body.map-fs-active { overflow: hidden; }
 
+/* ── Object-panel input consistency ─────────────────────────────────────
+   Standardises input widths, border, border-radius and padding across all
+   four floating edit panels (source · area · line · building source).
+   !important is required to override per-element inline styles emitted by
+   the panel builder functions.
+
+   Band inputs live in an 8-column 1fr grid; they are kept narrow (38 px)
+   to avoid overflowing the panel — only their border-radius is cleaned up.
+   All standalone number inputs are widened to ≥70 px.                    */
+
+/* Octave-band spectrum inputs — tidy border-radius only; width stays at 38 px
+   (8 inputs × ~38 px + 7 gaps × 3 px = ~325 px, fits within all panel widths) */
+.sfp-band-day,.sfp-band-eve,.sfp-band-night,.sfp-band-lmax,
+#asFloatPanel input[id^="asPanelBand_"],
+#lsFloatPanel input[id^="lsPanelBand_"] {
+  border:1px solid #ddd !important; border-radius:3px !important;
+  padding:2px 1px !important;
+  font-size:11px !important; box-sizing:border-box !important;
+}
+/* Read-only band inputs stay de-emphasised */
+#asFloatPanel input[id^="asPanelBand_"][readonly],
+#lsFloatPanel input[id^="lsPanelBand_"][readonly] {
+  background:#f5f5f5 !important; color:#555 !important; cursor:default !important;
+}
+
+/* Lw broadband inputs  62–64 → 72 px */
+.sfp-lw-day,.sfp-lw-eve,.sfp-lw-night,.sfp-lw-lmax,
+#asFloatPanel input[id^="asPanelLw_"] {
+  width:72px !important;
+  padding:2px 4px !important;
+  border:1px solid #ddd !important; border-radius:4px !important;
+  box-sizing:border-box !important;
+}
+
+/* Quantity / count inputs  46–54 → 70 px */
+.sfp-units-day,.sfp-units-eve,.sfp-units-night,.sfp-units-lmax,
+#asFloatPanel input[id^="asPanelQty_"],
+#lsFloatPanel input[id^="lsPanelN_"] {
+  width:70px !important;
+  padding:2px 4px !important;
+  border:1px solid #ddd !important; border-radius:4px !important;
+  box-sizing:border-box !important;
+}
+
+/* Speed (km/h) inputs for line source  50 → 70 px */
+#lsFloatPanel input[id^="lsPanelSpeed_"] {
+  width:70px !important;
+  padding:2px 4px !important;
+  border:1px solid #ddd !important; border-radius:4px !important;
+  box-sizing:border-box !important;
+}
+
+/* Operating-% inputs  50–52 → 70 px (source was already 62 px; lift all to match) */
+.sfp-oppct-day,.sfp-oppct-eve,.sfp-oppct-night,
+#asFloatPanel input[id^="asPanelPct_"],
+#lsFloatPanel input[id^="lsPanelPct_"],
+#bsFloatPanel input[id^="bsPct_"] {
+  width:70px !important;
+  padding:2px 4px !important;
+  border:1px solid #ddd !important; border-radius:4px !important;
+  box-sizing:border-box !important;
+}
+
+/* Height / elevation inputs  52–65 → 70 px */
+.sfp-height, #asPanelHeight, #lsPanelHeight {
+  width:70px !important;
+  padding:2px 4px !important;
+  border:1px solid #ddd !important; border-radius:4px !important;
+  box-sizing:border-box !important;
+}
+
+/* Building source: base height + building height  60 → 70 px */
+#bsPanelBase, #bsPanelHeight {
+  width:70px !important;
+  padding:2px 4px !important;
+  border:1px solid #ddd !important; border-radius:4px !important;
+  box-sizing:border-box !important;
+}
+
+/* Building source: interior Lp inputs  60 → 72 px (consistent with other Lw inputs) */
+#bsFloatPanel input[id^="bsLp_"] {
+  width:72px !important;
+  padding:2px 4px !important;
+  border:1px solid #ddd !important; border-radius:4px !important;
+  box-sizing:border-box !important;
+}
+
+/* Consistent border-radius on all panel action buttons */
+#srcFloatPanel button, #asFloatPanel button,
+#lsFloatPanel button, #bsFloatPanel button {
+  border-radius:4px !important;
+}
+
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" crossorigin="anonymous"/>
@@ -659,20 +752,11 @@ body.map-fs-active { overflow: hidden; }
           </script>
           <div id="mapPanelContainer" style="position:absolute;top:8px;right:8px;z-index:800;width:auto;display:flex;flex-direction:row;gap:5px;align-items:flex-start;pointer-events:none;">
 
-            <!-- Save JPG: plain button (no dropdown), same visual style as the mp dropdown headers -->
+            <!-- Save JPG: plain button, always exports at 3× for print-quality output -->
             <div class="mp" id="mp-save-jpg" style="pointer-events:all;">
-              <div class="mp-hdr" id="saveJpgPanelBtn" title="Export current map view as JPEG" style="cursor:pointer;">
+              <div class="mp-hdr" id="saveJpgPanelBtn" title="Export map as JPEG at 3× resolution (print quality)" style="cursor:pointer;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 <span>Save JPG</span>
-                <!-- Resolution multiplier — click/change propagation stopped in JS so it
-                     doesn't accidentally trigger the Save action when the user opens the
-                     dropdown or changes the value. -->
-                <select id="saveJpgScale" title="Export resolution (multiplier applied to map canvas pixel dimensions)"
-                        style="background:rgba(0,0,0,0.30);color:#f3f4f6;border:1px solid rgba(255,255,255,0.22);border-radius:4px;padding:1px 2px;font-size:10px;cursor:pointer;margin-left:3px;flex-shrink:0;">
-                  <option value="1">Screen (1&times;)</option>
-                  <option value="2" selected>Print (2&times;)</option>
-                  <option value="3">High (3&times;)</option>
-                </select>
               </div>
             </div>
 
@@ -23350,16 +23434,9 @@ initCollapse();
     /* The button now lives in #mp-save-jpg inside mapPanelContainer (HTML side).
        We just find it here and wire up the click handler.                  */
     (function() {
-      var saveBtn    = document.getElementById('saveJpgPanelBtn');
-      var scaleSelect = document.getElementById('saveJpgScale');
+      var saveBtn = document.getElementById('saveJpgPanelBtn');
       if (saveBtn) {
         L.DomEvent.disableClickPropagation(saveBtn.parentElement);
-        // Prevent opening / changing the resolution selector from triggering a save
-        if (scaleSelect) {
-          ['click','mousedown','pointerdown','change'].forEach(function(ev) {
-            scaleSelect.addEventListener(ev, function(e) { e.stopPropagation(); });
-          });
-        }
         saveBtn.addEventListener('click', function(e) {
           e.stopPropagation();
           _doSaveJpg(saveBtn);
@@ -23820,22 +23897,18 @@ initCollapse();
         if (btn._saving) return;
         btn._saving = true;
         var origHTML = btn.innerHTML;
-        // Show scale in the button label while saving so the user has feedback
-        var _scEl = document.getElementById('saveJpgScale');
-        var _scVal = (_scEl && _scEl.value) || '2';
-        btn.innerHTML = 'Saving ' + _scVal + '\u00d7\u2026';
+        btn.innerHTML = 'Saving 3\u00d7\u2026';
         btn.style.pointerEvents = 'none';
 
         var mapEl = document.getElementById('noise-map');
         var mapRect = mapEl.getBoundingClientRect();
         var W = Math.round(mapRect.width);
         var H = Math.round(mapRect.height);
-        // Export scale: user-chosen multiplier (1×/2×/3×).
-        // This is applied uniformly to the output canvas, all html2canvas calls, and
-        // SVG rasterisation so every layer — tiles, vector overlays, markers, legend —
-        // is rendered at exactly this many times the CSS pixel dimensions.
-        var scaleEl = document.getElementById('saveJpgScale');
-        var dpr = Math.max(1, parseInt((scaleEl && scaleEl.value) || '2'));
+        // Always export at 3× CSS pixel dimensions for print-quality output.
+        // Applied uniformly to the output canvas, all html2canvas calls, and SVG
+        // rasterisation so every layer — tiles, vector overlays, markers, legend —
+        // is sharp at three times the screen resolution.
+        var dpr = 3;
 
         // ── Hide UI chrome not wanted in the export ───────────────────────
         var hideEls = [];
