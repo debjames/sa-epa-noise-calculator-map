@@ -203,12 +203,13 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .mp-hdr:hover { background: rgba(255,255,255,.07); border-radius: inherit; }
 .mp-arrow { font-size: 9px; opacity: .65; transition: transform .18s; flex-shrink: 0; }
 .mp.mp-open .mp-arrow { transform: rotate(180deg); }
-/* Dropdown body: absolutely positioned below the header */
+/* Dropdown body: absolutely positioned below the header, right-anchored to match the right-side container */
 .mp-body {
   display: none;
   position: absolute;
   top: 100%;
-  left: 0;
+  right: 0;
+  left: auto;
   min-width: 200px;
   z-index: 10;
   flex-direction: column;
@@ -216,7 +217,7 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   padding: 4px;
   background: rgba(26,32,44,.95);
   border-top: 1px solid rgba(255,255,255,.1);
-  border-radius: 0 4px 7px 7px;
+  border-radius: 4px 0 7px 7px;
   box-shadow: 0 6px 16px rgba(0,0,0,.45);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -268,20 +269,9 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 #noiseMapControls { flex-direction: column; }
 
 /* ── Save JPG map control ────────────────────────────────────────────── */
-.save-jpg-ctrl a {
-  width: auto !important;
-  padding: 0 8px !important;
-  font-size: 11px !important;
-  font-weight: 600;
-  line-height: 26px !important;
-  white-space: nowrap;
-  color: #444 !important;
-  text-decoration: none !important;
-  display: flex !important;
-  align-items: center;
-  gap: 4px;
-}
-.save-jpg-ctrl a:hover { background: #f0f5fa !important; color: #1a56db !important; }
+/* Save JPG sits in mapPanelContainer and shares the .mp dark style;
+   give it a slightly more visible hover so it feels like a button */
+#mp-save-jpg .mp-hdr:hover { background: rgba(255,255,255,.13) !important; }
 #mapClearBtn:hover { background: #fef2f2; }
 /* Ruler distance label */
 .ruler-label {
@@ -667,7 +657,15 @@ body.map-fs-active { overflow: hidden; }
               }
             });
           </script>
-          <div id="mapPanelContainer" style="position:absolute;top:8px;left:8px;z-index:800;width:auto;display:flex;flex-direction:row;gap:5px;align-items:flex-start;pointer-events:none;">
+          <div id="mapPanelContainer" style="position:absolute;top:8px;right:8px;z-index:800;width:auto;display:flex;flex-direction:row;gap:5px;align-items:flex-start;pointer-events:none;">
+
+            <!-- Save JPG: plain button (no dropdown), same visual style as the mp dropdown headers -->
+            <div class="mp" id="mp-save-jpg" style="pointer-events:all;">
+              <div class="mp-hdr" id="saveJpgPanelBtn" title="Export current map view as JPEG" style="cursor:pointer;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span>Save JPG</span>
+              </div>
+            </div>
 
             <!-- PANEL 1: MAPPING -->
             <div class="mp" id="mp-mapping" style="pointer-events:all;">
@@ -23319,27 +23317,17 @@ initCollapse();
     };
 
     /* ── Save JPG control ────────────────────────────────────────────── */
+    /* The button now lives in #mp-save-jpg inside mapPanelContainer (HTML side).
+       We just find it here and wire up the click handler.                  */
     (function() {
-      var SaveJpgControl = L.Control.extend({
-        options: { position: 'topright' },
-        onAdd: function() {
-          var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control save-jpg-ctrl');
-          var btn = L.DomUtil.create('a', 'save-jpg-btn', container);
-          btn.href = '#';
-          btn.title = 'Export current map view as JPEG';
-          btn.setAttribute('role', 'button');
-          btn.innerHTML =
-            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;">' +
-            '<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>' +
-            '<circle cx="12" cy="13" r="4"/></svg> Save JPG';
-          L.DomEvent
-            .on(btn, 'click', L.DomEvent.stopPropagation)
-            .on(btn, 'click', L.DomEvent.preventDefault)
-            .on(btn, 'click', function() { _doSaveJpg(btn); });
-          return container;
-        }
-      });
-      new SaveJpgControl().addTo(map);
+      var saveBtn = document.getElementById('saveJpgPanelBtn');
+      if (saveBtn) {
+        L.DomEvent.disableClickPropagation(saveBtn.parentElement);
+        saveBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          _doSaveJpg(saveBtn);
+        });
+      }
 
     /* ── Object list panel ──────────────────────────────────────────────── */
     function _renderObjectList() {
