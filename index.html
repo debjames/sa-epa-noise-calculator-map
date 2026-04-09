@@ -537,7 +537,8 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   height: 100% !important;
   border-radius: 6px !important;
 }
-/* Fullscreen sidebar — shown inside mapInnerWrapper when map is maximised */
+/* Fullscreen Objects sidebar — display is controlled entirely by JS.
+   Hidden in normal mode; shown as flex when maximised. */
 #mapFullscreenSidebar {
   position: absolute;
   top: 0; right: 0; bottom: 0;
@@ -546,13 +547,14 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   background: rgba(255,255,255,0.97);
   border-left: 1px solid var(--border);
   box-shadow: -4px 0 14px rgba(0,0,0,0.12);
-  display: flex !important;          /* always flex when not display:none */
-  flex-direction: column;
+  flex-direction: column;            /* display set/unset by JS, never by CSS */
   transition: transform 0.2s ease;
 }
+/* Minimised state: sidebar slides off-screen to the right */
 #mapFullscreenSidebar.fs-collapsed {
   transform: translateX(280px);
 }
+/* Re-open tab — positioned just inside the right edge while sidebar is hidden */
 #mapFullscreenSidebarTab {
   position: absolute;
   top: 50%;
@@ -561,17 +563,18 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
   z-index: 811;
   background: rgba(30,30,30,0.72);
   color: #fff;
-  padding: 12px 5px;
+  padding: 14px 5px;
   border-radius: 5px 0 0 5px;
   cursor: pointer;
   writing-mode: vertical-rl;
   text-orientation: mixed;
   font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.6px;
   user-select: none;
   line-height: 1;
   transition: background 0.15s;
-  display: none;
+  /* display toggled by JS — starts hidden */
 }
 #mapFullscreenSidebarTab:hover { background: rgba(30,30,30,0.92); }
 /* Prevent background scroll while fullscreen */
@@ -753,16 +756,17 @@ body.map-fs-active { overflow: hidden; }
           </div>
           <!-- ── End floating panels ── -->
 
-          <!-- ── Fullscreen Objects sidebar (visible only in maximised mode) ── -->
+          <!-- ── Fullscreen Objects sidebar (only visible in maximised mode) ── -->
           <div id="mapFullscreenSidebar" style="display:none;">
-            <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:#f9fafb;flex-shrink:0;">
+            <div style="padding:7px 10px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:#f9fafb;flex-shrink:0;">
               <span style="font-size:13px;font-weight:700;color:#111827;">Objects</span>
-              <button onclick="_toggleFsSidebar()" title="Collapse Objects panel" style="background:none;border:none;cursor:pointer;padding:2px 6px;font-size:18px;line-height:1;color:#6b7280;border-radius:4px;" onmouseenter="this.style.background='#e5e7eb'" onmouseleave="this.style.background='none'">&#x2715;</button>
+              <!-- Minimise button: collapses to tab, does NOT remove the panel -->
+              <button onclick="_toggleFsSidebar()" title="Minimise Objects panel" style="background:none;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;padding:3px 6px;line-height:1;color:#6b7280;display:flex;align-items:center;gap:3px;font-size:11px;" onmouseenter="this.style.background='#e5e7eb'" onmouseleave="this.style.background='none'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg> Hide</button>
             </div>
             <div id="mapFullscreenSidebarInner" style="overflow-y:auto;flex:1;padding:8px;font-size:12px;"></div>
           </div>
-          <!-- Collapsed-sidebar reopener tab -->
-          <div id="mapFullscreenSidebarTab" onclick="_toggleFsSidebar()" title="Show Objects panel">Objects</div>
+          <!-- Re-open tab shown when sidebar is minimised (display controlled by JS) -->
+          <div id="mapFullscreenSidebarTab" onclick="_toggleFsSidebar()" title="Show Objects panel" style="display:none;">&#9666; Objects</div>
 
           <!-- Map container -->
           <div id="noise-map" style="aspect-ratio:3/2;border-radius:10px;border:1px solid var(--border);"></div>
@@ -24135,7 +24139,7 @@ initCollapse();
     _fsActive ? _exit() : _enter();
   };
 
-  /* ── Sidebar collapse/expand (called by ✕ and tab) ── */
+  /* ── Sidebar minimise/restore (Hide button ↔ Objects tab) ── */
   window._toggleFsSidebar = function() {
     var sb  = document.getElementById('mapFullscreenSidebar');
     var tab = document.getElementById('mapFullscreenSidebarTab');
@@ -24146,7 +24150,7 @@ initCollapse();
       if (tab) tab.style.display = 'none';
     } else {
       sb.classList.add('fs-collapsed');
-      if (tab) tab.style.display = '';
+      if (tab) tab.style.display = 'block'; // must be explicit — CSS default is none
     }
   };
 
@@ -24166,9 +24170,10 @@ initCollapse();
       sbInner.appendChild(objContent);
     }
 
-    /* Show sidebar (reset collapsed state) */
+    /* Show sidebar (reset collapsed state).
+       Use 'flex' explicitly — CSS has no display rule, so '' would give 'block'. */
     _sidebarOpen = true;
-    if (sb) { sb.style.display = ''; sb.classList.remove('fs-collapsed'); }
+    if (sb) { sb.style.display = 'flex'; sb.classList.remove('fs-collapsed'); }
     if (tab) tab.style.display = 'none';
 
     /* Apply fullscreen class */
