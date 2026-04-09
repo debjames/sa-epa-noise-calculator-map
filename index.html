@@ -23788,6 +23788,19 @@ initCollapse();
             var op = effectiveOpacity(el);
             try {
               var clone = el.cloneNode(true);
+              // Strip the CSS transform/position that Leaflet's DomUtil.setPosition()
+              // sets on the SVG element (e.g. translate3d(11800px, 8800px, 0)).
+              // When an SVG is rendered as a standalone blob image, this inline CSS
+              // transform re-applies to the internal coordinate system, shifting all
+              // drawn content by thousands of pixels and making it vanish.
+              // The element's rendered position is already captured in r.x/r.y via
+              // getBoundingClientRect(), so stripping it from the clone is correct.
+              clone.style.transform        = '';
+              clone.style.webkitTransform  = '';
+              clone.style.msTransform      = '';
+              clone.style.position         = '';
+              clone.style.left             = '';
+              clone.style.top              = '';
               // Ensure explicit dimensions so the SVG image renders at correct size
               clone.setAttribute('width',  r.w);
               clone.setAttribute('height', r.h);
@@ -23844,12 +23857,11 @@ initCollapse();
           }
         }
 
-        // Walk all panes; the map pane itself has children in correct z-order
+        // Walk all panes in z-order.
+        // '.leaflet-map-pane > .leaflet-pane' includes all built-in panes AND any
+        // custom panes (e.g. sitePlanPane, terrainContourPane) created with
+        // map.createPane(), which Leaflet appends as direct children of the map pane.
         mapEl.querySelectorAll('.leaflet-map-pane > .leaflet-pane').forEach(walkNode);
-        // Also catch any custom panes added outside leaflet-map-pane
-        mapEl.querySelectorAll('.leaflet-pane:not(.leaflet-map-pane .leaflet-pane)').forEach(function(pane) {
-          walkNode(pane);
-        });
 
         // ── Process tasks sequentially (maintains z-order) ───────────────
         function runTask(t) {
@@ -23862,6 +23874,40 @@ initCollapse();
         var chain = tasks.reduce(function(p, t) {
           return p.then(function() { return runTask(t); });
         }, Promise.resolve());
+
+        // ── After canvas/SVG/img layers: capture divIcon marker icons ─────
+        // L.divIcon markers are plain HTML <div> elements — invisible to the
+        // canvas/svg/img pane walker above.  Capture each icon individually
+        // with html2canvas and draw it at its getBoundingClientRect() position,
+        // which already accounts for the marker's translate3d transform and
+        // the parent pane transforms.  This covers all panes (markerPane,
+        // terrainContourPane labels, etc.).
+        chain = chain.then(function() {
+          var iconEls = Array.from(mapEl.querySelectorAll('.leaflet-marker-icon'));
+          return iconEls.reduce(function(p, iconEl) {
+            return p.then(function() {
+              var ir = iconEl.getBoundingClientRect();
+              if (!ir.width || !ir.height) return;
+              var ix = Math.round(ir.left - mapRect.left);
+              var iy = Math.round(ir.top  - mapRect.top);
+              // Skip icons completely outside the map viewport
+              if (ix + ir.width <= 0 || iy + ir.height <= 0 ||
+                  ix >= W           || iy >= H)              return;
+              return html2canvas(iconEl, {
+                useCORS:         true,
+                scale:           dpr,
+                logging:         false,
+                backgroundColor: null,
+                removeContainer: true
+              }).then(function(c) {
+                ctx.save();
+                ctx.drawImage(c, 0, 0, c.width, c.height,
+                              ix, iy, ir.width, ir.height);
+                ctx.restore();
+              }).catch(function() {});
+            });
+          }, Promise.resolve());
+        });
 
         // ── After map layers: draw HTML controls with html2canvas ─────────
         // Bottom controls (zone legend, scale bar, attribution) are same-origin
