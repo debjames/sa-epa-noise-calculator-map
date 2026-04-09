@@ -1000,9 +1000,9 @@ body.map-fs-active { overflow: hidden; }
     <!-- ═══ Objects panel ═══ -->
     <div class="grid2 grid-full" style="padding-top:0;" id="objectsPanelSection">
       <div class="card" style="padding:10px 14px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;-webkit-user-select:none;" onclick="(function(el){var b=document.getElementById('objectsPanelBody');var open=b.style.display!=='none';b.style.display=open?'none':'block';el.textContent=open?'▼':'▲';})(this.querySelector('.obj-tog'))">
-          <h2 style="margin:0;font-size:14px;font-weight:700;">Objects</h2>
-          <span class="obj-tog" style="font-size:12px;color:#888;line-height:1;">▼</span>
+        <div class="card-header">
+          <h2 style="margin:0;">Objects</h2>
+          <button class="collapse-btn" id="objectsPanelToggle" title="Toggle section" onclick="(function(btn){var b=document.getElementById('objectsPanelBody');var collapsed=b.style.display==='none';b.style.display=collapsed?'block':'none';btn.innerHTML=collapsed?'&#x25B2;':'&#x25BC;';})(this)">&#x25BC;</button>
         </div>
         <div id="objectsPanelBody" style="display:none;margin-top:10px;">
           <div id="objectsPanelContent" style="font-size:12px;">
