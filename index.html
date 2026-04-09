@@ -16698,6 +16698,13 @@ initCollapse();
           if (markers[mode])      markers[mode].setOpacity(show ? 1 : 0);
           if (labelMarkers[mode]) labelMarkers[mode].setOpacity(show ? 1 : 0);
         });
+        // ── source_0, source_1, … (dynamic point sources not in ORDER) ──────
+        Object.keys(markers).forEach(function(k) {
+          if (/^source_\d+$/.test(k)) {
+            markers[k].setOpacity(show ? 1 : 0);
+            if (labelMarkers[k]) labelMarkers[k].setOpacity(show ? 1 : 0);
+          }
+        });
 
         // ── Layer groups: line / area / building sources,
         //    barriers, new buildings, ground-absorption zones ──────────────
