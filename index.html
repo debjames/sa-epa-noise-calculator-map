@@ -494,6 +494,89 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 #mapCtxMenu .ctx-item.ctx-danger:hover { background: #fef2f2; }
 #mapCtxMenu .ctx-sep { height: 1px; background: #e5e7eb; margin: 3px 0; }
 
+/* ── Map maximise / fullscreen ─────────────────────────────────────────── */
+#mapMaximiseBtn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 3px 8px;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#mapMaximiseBtn:hover { background: #f3f4f6; }
+#mapCard.map-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9998 !important;
+  border-radius: 0 !important;
+  padding: 8px 12px 6px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+  border: none !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.08) !important;
+}
+#mapCard.map-fullscreen #mapDescPara { display: none !important; }
+#mapCard.map-fullscreen .small { display: none !important; }
+#mapCard.map-fullscreen #mapInnerWrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+#mapCard.map-fullscreen #noise-map {
+  aspect-ratio: unset !important;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 6px !important;
+}
+/* Fullscreen sidebar — shown inside mapInnerWrapper when map is maximised */
+#mapFullscreenSidebar {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  z-index: 810;
+  width: 280px;
+  background: rgba(255,255,255,0.97);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 14px rgba(0,0,0,0.12);
+  display: flex !important;          /* always flex when not display:none */
+  flex-direction: column;
+  transition: transform 0.2s ease;
+}
+#mapFullscreenSidebar.fs-collapsed {
+  transform: translateX(280px);
+}
+#mapFullscreenSidebarTab {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  z-index: 811;
+  background: rgba(30,30,30,0.72);
+  color: #fff;
+  padding: 12px 5px;
+  border-radius: 5px 0 0 5px;
+  cursor: pointer;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  user-select: none;
+  line-height: 1;
+  transition: background 0.15s;
+  display: none;
+}
+#mapFullscreenSidebarTab:hover { background: rgba(30,30,30,0.92); }
+/* Prevent background scroll while fullscreen */
+body.map-fs-active { overflow: hidden; }
+
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" crossorigin="anonymous"/>
@@ -532,9 +615,15 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
     <div class="grid2">
 
       <!-- ===== DISTANCE MAP CARD ===== -->
-      <div class="card span2">
-        <h2>Map</h2>
-        <div class="p">Click the map to place the <strong>noise source</strong> and up to <strong>4 receiver</strong> locations. Straight-line distances are calculated automatically and entered in the table below. Markers can be dragged to fine-tune positions.</div>
+      <div class="card span2" id="mapCard">
+        <div class="card-header">
+          <h2 style="margin:0;">Map</h2>
+          <button id="mapMaximiseBtn" onclick="toggleMapFullscreen()" title="Maximise map to full screen (Esc to exit)">
+            <svg id="mapMaximiseBtnIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+            <span id="mapMaximiseBtnLabel">Expand</span>
+          </button>
+        </div>
+        <div class="p" id="mapDescPara">Click the map to place the <strong>noise source</strong> and up to <strong>4 receiver</strong> locations. Straight-line distances are calculated automatically and entered in the table below. Markers can be dragged to fine-tune positions.</div>
 
         <!-- Location search -->
         <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;position:relative;">
@@ -553,7 +642,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
         </div>
 
         <!-- Map + floating panels wrapper -->
-        <div style="position:relative;">
+        <div id="mapInnerWrapper" style="position:relative;">
 
           <!-- ── Floating collapsible panels (left side of map) ── -->
           <script>
@@ -663,6 +752,17 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
           </div>
           <!-- ── End floating panels ── -->
+
+          <!-- ── Fullscreen Objects sidebar (visible only in maximised mode) ── -->
+          <div id="mapFullscreenSidebar" style="display:none;">
+            <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:#f9fafb;flex-shrink:0;">
+              <span style="font-size:13px;font-weight:700;color:#111827;">Objects</span>
+              <button onclick="_toggleFsSidebar()" title="Collapse Objects panel" style="background:none;border:none;cursor:pointer;padding:2px 6px;font-size:18px;line-height:1;color:#6b7280;border-radius:4px;" onmouseenter="this.style.background='#e5e7eb'" onmouseleave="this.style.background='none'">&#x2715;</button>
+            </div>
+            <div id="mapFullscreenSidebarInner" style="overflow-y:auto;flex:1;padding:8px;font-size:12px;"></div>
+          </div>
+          <!-- Collapsed-sidebar reopener tab -->
+          <div id="mapFullscreenSidebarTab" onclick="_toggleFsSidebar()" title="Show Objects panel">Objects</div>
 
           <!-- Map container -->
           <div id="noise-map" style="aspect-ratio:3/2;border-radius:10px;border:1px solid var(--border);"></div>
@@ -24013,6 +24113,138 @@ initCollapse();
       }
     }
   });
+})();
+</script>
+
+<!-- ══ Map fullscreen / maximise ══════════════════════════════════════════ -->
+<script>
+(function() {
+  /* ── SVG paths for the two button states ── */
+  var SVG_EXPAND  = '<path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/>';
+  var SVG_RESTORE = '<path d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3"/>';
+
+  /* ── State ── */
+  var _fsActive   = false;
+  var _sidebarOpen = true;
+  /* References saved so we can restore the DOM on exit */
+  var _objOrigParent = null;
+  var _objOrigNext   = null;
+
+  /* ── Public toggle (called by button onclick) ── */
+  window.toggleMapFullscreen = function() {
+    _fsActive ? _exit() : _enter();
+  };
+
+  /* ── Sidebar collapse/expand (called by ✕ and tab) ── */
+  window._toggleFsSidebar = function() {
+    var sb  = document.getElementById('mapFullscreenSidebar');
+    var tab = document.getElementById('mapFullscreenSidebarTab');
+    if (!sb) return;
+    _sidebarOpen = !_sidebarOpen;
+    if (_sidebarOpen) {
+      sb.classList.remove('fs-collapsed');
+      if (tab) tab.style.display = 'none';
+    } else {
+      sb.classList.add('fs-collapsed');
+      if (tab) tab.style.display = '';
+    }
+  };
+
+  /* ─────────────────────── enter fullscreen ─────────────────────────── */
+  function _enter() {
+    var card         = document.getElementById('mapCard');
+    var sbInner      = document.getElementById('mapFullscreenSidebarInner');
+    var objContent   = document.getElementById('objectsPanelContent');
+    var sb           = document.getElementById('mapFullscreenSidebar');
+    var tab          = document.getElementById('mapFullscreenSidebarTab');
+    if (!card) return;
+
+    /* Move live objectsPanelContent into the sidebar inner div */
+    if (objContent && sbInner) {
+      _objOrigParent = objContent.parentNode;
+      _objOrigNext   = objContent.nextSibling;
+      sbInner.appendChild(objContent);
+    }
+
+    /* Show sidebar (reset collapsed state) */
+    _sidebarOpen = true;
+    if (sb) { sb.style.display = ''; sb.classList.remove('fs-collapsed'); }
+    if (tab) tab.style.display = 'none';
+
+    /* Apply fullscreen class */
+    card.classList.add('map-fullscreen');
+    document.body.classList.add('map-fs-active');
+    _fsActive = true;
+
+    /* Update button icon + label */
+    _setBtn(SVG_RESTORE, 'Restore');
+
+    /* Esc key to exit */
+    document._mapFsEsc = function(e) {
+      if (e.key === 'Escape') _exit();
+    };
+    document.addEventListener('keydown', document._mapFsEsc);
+
+    /* Let the browser finish layout then invalidate Leaflet */
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        if (window._map) window._map.invalidateSize({ animate: false });
+      });
+    });
+  }
+
+  /* ─────────────────────── exit fullscreen ──────────────────────────── */
+  function _exit() {
+    var card       = document.getElementById('mapCard');
+    var sb         = document.getElementById('mapFullscreenSidebar');
+    var tab        = document.getElementById('mapFullscreenSidebarTab');
+    var objContent = document.getElementById('objectsPanelContent');
+    if (!card) return;
+
+    /* Restore objectsPanelContent to its original location */
+    if (objContent && _objOrigParent) {
+      if (_objOrigNext && _objOrigNext.parentNode === _objOrigParent) {
+        _objOrigParent.insertBefore(objContent, _objOrigNext);
+      } else {
+        _objOrigParent.appendChild(objContent);
+      }
+      _objOrigParent = null;
+      _objOrigNext   = null;
+    }
+
+    /* Hide sidebar back to display:none */
+    if (sb)  { sb.style.display = 'none'; sb.classList.remove('fs-collapsed'); }
+    if (tab) tab.style.display = 'none';
+
+    /* Remove fullscreen class */
+    card.classList.remove('map-fullscreen');
+    document.body.classList.remove('map-fs-active');
+    _fsActive = false;
+
+    /* Restore button */
+    _setBtn(SVG_EXPAND, 'Expand');
+
+    /* Remove Esc listener */
+    if (document._mapFsEsc) {
+      document.removeEventListener('keydown', document._mapFsEsc);
+      document._mapFsEsc = null;
+    }
+
+    /* Invalidate Leaflet size back to normal */
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        if (window._map) window._map.invalidateSize({ animate: false });
+      });
+    });
+  }
+
+  /* ── Helper: update the button icon + label ── */
+  function _setBtn(svgPath, label) {
+    var icon  = document.getElementById('mapMaximiseBtnIcon');
+    var lbl   = document.getElementById('mapMaximiseBtnLabel');
+    if (icon) icon.innerHTML = svgPath;
+    if (lbl)  lbl.textContent = label;
+  }
 })();
 </script>
 
