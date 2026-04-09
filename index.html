@@ -22919,20 +22919,41 @@ initCollapse();
       _noiseLegend = L.control({ position: 'bottomright' });
       _noiseLegend.onAdd = function() {
         var div = L.DomUtil.create('div', 'noise-legend');
-        div.style.cssText = 'background:rgba(255,255,255,0.92);padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
+        // Fully opaque white background — html2canvas composites semi-transparent
+        // elements incorrectly when the parent background is also semi-transparent.
+        // Using #fff here makes the export match the on-screen appearance exactly
+        // (the live view was rgba(255,255,255,0.92) — visually indistinguishable).
+        div.style.cssText = 'background:#fff;padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
         var periodLabel = PERIOD_LABELS[_noiseMapPeriod] || 'Day L<sub>Aeq</sub>';
         var s = '<b>' + periodLabel + ' dB</b><br>';
         s += '<span style="color:#888;font-size:10px;">' + _noiseMapHeight.toFixed(1) + 'm height</span><br>';
-        // Build legend from NOISE_COLOURS (skip transparent first entry)
+        // Build legend from NOISE_COLOURS (skip transparent first entry).
+        // Pre-composite each swatch colour against white so the swatches are fully
+        // opaque — this makes the colours correct in both the live view (legend sits
+        // on a white background) and in the JPG export (no alpha blending surprises).
         for (var li = 1; li < NOISE_COLOURS.length; li++) {
           var nc = NOISE_COLOURS[li];
-          var label = nc.max === Infinity ? '>' + nc.min : nc.min + '\u2013' + nc.max;
-          s += '<span style="display:inline-block;width:14px;height:10px;background:' + nc.color + ';margin-right:4px;border:1px solid rgba(0,0,0,0.1);"></span> ' + label + '<br>';
+          var label = nc.max === Infinity ? '&gt;' + nc.min : nc.min + '\u2013' + nc.max;
+          var swatchCol = _legendSwatchColor(nc.color);
+          s += '<span style="display:inline-block;width:14px;height:10px;background:' + swatchCol + ';margin-right:4px;border:1px solid rgba(0,0,0,0.25);vertical-align:middle;border-radius:2px;"></span>' + label + '<br>';
         }
         div.innerHTML = s;
         return div;
       };
       _noiseLegend.addTo(map);
+    }
+
+    /** Pre-composite an rgba(r,g,b,a) colour against white, returning an opaque rgb()
+     *  string that matches the visual appearance of the semi-transparent colour when
+     *  rendered over a white (#fff) background. */
+    function _legendSwatchColor(rgba) {
+      var m = rgba && rgba.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/);
+      if (!m) return rgba || '#ccc';
+      var r = +m[1], g = +m[2], b = +m[3], a = m[4] !== undefined ? +m[4] : 1;
+      return 'rgb(' +
+        Math.round(r * a + 255 * (1 - a)) + ',' +
+        Math.round(g * a + 255 * (1 - a)) + ',' +
+        Math.round(b * a + 255 * (1 - a)) + ')';
     }
 
     function hideNoiseLegend() {
