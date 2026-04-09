@@ -2645,7 +2645,7 @@ var autoIFPerReceiver = {r1: null, r2: null, r3: null, r4: null};
 var autoIFDataPerReceiver = {r1: null, r2: null, r3: null, r4: null};
 // Clause 20 (rural) distance-adjustment cache: null=not computed, 'pending'=in-flight, {adj,rule,detail}=result
 var _clause20Cache = {r1: null, r2: null, r3: null, r4: null};
-// SA Clause 6 intervening zone cache: null=not computed/N/A, 'pending'=in-flight, {applies:bool,widthM:num}=result
+// SA Clause 5(6) intervening zone cache: null=not computed/N/A, 'pending'=in-flight, {applies:bool,widthM:num}=result
 var _cl6Cache = {r1: null, r2: null, r3: null, r4: null};
 // Legacy aliases for backward compat (used by detected-zones display, etc.)
 let autoIF = null;
@@ -6808,36 +6808,40 @@ function renderSourceTable(prefix, tbodyId, totalId, rows, sourceIdx) {}
 
 
 function calcCriteria(source, rec, recId) {
-  if (!source || !rec) return {day:"", evening:"", night:"", lmax:"", cl6:false};
+  if (!source || !rec) return {day:"", evening:"", night:"", lmax:"", cl6:false, cl54:false};
 
   // VIC/NSW/OTHER mode: criteria handled separately via their own functions
   if (currentState === 'VIC' || currentState === 'NSW' || currentState === 'OTHER') {
-    return {day:"", evening:"", night:"", lmax:"", cl6:false};
+    return {day:"", evening:"", night:"", lmax:"", cl6:false, cl54:false};
   }
 
-  // Clause 6: intervening noise-designated zone ≥100 m → use receiver INL only
+  // Clause 5(6): intervening noise-designated zone ≥100 m → use receiver INL only
   var cl6Entry = recId ? _cl6Cache[recId] : null;
   var cl6Applies = cl6Entry && cl6Entry !== 'pending' && cl6Entry.applies === true;
 
-  const sameCatGI_SI =
+  // Clause 5(4): source and receiver share the same single land use category
+  const sameCat =
     source.is_single == 1 &&
     rec.is_single == 1 &&
     source.single_cat &&
-    source.single_cat === rec.single_cat &&
+    source.single_cat === rec.single_cat;
+  // GI/SI same-category variant uses a fixed base INL (65 dB GI, 70 dB SI)
+  const sameCatGI_SI = sameCat &&
     (source.single_cat === "General Industry" || source.single_cat === "Special Industry");
 
   let dayCrit, nightCrit;
   if (sameCatGI_SI) {
-    // Same GI/SI category — fixed base level, Cl.6 does not change outcome
+    // Clause 5(4): same GI/SI category — use fixed base INL
     const base = (source.single_cat === "General Industry") ? 65 : 70;
     dayCrit = base - 5;
     nightCrit = base - 5;
   } else if (cl6Applies) {
-    // Clause 6: intervening zone ≥100 m — use receiver zone INL only (Clause 4 logic)
+    // Clause 5(6): intervening zone ≥100 m — use receiver zone INL only
     dayCrit = Number(rec.inf_day) - 5;
     nightCrit = Number(rec.inf_night) - 5;
   } else {
-    // Clause 5: average source and receiver INL
+    // Clause 5(5): average source and receiver INL
+    // (also mathematically correct for same-cat non-GI/SI since both INFs are equal)
     dayCrit = Math.round((Number(source.inf_day) + Number(rec.inf_day))/2) - 5;
     nightCrit = Math.round((Number(source.inf_night) + Number(rec.inf_night))/2) - 5;
   }
@@ -6858,7 +6862,7 @@ function calcCriteria(source, rec, recId) {
     }
   }
 
-  return {day: dayCrit, night: nightCrit, lmax, cl6: !!cl6Applies};
+  return {day: dayCrit, night: nightCrit, lmax, cl6: !!cl6Applies, cl54: !!sameCat};
 }
 
 function getVicDropdownType(selValue) {
@@ -7585,11 +7589,11 @@ function triggerClause20AllReceivers() {
 }
 
 /**
- * SA Noise Policy 2023 — Clause 6 Intervening Zone Override.
+ * SA Noise Policy 2023 — Clause 5(6) Intervening Zone Override.
  * Samples the straight-line source→receiver path to detect any noise-designated
  * zone that differs from both the source zone and receiver zone. If a contiguous
- * run of such intervening zone spans ≥100 m along the path, averaging is skipped
- * and the receiver zone INL alone determines the noise emission criteria.
+ * run of such intervening zone spans ≥100 m along the path, Clause 5(5) averaging
+ * is skipped and the receiver zone INL alone determines the noise emission criteria.
  */
 function runClause6ForReceiver(recvId) {
   if (currentState !== 'SA') { _cl6Cache[recvId] = null; return; }
@@ -10879,23 +10883,24 @@ function renderSADerivTable() {
     var cl6Entry = _cl6Cache[id];
     var cl6Pending = cl6Entry === 'pending';
     var cl6Applies = crit.cl6;
+    var sameCat    = crit.cl54;
 
-    // Determine clause label
+    // Determine clause label per SA EPA Noise Policy 2023 Clause 5(4)/(5)/(6)
     var clauseLabel, clauseNote;
-    if (!src || srcKey === recKey) {
-      clauseLabel = 'Clause 4';
-      clauseNote = 'Same zone \u2014 source and receiver INL identical; no averaging required';
+    if (sameCat && !cl6Applies) {
+      clauseLabel = 'Clause 5(4)';
+      clauseNote = 'Source and receiver zones share the same land use category \u2014 INL is the indicative noise factor for that category';
     } else if (cl6Pending) {
       clauseLabel = 'Checking\u2026';
-      clauseNote = 'Querying intervening zones along path';
+      clauseNote = 'Querying intervening zones along source\u2013receiver path';
     } else if (cl6Applies) {
       var w = (cl6Entry && cl6Entry.widthM) ? cl6Entry.widthM + '\u202fm wide' : '\u2265100\u202fm wide';
-      clauseLabel = 'Clause 6';
-      clauseNote = 'Intervening noise-designated zone ' + w + ' detected along path \u2014 receiver zone INL used (not averaged)';
+      clauseLabel = 'Clause 5(6)';
+      clauseNote = 'Intervening noise-designated zone ' + w + ' detected along source\u2013receiver path \u2014 receiver zone INL used (not averaged)';
     } else {
-      clauseLabel = 'Clause 5';
-      clauseNote = 'Source and receiver zones differ \u2014 INL averaged';
-      if (cl6Entry && !cl6Applies) clauseNote += '; no qualifying intervening zone \u226510m detected';
+      clauseLabel = 'Clause 5(5)';
+      clauseNote = 'Source and receiver land use categories differ \u2014 INL averaged';
+      if (cl6Entry && !cl6Applies) clauseNote += '; no qualifying intervening zone \u2265100\u202fm detected';
     }
 
     var srcInlDay  = src ? Number(src.inf_day)  : '\u2014';
@@ -10924,9 +10929,9 @@ function renderSADerivTable() {
 
   var html = '';
   rows.forEach(function(r) {
-    var clauseStyle = r.clauseLabel === 'Clause 6'
+    var clauseStyle = r.clauseLabel === 'Clause 5(6)'
       ? 'font-weight:700;color:#0369a1;'
-      : (r.clauseLabel === 'Clause 4' ? 'color:#6b7280;' : '');
+      : (r.clauseLabel === 'Clause 5(4)' ? 'color:#6b7280;' : '');
     html += '<tr>';
     html += '<td style="font-weight:600;">' + r.name + '</td>';
     html += '<td>' + (r.srcInlDay !== '\u2014'
