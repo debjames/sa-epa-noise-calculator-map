@@ -663,6 +663,116 @@ body.map-fs-active { overflow: hidden; }
   border-radius:4px !important;
 }
 
+/* ── Floating help panel ─────────────────────────────────────────────── */
+#helpFloatPanel {
+  display: none;                    /* shown by JS as flex */
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  width: 350px;
+  height: 450px;
+  z-index: 2000;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  flex-direction: column;
+  resize: both;
+  overflow: hidden;
+  min-width: 260px;
+  min-height: 200px;
+}
+#helpPanelHdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(26,32,44,.92);
+  color: #f3f4f6;
+  border-radius: 10px 10px 0 0;
+  cursor: move;
+  user-select: none;
+  flex-shrink: 0;
+}
+#helpPanelHdr .help-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+#helpPanelClose {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+#helpPanelClose:hover { color: #fff; }
+#helpPanelContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 14px 10px;
+  font-size: 12px;
+  color: #374151;
+  line-height: 1.6;
+}
+#helpPanelContent details {
+  border-bottom: 1px solid #e5e7eb;
+}
+#helpPanelContent details:last-child { border-bottom: none; }
+#helpPanelContent summary {
+  padding: 9px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#helpPanelContent summary::-webkit-details-marker { display: none; }
+#helpPanelContent summary .help-arrow {
+  font-size: 9px;
+  color: #6b7280;
+  transition: transform .18s;
+  flex-shrink: 0;
+  display: inline-block;
+}
+#helpPanelContent details[open] summary .help-arrow { transform: rotate(90deg); }
+#helpPanelContent .help-body {
+  padding: 2px 2px 10px 18px;
+  color: #4b5563;
+}
+#helpPanelContent .help-body ul {
+  margin: 0;
+  padding-left: 14px;
+}
+#helpPanelContent .help-body li { margin-bottom: 3px; }
+#helpPanelContent .help-tag {
+  font-size: 10px;
+  color: #6b7280;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+#helpPanelContent .help-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  margin: 8px 0 3px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+/* Help toggle button active state */
+#mp-help .mp-hdr.help-active { background: rgba(59,130,246,.35); }
+
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" crossorigin="anonymous"/>
@@ -757,6 +867,14 @@ body.map-fs-active { overflow: hidden; }
               <div class="mp-hdr" id="saveJpgPanelBtn" title="Export map as JPEG at 3× resolution (print quality)" style="cursor:pointer;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 <span>Save JPG</span>
+              </div>
+            </div>
+
+            <!-- Help toggle button -->
+            <div class="mp" id="mp-help" style="pointer-events:all;">
+              <div class="mp-hdr" id="helpToggleBtn" title="Quick reference guide" style="cursor:pointer;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round" stroke-width="3"/></svg>
+                <span>?</span>
               </div>
             </div>
 
@@ -1694,24 +1812,6 @@ body.map-fs-active { overflow: hidden; }
     </div>
   </div>
 
-  <!-- How to use panel -->
-  <div class="card" style="margin-top:14px;">
-    <h2>How to use</h2>
-    <div style="line-height:1.8;font-size:12px;">
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">1</span><div><b>Set the site location</b><br>Search for an address using the search bar, or click the map to centre the view on your site. The address is used in exported filenames.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">2</span><div><b>Place noise source(s)</b><br>Click &ldquo;+ Add source&rdquo; to create a source. Click &ldquo;Place&rdquo; within the source card, then click the map to place the source pin. Each source has its own equipment list and height setting. Multiple sources are energy-summed at each receiver.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">3</span><div><b>Enter equipment details</b><br>For each source, add equipment items with their sound power level (L<sub>w</sub>, dB(A)) and quantity. Use manufacturer data sheets or measured values. If operational time is less than 15 minutes per assessment period, enter the expected duration to apply a time weighting.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">4</span><div><b>Place receivers</b><br>Click the receiver button (R1&ndash;R4) on the toolbar, then click the map. Up to four receivers can be assessed simultaneously. Assign a name to each receiver for reporting purposes.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">5</span><div><b>Set zones and receiver types</b><br>Use the zone dropdown for each receiver to set the applicable noise zone, or rely on auto-detection from SAPPA (SA), NSW Planning Portal, or VIC zone data. Select the receiver type (e.g. residential, commercial) to apply the correct criteria.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">6</span><div><b>Review results</b><br>The results table shows predicted levels for day, evening, and night periods against the applicable criteria. Cells highlighted in red indicate an exceedance. Click any receiver row to see a per-band ISO 9613-2 calculation breakdown. Where terrain screening is enabled and elevation data is available, terrain diffraction loss is automatically applied &mdash; a mountain icon (&#x26F0;) will appear next to predicted levels. Use the terrain profile view in each receiver card to inspect the propagation path.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">7</span><div><b>Add buildings, barriers, and building sources (optional)</b><br>Activate Buildings to load editable OSM building footprints, or use <b>New building</b> and <b>Barrier</b> to draw custom elements. Use <b>Building source</b> to draw a noise-radiating building polygon where internal noise levels are known &mdash; enter the interior L<sub>p</sub>, wall/roof construction, and operating periods to calculate radiated facade and roof sound power. All buildings, barriers, and building sources are included in the acoustic calculation.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">8</span><div><b>Enable terrain screening (optional)</b><br>Click the <b>Terrain</b> button to fetch ground elevation data for all placed pins. The Geoscience Australia 5&thinsp;m LiDAR DEM is used where available; Open-Elevation (SRTM ~30&thinsp;m) is the fallback. Where terrain protrudes above the direct line of sight between a source and receiver, diffraction loss is calculated using the Maekawa formula. A terrain indicator appears in the results table where terrain screening is applied. Enable <b>Contours</b> to overlay terrain elevation contour lines on the map.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">9</span><div><b>Enable the noise map (optional)</b><br>Toggle the Noise Map button to display predicted contours across the site. Select the period (day/evening/night/L<sub>max</sub>), receiver height, and grid size. Finer grids (1&ndash;10&thinsp;m) give more detail but take longer to compute &mdash; use Auto for most assessments. Enable the Terrain button before generating the noise map to apply terrain diffraction screening to the contours. Contours are calculated using the same propagation method as the receiver predictions.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">10</span><div><b>Load planning overlays (optional)</b><br>Use the toolbar to add contextual layers: SA Planning zones (Show Zones), aerial imagery (Aerial), cadastral boundaries (Cadastral), and OpenStreetMap building footprints (Buildings). MBS 010 Screening identifies whether receiver locations fall within a Noise and Emissions Overlay under the SA Planning and Design Code.</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:10px;"><span style="background:rgb(242,203,0);color:#333;border-radius:50%;min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">11</span><div><b>Export</b><br><b>Save session:</b> downloads a JSON file to reload this assessment later &mdash; all sources, receivers, settings, and results are preserved.<br><b>GIS Export:</b> exports sources, receivers, and contours as GeoJSON, KML, or CSV for use in QGIS, ArcGIS, or Google Earth.<br><b>Screenshot:</b> use your browser or operating system screenshot tool to capture the map at the appropriate zoom level for use as a figure in reports.</div></div>
-      <div style="background:#f8f9fa;border-left:3px solid #f39c12;padding:8px 12px;font-size:11px;color:#856404;border-radius:4px;margin-top:4px;">Always cross-check predicted results against hand calculations for at least one receiver before using outputs in a formal report.</div>
-    </div>
-  </div>
 
   <!-- Methodology panel -->
   <div class="card" style="margin-top:14px;">
@@ -24574,6 +24674,137 @@ initCollapse();
     if (icon) icon.innerHTML = svgPath;
     if (lbl)  lbl.textContent = label;
   }
+})();
+</script>
+
+<!-- ─── Floating help panel ─────────────────────────────────────────── -->
+<div id="helpFloatPanel">
+  <div id="helpPanelHdr">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;opacity:.75;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round" stroke-width="3"/></svg>
+    <span class="help-title">Quick Reference</span>
+    <button id="helpPanelClose" title="Close">&#x2715;</button>
+  </div>
+  <div id="helpPanelContent">
+
+    <details open>
+      <summary><span class="help-arrow">&#9658;</span> Derive criteria (SA / Vic / NSW)</summary>
+      <div class="help-body">
+        <ul>
+          <li>Place one point source at site <span class="help-tag">Tools</span></li>
+          <li>Place up to 4 receiver locations <span class="help-tag">Tools</span></li>
+          <li>Criteria automatically derived based on locations &mdash; shown in panels below the map</li>
+          <li>Refer to <em>Methodology</em> for further information</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> Save images</summary>
+      <div class="help-body">
+        <ul>
+          <li>Use toolbars to set up the scenario to save</li>
+          <li>Toggle zones &amp; state-relevant areas on/off (MBS 010, Major Urban Areas etc.) <span class="help-tag">Mapping</span></li>
+          <li>Toggle objects on/off to clean the map <span class="help-tag">Tools</span></li>
+          <li>Use for: zones, criteria maps, aerial, street, cadastral, modelling scenarios, noise maps</li>
+          <li>Click <strong>Save JPG</strong> button at top right of map</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> Modelling <span class="help-tag">Tools</span></summary>
+      <div class="help-body">
+        <div class="help-sub">Existing situation</div>
+        <ul>
+          <li>Terrain / contours &mdash; toggle on/off for modelling</li>
+          <li>Existing buildings &mdash; toggle on/off for modelling (coverage limited, heights assumed)</li>
+          <li>Buildings can be removed from model and predictions</li>
+          <li>Facade reflections (per ISO 9613-2)</li>
+          <li>Ruler &mdash; measure between two locations</li>
+        </ul>
+        <div class="help-sub">New situation</div>
+        <ul>
+          <li>Site plan overlay &mdash; add image, scale, rotate, move</li>
+          <li>New buildings</li>
+          <li>Barriers</li>
+          <li>Ground absorption values (general ground absorption set in Propagation method panel)</li>
+          <li>Point / line / area / building sources</li>
+        </ul>
+        <div class="help-sub">Predictions</div>
+        <ul>
+          <li>Levels predicted and shown vs derived criteria</li>
+          <li>Scenarios for day / evening / night</li>
+          <li>Source contribution breakdown</li>
+          <li>Characteristic penalties per state policy</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> Noise mapping <span class="help-tag">Modelling</span></summary>
+      <div class="help-body">
+        <ul>
+          <li>Select period: day / evening / night / L<sub>Amax</sub></li>
+          <li>Set contour height</li>
+          <li>Set grid size (auto = based on map zoom)</li>
+          <li>Set contour range and interval</li>
+          <li>Save JPG as needed (toggle off objects / boundary / mapping layers first)</li>
+        </ul>
+      </div>
+    </details>
+
+  </div><!-- /helpPanelContent -->
+</div><!-- /helpFloatPanel -->
+
+<script>
+/* ── Floating help panel ─────────────────────────────────────── */
+(function() {
+  var panel     = document.getElementById('helpFloatPanel');
+  var toggleBtn = document.getElementById('helpToggleBtn');
+  var closeBtn  = document.getElementById('helpPanelClose');
+  var hdr       = document.getElementById('helpPanelHdr');
+  if (!panel || !toggleBtn || !closeBtn || !hdr) return;
+
+  function showPanel() {
+    panel.style.display = 'flex';
+    toggleBtn.classList.add('help-active');
+  }
+  function hidePanel() {
+    panel.style.display = 'none';
+    toggleBtn.classList.remove('help-active');
+  }
+
+  toggleBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (panel.style.display === 'flex') hidePanel(); else showPanel();
+  });
+  closeBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    hidePanel();
+  });
+
+  /* ── Draggable by header ─────────────────────────────────── */
+  var _drag = false, _dx = 0, _dy = 0, _px = 0, _py = 0;
+  hdr.addEventListener('mousedown', function(e) {
+    if (e.target === closeBtn || e.target.closest && e.target.closest('button')) return;
+    _drag = true;
+    _dx = e.clientX; _dy = e.clientY;
+    var r = panel.getBoundingClientRect();
+    _px = r.left; _py = r.top;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!_drag) return;
+    panel.style.left  = (_px + e.clientX - _dx) + 'px';
+    panel.style.top   = (_py + e.clientY - _dy) + 'px';
+    panel.style.right = 'auto';
+  });
+  document.addEventListener('mouseup', function() { _drag = false; });
+
+  /* ── Prevent map click-through ───────────────────────────── */
+  panel.addEventListener('click',     function(e) { e.stopPropagation(); });
+  panel.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+  panel.addEventListener('wheel',     function(e) { e.stopPropagation(); });
 })();
 </script>
 
