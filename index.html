@@ -20121,11 +20121,10 @@ initCollapse();
         var active = !bs.activeInPeriod || bs.activeInPeriod[period] !== false;
         var intLp = bs.interiorLp && bs.interiorLp[period];
         var lpBB = intLp ? intLp.broadband : null;
-        // Only use octave data when lpSource === 'octave'; the default octave object
-        // {63:null,…} is truthy but empty and would block the broadband path otherwise.
         var lpOct = (bs.lpSource === 'octave' && intLp) ? intLp.octave : null;
         var pct = (bs.operatingPct && Number.isFinite(bs.operatingPct[period])) ? bs.operatingPct[period] : 100;
-        if (!active || !Number.isFinite(lpBB)) { return; }
+        var hasOctLp = lpOct && BS_OCTAVE_BANDS.some(function(b) { return Number.isFinite(lpOct[b]); });
+        if (!active || (!Number.isFinite(lpBB) && !hasOctLp)) { return; }
         var allLws = [];
         walls.forEach(function(w, i) {
           var overr = bs.facadeOverrides && bs.facadeOverrides[i];
@@ -20160,7 +20159,7 @@ initCollapse();
         vertices: verts,
         baseHeightM: 0,
         height_m: ht || 6,
-        lpSource: 'broadband',
+        lpSource: 'octave',
         interiorLp: {
           day:   { broadband: null, octave: {63:null,125:null,250:null,500:null,1000:null,2000:null,4000:null,8000:null} },
           eve:   { broadband: null, octave: {63:null,125:null,250:null,500:null,1000:null,2000:null,4000:null,8000:null} },
@@ -20256,9 +20255,9 @@ initCollapse();
       if (!bs.vertices || bs.vertices.length < 3) return [];
       var intLp = bs.interiorLp && bs.interiorLp[period];
       var lpBB  = intLp ? intLp.broadband : null;
-      // Only use octave data when lpSource === 'octave'; same guard as _bsCalcDerived.
       var lpOct = (bs.lpSource === 'octave' && intLp) ? intLp.octave : null;
-      if (!Number.isFinite(lpBB)) return [];
+      var hasOctLp = lpOct && BS_OCTAVE_BANDS.some(function(b) { return Number.isFinite(lpOct[b]); });
+      if (!Number.isFinite(lpBB) && !hasOctLp) return [];
       if (bs.activeInPeriod && bs.activeInPeriod[period] === false) return [];
       var pct = (bs.operatingPct && Number.isFinite(bs.operatingPct[period])) ? bs.operatingPct[period] : 100;
       if (pct <= 0) return [];
@@ -20929,34 +20928,29 @@ initCollapse();
       var coordStr = ctr ? ctr.lat.toFixed(5) + ', ' + ctr.lng.toFixed(5) : '—';
 
       var derived = _bsCalcDerived(bs);
-      var totalDay = derived.total.day;
-      var headerLp = Number.isFinite(bs.interiorLp && bs.interiorLp.day && bs.interiorLp.day.broadband) ? Math.round(bs.interiorLp.day.broadband) + ' dB(A)' : '—';
       var defWallName = bs.defaultConstruction ? bs.defaultConstruction.name : '';
       var roofName = bs.roofConstruction ? bs.roofConstruction.name : '';
 
-      var h = '<div id="bsFloatPanel" style="position:fixed;z-index:3100;width:400px;background:#fff;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,0.18);font-family:sans-serif;font-size:12px;user-select:none;left:200px;top:60px;max-height:calc(100vh - 80px);display:flex;flex-direction:column;overflow:hidden;">';
+      var h = '<div id="bsFloatPanel" style="position:fixed;z-index:5000;width:400px;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);font-size:13px;line-height:1.4;user-select:none;left:200px;top:60px;max-height:calc(100vh - 80px);display:flex;flex-direction:column;overflow:hidden;">';
 
       // Header
-      h += '<div id="bsPanelHeader" style="background:linear-gradient(90deg,#6d28d9,#8b5cf6);color:#fff;padding:10px 14px;border-radius:10px 10px 0 0;cursor:move;display:flex;align-items:center;justify-content:space-between;">';
-      h += '<span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(255,255,255,0.25)" stroke="#fff" stroke-width="2" style="flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#fff" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#fff" stroke-width="1.5"/></svg>' + escapeHTML(bs.name || 'Building source') + ' \u2014 Lp ' + headerLp + ' inside</span>';
-      h += '<button onclick="closeBsPanel()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;padding:0;line-height:1;">\u2715</button>';
+      h += '<div id="bsPanelHeader" style="background:#fff;border-left:4px solid #7c3aed;border-radius:8px 8px 0 0;padding:10px 14px;display:flex;align-items:center;gap:8px;cursor:move;border-bottom:1px solid #f0f0f0;">';
+      h += '<span style="font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;" id="bsPanelTitle">' + escapeHTML(bs.name || 'Building source') + '</span>';
+      h += '<button onclick="closeBsPanel()" style="background:none;border:none;color:#bbb;cursor:pointer;font-size:18px;padding:0 4px;line-height:1;">\u2715</button>';
       h += '</div>';
 
       // Body — flex:1 fills space between sticky header and footer; min-height:0 allows shrink
-      h += '<div style="flex:1;min-height:0;overflow-y:auto;padding:14px;">';
+      h += '<div style="flex:1;min-height:0;overflow-y:auto;padding:12px 14px;">';
 
-      // Name field + lpSource dropdown
-      h += '<div style="display:flex;gap:6px;margin-bottom:8px;">';
-      h += '<input id="bsPanelName" type="text" value="' + escapeHTML(bs.name || '') + '" placeholder="Building name" style="flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:5px;font-size:12px;">';
-      h += '<select id="bsLpSource" style="padding:4px 6px;border:1px solid #ddd;border-radius:5px;font-size:11px;" title="Interior Lp measurement source">';
-      h += '<option value="broadband"' + (bs.lpSource !== 'octave' ? ' selected' : '') + '>Broadband Lp</option>';
-      h += '<option value="octave"' + (bs.lpSource === 'octave' ? ' selected' : '') + '>Octave Lp</option>';
-      h += '</select>';
+      // Name field
+      h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">';
+      h += '<label style="font-size:11px;color:#666;white-space:nowrap;">Name:</label>';
+      h += '<input id="bsPanelName" type="text" value="' + escapeHTML(bs.name || '') + '" style="flex:1;padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:13px;">';
       h += '</div>';
 
       // Coords + geometry
-      h += '<div style="display:flex;gap:10px;font-size:11px;color:#6b7280;margin-bottom:8px;">';
-      h += '<span>' + coordStr + '</span><span>&middot;</span><span>Area: <b>' + _asFormatArea(roofArea) + '</b></span></div>';
+      h += '<div style="font-size:11px;color:#888;display:flex;gap:12px;margin-bottom:8px;">';
+      h += '<span>' + coordStr + '</span><span>Area: <b>' + _asFormatArea(roofArea) + '</b></span></div>';
       var bsTopM = (bs.baseHeightM || 0) + (bs.height_m || 6);
       h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:4px;padding:8px;background:#f5f3ff;border-radius:6px;border:1px solid #e9d5ff;">';
       h += '<div><span style="color:#6b7280;">Base ht (m)</span><br><input id="bsPanelBase" type="number" value="' + (bs.baseHeightM||0).toFixed(1) + '" step="0.1" min="0" style="width:60px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></div>';
@@ -20975,22 +20969,19 @@ initCollapse();
       ['day','eve','night'].forEach(function(period) {
         var label = {day:'Day',eve:'Evening',night:'Night'}[period];
         var intLp = (bs.interiorLp && bs.interiorLp[period]) || {broadband:null, octave:{}};
-        var lpBB = Number.isFinite(intLp.broadband) ? intLp.broadband : '';
         var active = !bs.activeInPeriod || bs.activeInPeriod[period] !== false;
         var pct = (bs.operatingPct && Number.isFinite(bs.operatingPct[period])) ? bs.operatingPct[period] : 100;
         h += '<div style="border:1px solid #e9d5ff;border-radius:6px;padding:8px;margin-bottom:8px;">';
         h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
-        h += '<b>' + label + '</b>';
+        h += '<b style="font-size:12px;">' + label + '</b>';
         h += '<label style="display:flex;align-items:center;gap:4px;font-size:11px;">';
         h += '<input type="checkbox" id="bsActive_'+period+'"' + (active?' checked':'') + '> Active</label>';
         h += '</div>';
-        h += '<div style="display:flex;gap:10px;align-items:center;margin-bottom:6px;">';
-        h += '<label style="font-size:11px;">Interior Lp (dB(A)):<input type="number" id="bsLp_'+period+'" value="' + lpBB + '" step="0.5" style="width:60px;margin-left:4px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></label>';
-        h += '<label style="font-size:11px;">Op. %:<input type="number" id="bsPct_'+period+'" value="' + pct + '" min="0" max="100" style="width:50px;margin-left:4px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></label>';
+        h += '<div style="margin-bottom:6px;">';
+        h += '<label style="font-size:11px;">Op. %: <input type="number" id="bsPct_'+period+'" value="' + pct + '" min="0" max="100" style="width:50px;margin-left:4px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></label>';
         h += '</div>';
-        h += '<details style="font-size:11px;"><summary style="cursor:pointer;color:#6b7280;">Octave band Lp (optional)</summary>';
+        h += '<div style="font-size:11px;color:#6b7280;font-weight:600;margin-bottom:3px;">Octave band Lp (dB)</div>';
         h += _bsOctaveLpRow('bs_' + period, intLp.octave);
-        h += '</details>';
         h += '</div>';
       });
 
@@ -21168,10 +21159,9 @@ initCollapse();
         if (perimEl) perimEl.textContent = perim.toFixed(0) + ' m';
         if (wallAreaEl) wallAreaEl.textContent = (perim * (bs.height_m || 6)).toFixed(0) + ' m\u00b2';
         if (roofAreaEl) roofAreaEl.textContent = roofArea.toFixed(0) + ' m\u00b2';
-        var hdrTitle = panel.querySelector('#bsPanelHeader span');
+        var hdrTitle = document.getElementById('bsPanelTitle');
         if (hdrTitle) {
-          var lpD = bs.interiorLp && bs.interiorLp.day && Number.isFinite(bs.interiorLp.day.broadband) ? Math.round(bs.interiorLp.day.broadband) + ' dB(A)' : '\u2014';
-          hdrTitle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(255,255,255,0.25)" stroke="#fff" stroke-width="2" style="flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#fff" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#fff" stroke-width="1.5"/></svg>' + escapeHTML(bs.name || 'Building source') + ' \u2014 Lp ' + lpD + ' inside';
+          hdrTitle.textContent = bs.name || 'Building source';
         }
       }
       /** Ensure a facadeOverride exists for wallIdx; return it. */
@@ -21250,12 +21240,6 @@ initCollapse();
         renderBuildingSourceLayer(); _bsRefreshStats();
       });
 
-      // ── lpSource ─────────────────────────────────────────────────────────
-      var lpSourceSel = document.getElementById('bsLpSource');
-      if (lpSourceSel) lpSourceSel.addEventListener('change', function() {
-        bs.lpSource = this.value;
-      });
-
       // ── Base height + Height ─────────────────────────────────────────────
       function _bsUpdateTopDisplay() {
         var topEl = document.getElementById('bsPanelTopDisplay');
@@ -21314,15 +21298,9 @@ initCollapse();
 
       // ── Interior Lp + active + pct per period ────────────────────────────
       ['day', 'eve', 'night'].forEach(function(period) {
-        var lpInp = document.getElementById('bsLp_' + period);
         var pctInp = document.getElementById('bsPct_' + period);
         var actChk = document.getElementById('bsActive_' + period);
         if (!bs.interiorLp[period]) bs.interiorLp[period] = { broadband: null, octave: {} };
-        if (lpInp) lpInp.addEventListener('input', function() {
-          var v = parseFloat(this.value);
-          bs.interiorLp[period].broadband = Number.isFinite(v) ? v : null;
-          _bsRefreshStats(); _bsRefreshDerived(); if (typeof render === 'function') render();
-        });
         if (pctInp) pctInp.addEventListener('input', function() {
           var v = parseFloat(this.value);
           bs.operatingPct[period] = Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 100;
@@ -21615,7 +21593,7 @@ initCollapse();
         if (!bs.interiorLp) bs.interiorLp = { day:{broadband:null,octave:{}}, eve:{broadband:null,octave:{}}, night:{broadband:null,octave:{}} };
         // Migrate new fields with defaults
         if (!Number.isFinite(bs.baseHeightM)) bs.baseHeightM = 0;
-        if (!bs.lpSource) bs.lpSource = 'broadband';
+        bs.lpSource = 'octave';
         if (!bs.roofElements) bs.roofElements = [];
         // Migrate old element area-only records to width×height
         if (bs.facadeOverrides) {
