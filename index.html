@@ -764,6 +764,13 @@ body.map-fs-active { overflow: hidden; }
               <button onclick="_toggleFsSidebar()" title="Minimise Objects panel" style="background:none;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;padding:3px 6px;line-height:1;color:#6b7280;display:flex;align-items:center;gap:3px;font-size:11px;" onmouseenter="this.style.background='#e5e7eb'" onmouseleave="this.style.background='none'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg> Hide</button>
             </div>
             <div id="mapFullscreenSidebarInner" style="overflow-y:auto;flex:1;padding:8px;font-size:12px;"></div>
+            <!-- Detail pane: shown when an object edit panel is open in fullscreen mode -->
+            <div id="mapFsSidebarDetail" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;">
+              <div style="padding:5px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;background:#eef2f7;flex-shrink:0;">
+                <button onclick="_fsSidebarBack()" title="Back to objects list" style="background:none;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;padding:3px 9px;font-size:11px;color:#374151;display:flex;align-items:center;gap:3px;" onmouseenter="this.style.background='#dde3ec'" onmouseleave="this.style.background='none'">&#8592; Back</button>
+              </div>
+              <div id="mapFsSidebarDetailBody" style="overflow-y:auto;flex:1;padding:0;"></div>
+            </div>
           </div>
           <!-- Re-open tab shown when sidebar is minimised (display controlled by JS) -->
           <div id="mapFullscreenSidebarTab" onclick="_toggleFsSidebar()" title="Show Objects panel" style="display:none;">&#9666; Objects</div>
@@ -24133,6 +24140,9 @@ initCollapse();
   /* References saved so we can restore the DOM on exit */
   var _objOrigParent = null;
   var _objOrigNext   = null;
+  /* MutationObservers for panel interception */
+  var _fsBodyObserver  = null; // watches document.body for new floating panels
+  var _fsDetailObserver = null; // watches detailBody for panel removal (close button)
 
   /* ── Public toggle (called by button onclick) ── */
   window.toggleMapFullscreen = function() {
@@ -24190,6 +24200,22 @@ initCollapse();
     };
     document.addEventListener('keydown', document._mapFsEsc);
 
+    /* Watch document.body for floating edit panels being appended.
+       When active, intercept and redirect them into the sidebar detail pane. */
+    var PANEL_IDS = ['srcFloatPanel', 'lsFloatPanel', 'asFloatPanel', 'bsFloatPanel'];
+    _fsBodyObserver = new MutationObserver(function(muts) {
+      if (!_fsActive) return;
+      muts.forEach(function(m) {
+        m.addedNodes.forEach(function(node) {
+          if (node.nodeType !== 1) return;
+          if (PANEL_IDS.indexOf(node.id) !== -1) {
+            _fsPanelToSidebar(node);
+          }
+        });
+      });
+    });
+    _fsBodyObserver.observe(document.body, { childList: true });
+
     /* Let the browser finish layout then invalidate Leaflet */
     requestAnimationFrame(function() {
       requestAnimationFrame(function() {
@@ -24217,6 +24243,10 @@ initCollapse();
       _objOrigNext   = null;
     }
 
+    /* Disconnect panel intercept observer and clean up detail pane */
+    if (_fsBodyObserver) { _fsBodyObserver.disconnect(); _fsBodyObserver = null; }
+    _fsSidebarBackToList();
+
     /* Hide sidebar back to display:none */
     if (sb)  { sb.style.display = 'none'; sb.classList.remove('fs-collapsed'); }
     if (tab) tab.style.display = 'none';
@@ -24241,6 +24271,75 @@ initCollapse();
         if (window._map) window._map.invalidateSize({ animate: false });
       });
     });
+  }
+
+  /* ── Move an intercepted floating panel into the sidebar detail pane ── */
+  function _fsPanelToSidebar(panel) {
+    var detailDiv  = document.getElementById('mapFsSidebarDetail');
+    var detailBody = document.getElementById('mapFsSidebarDetailBody');
+    var listDiv    = document.getElementById('mapFullscreenSidebarInner');
+    if (!detailDiv || !detailBody) return;
+
+    /* Ensure the sidebar is open (may have been minimised) */
+    if (!_sidebarOpen) {
+      _sidebarOpen = true;
+      var sb  = document.getElementById('mapFullscreenSidebar');
+      var tab = document.getElementById('mapFullscreenSidebarTab');
+      if (sb)  sb.classList.remove('fs-collapsed');
+      if (tab) tab.style.display = 'none';
+    }
+
+    /* Strip all fixed-position / floating-panel styles so it flows inline */
+    panel.style.position    = 'static';
+    panel.style.left        = '';
+    panel.style.top         = '';
+    panel.style.zIndex      = '';
+    panel.style.width       = '100%';
+    panel.style.maxHeight   = '';
+    panel.style.boxShadow   = 'none';
+    panel.style.borderRadius = '0';
+    panel.style.border      = 'none';
+
+    /* Neuter drag cursors on any drag-handle header so it doesn't look interactive */
+    var dragHdrs = panel.querySelectorAll('#sfp-drag-header, #bsPanelHeader, [style*="cursor:move"], [style*="cursor: move"]');
+    dragHdrs.forEach(function(h) { h.style.cursor = 'default'; });
+
+    /* Place in detail body and switch views */
+    detailBody.innerHTML = '';
+    detailBody.appendChild(panel);
+    if (listDiv) listDiv.style.display = 'none';
+    detailDiv.style.display = 'flex';
+
+    /* Watch for the panel being removed (e.g. its own close button clicked),
+       so we can automatically return to the list view. */
+    if (_fsDetailObserver) _fsDetailObserver.disconnect();
+    _fsDetailObserver = new MutationObserver(function(muts) {
+      muts.forEach(function(m) {
+        m.removedNodes.forEach(function(n) {
+          if (n === panel) {
+            _fsSidebarBackToList();
+          }
+        });
+      });
+    });
+    _fsDetailObserver.observe(detailBody, { childList: true });
+  }
+
+  /* ── Public: "← Back" button in detail header ── */
+  window._fsSidebarBack = function() {
+    _fsSidebarBackToList();
+  };
+
+  /* ── Internal: return sidebar to the objects list view ── */
+  function _fsSidebarBackToList() {
+    /* Disconnect observer before clearing innerHTML to avoid re-entrant calls */
+    if (_fsDetailObserver) { _fsDetailObserver.disconnect(); _fsDetailObserver = null; }
+    var detailDiv  = document.getElementById('mapFsSidebarDetail');
+    var detailBody = document.getElementById('mapFsSidebarDetailBody');
+    var listDiv    = document.getElementById('mapFullscreenSidebarInner');
+    if (detailDiv)  detailDiv.style.display = 'none';
+    if (detailBody) detailBody.innerHTML = '';       // discard the panel element
+    if (listDiv)    listDiv.style.display = '';      // restore objects list
   }
 
   /* ── Helper: update the button icon + label ── */
