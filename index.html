@@ -780,18 +780,23 @@ body.map-fs-active { overflow: hidden; }
                 <span>Tools</span><span class="mp-arrow">&#9660;</span>
               </div>
               <div class="mp-body">
+                <!-- Group 1: Map layers & analysis tools -->
                 <button class="mp-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain</button>
                 <button class="mp-btn" id="terrainContourBtn" title="Show terrain elevation contour lines on map (requires Terrain ON)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 15 Q8 9 12 12 Q16 15 21 9"/><path d="M3 20 Q8 14 12 17 Q16 20 21 14"/></svg> Contours</button>
                 <button class="mp-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
-                <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building</button>
-                <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier</button>
-                <button class="mp-btn" id="drawGroundZoneBtn" title="Draw a ground absorption zone polygon (overrides default G value for propagation paths passing through it)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17 Q8 11 12 14 Q16 17 21 11"/><path d="M3 21h18" stroke-dasharray="2 2"/></svg> Ground zone</button>
-                <button class="mp-btn" id="moveGeomBtn" title="Move mode: click to activate, then drag any barrier, building, or source to reposition it. Click again to exit."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg> Move</button>
-                <div class="mp-sep"></div>
                 <button class="mp-btn" id="reflectionsBtn" title="Apply ISO 9613-2 §7.5 image source facade reflections to receiver predictions and noise map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections</button>
                 <span id="reflectionsBuildingWarning" style="display:none;font-size:10px;color:#fbbf24;padding:2px 8px;white-space:normal;line-height:1.4;">&#9888; Enable Buildings layer to apply reflections to noise map</span>
                 <button class="mp-btn" id="rulerBtn" title="Measure distance: click two points on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="8" width="20" height="8" rx="1"/><line x1="6" y1="8" x2="6" y2="13"/><line x1="10" y1="8" x2="10" y2="11"/><line x1="14" y1="8" x2="14" y2="11"/><line x1="18" y1="8" x2="18" y2="13"/></svg> Ruler</button>
+                <button class="mp-btn" id="moveGeomBtn" title="Move mode: click to activate, then drag any barrier, building, or source to reposition it. Click again to exit."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg> Move</button>
                 <div class="mp-sep"></div>
+                <!-- Group 2: Site elements -->
+                <button class="mp-btn" id="sitePlanOverlayBtn" title="Upload a site plan image and position it as a map overlay" onclick="soOpenPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Site plan overlay</button>
+                <input type="file" id="soFileInput" accept=".png,.jpg,.jpeg,image/png,image/jpeg" style="display:none;">
+                <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building</button>
+                <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier</button>
+                <button class="mp-btn" id="drawGroundZoneBtn" title="Draw a ground absorption polygon (overrides default G value for propagation paths passing through it)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17 Q8 11 12 14 Q16 17 21 11"/><path d="M3 21h18" stroke-dasharray="2 2"/></svg> Ground absorption</button>
+                <div class="mp-sep"></div>
+                <!-- Group 3: Sources & receivers -->
                 <button class="mp-btn map-mode-btn" id="mapMode-source" title="Click map to place noise source" style="display:none;border-left:3px solid #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise source</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Point source</button>
                 <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.)" style="border-left:3px solid #d32f2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#d32f2f"/><circle cx="19" cy="5" r="2" fill="#d32f2f"/></svg> Line source</button>
@@ -802,12 +807,10 @@ body.map-fs-active { overflow: hidden; }
                 <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4</button>
                 <div class="mp-sep"></div>
+                <!-- Group 4: Visibility -->
                 <button class="mp-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide all modelling objects on the map (sources, receivers, barriers, buildings, zones)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Show / hide objects</button>
                 <button class="mp-btn parcel-toggle-btn active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Show / hide boundary</button>
                 <button class="mp-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;">Reset overrides</button>
-                <div class="mp-sep"></div>
-                <button class="mp-btn" id="sitePlanOverlayBtn" title="Upload a site plan image and position it as a map overlay" onclick="soOpenPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Site plan overlay</button>
-                <input type="file" id="soFileInput" accept=".png,.jpg,.jpeg,image/png,image/jpeg" style="display:none;">
                 <div class="mp-sep"></div>
                 <button class="mp-btn mp-danger" id="mapClearBtn" title="Remove all markers and clear distances"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg> Clear All</button>
               </div>
@@ -18810,7 +18813,7 @@ initCollapse();
           var gzCtr   = e.layer.getBounds().getCenter();
 
           var gzHtml = '<div style="min-width:220px;font-size:13px;">';
-          gzHtml += '<b>Ground zone</b><br>';
+          gzHtml += '<b>Ground absorption</b><br>';
           gzHtml += '<div style="margin:6px 0;">';
           gzHtml += 'Name: <input type="text" id="newGzName" placeholder="e.g. Car park" style="width:140px;padding:2px 4px;font-size:12px;"><br><br>';
           gzHtml += '<label style="font-size:12px;">Ground absorption G:</label><br>';
@@ -18851,7 +18854,7 @@ initCollapse();
               } else {
                 gVal = parseFloat(selVal);
               }
-              var gzName = (document.getElementById('newGzName').value || '').trim() || ('Ground zone ' + (_gzIdCtr + 1));
+              var gzName = (document.getElementById('newGzName').value || '').trim() || ('Ground absorption ' + (_gzIdCtr + 1));
               var gz = { id: 'gz_' + (++_gzIdCtr), name: gzName, g: gVal, vertices: gzVerts };
               _groundZones.push(gz);
               _renderGroundZone(gz);
@@ -19073,7 +19076,7 @@ initCollapse();
         fillColor: fillColor, fillOpacity: 0.25, interactive: true
       });
       poly.bindTooltip(
-        '<b>' + (gz.name || 'Ground zone') + '</b><br>G = ' + gz.g.toFixed(2) +
+        '<b>' + (gz.name || 'Ground absorption') + '</b><br>G = ' + gz.g.toFixed(2) +
         '<br><span style="font-size:11px;color:#555;">' +
         (gz.g === 0 ? 'Hard (concrete, asphalt)' : gz.g >= 1 ? 'Soft (grass, soil)' : 'Mixed') + '</span>',
         { sticky: true, opacity: 0.9 }
@@ -19082,7 +19085,7 @@ initCollapse();
         if (_drawingActive || _drawingGroundZone || _barrierDrawHandler) return;
         L.DomEvent.stopPropagation(ev);
         var eHtml = '<div style="min-width:220px;font-size:13px;">';
-        eHtml += '<b>Edit ground zone</b><br>';
+        eHtml += '<b>Edit ground absorption</b><br>';
         eHtml += '<div style="margin:6px 0;">';
         eHtml += 'Name: <input type="text" id="editGzName" value="' + (gz.name || '').replace(/"/g,'&quot;') + '" style="width:140px;padding:2px 4px;font-size:12px;"><br><br>';
         eHtml += '<label style="font-size:12px;">Ground absorption G:</label><br>';
@@ -19151,7 +19154,7 @@ initCollapse();
             editBar.id = 'shapeEditBar';
             editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid ' + gzAccent + ';border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
             editBar.innerHTML =
-              '<span style="color:' + gzAccent + ';font-weight:600;">Editing ground zone: ' + escapeHTML(gz.name || 'Ground zone') + '</span>' +
+              '<span style="color:' + gzAccent + ';font-weight:600;">Editing ground absorption: ' + escapeHTML(gz.name || 'Ground absorption') + '</span>' +
               '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
               '<button id="shapeEditSave" style="padding:3px 12px;font-size:12px;background:' + gzAccent + ';color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
               '<button id="shapeEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
@@ -19201,7 +19204,7 @@ initCollapse();
             { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
                 var newGz = {
                   id: 'gz_' + (++_gzIdCtr),
-                  name: (capturedGz.name || 'Ground zone') + ' (copy)',
+                  name: (capturedGz.name || 'Ground absorption') + ' (copy)',
                   g: capturedGz.g,
                   vertices: capturedGz.vertices.map(function(v) {
                     return [v[0] - 0.00002, v[1] + 0.00002];
@@ -19214,7 +19217,7 @@ initCollapse();
             }},
             'sep',
             { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
-                if (!confirm('Delete "' + (capturedGz.name || 'Ground zone') + '"?')) return;
+                if (!confirm('Delete "' + (capturedGz.name || 'Ground absorption') + '"?')) return;
                 var idx = _groundZones.indexOf(capturedGz);
                 if (idx !== -1) _groundZones.splice(idx, 1);
                 if (capturedGz._polygon) _groundZoneLayer.removeLayer(capturedGz._polygon);
@@ -23717,7 +23720,7 @@ initCollapse();
           html += '</div>';
         });
         _groundZones.forEach(function(gz, i) {
-          var name = escapeHTML(gz.name || 'Ground zone');
+          var name = escapeHTML(gz.name || 'Ground absorption');
           var gStr = ' (G=' + gz.g.toFixed(1) + ')';
           html += '<div class="obj-row" data-obj-type="groundzone" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:pointer;">';
           html += '<span style="width:11px;height:11px;border:1px dashed ' + _gzBorderColor(gz.g) + ';background:' + _gzFillColor(gz.g) + ';border-radius:1px;display:inline-block;flex-shrink:0;"></span>';
@@ -23919,7 +23922,7 @@ initCollapse();
       } else if (type === 'groundzone') {
         var gz = _groundZones[idx];
         if (!gz) return;
-        var newGz = { id: 'gz_' + (++_gzIdCtr), name: (gz.name || 'Ground zone') + ' (copy)', g: gz.g, vertices: gz.vertices.map(function(v) { return [v[0] - 0.00002, v[1] + 0.00002]; }) };
+        var newGz = { id: 'gz_' + (++_gzIdCtr), name: (gz.name || 'Ground absorption') + ' (copy)', g: gz.g, vertices: gz.vertices.map(function(v) { return [v[0] - 0.00002, v[1] + 0.00002]; }) };
         _groundZones.push(newGz);
         _renderGroundZone(newGz);
         if (typeof render === 'function') render();
@@ -23979,7 +23982,7 @@ initCollapse();
         if (typeof render === 'function') render();
       } else if (type === 'groundzone') {
         var gz = _groundZones[idx];
-        if (!confirm('Delete "' + (gz ? gz.name || 'Ground zone' : 'Ground zone') + '"?')) return;
+        if (!confirm('Delete "' + (gz ? gz.name || 'Ground absorption' : 'Ground absorption') + '"?')) return;
         _groundZones.splice(idx, 1);
         if (gz && gz._polygon) _groundZoneLayer.removeLayer(gz._polygon);
         if (window._renderObjectList) window._renderObjectList();
