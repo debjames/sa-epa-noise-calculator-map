@@ -11741,7 +11741,7 @@ initCollapse();
         if (typeof buildingSources !== 'undefined' && buildingSources.length > 0) {
           data.buildingSources = buildingSources.map(function(bs) {
             return {
-              id: bs.id, name: bs.name, vertices: bs.vertices, height_m: bs.height_m,
+              id: bs.id, name: bs.name, vertices: bs.vertices, baseHeightM: bs.baseHeightM || 0, height_m: bs.height_m,
               lpSource: bs.lpSource || 'broadband',
               interiorLp: bs.interiorLp, activeInPeriod: bs.activeInPeriod,
               operatingPct: bs.operatingPct, defaultConstruction: bs.defaultConstruction,
@@ -16481,7 +16481,7 @@ initCollapse();
       if (typeof buildingSources !== 'undefined') {
         buildingSources.forEach(function(bs) {
           if (bs.vertices && bs.vertices.length >= 3) {
-            result.push({ polygon: bs.vertices, heightM: bs.height_m || 6, isBuildingSource: true, buildingSourceId: bs.id });
+            result.push({ polygon: bs.vertices, heightM: (bs.baseHeightM || 0) + (bs.height_m || 6), isBuildingSource: true, buildingSourceId: bs.id });
           }
         });
       }
@@ -18223,8 +18223,16 @@ initCollapse();
           var bsVerts = e.layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
           var ctr = _asPolygonCentroid(bsVerts);
           // Height popup
-          var htHtml = '<div style="min-width:200px;font-size:13px;"><b>Building source height</b><br>';
-          htHtml += '<div style="margin:6px 0;">Height (m): <input type="number" id="newBsHeight" value="6.0" step="0.1" min="0.1" style="width:70px;padding:2px 4px;font-size:12px;" autofocus></div>';
+          var htHtml = '<div style="min-width:220px;font-size:13px;"><b>Building source</b><br>';
+          htHtml += '<table style="border-collapse:collapse;margin:6px 0 4px;">';
+          htHtml += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Base height (m):</td>';
+          htHtml += '<td><input type="number" id="newBsBase" value="0.0" step="0.1" min="0" style="width:65px;padding:2px 4px;font-size:12px;"></td></tr>';
+          htHtml += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Height (m):</td>';
+          htHtml += '<td><input type="number" id="newBsHeight" value="6.0" step="0.1" min="0.1" style="width:65px;padding:2px 4px;font-size:12px;" autofocus></td></tr>';
+          htHtml += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;color:#555;">Top of building:</td>';
+          htHtml += '<td id="newBsTopDisplay" style="font-size:12px;color:#555;">6.0m above ground</td></tr>';
+          htHtml += '</table>';
+          htHtml += '<div id="newBsFloatNote" style="display:none;font-size:11px;color:#c0392b;margin-bottom:4px;">&#9888; Elevated building (e.g. rooftop plant room)</div>';
           htHtml += '<button id="newBsAdd" style="font-size:11px;padding:2px 10px;cursor:pointer;background:#7c3aed;color:#fff;border:none;border-radius:4px;">OK</button> ';
           htHtml += '<button id="newBsCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button></div>';
           L.popup({ maxWidth: 260, closeOnClick: false })
@@ -18236,11 +18244,24 @@ initCollapse();
             var cancelBtnBs = document.getElementById('newBsCancel');
             var htInpBs = document.getElementById('newBsHeight');
             if (htInpBs) htInpBs.focus();
+            function updateNewBsTop() {
+              var b = parseFloat(document.getElementById('newBsBase').value) || 0;
+              var h = parseFloat(document.getElementById('newBsHeight').value) || 0;
+              var topEl = document.getElementById('newBsTopDisplay');
+              var noteEl = document.getElementById('newBsFloatNote');
+              if (topEl) topEl.textContent = (b + h).toFixed(1) + 'm above ground';
+              if (noteEl) noteEl.style.display = b > 0 ? 'block' : 'none';
+            }
+            var baseInpBs = document.getElementById('newBsBase');
+            if (baseInpBs) baseInpBs.addEventListener('input', updateNewBsTop);
+            if (htInpBs)   htInpBs.addEventListener('input', updateNewBsTop);
             if (addBtnBs) addBtnBs.addEventListener('click', function() {
+              var base = parseFloat(document.getElementById('newBsBase').value) || 0;
               var ht = parseFloat(document.getElementById('newBsHeight').value);
               if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid height.'); return; }
               map.closePopup();
               var newBs = _bsMakeDefault(bsVerts, ht);
+              newBs.baseHeightM = base;
               buildingSources.push(newBs);
               renderBuildingSourceLayer();
               openBsPanel(newBs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
@@ -19339,6 +19360,7 @@ initCollapse();
         id: 'bs_' + (++_bsIdCtr),
         name: 'Building source ' + _bsIdCtr,
         vertices: verts,
+        baseHeightM: 0,
         height_m: ht || 6,
         lpSource: 'broadband',
         interiorLp: {
@@ -19445,7 +19467,7 @@ initCollapse();
       var pctAdj = 10 * Math.log10(pct / 100);
 
       var verts = bs.vertices, n = verts.length;
-      var bsHeight = bs.height_m || 6;
+      var bsHeight = (bs.baseHeightM || 0) + (bs.height_m || 6);
 
       // Simple vertex mean for centroid — used only to determine outward normal direction,
       // not for acoustic area. The shoelace formula suffers catastrophic cancellation for
@@ -19781,7 +19803,10 @@ initCollapse();
       buildingSources.forEach(function(bs, bsIdx) {
         if (!bs.vertices || bs.vertices.length < 3) return;
         var poly = L.polygon(bs.vertices, BS_STYLE);
-        poly.bindTooltip('<b>🏭 ' + escapeHTML(bs.name || 'Building source') + '</b><br>Height: ' + (bs.height_m || 6) + ' m', { sticky: true });
+        var bsTipHt = (bs.baseHeightM && bs.baseHeightM > 0)
+          ? 'Base: ' + bs.baseHeightM.toFixed(1) + 'm + Height: ' + (bs.height_m || 6) + 'm = Top: ' + ((bs.baseHeightM || 0) + (bs.height_m || 6)).toFixed(1) + 'm'
+          : 'Height: ' + (bs.height_m || 6) + 'm';
+        poly.bindTooltip('<b>🏭 ' + escapeHTML(bs.name || 'Building source') + '</b><br>' + bsTipHt, { sticky: true });
         poly.on('mouseover', function() {
           if (_drawingActive || _drawingBuildingSource) return;
           poly.setStyle({ weight: 5, color: 'rgba(109,40,217,1)' });
@@ -20122,10 +20147,15 @@ initCollapse();
       // Coords + geometry
       h += '<div style="display:flex;gap:10px;font-size:11px;color:#6b7280;margin-bottom:8px;">';
       h += '<span>' + coordStr + '</span><span>&middot;</span><span>Area: <b>' + _asFormatArea(roofArea) + '</b></span></div>';
-      h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px;padding:8px;background:#f5f3ff;border-radius:6px;border:1px solid #e9d5ff;">';
-      h += '<div><span style="color:#6b7280;">Height (m)</span><br><input id="bsPanelHeight" type="number" value="' + (bs.height_m||6) + '" step="0.1" min="0.1" style="width:70px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></div>';
+      var bsTopM = (bs.baseHeightM || 0) + (bs.height_m || 6);
+      h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:4px;padding:8px;background:#f5f3ff;border-radius:6px;border:1px solid #e9d5ff;">';
+      h += '<div><span style="color:#6b7280;">Base ht (m)</span><br><input id="bsPanelBase" type="number" value="' + (bs.baseHeightM||0).toFixed(1) + '" step="0.1" min="0" style="width:60px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></div>';
+      h += '<div><span style="color:#6b7280;">Height (m)</span><br><input id="bsPanelHeight" type="number" value="' + (bs.height_m||6) + '" step="0.1" min="0.1" style="width:60px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></div>';
       h += '<div><span style="color:#6b7280;">Perimeter</span><br><b id="bsPanelPerim">' + perim.toFixed(0) + ' m</b></div>';
       h += '<div><span style="color:#6b7280;">Wall area</span><br><b id="bsPanelWallArea">' + wallArea.toFixed(0) + ' m\u00b2</b></div>';
+      h += '</div>';
+      h += '<div style="font-size:11px;color:#555;margin-bottom:8px;padding:0 2px;" id="bsPanelTopDisplay">&#128307; Top of building: <b>' + bsTopM.toFixed(1) + ' m</b> above ground' + ((bs.baseHeightM||0) > 0 ? ' <span style="color:#c0392b;">(elevated)</span>' : '') + '</div>';
+      h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;padding:0 2px;">';
       h += '<div><span style="color:#6b7280;">Roof area</span><br><b id="bsPanelRoofArea">' + roofArea.toFixed(0) + ' m\u00b2</b></div>';
       h += '</div>';
 
@@ -20415,12 +20445,30 @@ initCollapse();
         bs.lpSource = this.value;
       });
 
-      // ── Height ───────────────────────────────────────────────────────────
+      // ── Base height + Height ─────────────────────────────────────────────
+      function _bsUpdateTopDisplay() {
+        var topEl = document.getElementById('bsPanelTopDisplay');
+        if (!topEl) return;
+        var top = (bs.baseHeightM || 0) + (bs.height_m || 6);
+        topEl.innerHTML = '&#128307; Top of building: <b>' + top.toFixed(1) + ' m</b> above ground' +
+          ((bs.baseHeightM || 0) > 0 ? ' <span style="color:#c0392b;">(elevated)</span>' : '');
+      }
+      var baseInp = document.getElementById('bsPanelBase');
+      if (baseInp) baseInp.addEventListener('change', function() {
+        var v = parseFloat(this.value);
+        if (Number.isFinite(v) && v >= 0) {
+          bs.baseHeightM = v;
+          _bsUpdateTopDisplay();
+          if (typeof render === 'function') render();
+          if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+        }
+      });
       var htInp = document.getElementById('bsPanelHeight');
       if (htInp) htInp.addEventListener('change', function() {
         var v = parseFloat(this.value);
         if (Number.isFinite(v) && v > 0) {
           bs.height_m = v;
+          _bsUpdateTopDisplay();
           _bsRefreshStats();
           // Refresh all wall rows that use default height (no heightOverride)
           var wallListEl = document.getElementById('bsWallList');
@@ -20733,6 +20781,7 @@ initCollapse();
         if (!bs.defaultConstruction) bs.defaultConstruction = JSON.parse(JSON.stringify(CONSTRUCTION_LIBRARY.walls[0]));
         if (!bs.interiorLp) bs.interiorLp = { day:{broadband:null,octave:{}}, eve:{broadband:null,octave:{}}, night:{broadband:null,octave:{}} };
         // Migrate new fields with defaults
+        if (!Number.isFinite(bs.baseHeightM)) bs.baseHeightM = 0;
         if (!bs.lpSource) bs.lpSource = 'broadband';
         if (!bs.roofElements) bs.roofElements = [];
         // Migrate old element area-only records to width×height
