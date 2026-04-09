@@ -4568,20 +4568,25 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
   var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
 
-  // Barrier for this source-receiver pair
+  // Barrier for this source-receiver pair.
+  // Guard on window._geometry only — NOT on window._buildings.length, because
+  // building sources and user barriers are always screenable obstacles even when
+  // no OSM buildings have been loaded.
   var barrierDelta = 0, endDeltaL = 0, endDeltaR = 0;
   var _barrierObj = null;
-  if (window._geometry && window._buildings && window._buildings.length > 0 && receiverIdx !== undefined) {
+  if (window._geometry && receiverIdx !== undefined) {
     var srcLL = { lat: pin.lat, lng: pin.lng };
     var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
     var recLL = allLL['r' + (receiverIdx + 1)];
     if (recLL) {
-      var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : window._buildings;
-      _barrierObj = window._geometry.getDominantBarrier(srcLL, recLL, srcHeight, recHeight, screenable);
-      if (_barrierObj) {
-        barrierDelta = _barrierObj.pathLengthDiff;
-        endDeltaL = _barrierObj.endDeltaLeft || 0;
-        endDeltaR = _barrierObj.endDeltaRight || 0;
+      var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : (window._buildings || []);
+      if (screenable.length > 0) {
+        _barrierObj = window._geometry.getDominantBarrier(srcLL, recLL, srcHeight, recHeight, screenable);
+        if (_barrierObj) {
+          barrierDelta = _barrierObj.pathLengthDiff;
+          endDeltaL = _barrierObj.endDeltaLeft || 0;
+          endDeltaR = _barrierObj.endDeltaRight || 0;
+        }
       }
     }
   }
@@ -4834,20 +4839,25 @@ function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
     var srcHeight = (pin.height_m || 1.5) + (pin.buildingHeight_m || 0);
     var recHeight = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
 
-    // Barrier for this source-receiver pair
+    // Barrier for this source-receiver pair (LAmax).
+    // Guard on window._geometry only — NOT on window._buildings.length, because
+    // building sources and user barriers must screen LAmax paths even when no
+    // OSM buildings are present.
     var barrierDelta = 0, endDeltaL = 0, endDeltaR = 0;
     var _bObjLmax = null;
-    if (window._geometry && window._buildings && window._buildings.length > 0) {
+    if (window._geometry) {
       var srcLL = { lat: pin.lat, lng: pin.lng };
       var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
       var recLL = allLL['r' + (receiverIdx + 1)];
       if (recLL) {
-        var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : window._buildings;
-        _bObjLmax = window._geometry.getDominantBarrier(srcLL, recLL, srcHeight, recHeight, screenable);
-        if (_bObjLmax) {
-          barrierDelta = _bObjLmax.pathLengthDiff;
-          endDeltaL = _bObjLmax.endDeltaLeft || 0;
-          endDeltaR = _bObjLmax.endDeltaRight || 0;
+        var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : (window._buildings || []);
+        if (screenable.length > 0) {
+          _bObjLmax = window._geometry.getDominantBarrier(srcLL, recLL, srcHeight, recHeight, screenable);
+          if (_bObjLmax) {
+            barrierDelta = _bObjLmax.pathLengthDiff;
+            endDeltaL = _bObjLmax.endDeltaLeft || 0;
+            endDeltaR = _bObjLmax.endDeltaRight || 0;
+          }
         }
       }
     }
