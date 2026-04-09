@@ -603,6 +603,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
                 <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building</button>
                 <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier</button>
                 <button class="mp-btn" id="drawGroundZoneBtn" title="Draw a ground absorption zone polygon (overrides default G value for propagation paths passing through it)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17 Q8 11 12 14 Q16 17 21 11"/><path d="M3 21h18" stroke-dasharray="2 2"/></svg> Ground zone</button>
+                <button class="mp-btn" id="moveGeomBtn" title="Move mode: click to activate, then drag any barrier, building, or source to reposition it. Click again to exit."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg> Move</button>
                 <div class="mp-sep"></div>
                 <button class="mp-btn" id="reflectionsBtn" title="Apply ISO 9613-2 §7.5 image source facade reflections to receiver predictions and noise map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections</button>
                 <span id="reflectionsBuildingWarning" style="display:none;font-size:10px;color:#fbbf24;padding:2px 8px;white-space:normal;line-height:1.4;">&#9888; Enable Buildings layer to apply reflections to noise map</span>
@@ -4834,6 +4835,7 @@ var _terrainIL = [];
 window._terrainIL = _terrainIL; // expose for console debugging
 var _terrainEnabled = false;    // controlled by Terrain toolbar button (opt-in)
 var _terrainContourOn = false;  // controlled by terrain contour button
+var _moveMode = false;          // controlled by Move toolbar button — drag geometries
 
 function isTerrainEnabled() { return _terrainEnabled; }
 
@@ -17623,6 +17625,65 @@ initCollapse();
       color: '#999', weight: 2, dashArray: '4 4', opacity: 0.35
     };
 
+    /**
+     * Attach whole-element drag behaviour to a Leaflet layer when _moveMode is active.
+     * @param {L.Layer} visLayer  - visible layer; updated visually during drag
+     * @param {L.Layer|null} hitLayer - optional wide invisible hit area to initiate drag
+     * @param {Function} getVerts  - () → [[lat,lng],...] from the data model
+     * @param {Function} setVerts  - ([[lat,lng],...]) → void; writes back to data model
+     * @param {Function} onDragEnd - called after setVerts; should re-render and recalculate
+     */
+    function _attachMoveDrag(visLayer, hitLayer, getVerts, setVerts, onDragEnd) {
+      var trigger = hitLayer || visLayer;
+      var dragging = false, startLL = null, origV = null;
+
+      trigger.on('mousedown', function(e) {
+        if (!_moveMode || _drawingActive) return;
+        L.DomEvent.stop(e);
+        map.dragging.disable();
+        map.closePopup();
+        dragging = true;
+        startLL  = e.latlng;
+        origV    = getVerts().map(function(v) { return [v[0], v[1]]; });
+        map.getContainer().style.cursor = 'grabbing';
+
+        function onMove(me) {
+          if (!dragging) return;
+          var dlat = me.latlng.lat - startLL.lat;
+          var dlng = me.latlng.lng - startLL.lng;
+          var nv = origV.map(function(v) { return [v[0]+dlat, v[1]+dlng]; });
+          visLayer.setLatLngs(nv);
+          if (hitLayer) hitLayer.setLatLngs(nv);
+        }
+        function onUp(ue) {
+          if (!dragging) return;
+          dragging = false;
+          map.dragging.enable();
+          map.off('mousemove', onMove);
+          map.off('mouseup', onUp);
+          map.getContainer().style.cursor = '';
+          var dlat = ue.latlng.lat - startLL.lat;
+          var dlng = ue.latlng.lng - startLL.lng;
+          var nv = origV.map(function(v) { return [v[0]+dlat, v[1]+dlng]; });
+          setVerts(nv);
+          onDragEnd();
+        }
+        map.on('mousemove', onMove);
+        map.on('mouseup', onUp);
+      });
+
+      trigger.on('mouseover', function() {
+        if (_moveMode && !_drawingActive && !dragging) {
+          map.getContainer().style.cursor = 'grab';
+        }
+      });
+      trigger.on('mouseout', function() {
+        if (_moveMode && !dragging) {
+          map.getContainer().style.cursor = '';
+        }
+      });
+    }
+
     /** Rebuild the combined window._buildings array from OSM + custom + drawn barriers */
     function rebuildBuildingsIndex() {
       var combined = buildings.filter(function(b) { return !b.demolished && !b.excluded; });
@@ -17654,9 +17715,9 @@ initCollapse();
         var suppStr = ub.suppressed ? ' <i>(suppressed)</i>' : '';
         line.bindTooltip((ub.name ? '<b>' + escapeHTML(ub.name) + '</b><br>' : '') + htStr + suppStr);
 
-        // Click popup for edit/delete (only when not in placement or drawing mode)
+        // Click popup for edit/delete (only when not in placement, drawing, or move mode)
         line.on('click', function(e) {
-          if (_drawingActive) return;
+          if (_drawingActive || _moveMode) return;
           if (currentMode) return;
           L.DomEvent.stopPropagation(e);
           var curBase = ub.baseHeightM || 0;
@@ -17822,12 +17883,13 @@ initCollapse();
         // Hover highlight
         line.on('mouseover', function() {
           if (_drawingActive) return;
+          if (_moveMode) { map.getContainer().style.cursor = 'grab'; return; }
           line.setStyle({ weight: 7, opacity: 1.0 });
           map.getContainer().style.cursor = 'pointer';
         });
         line.on('mouseout', function() {
           line.setStyle(ub.suppressed ? BARRIER_SUPPRESSED_STYLE : BARRIER_STYLE);
-          map.getContainer().style.cursor = '';
+          if (!_moveMode) map.getContainer().style.cursor = '';
         });
 
         ub._line = line;
@@ -17836,7 +17898,7 @@ initCollapse();
         // Fat invisible hit area (20px wide)
         var barHit = L.polyline(ub.vertices, { weight: 20, opacity: 0, interactive: true });
         barHit.on('click', (function(capturedLine) {
-          return function(e) { capturedLine.fire('click', { originalEvent: e.originalEvent, latlng: e.latlng, containerPoint: e.containerPoint, layerPoint: e.layerPoint }); };
+          return function(e) { if (!_moveMode) capturedLine.fire('click', { originalEvent: e.originalEvent, latlng: e.latlng, containerPoint: e.containerPoint, layerPoint: e.layerPoint }); };
         })(line));
         barHit.on('contextmenu', (function(capturedLine) {
           return function(e) { capturedLine.fire('contextmenu', { originalEvent: e.originalEvent, latlng: e.latlng, containerPoint: e.containerPoint, layerPoint: e.layerPoint }); };
@@ -17844,6 +17906,16 @@ initCollapse();
         barHit.on('mouseover', function() { line.fire('mouseover'); });
         barHit.on('mouseout', function() { line.fire('mouseout'); });
         barrierLayer.addLayer(barHit);
+
+        // Whole-barrier drag support (drag initiated on wide hit area)
+        _attachMoveDrag(line, barHit,
+          function() { return ub.vertices; },
+          function(v) { ub.vertices = v; },
+          function() {
+            renderUserBarriers();
+            rebuildBuildingsIndex();
+          }
+        );
       });
       if (window._renderObjectList) window._renderObjectList();
     }
@@ -17858,9 +17930,9 @@ initCollapse();
           : 'Height: ' + htStr;
         poly.bindTooltip((cb.name ? '<b>' + escapeHTML(cb.name) + '</b><br>' : '') + topStr + ' (custom)');
 
-        // Click popup for edit/delete (only when not placing markers)
+        // Click popup for edit/delete (only when not placing markers or in move mode)
         poly.on('click', function(e) {
-          if (_drawingActive) return;
+          if (_drawingActive || _moveMode) return;
           if (currentMode) return;
           L.DomEvent.stopPropagation(e);
           var html = '<div style="min-width:220px;font-size:13px;">';
@@ -18014,16 +18086,27 @@ initCollapse();
         // Hover highlight
         poly.on('mouseover', function() {
           if (_drawingActive) return;
+          if (_moveMode) { map.getContainer().style.cursor = 'grab'; return; }
           poly.setStyle({ weight: 4 });
           map.getContainer().style.cursor = 'pointer';
         });
         poly.on('mouseout', function() {
           poly.setStyle(CUSTOM_STYLE);
-          map.getContainer().style.cursor = '';
+          if (!_moveMode) map.getContainer().style.cursor = '';
         });
 
         cb._polygon = poly;
         customBuildingLayer.addLayer(poly);
+
+        // Whole-building drag support
+        _attachMoveDrag(poly, null,
+          function() { return cb.polygon; },
+          function(v) { cb.polygon = v; },
+          function() {
+            renderCustomBuildings();
+            rebuildBuildingsIndex();
+          }
+        );
       });
       if (window._renderObjectList) window._renderObjectList();
     }
@@ -18626,6 +18709,38 @@ initCollapse();
       });
     }
 
+    /* Move geometry button */
+    var moveGeomBtn = document.getElementById('moveGeomBtn');
+    if (moveGeomBtn) {
+      moveGeomBtn.addEventListener('click', function() {
+        _moveMode = !_moveMode;
+        if (_moveMode) {
+          moveGeomBtn.classList.add('active');
+          // Cancel any active drawing modes
+          if (typeof _drawHandler !== 'undefined' && _drawHandler) { _drawHandler.disable(); if (typeof stopDrawing === 'function') stopDrawing(); }
+          if (typeof _barrierDrawHandler !== 'undefined' && _barrierDrawHandler) {
+            _barrierDrawHandler.disable(); _barrierDrawHandler = null; _drawingActive = false;
+            var dbBtn = document.getElementById('drawBarrierBtn'); if (dbBtn) dbBtn.classList.remove('active');
+          }
+          if (typeof _gzDrawHandler !== 'undefined' && _gzDrawHandler) {
+            _gzDrawHandler.disable(); _gzDrawHandler = null; _drawingGroundZone = false; _drawingActive = false;
+            var dgzBtn = document.getElementById('drawGroundZoneBtn'); if (dgzBtn) dgzBtn.classList.remove('active');
+          }
+          if (typeof _lsDrawHandler !== 'undefined' && _lsDrawHandler) {
+            _lsDrawHandler.disable(); _lsDrawHandler = null; _drawingActive = false;
+            var dlsBtn = document.getElementById('drawLineSourceBtn'); if (dlsBtn) dlsBtn.classList.remove('active');
+          }
+          if (typeof _asDrawHandler !== 'undefined' && _asDrawHandler) {
+            _asDrawHandler.disable(); _asDrawHandler = null; _drawingAreaSource = false; _drawingActive = false;
+            var dasBtn = document.getElementById('drawAreaSourceBtn'); if (dasBtn) dasBtn.classList.remove('active');
+          }
+        } else {
+          moveGeomBtn.classList.remove('active');
+          map.getContainer().style.cursor = '';
+        }
+      });
+    }
+
     /* Window exports for ground zones */
     window._getGroundZones = function() { return _groundZones; };
     window._setGroundZones = function(arr) {
@@ -19171,16 +19286,17 @@ initCollapse();
         poly.bindTooltip('<b>' + escapeHTML(as.name || 'Area source') + '</b><br>Area: ' + _asFormatArea(area), { sticky: true });
         poly.on('mouseover', function() {
           if (_drawingActive || _drawingAreaSource) return;
+          if (_moveMode) { map.getContainer().style.cursor = 'grab'; return; }
           poly.setStyle({ weight: 4, color: 'rgba(200,120,30,1)' });
           map.getContainer().style.cursor = 'pointer';
         });
         poly.on('mouseout', function() {
           poly.setStyle(AS_STYLE);
-          map.getContainer().style.cursor = '';
+          if (!_moveMode) map.getContainer().style.cursor = '';
         });
         poly.on('click', (function(capturedAs) {
           return function(e) {
-            if (_drawingActive || _drawingAreaSource) return;
+            if (_drawingActive || _drawingAreaSource || _moveMode) return;
             L.DomEvent.stopPropagation(e);
             openAsPanel(capturedAs.id, e.originalEvent.clientX, e.originalEvent.clientY);
           };
@@ -19224,6 +19340,17 @@ initCollapse();
         areaSourceLayer.addLayer(lbl);
         as._poly = poly;
         areaSourceLayer.addLayer(poly);
+
+        // Whole-area-source drag support
+        _attachMoveDrag(poly, null,
+          function() { return as.vertices; },
+          function(v) { as.vertices = v; },
+          function() {
+            renderAreaSourceLayer();
+            if (typeof markResultsStale === 'function') markResultsStale();
+            if (typeof triggerRecalculation === 'function') triggerRecalculation();
+          }
+        );
       });
       if (window._renderObjectList) window._renderObjectList();
     }
@@ -19809,16 +19936,17 @@ initCollapse();
         poly.bindTooltip('<b>🏭 ' + escapeHTML(bs.name || 'Building source') + '</b><br>' + bsTipHt, { sticky: true });
         poly.on('mouseover', function() {
           if (_drawingActive || _drawingBuildingSource) return;
+          if (_moveMode) { map.getContainer().style.cursor = 'grab'; return; }
           poly.setStyle({ weight: 5, color: 'rgba(109,40,217,1)' });
           map.getContainer().style.cursor = 'pointer';
         });
         poly.on('mouseout', function() {
           poly.setStyle(BS_STYLE);
-          map.getContainer().style.cursor = '';
+          if (!_moveMode) map.getContainer().style.cursor = '';
         });
         poly.on('click', (function(capturedBs) {
           return function(e) {
-            if (_drawingActive || _drawingBuildingSource) return;
+            if (_drawingActive || _drawingBuildingSource || _moveMode) return;
             L.DomEvent.stopPropagation(e);
             openBsPanel(capturedBs.id, e.originalEvent.clientX, e.originalEvent.clientY);
           };
@@ -19859,6 +19987,17 @@ initCollapse();
         buildingSourceLayer.addLayer(lbl);
         bs._poly = poly;
         buildingSourceLayer.addLayer(poly);
+
+        // Whole-building-source drag support
+        _attachMoveDrag(poly, null,
+          function() { return bs.vertices; },
+          function(v) { bs.vertices = v; },
+          function() {
+            renderBuildingSourceLayer();
+            if (typeof markResultsStale === 'function') markResultsStale();
+            if (typeof triggerRecalculation === 'function') triggerRecalculation();
+          }
+        );
       });
       if (window._renderObjectList) window._renderObjectList();
     }
@@ -21354,7 +21493,7 @@ initCollapse();
         // Click → open floating panel
         poly.on('click', (function(capturedLs) {
           return function(e) {
-            if (_drawingActive || _lsDrawHandler) return;
+            if (_drawingActive || _lsDrawHandler || _moveMode) return;
             L.DomEvent.stopPropagation(e);
             openLsPanel(capturedLs.id, e.originalEvent.clientX, e.originalEvent.clientY);
           };
@@ -21397,12 +21536,13 @@ initCollapse();
         // Hover highlight
         poly.on('mouseover', function() {
           if (_drawingActive || _lsDrawHandler) return;
+          if (_moveMode) { map.getContainer().style.cursor = 'grab'; return; }
           poly.setStyle({ weight: 6, opacity: 1.0 });
           map.getContainer().style.cursor = 'pointer';
         });
         poly.on('mouseout', function() {
           poly.setStyle(LS_STYLE);
-          map.getContainer().style.cursor = '';
+          if (!_moveMode) map.getContainer().style.cursor = '';
         });
 
         ls._poly = poly;
@@ -21412,7 +21552,7 @@ initCollapse();
         var lsHit = L.polyline(ls.vertices, { weight: 20, opacity: 0, interactive: true });
         lsHit.on('click', (function(capturedLs) {
           return function(e) {
-            if (_drawingActive || _lsDrawHandler) return;
+            if (_drawingActive || _lsDrawHandler || _moveMode) return;
             L.DomEvent.stopPropagation(e);
             openLsPanel(capturedLs.id, e.originalEvent.clientX, e.originalEvent.clientY);
           };
@@ -21424,6 +21564,18 @@ initCollapse();
         lsHit.on('mouseout', function() { poly.fire('mouseout'); });
         ls._hitPoly = lsHit;
         lineSourceLayer.addLayer(lsHit);
+
+        // Whole-line-source drag support (drag on wide hit area, updates both layers)
+        _attachMoveDrag(poly, lsHit,
+          function() { return ls.vertices; },
+          function(v) { ls.vertices = v; },
+          function() {
+            renderLineSourceLayer();
+            renderLineSourceCards();
+            if (typeof markResultsStale === 'function') markResultsStale();
+            if (typeof triggerRecalculation === 'function') triggerRecalculation();
+          }
+        );
 
         // Label at midpoint
         var midPt = _lsPolylineMidpoint(ls.vertices);
