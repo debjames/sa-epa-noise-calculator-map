@@ -23676,48 +23676,231 @@ initCollapse();
         if (btn._saving) return;
         btn._saving = true;
         var origHTML = btn.innerHTML;
-        btn.innerHTML = 'Saving…';
+        btn.innerHTML = 'Saving\u2026';
         btn.style.pointerEvents = 'none';
 
-        // Collect UI chrome to hide (panels, zoom, popups — NOT legends/layers)
+        var mapEl = document.getElementById('noise-map');
+        var mapRect = mapEl.getBoundingClientRect();
+        var W = Math.round(mapRect.width);
+        var H = Math.round(mapRect.height);
+        var dpr = window.devicePixelRatio || 1;
+
+        // ── Hide UI chrome not wanted in the export ───────────────────────
         var hideEls = [];
+        // Top controls: zoom + save button + terrain warning
+        mapEl.querySelectorAll('.leaflet-top').forEach(function(el) { hideEls.push(el); });
+        // Popups
+        var popupPane = mapEl.querySelector('.leaflet-popup-pane');
+        if (popupPane) hideEls.push(popupPane);
+        // Side panel
         var panelsEl = document.getElementById('mapPanelContainer');
         if (panelsEl) hideEls.push(panelsEl);
-        map.getContainer().querySelectorAll('.leaflet-top').forEach(function(el) {
-          hideEls.push(el); // hides zoom (topleft) and topright controls (this button, terrain warning)
-        });
-        var popupPane = map.getContainer().querySelector('.leaflet-popup-pane');
-        if (popupPane) hideEls.push(popupPane);
         var objPanel = document.getElementById('objectsPanelSection');
         if (objPanel) hideEls.push(objPanel);
-
         hideEls.forEach(function(el) { el.style.visibility = 'hidden'; });
 
-        var mapEl = document.getElementById('noise-map');
+        // ── Create output canvas ──────────────────────────────────────────
+        var out = document.createElement('canvas');
+        out.width  = W * dpr;
+        out.height = H * dpr;
+        var ctx = out.getContext('2d');
+        ctx.scale(dpr, dpr);
+        // Clip to map bounds so partially-visible tiles don't overflow
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, W, H);
+        ctx.clip();
+        ctx.fillStyle = '#e8e0d4';   // neutral background behind tiles
+        ctx.fillRect(0, 0, W, H);
 
-        html2canvas(mapEl, {
-          useCORS: true,
-          allowTaint: false,
-          scale: window.devicePixelRatio || 1,
-          logging: false,
-          backgroundColor: '#ffffff',
-          imageTimeout: 20000
-        })
-        .then(function(canvas) {
+        // ── Position helper ───────────────────────────────────────────────
+        // getBoundingClientRect() accounts for ALL CSS transforms (translate3d, etc.)
+        function pos(el) {
+          var r = el.getBoundingClientRect();
+          return { x: r.left - mapRect.left, y: r.top - mapRect.top,
+                   w: r.width,               h: r.height };
+        }
+
+        // ── Effective opacity (product of el + ancestor opacities) ────────
+        function effectiveOpacity(el) {
+          var op = 1;
+          var e = el;
+          while (e && e !== mapEl) {
+            var o = parseFloat(window.getComputedStyle(e).opacity);
+            if (!isNaN(o)) op *= o;
+            e = e.parentElement;
+          }
+          return op;
+        }
+
+        // ── CORS-safe image loader ────────────────────────────────────────
+        function fetchCORS(src) {
           return new Promise(function(resolve, reject) {
-            canvas.toBlob(function(blob) {
+            var img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload  = function() { resolve(img); };
+            img.onerror = function() { reject(new Error('cors-fail')); };
+            img.src = src;
+          });
+        }
+
+        // ── Draw an <img> element safely (never taints composite canvas) ──
+        function drawImg(el) {
+          var r = pos(el);
+          if (r.w <= 0 || r.h <= 0) return Promise.resolve();
+          var op = effectiveOpacity(el);
+          return fetchCORS(el.src).then(function(img) {
+            ctx.save();
+            ctx.globalAlpha = op;
+            ctx.drawImage(img, r.x, r.y, r.w, r.h);
+            ctx.restore();
+          }).catch(function() {
+            // CORS denied — skip rather than taint canvas (can't toBlob a tainted canvas)
+            console.warn('[SaveJPG] CORS denied for img, skipped:', el.src.substring(0, 80));
+          });
+        }
+
+        // ── Draw a <canvas> element directly ─────────────────────────────
+        function drawCanvas(el) {
+          if (!el.width || !el.height) return;
+          var r = pos(el);
+          var op = effectiveOpacity(el);
+          try {
+            ctx.save();
+            ctx.globalAlpha = op;
+            ctx.drawImage(el, r.x, r.y, r.w, r.h);
+            ctx.restore();
+          } catch(e) {
+            console.warn('[SaveJPG] canvas draw failed (tainted?):', e.message);
+          }
+        }
+
+        // ── Serialize an SVG element and draw it ──────────────────────────
+        function drawSVG(el) {
+          return new Promise(function(resolve) {
+            var r = pos(el);
+            if (r.w <= 0 || r.h <= 0) return resolve();
+            var op = effectiveOpacity(el);
+            try {
+              var clone = el.cloneNode(true);
+              // Ensure explicit dimensions so the SVG image renders at correct size
+              clone.setAttribute('width',  r.w);
+              clone.setAttribute('height', r.h);
+              // Preserve viewBox if present; add one if missing
+              if (!clone.getAttribute('viewBox')) {
+                clone.setAttribute('viewBox', '0 0 ' + r.w + ' ' + r.h);
+              }
+              var xml  = new XMLSerializer().serializeToString(clone);
+              var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+              var url  = URL.createObjectURL(blob);
+              var img  = new Image();
+              img.onload = function() {
+                try {
+                  ctx.save();
+                  ctx.globalAlpha = op;
+                  ctx.drawImage(img, r.x, r.y, r.w, r.h);
+                  ctx.restore();
+                } catch(e) {}
+                URL.revokeObjectURL(url);
+                resolve();
+              };
+              img.onerror = function() { URL.revokeObjectURL(url); resolve(); };
+              img.src = url;
+            } catch(e) { resolve(); }
+          });
+        }
+
+        // ── Walk all Leaflet panes in DOM order (= correct z-order) ──────
+        // For each pane, collect drawable children: canvas > img > svg
+        // We walk recursively so deeply-nested marker divs are found too.
+        var tasks = [];
+
+        function walkNode(node) {
+          var tag = (node.tagName || '').toLowerCase();
+          // Skip invisible nodes
+          var cs = window.getComputedStyle(node);
+          if (cs.display === 'none') return;
+
+          if (tag === 'canvas') {
+            if (node.width > 0 && node.height > 0) tasks.push({ type: 'canvas', el: node });
+            return; // don't recurse into canvas
+          }
+          if (tag === 'svg') {
+            tasks.push({ type: 'svg', el: node });
+            return; // don't recurse into SVG (handled as a unit)
+          }
+          if (tag === 'img') {
+            if (node.complete && node.naturalWidth > 0) tasks.push({ type: 'img', el: node });
+            return;
+          }
+          // Recurse into container elements
+          for (var i = 0; i < node.children.length; i++) {
+            walkNode(node.children[i]);
+          }
+        }
+
+        // Walk all panes; the map pane itself has children in correct z-order
+        mapEl.querySelectorAll('.leaflet-map-pane > .leaflet-pane').forEach(walkNode);
+        // Also catch any custom panes added outside leaflet-map-pane
+        mapEl.querySelectorAll('.leaflet-pane:not(.leaflet-map-pane .leaflet-pane)').forEach(function(pane) {
+          walkNode(pane);
+        });
+
+        // ── Process tasks sequentially (maintains z-order) ───────────────
+        function runTask(t) {
+          if (t.type === 'canvas') { drawCanvas(t.el); return Promise.resolve(); }
+          if (t.type === 'img')    return drawImg(t.el);
+          if (t.type === 'svg')    return drawSVG(t.el);
+          return Promise.resolve();
+        }
+
+        var chain = tasks.reduce(function(p, t) {
+          return p.then(function() { return runTask(t); });
+        }, Promise.resolve());
+
+        // ── After map layers: draw HTML controls with html2canvas ─────────
+        // Bottom controls (zone legend, scale bar, attribution) are same-origin
+        // HTML — html2canvas handles these perfectly.
+        chain = chain.then(function() {
+          var bottomEls = Array.from(mapEl.querySelectorAll(
+            '.leaflet-bottom .leaflet-control'
+          ));
+          return bottomEls.reduce(function(p, ctrl) {
+            return p.then(function() {
+              if (!ctrl.offsetWidth || !ctrl.offsetHeight) return;
+              return html2canvas(ctrl, {
+                useCORS: true,
+                scale: dpr,
+                logging: false,
+                backgroundColor: null,
+                removeContainer: true
+              }).then(function(c) {
+                var r = pos(ctrl);
+                // c is at dpr scale; draw at logical size
+                ctx.drawImage(c, 0, 0, c.width, c.height, r.x, r.y, r.w, r.h);
+              }).catch(function() {});
+            });
+          }, Promise.resolve());
+        });
+
+        // ── Finalise: restore clip, convert to JPEG blob, trigger download ─
+        chain
+        .then(function() {
+          ctx.restore(); // pop clip
+          return new Promise(function(resolve, reject) {
+            out.toBlob(function(blob) {
               blob ? resolve(blob) : reject(new Error('toBlob returned null'));
             }, 'image/jpeg', 0.92);
           });
         })
         .then(function(blob) {
           var d = new Date();
-          var dateStr = d.getFullYear() + '-' +
-            String(d.getMonth() + 1).padStart(2, '0') + '-' +
-            String(d.getDate()).padStart(2, '0');
+          var ts = d.getFullYear() + '-' +
+                   String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                   String(d.getDate()).padStart(2, '0');
           var url = URL.createObjectURL(blob);
           var a = document.createElement('a');
-          a.download = 'noise-map-' + dateStr + '.jpg';
+          a.download = 'noise-map-' + ts + '.jpg';
           a.href = url;
           document.body.appendChild(a);
           a.click();
