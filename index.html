@@ -23573,10 +23573,13 @@ initCollapse();
 
     function _objRowClick(type, idx) {
       var ll, m, el;
+      // In fullscreen the map fills the whole viewport — panning just moves the scene
+      // under the user's cursor and makes objects appear to jump. Skip it.
+      var inFs = document.body.classList.contains('map-fs-active');
       if (type === 'source') {
         var pin = sourcePins[idx];
         if (!pin || pin.lat === null) return;
-        map.panTo([pin.lat, pin.lng]);
+        if (!inFs) map.panTo([pin.lat, pin.lng]);
         m = markers['source_' + idx];
         el = m && m.getElement ? m.getElement() : null;
         if (el) { el.style.transform = 'scale(1.6)'; el.style.transition = 'transform .15s'; setTimeout(function() { el.style.transform = ''; }, 800); }
@@ -23585,7 +23588,7 @@ initCollapse();
         var ls = lineSources[idx];
         if (!ls || !ls.vertices || ls.vertices.length < 2) return;
         var mid = _lsPolylineMidpoint(ls.vertices);
-        if (mid) map.panTo([mid.lat, mid.lng]);
+        if (!inFs && mid) map.panTo([mid.lat, mid.lng]);
         if (ls._poly) { ls._poly.setStyle({ weight: 7, opacity: 1.0 }); setTimeout(function() { ls._poly.setStyle(LS_STYLE); }, 1000); }
         if (typeof openLsPanel === 'function') openLsPanel(ls.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
       } else if (type === 'receiver') {
@@ -23597,10 +23600,10 @@ initCollapse();
           if (typeof setMode === 'function') setMode(modeKey);
           return;
         }
-        map.panTo(ll);
+        if (!inFs) map.panTo(ll);
         m = markers[modeKey];
         if (m) {
-          m.openPopup();
+          m.openPopup(); // popup autoPan is suppressed in fullscreen by the map popupopen handler
           el = m.getElement ? m.getElement() : null;
           if (el) { el.style.transform = 'scale(1.6)'; el.style.transition = 'transform .15s'; setTimeout(function() { el.style.transform = ''; }, 800); }
         }
@@ -23608,32 +23611,32 @@ initCollapse();
         var as = areaSources[idx];
         if (!as || !as.vertices || as.vertices.length < 3) return;
         var asCtr = _asPolygonCentroid(as.vertices);
-        map.panTo([asCtr.lat, asCtr.lng]);
+        if (!inFs) map.panTo([asCtr.lat, asCtr.lng]);
         if (as._poly) { as._poly.setStyle({ weight: 5, color: 'rgba(200,120,30,1)' }); setTimeout(function() { if (as._poly) as._poly.setStyle(AS_STYLE); }, 1000); }
         if (typeof openAsPanel === 'function') openAsPanel(as.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
       } else if (type === 'buildingsource') {
         var bsrc = buildingSources[idx];
         if (!bsrc || !bsrc.vertices || bsrc.vertices.length < 3) return;
         var bsCtr = _asPolygonCentroid(bsrc.vertices);
-        map.panTo([bsCtr.lat, bsCtr.lng]);
+        if (!inFs) map.panTo([bsCtr.lat, bsCtr.lng]);
         if (bsrc._poly) { bsrc._poly.setStyle({ weight: 5, color: 'rgba(109,40,217,1)' }); setTimeout(function(){ if (bsrc._poly) bsrc._poly.setStyle(BS_STYLE); }, 1000); }
         if (typeof openBsPanel === 'function') openBsPanel(bsrc.id, Math.round(window.innerWidth/2), Math.round(window.innerHeight/2));
       } else if (type === 'barrier') {
         var ub = userBarriers[idx];
         if (!ub || !ub.vertices || !ub.vertices.length) return;
         var ubMid = _lsPolylineMidpoint(ub.vertices);
-        if (ubMid) map.panTo([ubMid.lat, ubMid.lng]);
+        if (!inFs && ubMid) map.panTo([ubMid.lat, ubMid.lng]);
         if (ub._line) { var origStyle = ub.suppressed ? BARRIER_SUPPRESSED_STYLE : BARRIER_STYLE; ub._line.setStyle({ weight: 8, opacity: 1.0 }); setTimeout(function() { if (ub._line) ub._line.setStyle(origStyle); }, 1000); }
       } else if (type === 'building') {
         var cb = customBuildings[idx];
         if (!cb || !cb._polygon) return;
-        map.panTo(cb._polygon.getBounds().getCenter());
+        if (!inFs) map.panTo(cb._polygon.getBounds().getCenter());
         cb._polygon.setStyle({ weight: 5, color: 'rgba(70,90,120,1)' });
         setTimeout(function() { if (cb._polygon) cb._polygon.setStyle(CUSTOM_STYLE); }, 1000);
       } else if (type === 'groundzone') {
         var gz = _groundZones[idx];
         if (!gz || !gz._polygon) return;
-        map.panTo(gz._polygon.getBounds().getCenter());
+        if (!inFs) map.panTo(gz._polygon.getBounds().getCenter());
         gz._polygon.setStyle({ weight: 4, fillOpacity: 0.55 });
         setTimeout(function() { if (gz._polygon) gz._polygon.setStyle({ color: _gzBorderColor(gz.g), weight: 1.5, dashArray: '6 4', fillColor: _gzFillColor(gz.g), fillOpacity: 0.25 }); }, 1000);
       }
@@ -24200,6 +24203,10 @@ initCollapse();
     };
     document.addEventListener('keydown', document._mapFsEsc);
 
+    /* Suppress Leaflet popup autoPan in fullscreen — panning is jarring when the
+       map fills the whole screen and the object is already in view. */
+    if (window._map) window._map.on('popupopen', _fsPopupOpenHandler);
+
     /* Watch document.body for floating edit panels being appended.
        When active, intercept and redirect them into the sidebar detail pane. */
     var PANEL_IDS = ['srcFloatPanel', 'lsFloatPanel', 'asFloatPanel', 'bsFloatPanel'];
@@ -24243,7 +24250,8 @@ initCollapse();
       _objOrigNext   = null;
     }
 
-    /* Disconnect panel intercept observer and clean up detail pane */
+    /* Remove popup autoPan suppressor and panel intercept observer */
+    if (window._map) window._map.off('popupopen', _fsPopupOpenHandler);
     if (_fsBodyObserver) { _fsBodyObserver.disconnect(); _fsBodyObserver = null; }
     _fsSidebarBackToList();
 
@@ -24271,6 +24279,18 @@ initCollapse();
         if (window._map) window._map.invalidateSize({ animate: false });
       });
     });
+  }
+
+  /* ── Suppress Leaflet popup autoPan while in fullscreen mode ──────────
+     Leaflet's autoPan fires via requestAnimationFrame after popupopen, so
+     setting autoPan=false here (before that frame) reliably prevents the pan.
+     We restore the original value after a short delay so the popup option
+     is back to normal if the popup is moved/reopened later.               */
+  function _fsPopupOpenHandler(e) {
+    var popup = e.popup;
+    if (!popup || !popup.options.autoPan) return; // nothing to suppress
+    popup.options.autoPan = false;
+    setTimeout(function() { popup.options.autoPan = true; }, 400);
   }
 
   /* ── Move an intercepted floating panel into the sidebar detail pane ── */
