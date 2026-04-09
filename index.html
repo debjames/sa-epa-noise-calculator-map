@@ -887,7 +887,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           </tr>
 
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"><br><span id="groundElev_r1" style="font-size:9px;color:#999;font-style:italic;"></span></td>
+            <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"><span id="r1_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="groundElev_r1" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="zone-col"><select id="r1"></select></td>
             <td id="r1_viczone" class="vic-only vic-zone-col"></td>
             <td id="r1_land" class="left landuse-col"></td>
@@ -898,7 +898,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <td id="r1_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"><br><span id="groundElev_r2" style="font-size:9px;color:#999;font-style:italic;"></span></td>
+            <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"><span id="r2_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="groundElev_r2" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="zone-col"><select id="r2"></select></td>
             <td id="r2_viczone" class="vic-only vic-zone-col"></td>
             <td id="r2_land" class="left landuse-col"></td>
@@ -909,7 +909,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <td id="r2_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"><br><span id="groundElev_r3" style="font-size:9px;color:#999;font-style:italic;"></span></td>
+            <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"><span id="r3_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="groundElev_r3" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="zone-col"><select id="r3"></select></td>
             <td id="r3_viczone" class="vic-only vic-zone-col"></td>
             <td id="r3_land" class="left landuse-col"></td>
@@ -920,7 +920,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
           <td id="r3_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"><br><span id="groundElev_r4" style="font-size:9px;color:#999;font-style:italic;"></span></td>
+            <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"><span id="r4_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="groundElev_r4" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="zone-col"><select id="r4"></select></td>
             <td id="r4_viczone" class="vic-only vic-zone-col"></td>
             <td id="r4_land" class="left landuse-col"></td>
@@ -943,6 +943,7 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
       of the Indicative Noise Factors for the applicable land use categories used to determine environmental noise criteria.
   </span>
 </span>
+          <span id="saClause6Badge" class="badge tooltip sa-only" style="display:none;">Cl 5(6) intervening area<span class="tooltiptext">Cl 5(6) &mdash; An intervening noise-designated zone &ge;100&thinsp;m wide was detected along the source&ndash;receiver path. Criteria are based on the receiver zone land use only, not the averaged INL (SA EPA Noise Policy 2023 Cl. 6).</span></span>
           <span class="badge vic-only vic-settings-only">Day = 7 am–6 pm (Mon–Sat)</span>
           <span class="badge vic-only vic-settings-only">Evening = 6 pm–10 pm</span>
           <span class="badge vic-only vic-settings-only">Night = 10 pm–7 am (& all day Sun)</span>
@@ -9771,24 +9772,34 @@ function render() {
       if (eveEl) eveEl.textContent = isVIC && crit.evening !== undefined ? fmt(crit.evening) : "";
       if (nightEl) nightEl.textContent = fmt(crit.night);
       if (lmaxEl) lmaxEl.textContent = crit.lmax === "" ? "" : fmt(crit.lmax);
-      // Day cell: add [Cl.6] indicator when SA Clause 6 intervening zone override applies
-      if (dayEl) {
-        if (!isVIC && crit.cl6) {
-          var cl6Entry = _cl6Cache[id];
-          var cl6WStr = (cl6Entry && cl6Entry.widthM) ? cl6Entry.widthM + '\u202fm' : '\u2265100\u202fm';
-          dayEl.innerHTML = fmt(crit.day) +
-            ' <span title="Cl.\u00a06 applied \u2014 intervening noise-designated zone ' + cl6WStr +
-            ' wide along source\u2013receiver path; criteria based on receiver zone land use only (not averaged INL)" ' +
-            'style="font-size:9px;color:#6b7280;cursor:help;font-weight:normal;">[Cl.\u00a06]</span>';
-        } else if (!isVIC && _cl6Cache[id] === 'pending') {
-          dayEl.innerHTML = fmt(crit.day) +
-            ' <span style="font-size:9px;color:#9ca3af;" title="Checking for intervening zones\u2026">\u22ef</span>';
-        } else {
-          dayEl.textContent = fmt(crit.day);
+      if (dayEl) dayEl.textContent = fmt(crit.day);
+      // SA Clause 6: update per-receiver indicator span
+      if (!isVIC) {
+        var cl6IndEl = document.getElementById(id + '_cl6ind');
+        var cl6Entry = _cl6Cache[id];
+        if (cl6IndEl) {
+          if (crit.cl6) {
+            var cl6WStr = (cl6Entry && cl6Entry.widthM) ? cl6Entry.widthM + '\u202fm' : '\u2265100\u202fm';
+            cl6IndEl.title = 'Cl 5(6) \u2014 intervening noise-designated zone ' + cl6WStr +
+              ' wide along source\u2013receiver path; criteria based on receiver zone land use only (not averaged INL)';
+            cl6IndEl.style.display = '';
+          } else {
+            cl6IndEl.style.display = 'none';
+          }
         }
       }
     }
   });
+
+  // SA Clause 6 footnote badge — show when any receiver has Cl 5(6) active
+  var saFootnoteBadge = document.getElementById('saClause6Badge');
+  if (saFootnoteBadge && !isVIC && !isNSW && !isOTHER) {
+    var anyCl6 = ['r1','r2','r3','r4'].some(function(rid) {
+      var e = _cl6Cache[rid];
+      return e && e !== 'pending' && e.applies === true;
+    });
+    saFootnoteBadge.style.display = anyCl6 ? '' : 'none';
+  }
 
   // Update SA derivation table
   if (typeof renderSADerivTable === 'function') renderSADerivTable();
