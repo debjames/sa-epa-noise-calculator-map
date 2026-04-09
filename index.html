@@ -982,6 +982,30 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
     </div>
 
+    <!-- SA: Derivation of noise emission criteria -->
+    <div class="grid2 sa-only" id="saDerivSection" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Derivation of noise emission criteria</h2>
+        <div class="table-scroll" id="saDerivTableWrap">
+          <table id="saDerivTable">
+            <thead>
+              <tr>
+                <th style="width:22%;">Receiver</th>
+                <th style="width:26%;">Source zone INL (dB)</th>
+                <th style="width:26%;">Receiver zone INL (dB)</th>
+                <th style="width:14%;">Clause applied</th>
+                <th class="num" style="width:6%;">Day</th>
+                <th class="num" style="width:6%;">Night</th>
+              </tr>
+            </thead>
+            <tbody id="saDerivBody">
+              <tr><td colspan="6" style="text-align:center;color:var(--muted);font-style:italic;">Place source and receivers to see derivation</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- SA: Emergency equipment criteria -->
     <div class="grid2 sa-only" id="emergEquipSection" style="padding-top:0;display:none;">
       <div class="card span2">
@@ -2620,6 +2644,8 @@ var autoIFPerReceiver = {r1: null, r2: null, r3: null, r4: null};
 var autoIFDataPerReceiver = {r1: null, r2: null, r3: null, r4: null};
 // Clause 20 (rural) distance-adjustment cache: null=not computed, 'pending'=in-flight, {adj,rule,detail}=result
 var _clause20Cache = {r1: null, r2: null, r3: null, r4: null};
+// SA Clause 6 intervening zone cache: null=not computed/N/A, 'pending'=in-flight, {applies:bool,widthM:num}=result
+var _cl6Cache = {r1: null, r2: null, r3: null, r4: null};
 // Legacy aliases for backward compat (used by detected-zones display, etc.)
 let autoIF = null;
 var autoIFData = null; // stores {zones140, zones400, fracs140, fracs400, IF}
@@ -6781,12 +6807,17 @@ function renderSourceTable(prefix, tbodyId, totalId, rows, sourceIdx) {}
 
 
 function calcCriteria(source, rec, recId) {
-  if (!source || !rec) return {day:"", evening:"", night:"", lmax:""};
+  if (!source || !rec) return {day:"", evening:"", night:"", lmax:"", cl6:false};
 
   // VIC/NSW/OTHER mode: criteria handled separately via their own functions
   if (currentState === 'VIC' || currentState === 'NSW' || currentState === 'OTHER') {
-    return {day:"", evening:"", night:"", lmax:""};
+    return {day:"", evening:"", night:"", lmax:"", cl6:false};
   }
+
+  // Clause 6: intervening noise-designated zone ≥100 m → use receiver INL only
+  var cl6Entry = recId ? _cl6Cache[recId] : null;
+  var cl6Applies = cl6Entry && cl6Entry !== 'pending' && cl6Entry.applies === true;
+
   const sameCatGI_SI =
     source.is_single == 1 &&
     rec.is_single == 1 &&
@@ -6796,10 +6827,16 @@ function calcCriteria(source, rec, recId) {
 
   let dayCrit, nightCrit;
   if (sameCatGI_SI) {
+    // Same GI/SI category — fixed base level, Cl.6 does not change outcome
     const base = (source.single_cat === "General Industry") ? 65 : 70;
     dayCrit = base - 5;
     nightCrit = base - 5;
+  } else if (cl6Applies) {
+    // Clause 6: intervening zone ≥100 m — use receiver zone INL only (Clause 4 logic)
+    dayCrit = Number(rec.inf_day) - 5;
+    nightCrit = Number(rec.inf_night) - 5;
   } else {
+    // Clause 5: average source and receiver INL
     dayCrit = Math.round((Number(source.inf_day) + Number(rec.inf_day))/2) - 5;
     nightCrit = Math.round((Number(source.inf_night) + Number(rec.inf_night))/2) - 5;
   }
@@ -6820,7 +6857,7 @@ function calcCriteria(source, rec, recId) {
     }
   }
 
-  return {day: dayCrit, night: nightCrit, lmax};
+  return {day: dayCrit, night: nightCrit, lmax, cl6: !!cl6Applies};
 }
 
 function getVicDropdownType(selValue) {
@@ -7399,6 +7436,7 @@ function clearAutoIF() {
   autoIFPerReceiver = {r1: null, r2: null, r3: null, r4: null};
   autoIFDataPerReceiver = {r1: null, r2: null, r3: null, r4: null};
   _clause20Cache = {r1: null, r2: null, r3: null, r4: null};
+  _cl6Cache = {r1: null, r2: null, r3: null, r4: null};
   _vicRecvMapVisible = {r1: false, r2: false, r3: false, r4: false};
   if (typeof clearVicZonePolygons === 'function') clearVicZonePolygons();
   if (typeof updateRecvMapLegends === 'function') updateRecvMapLegends();
@@ -7542,6 +7580,109 @@ function triggerClause20AllReceivers() {
     var ll = getLL ? getLL(id) : null;
     if (ll) runClause20ForReceiver(id);
     else _clause20Cache[id] = null;
+  });
+}
+
+/**
+ * SA Noise Policy 2023 — Clause 6 Intervening Zone Override.
+ * Samples the straight-line source→receiver path to detect any noise-designated
+ * zone that differs from both the source zone and receiver zone. If a contiguous
+ * run of such intervening zone spans ≥100 m along the path, averaging is skipped
+ * and the receiver zone INL alone determines the noise emission criteria.
+ */
+function runClause6ForReceiver(recvId) {
+  if (currentState !== 'SA') { _cl6Cache[recvId] = null; return; }
+
+  var srcLL = window._subjectSiteLatlng;
+  var recvLL = window.getReceiverLatLng ? window.getReceiverLatLng(recvId) : null;
+  if (!srcLL || !recvLL) { _cl6Cache[recvId] = null; return; }
+
+  var srcEl = document.getElementById('src');
+  var recEl = document.getElementById(recvId);
+  var srcKey = srcEl ? srcEl.value : '';
+  var recKey = recEl ? recEl.value : '';
+  if (!srcKey || !recKey) { _cl6Cache[recvId] = null; return; }
+  // If source and receiver are in the same zone, Clause 5 averaging doesn't apply anyway
+  if (srcKey === recKey) { _cl6Cache[recvId] = {applies: false, widthM: 0}; return; }
+
+  _cl6Cache[recvId] = 'pending';
+  render(); // show pending state in UI
+
+  var qFn = window.querySAZoningAtPoint;
+  var matchFn = window._saMatchZoneToKey;
+  if (!qFn || !matchFn) { _cl6Cache[recvId] = null; render(); return; }
+
+  var N = 20; // number of interior sample points
+  var points = [];
+  for (var i = 1; i < N; i++) {
+    var t = i / N;
+    points.push({
+      lat: srcLL.lat + t * (recvLL.lat - srcLL.lat),
+      lng: srcLL.lng + t * (recvLL.lng - srcLL.lng)
+    });
+  }
+
+  var capSrcLat = srcLL.lat, capSrcLng = srcLL.lng;
+  var capRecLat = recvLL.lat, capRecLng = recvLL.lng;
+  var capSrcKey = srcKey, capRecKey = recKey;
+
+  Promise.all(points.map(function(pt) {
+    return qFn(pt.lat, pt.lng)
+      .then(function(r) { return r || null; })
+      .catch(function() { return null; });
+  })).then(function(results) {
+    // Stale check — discard if source/receiver moved or zones changed since query fired
+    var curSrc = window._subjectSiteLatlng;
+    var curRecv = window.getReceiverLatLng ? window.getReceiverLatLng(recvId) : null;
+    var srcEl2 = document.getElementById('src');
+    var recEl2 = document.getElementById(recvId);
+    var nowSrcKey = srcEl2 ? srcEl2.value : '';
+    var nowRecKey = recEl2 ? recEl2.value : '';
+    if (!curSrc || !curRecv
+        || Math.abs(curSrc.lat - capSrcLat) > 0.0001 || Math.abs(curSrc.lng - capSrcLng) > 0.0001
+        || Math.abs(curRecv.lat - capRecLat) > 0.0001 || Math.abs(curRecv.lng - capRecLng) > 0.0001
+        || nowSrcKey !== capSrcKey || nowRecKey !== capRecKey) {
+      return; // stale — a newer query is in-flight
+    }
+
+    var distM = _haversineM(capSrcLat, capSrcLng, capRecLat, capRecLng);
+    var segM = distM / N; // metres per sample interval
+
+    // Scan for contiguous runs of intervening zone (≠ source and ≠ receiver)
+    var cl6Applies = false;
+    var maxRunM = 0;
+    var runLen = 0;
+    for (var j = 0; j < results.length; j++) {
+      var r = results[j];
+      var zoneKey = r ? matchFn(r.zone, r.subzone) : null;
+      var isIntervening = zoneKey && zoneKey !== capSrcKey && zoneKey !== capRecKey;
+      if (isIntervening) {
+        runLen++;
+        var runM = runLen * segM;
+        if (runM > maxRunM) maxRunM = runM;
+        if (runM >= 100) cl6Applies = true;
+      } else {
+        runLen = 0;
+      }
+    }
+
+    _cl6Cache[recvId] = { applies: cl6Applies, widthM: Math.round(maxRunM) };
+    render(); // render() calls renderSADerivTable() internally
+  }).catch(function(err) {
+    console.warn('[Cl.6] Path zone query failed for ' + recvId + ':', err);
+    _cl6Cache[recvId] = null;
+    render();
+  });
+}
+
+/** Trigger SA Clause 6 check for all placed receivers (SA mode only). */
+function triggerClause6AllReceivers() {
+  if (currentState !== 'SA') return;
+  var getLL = window.getReceiverLatLng;
+  ['r1','r2','r3','r4'].forEach(function(id) {
+    var ll = getLL ? getLL(id) : null;
+    if (ll) runClause6ForReceiver(id);
+    else _cl6Cache[id] = null;
   });
 }
 
@@ -9627,12 +9768,30 @@ function render() {
     } else {
       // Auto-calculated criteria (SA / VIC)
       const crit = isVIC ? calcCriteriaVICForReceiver(id) : calcCriteria(src, rec, id);
-      if (dayEl) dayEl.textContent = fmt(crit.day);
       if (eveEl) eveEl.textContent = isVIC && crit.evening !== undefined ? fmt(crit.evening) : "";
       if (nightEl) nightEl.textContent = fmt(crit.night);
       if (lmaxEl) lmaxEl.textContent = crit.lmax === "" ? "" : fmt(crit.lmax);
+      // Day cell: add [Cl.6] indicator when SA Clause 6 intervening zone override applies
+      if (dayEl) {
+        if (!isVIC && crit.cl6) {
+          var cl6Entry = _cl6Cache[id];
+          var cl6WStr = (cl6Entry && cl6Entry.widthM) ? cl6Entry.widthM + '\u202fm' : '\u2265100\u202fm';
+          dayEl.innerHTML = fmt(crit.day) +
+            ' <span title="Cl.\u00a06 applied \u2014 intervening noise-designated zone ' + cl6WStr +
+            ' wide along source\u2013receiver path; criteria based on receiver zone land use only (not averaged INL)" ' +
+            'style="font-size:9px;color:#6b7280;cursor:help;font-weight:normal;">[Cl.\u00a06]</span>';
+        } else if (!isVIC && _cl6Cache[id] === 'pending') {
+          dayEl.innerHTML = fmt(crit.day) +
+            ' <span style="font-size:9px;color:#9ca3af;" title="Checking for intervening zones\u2026">\u22ef</span>';
+        } else {
+          dayEl.textContent = fmt(crit.day);
+        }
+      }
     }
   });
+
+  // Update SA derivation table
+  if (typeof renderSADerivTable === 'function') renderSADerivTable();
 
   // ── Period data availability ──────────────────────────────────────────────
   function hasLwForPeriod(period) {
@@ -10676,6 +10835,102 @@ function updateSpectrumChart() {
   });
 }
 
+/** Populate the SA derivation of noise emission criteria table (Clauses 4, 5, 6) */
+function renderSADerivTable() {
+  var tbody = document.getElementById('saDerivBody');
+  var wrap = document.getElementById('saDerivSection');
+  if (!tbody) return;
+  if (currentState !== 'SA') {
+    if (wrap) wrap.style.display = 'none';
+    return;
+  }
+  if (wrap) wrap.style.display = '';
+
+  // byKey is module-level — always available (built from DATA at startup)
+  var srcEl = document.getElementById('src');
+  var srcKey = srcEl ? srcEl.value : '';
+  var src = srcKey ? byKey.get(srcKey) : null;
+
+  var ids = ['r1', 'r2', 'r3', 'r4'];
+  var rows = [];
+  ids.forEach(function(id, idx) {
+    var recEl = document.getElementById(id);
+    var recKey = recEl ? recEl.value : '';
+    var rec = recKey ? byKey.get(recKey) : null;
+    var nameEl = document.getElementById('recvName' + (idx + 1));
+    var name = nameEl ? nameEl.value.trim() || ('Receiver ' + (idx + 1)) : ('Receiver ' + (idx + 1));
+    // Only show receivers that have a zone set and are placed on the map
+    if (!rec) return;
+    var recvLL = window.getReceiverLatLng ? window.getReceiverLatLng(id) : null;
+    if (!recvLL) return;
+
+    var crit = calcCriteria(src, rec, id);
+    var cl6Entry = _cl6Cache[id];
+    var cl6Pending = cl6Entry === 'pending';
+    var cl6Applies = crit.cl6;
+
+    // Determine clause label
+    var clauseLabel, clauseNote;
+    if (!src || srcKey === recKey) {
+      clauseLabel = 'Clause 4';
+      clauseNote = 'Same zone \u2014 source and receiver INL identical; no averaging required';
+    } else if (cl6Pending) {
+      clauseLabel = 'Checking\u2026';
+      clauseNote = 'Querying intervening zones along path';
+    } else if (cl6Applies) {
+      var w = (cl6Entry && cl6Entry.widthM) ? cl6Entry.widthM + '\u202fm wide' : '\u2265100\u202fm wide';
+      clauseLabel = 'Clause 6';
+      clauseNote = 'Intervening noise-designated zone ' + w + ' detected along path \u2014 receiver zone INL used (not averaged)';
+    } else {
+      clauseLabel = 'Clause 5';
+      clauseNote = 'Source and receiver zones differ \u2014 INL averaged';
+      if (cl6Entry && !cl6Applies) clauseNote += '; no qualifying intervening zone \u226510m detected';
+    }
+
+    var srcInlDay  = src ? Number(src.inf_day)  : '\u2014';
+    var srcInlNight = src ? Number(src.inf_night) : '\u2014';
+    var recInlDay  = Number(rec.inf_day);
+    var recInlNight = Number(rec.inf_night);
+
+    rows.push({
+      name: name,
+      srcInlDay: src ? srcInlDay : '\u2014',
+      srcInlNight: src ? srcInlNight : '\u2014',
+      recInlDay: recInlDay,
+      recInlNight: recInlNight,
+      clauseLabel: clauseLabel,
+      clauseNote: clauseNote,
+      critDay: crit.day !== '' ? crit.day : '\u2014',
+      critNight: crit.night !== '' ? crit.night : '\u2014'
+    });
+  });
+
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);font-style:italic;">' +
+      'Place source and receivers with zones selected to see derivation</td></tr>';
+    return;
+  }
+
+  var html = '';
+  rows.forEach(function(r) {
+    var clauseStyle = r.clauseLabel === 'Clause 6'
+      ? 'font-weight:700;color:#0369a1;'
+      : (r.clauseLabel === 'Clause 4' ? 'color:#6b7280;' : '');
+    html += '<tr>';
+    html += '<td style="font-weight:600;">' + r.name + '</td>';
+    html += '<td>' + (r.srcInlDay !== '\u2014'
+      ? 'Day: ' + r.srcInlDay + '\u202fdB, Night: ' + r.srcInlNight + '\u202fdB'
+      : '\u2014') + '</td>';
+    html += '<td>Day: ' + r.recInlDay + '\u202fdB, Night: ' + r.recInlNight + '\u202fdB</td>';
+    html += '<td title="' + r.clauseNote + '" style="cursor:help;' + clauseStyle + '">' +
+      r.clauseLabel + ' <span style="font-size:10px;color:#9ca3af;">\u24d8</span></td>';
+    html += '<td class="num">' + r.critDay + '</td>';
+    html += '<td class="num">' + r.critNight + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
 /** Populate the NSW derivation of noise emission criteria table */
 function renderNSWDerivTable() {
   var tbody = document.getElementById('nswDerivBody');
@@ -10785,6 +11040,15 @@ function updateOtherCritSelection() {
     } else {
       _clause20Cache[id] = null;
       runClause20ForReceiver(id);
+    }
+  }
+  // Re-trigger SA Clause 6 when zone code changes in SA mode
+  if (currentState === 'SA') {
+    if (id === 'src') {
+      triggerClause6AllReceivers();
+    } else {
+      _cl6Cache[id] = null;
+      runClause6ForReceiver(id);
     }
   }
 }));
@@ -13759,6 +14023,10 @@ initCollapse();
       }
     };
 
+    /* --- Expose SA SAPPA zone query functions for Clause 6 (used outside IIFE) --- */
+    window.querySAZoningAtPoint = queryZoningAtPoint;
+    window._saMatchZoneToKey = matchZoneToKey;
+
     /* --- Urban Boundary toggle (VIC only — Major Urban Area polygons) --- */
     var _vicMuaBoundaryLayer = null;
     var urbanBdyToggle = document.getElementById('urbanBoundaryToggleBtn');
@@ -15914,6 +16182,8 @@ initCollapse();
           triggerAutoIF(mode, ll);
           // Clause 20 ray re-query for this receiver (rural only)
           if (currentState === 'VIC' && vicAreaType === 'rural') runClause20ForReceiver(mode);
+          // SA Clause 6 ray re-query for this receiver
+          if (currentState === 'SA') runClause6ForReceiver(mode);
           // Refresh popup coordinates (elevation will update via fetchPinElevation callback)
           if (markers[mode] && markers[mode].getPopup && markers[mode].getPopup()) {
             markers[mode].setPopupContent(buildRecvPopupHTML(mode, ll));
@@ -15924,6 +16194,10 @@ initCollapse();
         if (isSourceMode(mode) && currentState === 'VIC' && vicAreaType === 'rural') {
           // Source moved — re-query Clause 20 for all receivers
           triggerClause20AllReceivers();
+        }
+        if (isSourceMode(mode) && currentState === 'SA') {
+          // Source moved — re-query SA Clause 6 for all receivers
+          triggerClause6AllReceivers();
         }
       });
 
@@ -15944,9 +16218,14 @@ initCollapse();
         triggerAutoIF(mode, latlng);
         // Clause 20 ray query for this receiver (rural only)
         if (currentState === 'VIC' && vicAreaType === 'rural') runClause20ForReceiver(mode);
+        // SA Clause 6 ray query for this receiver
+        if (currentState === 'SA') runClause6ForReceiver(mode);
       }
       if (isSourceMode(mode) && currentState === 'VIC' && vicAreaType === 'rural') {
         triggerClause20AllReceivers();
+      }
+      if (isSourceMode(mode) && currentState === 'SA') {
+        triggerClause6AllReceivers();
       }
 
       /* Auto-detect state from coordinates when source is placed */
