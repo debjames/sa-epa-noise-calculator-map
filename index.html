@@ -664,6 +664,15 @@ body.map-fs-active { overflow: hidden; }
               <div class="mp-hdr" id="saveJpgPanelBtn" title="Export current map view as JPEG" style="cursor:pointer;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 <span>Save JPG</span>
+                <!-- Resolution multiplier — click/change propagation stopped in JS so it
+                     doesn't accidentally trigger the Save action when the user opens the
+                     dropdown or changes the value. -->
+                <select id="saveJpgScale" title="Export resolution (multiplier applied to map canvas pixel dimensions)"
+                        style="background:rgba(0,0,0,0.30);color:#f3f4f6;border:1px solid rgba(255,255,255,0.22);border-radius:4px;padding:1px 2px;font-size:10px;cursor:pointer;margin-left:3px;flex-shrink:0;">
+                  <option value="1">Screen (1&times;)</option>
+                  <option value="2" selected>Print (2&times;)</option>
+                  <option value="3">High (3&times;)</option>
+                </select>
               </div>
             </div>
 
@@ -23341,9 +23350,16 @@ initCollapse();
     /* The button now lives in #mp-save-jpg inside mapPanelContainer (HTML side).
        We just find it here and wire up the click handler.                  */
     (function() {
-      var saveBtn = document.getElementById('saveJpgPanelBtn');
+      var saveBtn    = document.getElementById('saveJpgPanelBtn');
+      var scaleSelect = document.getElementById('saveJpgScale');
       if (saveBtn) {
         L.DomEvent.disableClickPropagation(saveBtn.parentElement);
+        // Prevent opening / changing the resolution selector from triggering a save
+        if (scaleSelect) {
+          ['click','mousedown','pointerdown','change'].forEach(function(ev) {
+            scaleSelect.addEventListener(ev, function(e) { e.stopPropagation(); });
+          });
+        }
         saveBtn.addEventListener('click', function(e) {
           e.stopPropagation();
           _doSaveJpg(saveBtn);
@@ -23804,14 +23820,22 @@ initCollapse();
         if (btn._saving) return;
         btn._saving = true;
         var origHTML = btn.innerHTML;
-        btn.innerHTML = 'Saving\u2026';
+        // Show scale in the button label while saving so the user has feedback
+        var _scEl = document.getElementById('saveJpgScale');
+        var _scVal = (_scEl && _scEl.value) || '2';
+        btn.innerHTML = 'Saving ' + _scVal + '\u00d7\u2026';
         btn.style.pointerEvents = 'none';
 
         var mapEl = document.getElementById('noise-map');
         var mapRect = mapEl.getBoundingClientRect();
         var W = Math.round(mapRect.width);
         var H = Math.round(mapRect.height);
-        var dpr = window.devicePixelRatio || 1;
+        // Export scale: user-chosen multiplier (1×/2×/3×).
+        // This is applied uniformly to the output canvas, all html2canvas calls, and
+        // SVG rasterisation so every layer — tiles, vector overlays, markers, legend —
+        // is rendered at exactly this many times the CSS pixel dimensions.
+        var scaleEl = document.getElementById('saveJpgScale');
+        var dpr = Math.max(1, parseInt((scaleEl && scaleEl.value) || '2'));
 
         // ── Hide UI chrome not wanted in the export ───────────────────────
         var hideEls = [];
@@ -23924,10 +23948,12 @@ initCollapse();
               clone.style.position         = '';
               clone.style.left             = '';
               clone.style.top              = '';
-              // Ensure explicit dimensions so the SVG image renders at correct size
-              clone.setAttribute('width',  r.w);
-              clone.setAttribute('height', r.h);
-              // Preserve viewBox if present; add one if missing
+              // Rasterise at full export scale so SVG vector content (contour lines,
+              // pane overlays) is sharp at the chosen resolution.  width/height control
+              // the rasterisation canvas size; viewBox preserves the coordinate space.
+              clone.setAttribute('width',  r.w * dpr);
+              clone.setAttribute('height', r.h * dpr);
+              // Preserve viewBox if present; add one if missing (always in original coords)
               if (!clone.getAttribute('viewBox')) {
                 clone.setAttribute('viewBox', '0 0 ' + r.w + ' ' + r.h);
               }
@@ -24074,7 +24100,7 @@ initCollapse();
                    String(d.getDate()).padStart(2, '0');
           var url = URL.createObjectURL(blob);
           var a = document.createElement('a');
-          a.download = 'noise-map-' + ts + '.jpg';
+          a.download = 'noise-map-' + ts + '-' + dpr + 'x.jpg';
           a.href = url;
           document.body.appendChild(a);
           a.click();
