@@ -17727,29 +17727,6 @@ if (window.pdfjsLib) {
                 var fullText = pages.join('\n');
                 // Keyword scan for suggested noise sources
                 if (typeof _soPdfScanSources === 'function') _soPdfScanSources(fullText);
-                var addr = _soPdfDetectAddress(fullText);
-                if (addr) {
-                  // Populate the search bar
-                  var inp = document.getElementById('mapSearchInput');
-                  if (inp) inp.value = addr;
-
-                  // Navigate the map — use nominatim, fall back silently on failure
-                  nominatimSearch(addr + ', South Australia, Australia')
-                    .then(function(results) {
-                      if (results && results.length > 0) {
-                        selectNominatimResult(results[0]);
-                      } else {
-                        // Try without state qualifier
-                        return nominatimSearch(addr).then(function(r2) {
-                          if (r2 && r2.length > 0) selectNominatimResult(r2[0]);
-                        });
-                      }
-                    })
-                    .catch(function() { /* geocode failed silently */ });
-
-                  // Dismissable toast
-                  _soPdfAddressToast('Address detected from PDF: ' + addr);
-                }
               }).catch(function(e) {
                 console.warn('PDF text extraction failed:', e);
               });
@@ -17761,95 +17738,6 @@ if (window.pdfjsLib) {
         });
       };
       reader.readAsArrayBuffer(file);
-    }
-
-    /* Detect an Australian address in extracted PDF text */
-    function _soPdfDetectAddress(text) {
-      if (!text) return null;
-
-      // Normalise whitespace
-      var t = text.replace(/\s+/g, ' ');
-
-      // 1. Look for labelled address lines first (most reliable)
-      //    Labels: Site Address, Site:, Address:, Location:, Property:, Subject Site:
-      var labelPat = /(?:site\s+address|subject\s+site|site|address|location|property)\s*[:\-]\s*([^\n\r,]{5,80}(?:,\s*[^\n\r]{3,40})?)/gi;
-      var m;
-      while ((m = labelPat.exec(t)) !== null) {
-        var candidate = m[1].trim();
-        if (_soPdfLooksLikeAddress(candidate)) return _soPdfCleanAddress(candidate);
-      }
-
-      // 2. Scan for street-number + street-name + suburb patterns
-      //    e.g.  "42 Smith Road, Gawler SA 5118"  or  "Lot 7, 12 Brown Street Modbury"
-      var streetPat = /\b(?:lot\s+\d+[,\s]+)?(\d{1,5}(?:[-–]\d{1,5})?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}\s+(?:Road|Rd|Street|St|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl|Crescent|Cres|Terrace|Tce|Way|Close|Cl|Boulevard|Blvd|Highway|Hwy|Lane|Ln|Grove|Gr|Circuit|Cct|Parade|Pde)\b[,\s]+[A-Z][a-zA-Z\s]{2,20}(?:\s+SA\b|\s+5\d{3}\b|\s+SA\s+5\d{3}\b)?)/g;
-      while ((m = streetPat.exec(t)) !== null) {
-        var cand = m[1].trim();
-        if (cand.length > 8) return _soPdfCleanAddress(cand);
-      }
-
-      return null;
-    }
-
-    /* Sanity check: does a candidate string look like a real address? */
-    function _soPdfLooksLikeAddress(s) {
-      if (!s || s.length < 5 || s.length > 120) return false;
-      // Must contain at least one digit (street number / postcode)
-      if (!/\d/.test(s)) return false;
-      // Must contain at least one word that looks like a street type or suburb
-      if (!/\b(?:Road|Rd|Street|St|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl|Crescent|Cres|Terrace|Tce|Way|Close|Cl|Boulevard|Blvd|Lane|Ln|Grove|Gr|Circuit|Cct|Parade|Pde|Highway|Hwy)\b/i.test(s) &&
-          !/\bSA\b/.test(s) && !/\b5\d{3}\b/.test(s)) return false;
-      return true;
-    }
-
-    /* Clean up address string for search */
-    function _soPdfCleanAddress(s) {
-      return s.replace(/\s+/g, ' ')
-              .replace(/[,\s]+$/, '')
-              .trim();
-    }
-
-    /* Dismissable toast for detected address */
-    function _soPdfAddressToast(msg) {
-      var old = document.getElementById('_soPdfToast');
-      if (old) old.remove();
-
-      var d = document.createElement('div');
-      d.id = '_soPdfToast';
-      d.style.cssText = [
-        'position:fixed',
-        'top:58px',
-        'left:50%',
-        'transform:translateX(-50%)',
-        'z-index:99999',
-        'background:#1e293b',
-        'color:#f8fafc',
-        'padding:9px 14px 9px 18px',
-        'font-size:13px',
-        'border-radius:7px',
-        'box-shadow:0 2px 10px rgba(0,0,0,0.3)',
-        'display:flex',
-        'align-items:center',
-        'gap:10px',
-        'max-width:520px',
-        'cursor:default'
-      ].join(';');
-
-      var txt = document.createElement('span');
-      txt.textContent = msg;
-      txt.style.flex = '1';
-
-      var btn = document.createElement('button');
-      btn.textContent = '\u2715';
-      btn.title = 'Dismiss';
-      btn.style.cssText = 'background:none;border:none;color:#94a3b8;cursor:pointer;font-size:15px;padding:0 2px;line-height:1;flex-shrink:0;';
-      btn.onclick = function() { d.remove(); };
-
-      d.appendChild(txt);
-      d.appendChild(btn);
-      document.body.appendChild(d);
-
-      // Auto-dismiss after 12 s
-      setTimeout(function() { if (d.parentNode) d.remove(); }, 12000);
     }
 
     function _soShowCompressDialog(dataUrl, name, MB) {
