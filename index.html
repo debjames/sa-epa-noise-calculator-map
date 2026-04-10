@@ -908,8 +908,8 @@ body.map-fs-active { overflow: hidden; }
                 <button class="mp-btn" id="moveGeomBtn" title="Move mode: click to activate, then drag any barrier, building, or source to reposition it. Click again to exit."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg> Move</button>
                 <div class="mp-sep"></div>
                 <!-- Group 2: Site elements -->
-                <button class="mp-btn" id="sitePlanOverlayBtn" title="Upload a site plan image and position it as a map overlay" onclick="soOpenPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Site plan overlay</button>
-                <input type="file" id="soFileInput" accept=".png,.jpg,.jpeg,image/png,image/jpeg" style="display:none;">
+                <button class="mp-btn" id="sitePlanOverlayBtn" title="Upload a site plan image or PDF and position it as a map overlay (PDF: page 1 rendered as image; address auto-detected)" onclick="soOpenPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Site plan overlay</button>
+                <input type="file" id="soFileInput" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" style="display:none;">
                 <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building</button>
                 <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier</button>
                 <button class="mp-btn" id="drawGroundZoneBtn" title="Draw a ground absorption polygon (overrides default G value for propagation paths passing through it)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17 Q8 11 12 14 Q16 17 21 11"/><path d="M3 21h18" stroke-dasharray="2 2"/></svg> Ground absorption</button>
@@ -13514,6 +13514,14 @@ initCollapse();
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous"></script>
+<!-- pdf.js UMD build: exposes window.pdfjsLib directly, no module magic needed -->
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+if (window.pdfjsLib) {
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+}
+</script>
 
 <script>
   document.addEventListener("DOMContentLoaded", () => {
@@ -17459,7 +17467,7 @@ initCollapse();
       mc.addEventListener('drop', function(e) {
         e.preventDefault();
         var f = e.dataTransfer && e.dataTransfer.files[0];
-        if (f && /^image\/(png|jpeg)$/.test(f.type)) _soProcessFile(f);
+        if (f && (/^image\/(png|jpeg)$/.test(f.type) || f.type === 'application/pdf' || /\.pdf$/i.test(f.name))) _soProcessFile(f);
       });
     })();
 
@@ -17469,6 +17477,10 @@ initCollapse();
     };
 
     function _soProcessFile(file) {
+      if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+        _soPdfProcess(file);
+        return;
+      }
       if (!/^image\/(png|jpeg)$/.test(file.type)) {
         alert('Please use PNG or JPG format.');
         return;
@@ -17489,6 +17501,199 @@ initCollapse();
         }
       };
       reader.readAsDataURL(file);
+    }
+
+    /* ── PDF site plan: render page 1 as overlay + extract address ──────── */
+    function _soPdfProcess(file) {
+      var name = file.name.replace(/\.pdf$/i, '');
+
+      // Helper: ensure pdfjsLib is available (UMD build loads synchronously), then run callback
+      function _withPdfJs(cb) {
+        if (window.pdfjsLib && typeof window.pdfjsLib.getDocument === 'function') {
+          cb(window.pdfjsLib);
+          return;
+        }
+        // Fallback: poll briefly in case script hasn't finished executing yet
+        var tries = 0;
+        var iv = setInterval(function() {
+          if (window.pdfjsLib && typeof window.pdfjsLib.getDocument === 'function') {
+            clearInterval(iv);
+            cb(window.pdfjsLib);
+          } else if (++tries > 20) {
+            clearInterval(iv);
+            alert('PDF library failed to load. The page may need to be served via a web server rather than opened directly as a file.');
+          }
+        }, 250);
+      }
+
+      // Show a quick loading toast
+      showToast('Loading PDF\u2026', 6000);
+
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        var arrayBuffer = ev.target.result;
+
+        _withPdfJs(function(pdfjs) {
+          pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
+            .then(function(pdf) {
+              var numPages = pdf.numPages;
+
+              // ── 1. Render page 1 to canvas → dataURL → overlay ──────────
+              pdf.getPage(1).then(function(page) {
+                // Use a scale that gives ~1500px wide render for good quality
+                var viewport = page.getViewport({ scale: 1 });
+                var targetW  = 1500;
+                var scale    = targetW / viewport.width;
+                var vp       = page.getViewport({ scale: scale });
+
+                var canvas  = document.createElement('canvas');
+                canvas.width  = Math.round(vp.width);
+                canvas.height = Math.round(vp.height);
+                var ctx = canvas.getContext('2d');
+
+                page.render({ canvasContext: ctx, viewport: vp }).promise.then(function() {
+                  var dataUrl = canvas.toDataURL('image/png', 0.92);
+                  _soAddOverlay({ imageSrc: dataUrl, name: name });
+                }).catch(function(e) {
+                  console.error('PDF render error:', e);
+                  alert('Could not render the PDF page as an image.');
+                });
+              });
+
+              // ── 2. Extract text from all pages for address detection ─────
+              var allTextPromises = [];
+              for (var p = 1; p <= numPages; p++) {
+                allTextPromises.push(pdf.getPage(p).then(function(pg) {
+                  return pg.getTextContent().then(function(tc) {
+                    return tc.items.map(function(it) { return it.str; }).join(' ');
+                  });
+                }));
+              }
+              Promise.all(allTextPromises).then(function(pages) {
+                var fullText = pages.join('\n');
+                var addr = _soPdfDetectAddress(fullText);
+                if (addr) {
+                  // Populate the search bar
+                  var inp = document.getElementById('mapSearchInput');
+                  if (inp) inp.value = addr;
+
+                  // Navigate the map — use nominatim, fall back silently on failure
+                  nominatimSearch(addr + ', South Australia, Australia')
+                    .then(function(results) {
+                      if (results && results.length > 0) {
+                        selectNominatimResult(results[0]);
+                      } else {
+                        // Try without state qualifier
+                        return nominatimSearch(addr).then(function(r2) {
+                          if (r2 && r2.length > 0) selectNominatimResult(r2[0]);
+                        });
+                      }
+                    })
+                    .catch(function() { /* geocode failed silently */ });
+
+                  // Dismissable toast
+                  _soPdfAddressToast('Address detected from PDF: ' + addr);
+                }
+              }).catch(function(e) {
+                console.warn('PDF text extraction failed:', e);
+              });
+            })
+            .catch(function(e) {
+              console.error('PDF load error:', e);
+              alert('Could not load the PDF. It may be encrypted or corrupt.');
+            });
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    /* Detect an Australian address in extracted PDF text */
+    function _soPdfDetectAddress(text) {
+      if (!text) return null;
+
+      // Normalise whitespace
+      var t = text.replace(/\s+/g, ' ');
+
+      // 1. Look for labelled address lines first (most reliable)
+      //    Labels: Site Address, Site:, Address:, Location:, Property:, Subject Site:
+      var labelPat = /(?:site\s+address|subject\s+site|site|address|location|property)\s*[:\-]\s*([^\n\r,]{5,80}(?:,\s*[^\n\r]{3,40})?)/gi;
+      var m;
+      while ((m = labelPat.exec(t)) !== null) {
+        var candidate = m[1].trim();
+        if (_soPdfLooksLikeAddress(candidate)) return _soPdfCleanAddress(candidate);
+      }
+
+      // 2. Scan for street-number + street-name + suburb patterns
+      //    e.g.  "42 Smith Road, Gawler SA 5118"  or  "Lot 7, 12 Brown Street Modbury"
+      var streetPat = /\b(?:lot\s+\d+[,\s]+)?(\d{1,5}(?:[-–]\d{1,5})?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}\s+(?:Road|Rd|Street|St|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl|Crescent|Cres|Terrace|Tce|Way|Close|Cl|Boulevard|Blvd|Highway|Hwy|Lane|Ln|Grove|Gr|Circuit|Cct|Parade|Pde)\b[,\s]+[A-Z][a-zA-Z\s]{2,20}(?:\s+SA\b|\s+5\d{3}\b|\s+SA\s+5\d{3}\b)?)/g;
+      while ((m = streetPat.exec(t)) !== null) {
+        var cand = m[1].trim();
+        if (cand.length > 8) return _soPdfCleanAddress(cand);
+      }
+
+      return null;
+    }
+
+    /* Sanity check: does a candidate string look like a real address? */
+    function _soPdfLooksLikeAddress(s) {
+      if (!s || s.length < 5 || s.length > 120) return false;
+      // Must contain at least one digit (street number / postcode)
+      if (!/\d/.test(s)) return false;
+      // Must contain at least one word that looks like a street type or suburb
+      if (!/\b(?:Road|Rd|Street|St|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl|Crescent|Cres|Terrace|Tce|Way|Close|Cl|Boulevard|Blvd|Lane|Ln|Grove|Gr|Circuit|Cct|Parade|Pde|Highway|Hwy)\b/i.test(s) &&
+          !/\bSA\b/.test(s) && !/\b5\d{3}\b/.test(s)) return false;
+      return true;
+    }
+
+    /* Clean up address string for search */
+    function _soPdfCleanAddress(s) {
+      return s.replace(/\s+/g, ' ')
+              .replace(/[,\s]+$/, '')
+              .trim();
+    }
+
+    /* Dismissable toast for detected address */
+    function _soPdfAddressToast(msg) {
+      var old = document.getElementById('_soPdfToast');
+      if (old) old.remove();
+
+      var d = document.createElement('div');
+      d.id = '_soPdfToast';
+      d.style.cssText = [
+        'position:fixed',
+        'top:58px',
+        'left:50%',
+        'transform:translateX(-50%)',
+        'z-index:99999',
+        'background:#1e293b',
+        'color:#f8fafc',
+        'padding:9px 14px 9px 18px',
+        'font-size:13px',
+        'border-radius:7px',
+        'box-shadow:0 2px 10px rgba(0,0,0,0.3)',
+        'display:flex',
+        'align-items:center',
+        'gap:10px',
+        'max-width:520px',
+        'cursor:default'
+      ].join(';');
+
+      var txt = document.createElement('span');
+      txt.textContent = msg;
+      txt.style.flex = '1';
+
+      var btn = document.createElement('button');
+      btn.textContent = '\u2715';
+      btn.title = 'Dismiss';
+      btn.style.cssText = 'background:none;border:none;color:#94a3b8;cursor:pointer;font-size:15px;padding:0 2px;line-height:1;flex-shrink:0;';
+      btn.onclick = function() { d.remove(); };
+
+      d.appendChild(txt);
+      d.appendChild(btn);
+      document.body.appendChild(d);
+
+      // Auto-dismiss after 12 s
+      setTimeout(function() { if (d.parentNode) d.remove(); }, 12000);
     }
 
     function _soShowCompressDialog(dataUrl, name, MB) {
