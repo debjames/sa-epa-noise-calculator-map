@@ -773,6 +773,152 @@ body.map-fs-active { overflow: hidden; }
 }
 /* Help toggle button active state */
 #mp-help .mp-hdr.help-active { background: rgba(59,130,246,.35); }
+/* Suggest toggle button active state */
+#mp-suggest .mp-hdr.suggest-active { background: rgba(59,130,246,.35); }
+
+/* ── Floating suggested-sources panel ───────────────────────────────────── */
+#suggestFloatPanel {
+  display: none;
+  position: fixed;
+  top: 60px;
+  right: 90px;
+  z-index: 9999;
+  width: 320px;
+  max-height: 72vh;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.22);
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 260px;
+  min-height: 100px;
+}
+#suggestPanelHdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(26,32,44,.92);
+  color: #f3f4f6;
+  border-radius: 10px 10px 0 0;
+  cursor: move;
+  user-select: none;
+  flex-shrink: 0;
+}
+#suggestPanelHdr .suggest-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+#suggestPanelClose {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+#suggestPanelClose:hover { color: #fff; }
+#suggestPanelContent {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 12px;
+  color: #374151;
+}
+#suggestPanelFooter {
+  padding: 10px 14px;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
+  background: #fff;
+}
+#suggestAddBtn {
+  width: 100%;
+  background: #1e293b;
+  color: #f8fafc;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: .01em;
+}
+#suggestAddBtn:hover { background: #334155; }
+.suggest-empty {
+  padding: 22px 16px;
+  color: #6b7280;
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.7;
+}
+.suggest-group details {
+  border-bottom: 1px solid #e5e7eb;
+}
+.suggest-group details:last-child { border-bottom: none; }
+.suggest-group summary {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f9fafb;
+}
+.suggest-group summary::-webkit-details-marker { display: none; }
+.suggest-arrow {
+  font-size: 9px;
+  color: #6b7280;
+  flex-shrink: 0;
+  transition: transform .18s;
+  display: inline-block;
+}
+.suggest-group details[open] summary .suggest-arrow { transform: rotate(90deg); }
+.suggest-kw-tag {
+  font-size: 10px;
+  color: #6b7280;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: 500;
+  white-space: nowrap;
+  margin-left: auto;
+}
+.suggest-sources-list {
+  padding: 5px 14px 10px 14px;
+}
+.suggest-src-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+}
+.suggest-src-item input[type="checkbox"] {
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #1e293b;
+}
+.suggest-src-item label {
+  cursor: pointer;
+  color: #374151;
+  font-size: 12px;
+  line-height: 1.4;
+}
+/* Badge dot */
+.mp-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.15);
+}
 
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
@@ -868,6 +1014,14 @@ body.map-fs-active { overflow: hidden; }
               <div class="mp-hdr" id="saveJpgPanelBtn" title="Export map as JPEG at 3× resolution (print quality)" style="cursor:pointer;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 <span>Save JPG</span>
+              </div>
+            </div>
+
+            <!-- Suggested noise sources toggle button -->
+            <div class="mp" id="mp-suggest" style="pointer-events:all;">
+              <div class="mp-hdr" id="suggestToggleBtn" title="Suggested noise sources from PDF site plan" style="cursor:pointer;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 1 7 7c0 2.5-1.3 4.7-3.3 6H8.3A7 7 0 0 1 5 9a7 7 0 0 1 7-7z"/></svg>
+                <span id="suggestBadgeDot" style="display:none;" class="mp-badge-dot"></span>
               </div>
             </div>
 
@@ -17571,6 +17725,8 @@ if (window.pdfjsLib) {
               }
               Promise.all(allTextPromises).then(function(pages) {
                 var fullText = pages.join('\n');
+                // Keyword scan for suggested noise sources
+                if (typeof _soPdfScanSources === 'function') _soPdfScanSources(fullText);
                 var addr = _soPdfDetectAddress(fullText);
                 if (addr) {
                   // Populate the search bar
@@ -24944,6 +25100,22 @@ if (window.pdfjsLib) {
   </div><!-- /helpPanelContent -->
 </div><!-- /helpFloatPanel -->
 
+<!-- ─── Suggested noise sources panel ──────────────────────────────────── -->
+<div id="suggestFloatPanel">
+  <div id="suggestPanelHdr">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:.7;"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 1 7 7c0 2.5-1.3 4.7-3.3 6H8.3A7 7 0 0 1 5 9a7 7 0 0 1 7-7z"/></svg>
+    <span class="suggest-title">Suggested noise sources</span>
+    <button id="suggestPanelClose" title="Close">&#x2715;</button>
+  </div>
+  <div id="suggestPanelContent">
+    <div class="suggest-empty" id="suggestEmptyState">No PDF uploaded yet.<br>Upload a site plan via <b>Tools &rarr; Site plan overlay</b>.</div>
+    <div class="suggest-group" id="suggestGroupsContainer" style="display:none;"></div>
+  </div>
+  <div id="suggestPanelFooter" style="display:none;">
+    <button id="suggestAddBtn">Add selected sources</button>
+  </div>
+</div>
+
 <script>
 /* ── Floating help panel ─────────────────────────────────────── */
 (function() {
@@ -24993,6 +25165,266 @@ if (window.pdfjsLib) {
   panel.addEventListener('click',     function(e) { e.stopPropagation(); });
   panel.addEventListener('mousedown', function(e) { e.stopPropagation(); });
   panel.addEventListener('wheel',     function(e) { e.stopPropagation(); });
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SUGGESTED NOISE SOURCES FROM PDF
+   ═══════════════════════════════════════════════════════════════════════ */
+(function() {
+
+  /* ── Keyword → suggested sources rules ───────────────────────────── */
+  var _SUGGEST_RULES = [
+    { label: 'Car park',
+      keywords: [/car[\s-]?park/i, /\bcarpark\b/i, /\bparking\b/i],
+      sources: ['Car / vehicle movements'] },
+
+    { label: 'Loading dock',
+      keywords: [/loading[\s-]?dock/i, /loading[\s-]?bay/i, /loading[\s-]?area/i],
+      sources: ['Truck movements', 'Refrigerated truck movements'] },
+
+    { label: 'Office / commercial / building',
+      keywords: [/\boffice\b/i, /\bcommercial\b/i, /\bbuilding\b/i],
+      sources: ['External mechanical plant — air conditioning, extraction fans'] },
+
+    { label: 'Generator / plant room',
+      keywords: [/\bgenerator\b/i, /fire[\s-]?pump/i, /plant[\s-]?room/i, /\bgenset\b/i, /\bemergency\b/i],
+      sources: ['Generator', 'Fire pump'] },
+
+    { label: 'Function / venue / hospitality',
+      keywords: [/\bfunction\b/i, /\bpub\b/i, /\bbar\b/i, /\bhotel\b/i, /\brestaurant\b/i,
+                 /\bentertainment\b/i, /\bvenue\b/i, /\breception\b/i],
+      sources: ['Music noise', 'Patrons', 'External mechanical plant — air conditioning, extraction fans'] },
+
+    { label: 'Fast food / drive-through',
+      keywords: [/fast[\s-]?food/i, /drive[\s-]?through/i, /\btakeaway\b/i,
+                 /mcdonald/i, /\bkfc\b/i, /hungry[\s-]?jack/i],
+      sources: ['Refrigerated trucks', 'Speaker box', 'Outdoor patrons', 'Car movements',
+                'External mechanical plant — refrigeration, air conditioning, extraction fans'] },
+
+    { label: 'Car wash',
+      keywords: [/car[\s-]?wash/i, /\bcarwash\b/i],
+      sources: ['Car wash', 'Dog wash', 'Vacuum', 'Car movements',
+                'External mechanical plant — refrigeration, air conditioning, extraction fans'] },
+
+    { label: 'Service station / petrol',
+      keywords: [/\bpetrol\b/i, /service[\s-]?station/i, /\bfuel\b/i, /\bservo\b/i],
+      sources: ['Truck movements', 'Vacuum', 'Car movements',
+                'External mechanical plant — refrigeration, air conditioning, extraction fans'] },
+
+    { label: 'Industrial / warehouse / factory',
+      keywords: [/\bindustrial\b/i, /\bwarehouse\b/i, /\bfactory\b/i,
+                 /\bmanufacturing\b/i, /\bstorage\b/i],
+      sources: ['Warehouse activity', 'Forklifts', 'Truck movements', 'Car movements',
+                'External mechanical plant — air conditioning, extraction fans'] },
+
+    { label: 'Childcare / kindergarten',
+      keywords: [/childcare/i, /child[\s-]?care/i, /kindergarten/i, /daycare/i,
+                 /early[\s-]?learning/i, /preschool/i],
+      sources: ['Children', 'Car movements',
+                'External mechanical plant — air conditioning, extraction fans'] }
+  ];
+
+  /* Explicit name → library-name-fragment lookup for auto-populating Lw */
+  var _LIB_HINT = {
+    'Speaker box':             'Speaker box',
+    'Generator':               'Enclosed Generator Set',
+    'Fire pump':               'Firepump',
+    'Car movements':           'Car driving slowly',
+    'Truck movements':         'Medium truck idling',
+    'Refrigerated trucks':     'Refrigerated truck condenser (small/medium truck)',
+    'Refrigerated truck movements': 'Refrigerated truck condenser (small/medium truck)',
+    'External mechanical plant — air conditioning, extraction fans':
+                               'Condenser\u2014small single fan outdoor unit',
+    'External mechanical plant — refrigeration, air conditioning, extraction fans':
+                               'Refrigeration Condenser (High Fan Speed)'
+  };
+
+  /* ── Global state ─────────────────────────────────────────────────── */
+  window._pdfSuggestedGroups = null; // null = no PDF yet
+
+  /* ── Scan PDF text for keyword matches ────────────────────────────── */
+  window._soPdfScanSources = function(text) {
+    var matches = [];
+    _SUGGEST_RULES.forEach(function(rule) {
+      var hit = null;
+      rule.keywords.some(function(kw) {
+        var m = text.match(kw);
+        if (m) { hit = m[0]; return true; }
+        return false;
+      });
+      if (hit) matches.push({ label: rule.label, matched: hit, sources: rule.sources.slice() });
+    });
+    window._pdfSuggestedGroups = matches;
+    _updateSuggestPanel();
+    // Badge dot
+    var dot = document.getElementById('suggestBadgeDot');
+    if (dot) dot.style.display = matches.length > 0 ? '' : 'none';
+  };
+
+  /* ── Render panel content ─────────────────────────────────────────── */
+  function _updateSuggestPanel() {
+    var groups   = window._pdfSuggestedGroups;
+    var emptyEl  = document.getElementById('suggestEmptyState');
+    var grpCont  = document.getElementById('suggestGroupsContainer');
+    var footer   = document.getElementById('suggestPanelFooter');
+    if (!emptyEl || !grpCont || !footer) return;
+
+    if (groups === null) {
+      emptyEl.innerHTML = 'No PDF uploaded yet.<br>Upload a site plan via <b>Tools &rarr; Site plan overlay</b>.';
+      emptyEl.style.display = '';
+      grpCont.style.display = 'none';
+      footer.style.display  = 'none';
+      return;
+    }
+    if (groups.length === 0) {
+      emptyEl.textContent = 'No matching features detected in the PDF.';
+      emptyEl.style.display = '';
+      grpCont.style.display = 'none';
+      footer.style.display  = 'none';
+      return;
+    }
+
+    emptyEl.style.display = 'none';
+    grpCont.style.display = '';
+    footer.style.display  = '';
+
+    var html = '';
+    groups.forEach(function(grp, gi) {
+      html += '<details>';
+      html += '<summary>';
+      html += '<span class="suggest-arrow">&#9654;</span>';
+      html += '<span>' + escapeHTML(grp.label) + '</span>';
+      html += '<span class="suggest-kw-tag">detected</span>';
+      html += '</summary>';
+      html += '<div class="suggest-sources-list">';
+      grp.sources.forEach(function(src, si) {
+        var cbId = 'sgcb_' + gi + '_' + si;
+        html += '<div class="suggest-src-item">';
+        html += '<input type="checkbox" id="' + cbId + '" data-grp="' + gi + '" data-src="' + si + '" checked>';
+        html += '<label for="' + cbId + '">' + escapeHTML(src) + '</label>';
+        html += '</div>';
+      });
+      html += '</div></details>';
+    });
+    grpCont.innerHTML = html;
+  }
+
+  /* ── Add selected sources to the source list ─────────────────────── */
+  function _suggestAddSelected() {
+    var groups = window._pdfSuggestedGroups;
+    if (!groups || !groups.length) return;
+
+    var checked = document.querySelectorAll('#suggestGroupsContainer input[type="checkbox"]:checked');
+    if (!checked.length) { showToast('No sources selected.', 2500); return; }
+
+    var libAll = (typeof SOURCE_LIBRARY_ALL !== 'undefined') ? SOURCE_LIBRARY_ALL : [];
+
+    function _findLib(name) {
+      var hint = _LIB_HINT[name];
+      if (!hint) return null;
+      var hLow = hint.toLowerCase();
+      var found = null;
+      libAll.some(function(entry) {
+        if (entry.name.toLowerCase().indexOf(hLow) !== -1) { found = entry; return true; }
+        return false;
+      });
+      return found;
+    }
+
+    var added = 0;
+    checked.forEach(function(cb) {
+      var gi  = parseInt(cb.getAttribute('data-grp'), 10);
+      var si  = parseInt(cb.getAttribute('data-src'), 10);
+      var grp = groups[gi];
+      if (!grp) return;
+      var srcName = grp.sources[si];
+      if (!srcName) return;
+
+      var lib = _findLib(srcName);
+      var pin = {
+        id: (typeof _newPinId === 'function') ? _newPinId() : ('src-' + Math.random().toString(36).slice(2,6)),
+        name: srcName,
+        lat: null, lng: null,
+        lw: { day: null, eve: null, night: null },
+        lw_max: null,
+        spectrum: { day: null, eve: null, night: null },
+        spectrum_max: null,
+        height_m: 1.5,
+        buildingHeight_m: 0,
+        groundElevation_m: null,
+        operatingPct: { day: 100, eve: 100, night: 100 },
+        numUnits: { day: 1, eve: 1, night: 1, lmax: 1 },
+        activeInPeriod: { day: true, eve: true, night: true, lmax: false }
+      };
+
+      if (lib) {
+        pin.lw      = { day: lib.lw, eve: lib.lw, night: lib.lw };
+        var sp      = lib.spectrum ? lib.spectrum.slice() : null;
+        pin.spectrum = { day: sp, eve: sp, night: sp };
+        pin.height_m = lib.height || 1.5;
+      }
+
+      sourcePins.push(pin);
+      added++;
+    });
+
+    if (added > 0) {
+      if (typeof renderSourcePins === 'function') renderSourcePins();
+      if (typeof updateAll === 'function') updateAll();
+      showToast(added + ' source' + (added !== 1 ? 's' : '') + ' added', 3000);
+    }
+  }
+
+  /* ── Panel toggle / close ─────────────────────────────────────────── */
+  var panel     = document.getElementById('suggestFloatPanel');
+  var toggleBtn = document.getElementById('suggestToggleBtn');
+  var closeBtn  = document.getElementById('suggestPanelClose');
+  var hdr       = document.getElementById('suggestPanelHdr');
+  var addBtn    = document.getElementById('suggestAddBtn');
+  if (!panel || !toggleBtn || !closeBtn || !hdr) return;
+
+  function showPanel() {
+    panel.style.display = 'flex';
+    toggleBtn.classList.add('suggest-active');
+  }
+  function hidePanel() {
+    panel.style.display = 'none';
+    toggleBtn.classList.remove('suggest-active');
+  }
+
+  toggleBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (panel.style.display === 'flex') hidePanel(); else showPanel();
+  });
+  closeBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    hidePanel();
+  });
+  if (addBtn) addBtn.addEventListener('click', _suggestAddSelected);
+
+  /* ── Draggable by header ──────────────────────────────────────────── */
+  var _drag = false, _dx = 0, _dy = 0, _px = 0, _py = 0;
+  hdr.addEventListener('mousedown', function(e) {
+    if (e.target === closeBtn || (e.target.closest && e.target.closest('button'))) return;
+    _drag = true;
+    _dx = e.clientX; _dy = e.clientY;
+    var r = panel.getBoundingClientRect();
+    _px = r.left; _py = r.top;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!_drag) return;
+    panel.style.left  = (_px + e.clientX - _dx) + 'px';
+    panel.style.top   = (_py + e.clientY - _dy) + 'px';
+    panel.style.right = 'auto';
+  });
+  document.addEventListener('mouseup', function() { _drag = false; });
+
+  /* ── Prevent map click-through ────────────────────────────────────── */
+  panel.addEventListener('click',     function(e) { e.stopPropagation(); });
+  panel.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+  panel.addEventListener('wheel',     function(e) { e.stopPropagation(); });
+
 })();
 </script>
 
