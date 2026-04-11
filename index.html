@@ -957,12 +957,18 @@ body.map-fs-active { overflow: hidden; }
   <div class="sheet">
     <div class="grid2">
 
-      <!-- ===== PROJECT NAME FIELD ===== -->
-      <div class="grid2 grid-full" style="padding-top:0;padding-bottom:0;" id="projectNameRow">
+      <!-- ===== PROJECT NUMBER + NAME FIELDS ===== -->
+      <div class="grid2 grid-full" style="padding-top:0;padding-bottom:0;display:flex;gap:10px;align-items:baseline;" id="projectNameRow">
+        <input type="text" id="projectNumberInput"
+          placeholder="Project #"
+          autocomplete="off"
+          style="width:120px;flex-shrink:0;box-sizing:border-box;border:none;border-bottom:2px solid #e5e7eb;background:transparent;font-size:18px;font-weight:700;color:#64748b;padding:6px 2px 4px;outline:none;font-family:inherit;"
+          onfocus="this.style.borderBottomColor='#2563eb';"
+          onblur="this.style.borderBottomColor='#e5e7eb';">
         <input type="text" id="projectNameInput"
           placeholder="Project name"
           autocomplete="off"
-          style="width:100%;box-sizing:border-box;border:none;border-bottom:2px solid #e5e7eb;background:transparent;font-size:18px;font-weight:700;color:#1e293b;padding:6px 2px 4px;outline:none;font-family:inherit;"
+          style="flex:1;min-width:0;box-sizing:border-box;border:none;border-bottom:2px solid #e5e7eb;background:transparent;font-size:18px;font-weight:700;color:#1e293b;padding:6px 2px 4px;outline:none;font-family:inherit;"
           onfocus="this.style.borderBottomColor='#2563eb';"
           onblur="this.style.borderBottomColor='#e5e7eb';">
       </div>
@@ -12539,7 +12545,9 @@ initCollapse();
           data.siteOverlays = window._soSerialize();
         }
 
-        // Project name
+        // Project number + name
+        var projNumInp  = document.getElementById('projectNumberInput');
+        if (projNumInp)  data.projectNumber = projNumInp.value;
         var projNameInp = document.getElementById('projectNameInput');
         if (projNameInp) data.projectName = projNameInp.value;
 
@@ -13550,6 +13558,10 @@ initCollapse();
       }
 
       // 14. Project name
+      if (data.projectNumber !== undefined) {
+        var projNumInp = document.getElementById('projectNumberInput');
+        if (projNumInp) { projNumInp.value = data.projectNumber; projNumInp.dataset.userEdited = 'true'; }
+      }
       if (data.projectName !== undefined) {
         var projNameInp = document.getElementById('projectNameInput');
         if (projNameInp) { projNameInp.value = data.projectName; projNameInp.dataset.userEdited = 'true'; }
@@ -17776,8 +17788,9 @@ if (window.pdfjsLib) {
                 var fullText = pages.join('\n');
                 // Keyword scan for suggested noise sources
                 if (typeof _soPdfScanSources === 'function') _soPdfScanSources(fullText);
-                // Extract project name from title block
-                if (typeof window._soPdfExtractProjectName === 'function') window._soPdfExtractProjectName(fullText);
+                // Extract project name and number from title block
+                if (typeof window._soPdfExtractProjectName   === 'function') window._soPdfExtractProjectName(fullText);
+                if (typeof window._soPdfExtractProjectNumber === 'function') window._soPdfExtractProjectNumber(fullText);
               }).catch(function(e) {
                 console.warn('PDF text extraction failed:', e);
               });
@@ -24660,9 +24673,12 @@ if (window.pdfjsLib) {
                    String(d.getDate()).padStart(2, '0');
           var url = URL.createObjectURL(blob);
           var a = document.createElement('a');
+          var _pnNumEl = document.getElementById('projectNumberInput');
+          var _pnNumVal = _pnNumEl && _pnNumEl.value.trim() ? _pnNumEl.value.trim().replace(/[\\/:*?"<>|]/g, '-') : '';
           var _pnEl = document.getElementById('projectNameInput');
           var _pnVal = _pnEl && _pnEl.value.trim() ? _pnEl.value.trim().replace(/[\\/:*?"<>|]/g, '-') : '';
-          a.download = (_pnVal ? _pnVal + ' - ' : '') + 'noise-map-' + ts + '-' + dpr + 'x.jpg';
+          var _pnPrefix = (_pnNumVal ? _pnNumVal + ' - ' : '') + (_pnVal ? _pnVal + ' - ' : '');
+          a.download = _pnPrefix + 'noise-map-' + ts + '-' + dpr + 'x.jpg';
           a.href = url;
           document.body.appendChild(a);
           a.click();
@@ -25254,20 +25270,75 @@ if (window.pdfjsLib) {
 
   function _applyProjectName(inp, value) {
     inp.value = value;
-    inp.dataset.userEdited = 'false'; // extraction, not user edit
-    // Highlight briefly
+    inp.dataset.userEdited = 'false';
     inp.style.borderBottomColor = '#f59e0b';
     setTimeout(function() { inp.style.borderBottomColor = '#e5e7eb'; }, 1800);
   }
 
-  /* Mark as user-edited when the user types in the field */
+  /* ── Project number extraction ───────────────────────────────────── */
+  window._soPdfExtractProjectNumber = function(text) {
+    var inp = document.getElementById('projectNumberInput');
+    if (!inp) return;
+    if (inp.dataset.userEdited === 'true' && inp.value.trim()) return;
+
+    var lines = text.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean);
+
+    // Priority 1: explicit label
+    var found = null;
+    lines.some(function(line, i) {
+      // "Job No: 524041" or "Project No: 524041" on one line
+      var m = line.match(/^(?:Job\s*(?:No|Number|Ref|#)|Project\s*(?:No|Number|Ref|#)|Proj(?:ect)?\s*(?:No|Number|#))\s*[:\-]?\s*(\d{4,8})\b/i);
+      if (m) { found = m[1]; return true; }
+      // Label on its own line, number on next line
+      if (/^(?:Job\s*(?:No|Number|Ref|#)|Project\s*(?:No|Number|Ref|#)|Proj(?:ect)?\s*(?:No|Number|#))\s*[:\-]?\s*$/i.test(line)) {
+        var nxt = lines[i + 1] || '';
+        var nm = nxt.match(/^(\d{4,8})\b/);
+        if (nm) { found = nm[1]; return true; }
+      }
+      return false;
+    });
+
+    if (!found) {
+      // Priority 2: 5–7 digit number near title-block landmarks (date / scale / drawing number)
+      var dateRe2   = /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/;
+      var drawNoRe2 = /\b[A-Z]{1,5}\d+[-_]\d+\b/;
+      var scaleRe2  = /\b1\s*:\s*\d{2,4}\b/;
+      var landmarks2 = [];
+      lines.forEach(function(line, i) {
+        if (dateRe2.test(line) || drawNoRe2.test(line) || scaleRe2.test(line)) landmarks2.push(i);
+      });
+      lines.some(function(line, i) {
+        // Must be near a landmark
+        var near2 = landmarks2.length === 0 || landmarks2.some(function(li) { return Math.abs(li - i) <= 10; });
+        if (!near2) return false;
+        // Look for a 5–7 digit standalone number (not part of a date or drawing number)
+        var cleaned = line.replace(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/g, '').replace(/\b[A-Z]{1,5}\d+[-_]\d+\b/g, '');
+        var m2 = cleaned.match(/\b(\d{5,7})\b/);
+        if (m2) { found = m2[1]; return true; }
+        return false;
+      });
+    }
+
+    if (found) {
+      console.log('[ProjectNumber] Found:', found);
+      inp.value = found;
+      inp.dataset.userEdited = 'false';
+      inp.style.borderBottomColor = '#f59e0b';
+      setTimeout(function() { inp.style.borderBottomColor = '#e5e7eb'; }, 1800);
+    }
+  };
+
+  /* Mark as user-edited when the user types in either field */
   document.addEventListener('DOMContentLoaded', function() {
     var inp = document.getElementById('projectNameInput');
     if (inp) inp.addEventListener('input', function() { inp.dataset.userEdited = 'true'; });
+    var inpNum = document.getElementById('projectNumberInput');
+    if (inpNum) inpNum.addEventListener('input', function() { inpNum.dataset.userEdited = 'true'; });
   });
-  // Also wire up immediately in case DOM is already ready
   var _inp = document.getElementById('projectNameInput');
   if (_inp) _inp.addEventListener('input', function() { _inp.dataset.userEdited = 'true'; });
+  var _inpNum = document.getElementById('projectNumberInput');
+  if (_inpNum) _inpNum.addEventListener('input', function() { _inpNum.dataset.userEdited = 'true'; });
 
 })();
 
