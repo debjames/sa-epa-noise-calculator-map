@@ -13559,15 +13559,11 @@ initCollapse();
         }, 500);
       }
 
-      // 14. Project name
-      if (data.projectNumber !== undefined) {
-        var projNumInp = document.getElementById('projectNumberInput');
-        if (projNumInp) { projNumInp.value = data.projectNumber; projNumInp.dataset.userEdited = 'true'; }
-      }
-      if (data.projectName !== undefined) {
-        var projNameInp = document.getElementById('projectNameInput');
-        if (projNameInp) { projNameInp.value = data.projectName; projNameInp.dataset.userEdited = 'true'; }
-      }
+      // 14. Project number + name — always overwrite (clear if not in file)
+      var projNumInp = document.getElementById('projectNumberInput');
+      if (projNumInp) { projNumInp.value = data.projectNumber || ''; projNumInp.dataset.userEdited = 'true'; }
+      var projNameInp = document.getElementById('projectNameInput');
+      if (projNameInp) { projNameInp.value = data.projectName || ''; projNameInp.dataset.userEdited = 'true'; }
 
       // 14b. Address bar text
       if (data.addressText) {
