@@ -959,7 +959,7 @@ body.map-fs-active { overflow: hidden; }
 
       <!-- ===== PROJECT NUMBER + NAME FIELDS ===== -->
       <div class="grid2 grid-full" style="padding-top:0;padding-bottom:4px;">
-        <button type="button" id="uploadProposalBtn" class="tool-btn" title="Upload a Resonate proposal PDF to auto-fill project number and name" style="white-space:nowrap;">&#128196; Upload proposal</button>
+        <button type="button" id="uploadProposalBtn" title="Upload a Resonate proposal PDF to auto-fill project number and name" style="display:inline-flex;align-items:center;gap:4px;padding:7px 10px;background:rgba(26,32,44,.9);color:#f3f4f6;border:none;border-radius:7px;font-size:12px;font-weight:600;letter-spacing:.02em;line-height:14px;white-space:nowrap;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.4);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);" onmouseover="this.style.background='rgba(45,55,72,.95)'" onmouseout="this.style.background='rgba(26,32,44,.9)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload proposal</button>
         <input type="file" id="proposalFileInput" accept=".pdf,application/pdf" style="display:none;">
       </div>
       <div class="grid2 grid-full" style="padding-top:0;padding-bottom:0;display:flex;gap:10px;align-items:baseline;" id="projectNameRow">
