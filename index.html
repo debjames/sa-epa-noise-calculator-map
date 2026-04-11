@@ -7595,8 +7595,8 @@ function _buildZoneListHTML(zones, fracs, label) {
 
 /** Build zone area summary table HTML for one receiver */
 function _buildZoneAreaTableHTML(recvId, data) {
-  var CIRCLE_AREA_140 = Math.PI * 140 * 140; // ≈ 61,575 m²
-  var CIRCLE_AREA_400 = Math.PI * 400 * 400; // ≈ 502,655 m²
+  var CIRCLE_AREA_140 = Math.PI * 70  * 70;  // ≈ 15,394 m² (140 m diameter → 70 m radius)
+  var CIRCLE_AREA_400 = Math.PI * 200 * 200; // ≈ 125,664 m² (400 m diameter → 200 m radius)
   var TYPE_COLORS = {1: '#059669', 2: '#d97706', 3: '#dc2626'};
   var NSA_LABELS = {r1: 'NSA 1', r2: 'NSA 2', r3: 'NSA 3', r4: 'NSA 4'};
 
