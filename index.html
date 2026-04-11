@@ -17753,7 +17753,22 @@ if (window.pdfjsLib) {
               for (var p = 1; p <= numPages; p++) {
                 allTextPromises.push(pdf.getPage(p).then(function(pg) {
                   return pg.getTextContent().then(function(tc) {
-                    return tc.items.map(function(it) { return it.str; }).join(' ');
+                    // Group items into lines using vertical position (transform[5] = y).
+                    // Items with similar y-coordinates are on the same line.
+                    // This preserves "SCOTCH COLLEGE PAVILION" as one line even when
+                    // the PDF stores each word as a separate text item.
+                    var rows = {};
+                    tc.items.forEach(function(it) {
+                      if (!it.str) return;
+                      var y = Math.round((it.transform ? it.transform[5] : 0) / 4) * 4; // bucket to nearest 4pt
+                      if (!rows[y]) rows[y] = [];
+                      rows[y].push({ x: it.transform ? it.transform[4] : 0, str: it.str });
+                    });
+                    // Sort rows by y descending (top of page first), items by x ascending
+                    var ySorted = Object.keys(rows).map(Number).sort(function(a, b) { return b - a; });
+                    return ySorted.map(function(y) {
+                      return rows[y].sort(function(a, b) { return a.x - b.x; }).map(function(it) { return it.str; }).join(' ');
+                    }).join('\n');
                   });
                 }));
               }
@@ -25133,73 +25148,96 @@ if (window.pdfjsLib) {
     // Don't overwrite if user has typed something manually
     if (inp.dataset.userEdited === 'true' && inp.value.trim()) return;
 
+    console.log('[ProjectName] Extracted PDF text:\n' + text.slice(0, 3000));
+
     var lines = text.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean);
+    console.log('[ProjectName] Lines (' + lines.length + '):', lines.slice(0, 50));
 
     /* ── Priority 1: explicit Project/Job label ─────────────────────── */
     var explicit = null;
     lines.some(function(line, i) {
-      // "Project: Scotch College Pavilion" on one line
       var m = line.match(/^(?:Project(?:\s+Name)?|Job(?:\s+Name)?|Project\s+Title)\s*[:\-]\s*(.+)/i);
       if (m && m[1].trim().length > 2) { explicit = m[1].trim(); return true; }
-      // Label alone, value on next line
       if (/^(?:Project(?:\s+Name)?|Job(?:\s+Name)?|Project\s+Title)\s*[:\-]?\s*$/i.test(line) && lines[i + 1]) {
         var nxt = lines[i + 1].trim();
         if (nxt.length > 2 && !DRAW_LABELS.test(nxt)) { explicit = nxt; return true; }
       }
       return false;
     });
-    if (explicit) { _applyProjectName(inp, explicit); return; }
+    if (explicit) {
+      console.log('[ProjectName] Found via explicit label:', explicit);
+      _applyProjectName(inp, toTitleCase(explicit));
+      return;
+    }
 
-    /* ── Priority 2: ALL CAPS text near landmark patterns ───────────── */
-    var dateRe    = /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/;
-    var drawNoRe  = /\b[A-Z]{1,5}\d*[-_]\d+[-_]?\w*\b/;   // DA11-03, A-100, DWG-001
-    var scaleRe   = /\b1\s*:\s*\d{2,4}\b/;
-    var projNoRe  = /\b\d{6}\b/;
+    /* ── Priority 2: ALL CAPS multi-word line near title-block landmarks ── */
+    var dateRe   = /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/;
+    var drawNoRe = /\b[A-Z]{1,5}\d+[-_]\d+\b/;    // DA11-03, A-100
+    var scaleRe  = /\b1\s*:\s*\d{2,4}\b/;
+    var projNoRe = /\b\d{6}\b/;
 
     var landmarks = [];
     lines.forEach(function(line, i) {
-      if (dateRe.test(line) || drawNoRe.test(line) || scaleRe.test(line) || projNoRe.test(line)) landmarks.push(i);
+      if (dateRe.test(line) || drawNoRe.test(line) || scaleRe.test(line) || projNoRe.test(line)) {
+        landmarks.push(i);
+        console.log('[ProjectName] Landmark at line ' + i + ':', line);
+      }
     });
 
-    /* ALL CAPS test: line is ≥4 chars, mostly uppercase, no lowercase letters */
-    function isAllCaps(line) {
-      return line.length >= 4 && /^[A-Z0-9\s&\-',\.\/\(\)]+$/.test(line) && /[A-Z]{2,}/.test(line);
+    // ALL CAPS: every alpha character is uppercase, at least 2 words, no company suffixes
+    function isProjectNameLine(line) {
+      var t = line.trim();
+      if (t.length < 5) return false;
+      // Must have at least one space (2+ words) — single words are usually labels
+      if (t.indexOf(' ') === -1) return false;
+      // Only uppercase alpha + allowed punctuation
+      if (!/^[A-Z][A-Z0-9\s&\-'\.\/]+$/.test(t)) return false;
+      // Must contain at least 2 alpha characters sequences
+      if ((t.match(/[A-Z]{2,}/g) || []).length < 1) return false;
+      // Filter drawing labels
+      if (DRAW_LABELS.test(t)) return false;
+      // Filter company/firm names
+      if (/\b(PTY|LTD|LLC|INC|CORP|ABN|ACN|ARCHITECTS?|ENGINEERS?|CONSULTANTS?|BUILDERS?|CONSTRUCTIONS?|GROUP|SERVICES?|STUDIO|DESIGN)\b/.test(t)) return false;
+      return true;
     }
 
     var candidates = [];
     lines.forEach(function(line, i) {
-      if (!isAllCaps(line)) return;
-      if (DRAW_LABELS.test(line.trim())) return;
-      var near = landmarks.length === 0 || landmarks.some(function(li) { return Math.abs(li - i) <= 10; });
-      if (near) candidates.push({ line: line, idx: i, len: line.length });
+      if (!isProjectNameLine(line)) return;
+      var near = landmarks.length === 0 || landmarks.some(function(li) { return Math.abs(li - i) <= 15; });
+      console.log('[ProjectName] Candidate at line ' + i + ' (near=' + near + '):', line);
+      if (near) candidates.push({ line: line.trim(), idx: i, len: line.trim().length });
     });
 
     if (!candidates.length) {
-      // Fallback: any long ALL CAPS line anywhere
+      console.log('[ProjectName] No near candidates — widening to all ALL CAPS multi-word lines');
       lines.forEach(function(line, i) {
-        if (!isAllCaps(line)) return;
-        if (DRAW_LABELS.test(line.trim())) return;
-        if (line.length >= 8) candidates.push({ line: line, idx: i, len: line.length });
+        if (!isProjectNameLine(line)) return;
+        candidates.push({ line: line.trim(), idx: i, len: line.trim().length });
       });
     }
-    if (!candidates.length) return; // no project name found — leave field empty
 
+    if (!candidates.length) {
+      console.log('[ProjectName] No candidates found — field left empty');
+      return;
+    }
+
+    // Prefer longer names (more specific), but penalise lines that are just 2 generic words
     candidates.sort(function(a, b) { return b.len - a.len; });
-    var bestLine   = candidates[0].line.trim();
-    var bestIdx    = candidates[0].idx;
+    console.log('[ProjectName] Top candidates:', candidates.slice(0, 5).map(function(c) { return c.line; }));
+    var bestLine = candidates[0].line;
+    var bestIdx  = candidates[0].idx;
 
-    /* ── Step 3: look for site address near the project name ────────── */
+    /* ── Priority 3: site address near project name ─────────────────── */
     var siteAddr = null;
-    // First check for explicit Site:/Address:/Location: label
     lines.some(function(line, i) {
-      var m = line.match(/^(?:Site|Address|Location)\s*[:\-]\s*(.+)/i);
+      var m = line.match(/^(?:Site|Address|Location|Property)\s*[:\-]\s*(.+)/i);
       if (m && looksLikeAddress(m[1].trim())) { siteAddr = m[1].trim(); return true; }
-      if (/^(?:Site|Address|Location)\s*[:\-]?\s*$/i.test(line) && lines[i + 1] && looksLikeAddress(lines[i + 1])) {
+      if (/^(?:Site|Address|Location|Property)\s*[:\-]?\s*$/i.test(line) && lines[i + 1] && looksLikeAddress(lines[i + 1])) {
         siteAddr = lines[i + 1].trim(); return true;
       }
       return false;
     });
-    // If no explicit label, look for an address within ±5 lines of the project name
     if (!siteAddr && bestIdx >= 0) {
       for (var d = -5; d <= 5; d++) {
         var ni = bestIdx + d;
@@ -25210,6 +25248,7 @@ if (window.pdfjsLib) {
 
     var display = toTitleCase(bestLine);
     if (siteAddr) display += ' \u2014 ' + siteAddr;
+    console.log('[ProjectName] Result:', display);
     _applyProjectName(inp, display);
   };
 
