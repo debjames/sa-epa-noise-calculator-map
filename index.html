@@ -25278,12 +25278,22 @@ if (window.pdfjsLib) {
     });
 
     if (added > 0) {
-      // Force full re-render: clear the card container so the quick-path
-      // (existingCards.length === sourcePins.length) can never prevent new cards appearing
-      var pinContainer = document.getElementById('sourcePinCards');
-      if (pinContainer) pinContainer.innerHTML = '';
-      if (typeof renderSourcePins === 'function') renderSourcePins();
-      showToast(added + ' source' + (added !== 1 ? 's' : '') + ' added \u2014 click \u2039Place\u203a to position on map', 4500);
+      // Update the Objects panel (the visible source list)
+      if (typeof window._renderObjectList === 'function') window._renderObjectList();
+
+      // Expand the Objects panel body if it's collapsed
+      var objBody = document.getElementById('objectsPanelBody');
+      var objToggle = document.getElementById('objectsPanelToggle');
+      if (objBody && objBody.style.display === 'none') {
+        objBody.style.display = 'block';
+        if (objToggle) objToggle.innerHTML = '&#x25B2;';
+      }
+
+      // Scroll the Objects panel into view
+      var objSection = document.getElementById('objectsPanelSection');
+      if (objSection) objSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      showToast(added + ' source' + (added !== 1 ? 's' : '') + ' added \u2014 click Place in Objects panel to position on map', 4500);
     }
   }
 
