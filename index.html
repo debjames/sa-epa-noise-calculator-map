@@ -25144,6 +25144,18 @@ if (window.pdfjsLib) {
   /* Drawing labels to filter out — these are NOT project names */
   var DRAW_LABELS = /^(SITE\s*PLAN|FLOOR\s*PLAN|GROUND\s*FLOOR|FIRST\s*FLOOR|SECOND\s*FLOOR|UPPER\s*FLOOR|LOWER\s*FLOOR|ELEVATION|SECTION|DEMOLITION|EXISTING|PROPOSED|LANDSCAPE|ROOF\s*PLAN|BASEMENT|NORTH|LEGEND|NOTES?|GENERAL\s*ARRANGEMENT|DETAIL|SCHEDULE|REVISION|DRAWING|PLAN|INDEX|TITLE\s*BLOCK|CERTIFICATION|DISCLAIMER|COPYRIGHT|TRUE\s*NORTH|GRID\s*NORTH|SCALE|DATE|DRAWN\s*BY|CHECKED\s*BY|APPROVED|ISSUE|AMENDMENT|ADDENDUM)$/i;
 
+  /* Strip trailing drawing-title words iteratively, but never empty the string */
+  var SUFFIX_RE = /[\s\-,]+(Site\s+Plan|Floor\s+Plan|Ground\s+Floor|First\s+Floor|Second\s+Floor|Upper\s+Floor|Lower\s+Floor|Elevation|Section|Demolition|Existing|Proposed|Landscape|Roof\s+Plan|Basement|General\s+Arrangement|Overall|Development\s+Application|Masterplan|Master\s+Plan|Layout|Cover\s+Sheet|Cover|Sheet|Plan|Drawing|DA)$/i;
+  function stripDrawingTitleSuffixes(str) {
+    var s = str.trim();
+    var prev;
+    do {
+      prev = s;
+      s = s.replace(SUFFIX_RE, '').trim();
+    } while (s !== prev && s.length > 0);
+    return s.length > 0 ? s : str.trim(); // never return empty
+  }
+
   /* Convert ALL CAPS string to title case, preserving minor words mid-string */
   function toTitleCase(str) {
     var minor = /^(a|an|and|as|at|but|by|for|in|nor|of|on|or|so|the|to|up|via|yet)$/i;
@@ -25182,7 +25194,7 @@ if (window.pdfjsLib) {
     });
     if (explicit) {
       console.log('[ProjectName] Found via explicit label:', explicit);
-      _applyProjectName(inp, toTitleCase(explicit));
+      _applyProjectName(inp, toTitleCase(stripDrawingTitleSuffixes(explicit)));
       return;
     }
 
@@ -25262,7 +25274,7 @@ if (window.pdfjsLib) {
       }
     }
 
-    var display = toTitleCase(bestLine);
+    var display = toTitleCase(stripDrawingTitleSuffixes(bestLine));
     if (siteAddr) display += ' \u2014 ' + siteAddr;
     console.log('[ProjectName] Result:', display);
     _applyProjectName(inp, display);
