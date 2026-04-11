@@ -958,9 +958,11 @@ body.map-fs-active { overflow: hidden; }
     <div class="grid2">
 
       <!-- ===== PROJECT NUMBER + NAME FIELDS ===== -->
-      <div class="grid2 grid-full" style="padding-top:0;padding-bottom:0;display:flex;gap:10px;align-items:center;" id="projectNameRow">
-        <button type="button" id="uploadProposalBtn" class="pdf-btn" title="Upload a Resonate proposal PDF to auto-fill project number and name" style="font-size:11px;padding:4px 10px;white-space:nowrap;flex-shrink:0;">&#128196; Upload proposal</button>
+      <div class="grid2 grid-full" style="padding-top:0;padding-bottom:4px;">
+        <button type="button" id="uploadProposalBtn" class="tool-btn" title="Upload a Resonate proposal PDF to auto-fill project number and name" style="white-space:nowrap;">&#128196; Upload proposal</button>
         <input type="file" id="proposalFileInput" accept=".pdf,application/pdf" style="display:none;">
+      </div>
+      <div class="grid2 grid-full" style="padding-top:0;padding-bottom:0;display:flex;gap:10px;align-items:baseline;" id="projectNameRow">
         <input type="text" id="projectNumberInput"
           placeholder="Project #"
           autocomplete="off"
