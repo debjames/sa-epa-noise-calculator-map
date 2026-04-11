@@ -23917,14 +23917,21 @@ if (window.pdfjsLib) {
             var qtyLmax = _getNumUnits(pin, 'lmax');
             detail += ' Lmax: ' + Math.round(pin.lw_max + Math.log10(qtyLmax) * 10);
           }
-          html += '<div class="obj-row" data-obj-type="source" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (placed ? 'pointer' : 'default') + ';">';
+          html += '<div class="obj-row" data-obj-type="source" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:pointer;">';
           html += '<span style="width:11px;height:11px;background:#2563eb;border-radius:50%;display:inline-block;flex-shrink:0;"></span>';
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">S' + (i + 1) + '</span>';
-          html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
-            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
-            '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(detail) + '</div>' +
-            '</span>';
-          if (placed) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'source\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
+          if (placed) {
+            html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+              '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+              '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(detail) + '</div>' +
+              '</span>';
+            html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'source\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
+          } else {
+            html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+              '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+              '</span>';
+            html += '<span style="font-size:12px;color:#bbb;font-style:italic;flex-shrink:0;">not placed \u2014 click to place</span>';
+          }
           html += '</div>';
         });
         lineSources.forEach(function(ls, i) {
@@ -24118,7 +24125,12 @@ if (window.pdfjsLib) {
       var inFs = document.body.classList.contains('map-fs-active');
       if (type === 'source') {
         var pin = sourcePins[idx];
-        if (!pin || pin.lat === null) return;
+        if (!pin) return;
+        if (pin.lat === null) {
+          // Not placed — enter placement mode
+          if (typeof window._setMode === 'function') window._setMode('source_' + idx);
+          return;
+        }
         if (!inFs) map.panTo([pin.lat, pin.lng]);
         m = markers['source_' + idx];
         el = m && m.getElement ? m.getElement() : null;
