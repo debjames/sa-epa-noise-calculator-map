@@ -957,12 +957,8 @@ body.map-fs-active { overflow: hidden; }
   <div class="sheet">
     <div class="grid2">
 
-      <!-- ===== PROJECT NUMBER + NAME FIELDS ===== -->
-      <div style="grid-column:1/-1;padding:0 14px 4px;">
-        <button type="button" id="uploadProposalBtn" title="Upload a Resonate proposal PDF to auto-fill project number and name" style="display:inline-flex;align-items:center;gap:4px;padding:7px 10px;background:rgba(26,32,44,.9);color:#f3f4f6;border:none;border-radius:7px;font-size:12px;font-weight:600;letter-spacing:.02em;line-height:14px;white-space:nowrap;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.4);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);" onmouseover="this.style.background='rgba(45,55,72,.95)'" onmouseout="this.style.background='rgba(26,32,44,.9)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload proposal</button>
-        <input type="file" id="proposalFileInput" accept=".pdf,application/pdf" style="display:none;">
-      </div>
-      <div class="grid2 grid-full" style="padding-top:0;padding-bottom:0;display:flex;gap:10px;align-items:baseline;" id="projectNameRow">
+      <!-- ===== PROJECT NUMBER + NAME + UPLOAD ROW ===== -->
+      <div style="grid-column:1/-1;padding:0 14px 4px;display:flex;align-items:center;gap:10px;">
         <input type="text" id="projectNumberInput"
           placeholder="Project #"
           autocomplete="off"
@@ -975,6 +971,8 @@ body.map-fs-active { overflow: hidden; }
           style="flex:1;min-width:0;box-sizing:border-box;border:none;border-bottom:2px solid #e5e7eb;background:transparent;font-size:18px;font-weight:700;color:#1e293b;padding:6px 2px 4px;outline:none;font-family:inherit;"
           onfocus="this.style.borderBottomColor='#2563eb';"
           onblur="this.style.borderBottomColor='#e5e7eb';">
+        <button type="button" id="uploadProposalBtn" title="Upload a Resonate proposal PDF to auto-fill project number and name" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;padding:7px 10px;background:rgba(26,32,44,.9);color:#f3f4f6;border:none;border-radius:7px;font-size:12px;font-weight:600;letter-spacing:.02em;line-height:14px;white-space:nowrap;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.4);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);" onmouseover="this.style.background='rgba(45,55,72,.95)'" onmouseout="this.style.background='rgba(26,32,44,.9)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload proposal</button>
+        <input type="file" id="proposalFileInput" accept=".pdf,application/pdf" style="display:none;">
       </div>
 
       <!-- ===== DISTANCE MAP CARD ===== -->
