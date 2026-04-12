@@ -1051,6 +1051,20 @@ body.map-fs-active { overflow: hidden; }
               </div>
             </div>
 
+            <!-- Undo button -->
+            <div class="mp" id="mp-undo" style="pointer-events:all;">
+              <div class="mp-hdr" id="undoBtn" title="Nothing to undo" style="cursor:pointer;opacity:0.4;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M3 7v6h6"/><path d="M3 13C5 8 9 5 14 5a9 9 0 0 1 0 18c-4.5 0-8.5-2.5-10.5-6"/></svg>
+              </div>
+            </div>
+
+            <!-- Redo button -->
+            <div class="mp" id="mp-redo" style="pointer-events:all;">
+              <div class="mp-hdr" id="redoBtn" title="Nothing to redo" style="cursor:pointer;opacity:0.4;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M21 7v6h-6"/><path d="M21 13c-2 5-6 8-11 8a9 9 0 0 1 0-18c4.5 0 8.5 2.5 10.5 6"/></svg>
+              </div>
+            </div>
+
             <!-- PANEL 1: MAPPING -->
             <div class="mp" id="mp-mapping" style="pointer-events:all;">
               <div class="mp-hdr" onclick="toggleMapPanel('mp-mapping')">
@@ -1125,6 +1139,18 @@ body.map-fs-active { overflow: hidden; }
                   <div class="mp-sub-row"><span>Grid:</span><select id="noiseMapGridSel" style="flex:1;" title="Grid spacing for noise map calculation"><option value="auto">Auto</option><option value="1">1 m</option><option value="2">2 m</option><option value="5">5 m</option><option value="10">10 m</option><option value="20">20 m</option><option value="50">50 m</option><option value="100">100 m</option></select><span id="noiseMapGridLabel" style="font-size:9px;"></span></div>
                   <div class="mp-sub-row"><span>Range:</span><input type="number" id="legendMin" value="25" min="0" max="119" step="1" style="width:40px;" title="Legend minimum dB"><span>&#8211;</span><input type="number" id="legendMax" value="70" min="1" max="120" step="1" style="width:40px;" title="Legend maximum dB"><span>dB</span></div>
                   <div class="mp-sub-row"><span>Interval:</span><input type="number" id="legendInterval" value="5" min="1" max="20" step="1" style="width:40px;" title="Contour interval dB"><span>dB</span></div>
+                  <div id="noiseViewRow" style="display:none;flex-direction:column;gap:3px;padding-top:4px;margin-top:2px;border-top:1px solid rgba(255,255,255,0.12);">
+                    <span style="font-size:10px;color:#9ca3af;font-weight:600;padding:0 4px;">VIEW</span>
+                    <div style="display:flex;gap:2px;padding:0 4px;">
+                      <button class="mp-btn active" id="viewLevelsBtn" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;" title="Show predicted noise levels">Levels</button>
+                      <button class="mp-btn" id="viewComplianceBtn" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;" title="Show compliance map (\u0394 = Predicted \u2212 Criterion)">Compliance</button>
+                    </div>
+                    <div id="complianceCritRow" style="display:none;align-items:center;gap:4px;padding:0 4px;">
+                      <span style="font-size:11px;white-space:nowrap;">Criterion:</span>
+                      <input type="number" id="complianceCriterion" min="20" max="90" step="1" style="width:44px;" title="Comparison criterion dB(A)">
+                      <span style="font-size:11px;">dB(A)</span>
+                    </div>
+                  </div>
                   <span id="legendError" style="color:#f87171;font-size:10px;display:none;padding:0 8px;"></span>
                 </div>
                 <span id="noiseMapLmaxNote" style="display:none;font-size:10px;color:#93c5fd;padding:2px 8px;white-space:normal;line-height:1.4;">&#x2139; Simple propagation &mdash; no ground or atmospheric corrections applied; barrier and terrain screening applied</span>
@@ -1367,11 +1393,11 @@ body.map-fs-active { overflow: hidden; }
         <div class="table-scroll">
         <table>
           <tr>
-            <th style="width:16%;">Location</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:15%;" class="landuse-col">Land use</th><th style="width:12%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
+            <th style="width:25%;">Location</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:10%;" class="landuse-col">Land use</th><th style="width:8%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
           </tr>
 
           <tr>
-            <td><b>Subject site</b></td>
+            <td><input type="text" class="recv-name-input" id="subjectSiteName" value="Subject site" placeholder="Subject site"><br><span id="subjectSiteCoords" style="font-size:9px;color:#9ca3af;display:block;"></span><span id="subjectSiteElev" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="zone-col"><select id="src"></select><div id="src-zone-autodetect" style="display:none;font-size:10px;color:#6b7280;font-style:italic;margin-top:2px;line-height:1.3;">Auto-detected from source location</div></td>
             <td id="src_viczone" class="vic-only vic-zone-col"></td>
             <td id="src_land" class="left landuse-col"></td>
@@ -6338,6 +6364,7 @@ function renderSourcePins() {
     if (sourcePins.length <= 1) delBtn.style.opacity = '0.3';
     delBtn.addEventListener('click', function() {
       if (sourcePins.length <= 1) return;
+      var _delSrcLabel = 'Delete source S' + (idx + 1);
       sourcePins.splice(idx, 1);
       /* Refresh all source markers (renumbers labels S1, S2, …) */
       if (typeof window._refreshAllSourceMarkers === 'function') window._refreshAllSourceMarkers();
@@ -6349,6 +6376,7 @@ function renderSourcePins() {
       renderSourcePins();
       if (typeof updateAll === 'function') updateAll();
       if (typeof render === 'function') render();
+      if (typeof window._undoPushState === 'function') window._undoPushState(_delSrcLabel);
     });
     hdr.appendChild(delBtn);
 
@@ -6708,6 +6736,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
   var delBtn = panel.querySelector('#sfp-delete');
   if (delBtn && !delBtn.disabled) {
     delBtn.addEventListener('click', function() {
+      var _delPanelLabel = 'Delete source S' + (pinIdx + 1);
       closeSrcPanel();
       var modeKey = 'source_' + pinIdx;
       if (typeof markers !== 'undefined' && markers[modeKey]) { if (typeof map !== 'undefined') map.removeLayer(markers[modeKey]); delete markers[modeKey]; }
@@ -6721,6 +6750,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
       if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
       if (typeof renderSourcePins === 'function') renderSourcePins();
       if (typeof window.updateAll === 'function') window.updateAll();
+      if (typeof window._undoPushState === 'function') window._undoPushState(_delPanelLabel);
     });
   }
 
@@ -11008,6 +11038,8 @@ function initPropagationMethod() {
           var el = document.getElementById('groundElev_r' + ri);
           if (el) el.textContent = '';
         }
+        var ssElevClr = document.getElementById('subjectSiteElev');
+        if (ssElevClr) ssElevClr.textContent = '';
         // Prompt noise map regeneration if active
         var nmBtn2 = document.getElementById('noiseMapBtn');
         if (nmBtn2 && nmBtn2.classList.contains('active')) {
@@ -12286,9 +12318,11 @@ initCollapse();
             })()
           };
         });
-        // Subject site (SA) — first source lat/lng and detected zone
-        data._subjectSiteLatlng = window._subjectSiteLatlng || null;
-        data._subjectSiteZone   = window._subjectSiteZone   || null;
+        // Subject site (SA) — first source lat/lng, detected zone, and display name
+        data._subjectSiteLatlng  = window._subjectSiteLatlng || null;
+        data._subjectSiteZone    = window._subjectSiteZone   || null;
+        data.subjectSiteName     = (document.getElementById('subjectSiteName') || {}).value || '';
+        data.subjectSiteAutoName = (window._recvAutoName && window._recvAutoName.src !== false);
         // Legacy field (empty) — old save/load compatibility
         data.sourceTable = {};
 
@@ -13305,6 +13339,18 @@ initCollapse();
         window._subjectSiteLatlng = _firstPlaced
           ? { lat: _firstPlaced.lat, lng: _firstPlaced.lng } : null;
       }
+      // Restore subject site name and auto-name flag
+      if (data.subjectSiteName) {
+        var ssNameEl = document.getElementById('subjectSiteName');
+        if (ssNameEl) ssNameEl.value = data.subjectSiteName;
+      }
+      if (window._recvAutoName) {
+        window._recvAutoName.src = (data.subjectSiteAutoName !== false);
+      }
+      // Update subject site coord span after load
+      if (window._subjectSiteLatlng && typeof window._subjectSiteOnDragEnd === 'function') {
+        window._subjectSiteOnDragEnd(window._subjectSiteLatlng);
+      }
       if (data._subjectSiteZone) {
         window._subjectSiteZone = data._subjectSiteZone;
         setTimeout(function() {
@@ -13732,14 +13778,395 @@ initCollapse();
         window._setBuildingSources(data.buildingSources);
       }
 
-      // 16. Re-render detected zones panel for VIC
+      // 16. Re-render detected zones panel for VIC, then push undo snapshot
       setTimeout(function() {
         if (typeof renderDetectedZones === 'function') renderDetectedZones();
         render();
+        // Push loaded state so undo can restore the pre-load assessment (skip during undo/redo)
+        if (typeof window._undoPushState === 'function' && !window._undoRestoring) {
+          window._undoPushState('Load assessment');
+        }
       }, 800);
     }
 
+    // Expose for undo/redo system
+    window._loadAssessment = loadAssessment;
+
   });
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   UNDO / REDO — state-snapshot history manager
+   Captures full assessment JSON before/after each user action.
+   API: window._undoPushState(label), window._undoRestoring flag.
+   ══════════════════════════════════════════════════════════════ */
+(function() {
+  'use strict';
+
+  var _history   = [];   // [{label, state}]
+  var _pointer   = -1;
+  var MAX        = 50;
+  window._undoRestoring = false;
+
+  // ── Serialise current state to JSON string ─────────────────────────────
+  function serialiseState() {
+    try {
+      var data = {};
+      data._format  = 'resonate-noise-tool';
+      data._version = 2;
+      data._exportedAt = new Date().toISOString();
+      data.currentState  = typeof currentState  !== 'undefined' ? currentState  : 'SA';
+      data.vicAreaType   = typeof vicAreaType   !== 'undefined' ? vicAreaType   : 'urban';
+      data.vicAreaTypeExplicitlyRural = (typeof _vicAreaTypeManuallySet !== 'undefined' && _vicAreaTypeManuallySet && data.vicAreaType === 'rural');
+
+      // Source pins
+      data.sourcePins = (typeof sourcePins !== 'undefined' ? sourcePins : []).map(function(pin) {
+        var bh = pin.buildingHeight_m || 0;
+        return {
+          id: pin.id, name: pin.name, lat: pin.lat, lng: pin.lng,
+          lw: pin.lw ? JSON.parse(JSON.stringify(pin.lw)) : {day:85,eve:85,night:85},
+          lw_max: Number.isFinite(pin.lw_max) ? pin.lw_max : null,
+          spectrum: pin.spectrum ? JSON.parse(JSON.stringify(pin.spectrum)) : {day:null,eve:null,night:null},
+          spectrum_max: Array.isArray(pin.spectrum_max) ? pin.spectrum_max.slice() : null,
+          height_m: pin.height_m || 1.5, buildingHeight_m: bh,
+          effectiveHeight_m: parseFloat(((pin.height_m || 1.5) + bh).toFixed(2)),
+          groundElevation_m: pin.groundElevation_m || null,
+          operatingPct: (function(){ var op=pin.operatingPct; if(op&&typeof op==='object') return op; var v=op||100; return {day:v,eve:v,night:v}; })(),
+          numUnits: (function(){ var n=pin.numUnits; if(n&&typeof n==='object') return {day:n.day||1,eve:n.eve||1,night:n.night||1,lmax:n.lmax||1}; var s=n||1; return {day:s,eve:s,night:s,lmax:s}; })(),
+          activeInPeriod: pin.activeInPeriod ? JSON.parse(JSON.stringify(pin.activeInPeriod)) : {day:true,eve:true,night:true,lmax:false}
+        };
+      });
+
+      // Subject site
+      data._subjectSiteLatlng  = window._subjectSiteLatlng  || null;
+      data._subjectSiteZone    = window._subjectSiteZone    || null;
+      data.subjectSiteName     = (document.getElementById('subjectSiteName')  || {}).value || '';
+      data.subjectSiteAutoName = (window._recvAutoName && window._recvAutoName.src !== false);
+      data.sourceTable = {};
+
+      // Zone selections
+      data.zones = {};
+      ['src','r1','r2','r3','r4'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) data.zones[id] = el.value;
+      });
+
+      // SA receiver types
+      data.saRecvTypes = {};
+      ['r1','r2','r3','r4'].forEach(function(id) {
+        var el = document.getElementById(id + '_recvtype');
+        if (el) data.saRecvTypes[id] = el.value;
+      });
+
+      // Receiver names + auto-name flags
+      data.receiverNames = {};
+      data.recvAutoName  = {};
+      for (var ri = 1; ri <= 4; ri++) {
+        var nameEl = document.getElementById('recvName' + ri);
+        if (nameEl && nameEl.value) data.receiverNames['recvName' + ri] = nameEl.value;
+        data.recvAutoName['r' + ri] = (window._recvAutoName && window._recvAutoName['r' + ri] !== false);
+      }
+
+      // Penalties, heights, boundary distances
+      data.recvPenalties = typeof recvPenalties !== 'undefined' ? JSON.parse(JSON.stringify(recvPenalties)) : {};
+      var rh = {}, anyRh = false;
+      if (typeof recvHeights !== 'undefined') {
+        ['r1','r2','r3','r4'].forEach(function(k) {
+          if (recvHeights[k] !== null && Number.isFinite(recvHeights[k])) { rh[k] = recvHeights[k]; anyRh = true; }
+        });
+      }
+      if (anyRh) data.recvHeights = rh;
+      var rdb = {}, anyRdb = false;
+      if (typeof recvDistToBoundary !== 'undefined') {
+        ['r1','r2','r3','r4'].forEach(function(k) {
+          if (recvDistToBoundary[k] !== null && Number.isFinite(recvDistToBoundary[k])) { rdb[k] = recvDistToBoundary[k]; anyRdb = true; }
+        });
+      }
+      if (anyRdb) data.recvDistToBoundary = rdb;
+
+      // Propagation settings
+      data.propagation = {
+        method:         typeof propagationMethod  !== 'undefined' ? propagationMethod  : 'simple',
+        receiverHeight: typeof iso_receiverHeight !== 'undefined' ? iso_receiverHeight : 1.5,
+        groundFactor:   typeof iso_groundFactor   !== 'undefined' ? iso_groundFactor   : 0.5,
+        temperature:    typeof iso_temperature    !== 'undefined' ? iso_temperature    : 10,
+        humidity:       typeof iso_humidity       !== 'undefined' ? iso_humidity       : 70
+      };
+
+      // VIC-specific
+      data.vic = {};
+      ['vicIF','vicIsUtility','vicIsEarthResources','vicIsIntensiveFarming'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (el.type === 'checkbox') data.vic[id.replace('vic','')] = el.checked;
+        else if (el.value) data.vic[id.replace('vic','')] = el.value;
+      });
+      if (typeof _vicPerNsaBg            !== 'undefined') data.vic.perNsaBg            = JSON.parse(JSON.stringify(_vicPerNsaBg));
+      if (typeof _lastDetectedZones      !== 'undefined') data.vic.lastDetectedZones    = JSON.parse(JSON.stringify(_lastDetectedZones));
+      if (typeof _lastDetectedZoneLabels !== 'undefined') data.vic.lastDetectedZoneLabels = JSON.parse(JSON.stringify(_lastDetectedZoneLabels));
+      if (typeof _vicRecvMapVisible      !== 'undefined') data.vic.recvMapVisible       = JSON.parse(JSON.stringify(_vicRecvMapVisible));
+      if (typeof autoIFPerReceiver       !== 'undefined') data.vic.autoIFPerReceiver    = JSON.parse(JSON.stringify(autoIFPerReceiver));
+      if (typeof _vicRecvLGA             !== 'undefined') data.vic.recvLGA              = JSON.parse(JSON.stringify(_vicRecvLGA));
+
+      // NSW-specific
+      data.nsw = {};
+      ['nswAmenityArea','nswRblDay','nswRblEve','nswRblNight'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el && el.value) data.nsw[id.replace('nsw','')] = el.value;
+      });
+      for (var ni = 1; ni <= 4; ni++) {
+        var nrt = document.getElementById('nswRecType' + ni);
+        if (nrt) data.nsw['recType' + ni] = nrt.value;
+      }
+
+      // Other criteria checkboxes
+      data.other = {};
+      ['otherCritDay','otherCritEve','otherCritNight','otherCritLmax'].forEach(function(id) {
+        var cb = document.getElementById(id);
+        if (cb) data.other[id] = cb.checked;
+      });
+
+      // Custom sources library
+      if (typeof _customSources !== 'undefined' && _customSources.length > 0) {
+        data.customSources = JSON.parse(JSON.stringify(_customSources));
+      }
+
+      // Sources (legacy compat)
+      data.sources = (typeof sourcePins !== 'undefined' ? sourcePins : []).map(function(src) {
+        return { id: src.id, name: src.name, lat: src.lat, lng: src.lng, heightM: src.height_m || 1.5 };
+      });
+
+      // Marker positions
+      data.markers = {};
+      var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+      Object.keys(allLL).forEach(function(k) {
+        if (allLL[k]) data.markers[k] = { lat: allLL[k].lat, lng: allLL[k].lng };
+      });
+      if (!data.markers.source && data.markers.source_0) data.markers.source = data.markers.source_0;
+
+      // Map settings (don't restore noise map — expensive; always false)
+      data.buildingsOn      = window._getBuildingsOn      ? window._getBuildingsOn()      : true;
+      data.noiseMapOn       = false;
+      data.noiseMapPeriod   = window._getNoiseMapPeriod   ? window._getNoiseMapPeriod()   : 'day';
+      data.lmaxMethod       = window._getLmaxMethod       ? window._getLmaxMethod()       : 'simple';
+      data.noiseMapHeight   = window._getNoiseMapHeight   ? window._getNoiseMapHeight()   : 1.5;
+      var ls = window._getLegendSettings ? window._getLegendSettings() : {min:25,max:70,interval:5};
+      data.legendMin = ls.min; data.legendMax = ls.max; data.legendInterval = ls.interval;
+
+      // Terrain (settings only — elevation data too large for undo snapshots)
+      data.terrain = {
+        enabled: typeof _terrainEnabled !== 'undefined' ? _terrainEnabled : false,
+        contours: false, sourceElevations: {}, receiverElevations: {}
+      };
+
+      // Barriers, ground zones, custom buildings
+      var barriers = window._getUserBarriers ? window._getUserBarriers() : [];
+      if (barriers.length) {
+        data.userBarriers = barriers.map(function(ub) {
+          return { id:ub.id, vertices:ub.vertices, heightM:ub.heightM, baseHeightM:ub.baseHeightM||0, suppressed:!!ub.suppressed, name:ub.name };
+        });
+      }
+      var gzones = window._getGroundZones ? window._getGroundZones() : [];
+      if (gzones.length) {
+        data.groundZones = gzones.map(function(gz) {
+          return { id:gz.id, name:gz.name, g:gz.g, vertices:gz.vertices };
+        });
+      }
+      var customs = window._getCustomBuildings ? window._getCustomBuildings() : [];
+      if (customs.length) {
+        data.customBuildings = customs.map(function(cb) {
+          return { id:cb.id, polygon:cb.polygon, baseHeightM:cb.baseHeightM||0, heightM:cb.heightM, name:cb.name };
+        });
+      }
+
+      // Line sources
+      if (typeof lineSources !== 'undefined' && lineSources.length) {
+        data.lineSources = lineSources.map(function(ls2) {
+          return { id:ls2.id, name:ls2.name, vertices:ls2.vertices,
+            libraryEntry: ls2.libraryEntry ? {name:ls2.libraryEntry.name} : null,
+            height_m: ls2.height_m || ls2.heightM || 1.5,
+            movements:ls2.movements, lw_m_base:ls2.lw_m_base, spectrum_m_base:ls2.spectrum_m_base,
+            manualOverride:ls2.manualOverride, manualLwm:ls2.manualLwm, manualSpectrum:ls2.manualSpectrum,
+            activeInPeriod:ls2.activeInPeriod };
+        });
+      }
+
+      // Area sources
+      if (typeof areaSources !== 'undefined' && areaSources.length) {
+        data.areaSources = areaSources.map(function(as) {
+          return { id:as.id, name:as.name, vertices:as.vertices, height_m:as.height_m||0.5,
+            lwMode:as.lwMode||'per_m2', lwValue:as.lwValue, spectrum:as.spectrum,
+            activeInPeriod:as.activeInPeriod, operatingPct:as.operatingPct, quantity:as.quantity,
+            manualOverride:as.manualOverride, libraryEntry:as.libraryEntry?{name:as.libraryEntry.name}:null };
+        });
+      }
+
+      // Building sources
+      if (typeof buildingSources !== 'undefined' && buildingSources.length) {
+        data.buildingSources = buildingSources.map(function(bs) {
+          return { id:bs.id, name:bs.name, vertices:bs.vertices, baseHeightM:bs.baseHeightM||0, height_m:bs.height_m,
+            lpSource:bs.lpSource||'broadband',
+            interiorLp: bs.interiorLp ? JSON.parse(JSON.stringify(bs.interiorLp)) : null,
+            activeInPeriod:bs.activeInPeriod, operatingPct:bs.operatingPct,
+            defaultConstruction:bs.defaultConstruction,
+            facadeOverrides: bs.facadeOverrides ? JSON.parse(JSON.stringify(bs.facadeOverrides)) : null,
+            roofConstruction:bs.roofConstruction,
+            roofElements: bs.roofElements ? JSON.parse(JSON.stringify(bs.roofElements)) : [],
+            manualOverride:bs.manualOverride };
+        });
+      }
+
+      // Project info + address
+      var projNumEl  = document.getElementById('projectNumberInput');
+      var projNamEl  = document.getElementById('projectNameInput');
+      var searchEl   = document.getElementById('mapSearchInput');
+      if (projNumEl)  data.projectNumber = projNumEl.value;
+      if (projNamEl)  data.projectName   = projNamEl.value;
+      if (searchEl && searchEl.value) data.addressText = searchEl.value;
+
+      return JSON.stringify(data);
+    } catch(e) {
+      console.error('[undoManager] serialiseState failed:', e);
+      return null;
+    }
+  }
+
+  // ── Button helpers ─────────────────────────────────────────────────────────
+  function updateButtons() {
+    var u = document.getElementById('undoBtn');
+    var r = document.getElementById('redoBtn');
+    var canUndo = _pointer > 0;
+    var canRedo = _pointer < _history.length - 1;
+    if (u) {
+      u.style.opacity = canUndo ? '1' : '0.4';
+      u.style.cursor  = canUndo ? 'pointer' : 'default';
+      u.title = canUndo ? ('Undo: ' + _history[_pointer].label) : 'Nothing to undo';
+    }
+    if (r) {
+      r.style.opacity = canRedo ? '1' : '0.4';
+      r.style.cursor  = canRedo ? 'pointer' : 'default';
+      r.title = canRedo ? ('Redo: ' + _history[_pointer + 1].label) : 'Nothing to redo';
+    }
+  }
+
+  // ── Core API ───────────────────────────────────────────────────────────────
+  function pushState(label) {
+    if (window._undoRestoring) return;
+    var json = serialiseState();
+    if (!json) return;
+    // Truncate redo future when a new action is taken
+    if (_pointer < _history.length - 1) _history.splice(_pointer + 1);
+    _history.push({ label: label || 'Action', state: json });
+    _pointer = _history.length - 1;
+    // Cap to MAX snapshots (drop oldest)
+    if (_history.length > MAX) { _history.shift(); _pointer--; }
+    updateButtons();
+  }
+
+  function restoreState(json) {
+    if (!json || !window._loadAssessment) return;
+    window._undoRestoring = true;
+    try {
+      window._loadAssessment(JSON.parse(json));
+    } catch(e) {
+      console.error('[undoManager] restoreState failed:', e);
+    }
+    // Reset restoring flag after loadAssessment's async operations settle
+    setTimeout(function() { window._undoRestoring = false; updateButtons(); }, 1200);
+  }
+
+  function undo() {
+    if (_pointer <= 0) return;
+    _pointer--;
+    restoreState(_history[_pointer].state);
+  }
+
+  function redo() {
+    if (_pointer >= _history.length - 1) return;
+    _pointer++;
+    restoreState(_history[_pointer].state);
+  }
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+  document.addEventListener('keydown', function(e) {
+    var tag = (document.activeElement || {}).tagName || '';
+    if (/^(input|textarea|select)$/i.test(tag)) return; // allow text undo in inputs
+    var ctrl = navigator.platform.toUpperCase().indexOf('MAC') >= 0 ? e.metaKey : e.ctrlKey;
+    if (!ctrl) return;
+    if ((e.key === 'z' || e.key === 'Z') && e.shiftKey)  { redo(); e.preventDefault(); }
+    else if (e.key === 'z' || e.key === 'Z')              { undo(); e.preventDefault(); }
+    else if ((e.key === 'y' || e.key === 'Y') && !e.shiftKey) { redo(); e.preventDefault(); }
+  });
+
+  // ── Wire buttons + initial snapshot on DOMContentLoaded ───────────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    var u = document.getElementById('undoBtn');
+    var r = document.getElementById('redoBtn');
+    if (u) u.addEventListener('click', undo);
+    if (r) r.addEventListener('click', redo);
+
+    // Initial state snapshot (after map and data initialise)
+    setTimeout(function() {
+      _history.push({ label: 'Initial state', state: serialiseState() });
+      _pointer = 0;
+      updateButtons();
+    }, 2000);
+
+    // Propagation method buttons — push before the click handler fires (capture phase)
+    var propGroup = document.getElementById('propMethodGroup');
+    if (propGroup) {
+      propGroup.addEventListener('click', function(e) {
+        var btn = e.target.closest ? e.target.closest('.penalty-btn') : null;
+        if (btn && btn.dataset && btn.dataset.val && btn.dataset.val !== (typeof propagationMethod !== 'undefined' ? propagationMethod : '')) {
+          pushState('Change propagation to ' + (btn.dataset.val === 'iso9613' ? 'ISO 9613-2' : 'Simple'));
+        }
+      }, true); // capture phase so we see it before propagationMethod changes
+    }
+
+    // ISO 9613-2 parameter changes
+    ['isoRecvH','isoGround','isoTemp','isoHumid'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', function() { pushState('Change ISO parameter'); });
+    });
+
+    // Receiver name changes (blur, not every keystroke)
+    for (var ri = 1; ri <= 4; ri++) {
+      (function(i) {
+        var inp = document.getElementById('recvName' + i);
+        if (inp) inp.addEventListener('blur', function() { pushState('Edit receiver R' + i + ' name'); });
+      })(ri);
+    }
+
+    // Receiver zone changes (manual dropdown override)
+    ['r1','r2','r3','r4'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', function() { pushState('Change zone for ' + id.toUpperCase()); });
+    });
+
+    // SA receiver type (INL / INL-5) changes
+    ['r1','r2','r3','r4'].forEach(function(id) {
+      var el = document.getElementById(id + '_recvtype');
+      if (el) el.addEventListener('change', function() { pushState('Change criteria type for ' + id.toUpperCase()); });
+    });
+
+    // Subject site name change
+    var ssEl = document.getElementById('subjectSiteName');
+    if (ssEl) ssEl.addEventListener('blur', function() { pushState('Edit subject site name'); });
+
+    // Penalty inputs (capture on change, not every keystroke)
+    document.querySelectorAll('.penalty-input').forEach(function(inp) {
+      inp.addEventListener('change', function() { pushState('Change penalty'); });
+    });
+
+    updateButtons();
+  });
+
+  // ── Expose ─────────────────────────────────────────────────────────────────
+  window._undoPushState  = pushState;
+  window._undoManager    = { undo: undo, redo: redo, pushState: pushState };
+
 })();
 </script>
 
@@ -16601,6 +17028,11 @@ if (window.pdfjsLib) {
           }
           // Re-render source pins so the stored elevation is displayed
           if (typeof renderSourcePins === 'function') renderSourcePins();
+          // Also update subject site elevation span in criteria table (source_0 only)
+          if (idx === 0) {
+            var ssElevEl = document.getElementById('subjectSiteElev');
+            if (ssElevEl) ssElevEl.textContent = (elev !== null) ? Math.round(elev) + 'm ASL' : '';
+          }
         } else {
           // Receiver r1-r4
           if (typeof recvGroundElevations !== 'undefined') {
@@ -16681,6 +17113,7 @@ if (window.pdfjsLib) {
               { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
                   if (sourcePins.length <= 1) { showToast('Cannot delete the only source.'); return; }
                   if (!confirm('Delete source "' + (sourcePins[capturedSi].name || ('S' + (capturedSi + 1))) + '"?')) return;
+                  var _delCtxLabel = 'Delete source S' + (capturedSi + 1);
                   sourcePins.splice(capturedSi, 1);
                   window._refreshAllSourceMarkers();
                   window._subjectSiteLatlng = (sourcePins.length > 0 && sourcePins[0].lat !== null)
@@ -16689,13 +17122,17 @@ if (window.pdfjsLib) {
                   renderSourcePins();
                   if (typeof updateAll === 'function') updateAll();
                   if (typeof render === 'function') render();
+                  if (typeof window._undoPushState === 'function') window._undoPushState(_delCtxLabel);
               }}
             ]);
           };
         })(si, mode));
         /* Source dot labels always remain visible regardless of receiver toggle */
         /* Set _subjectSiteLatlng when source_0 is placed */
-        if (si === 0) window._subjectSiteLatlng = latlng;
+        if (si === 0) {
+          window._subjectSiteLatlng = latlng;
+          if (typeof window._subjectSiteOnPlaced === 'function') window._subjectSiteOnPlaced(latlng);
+        }
       } else {
         /* === Teardrop marker for receiver pins === */
         m = L.marker(latlng, { icon: makeIcon(cfg), draggable: true, title: cfg.label })
@@ -16740,7 +17177,10 @@ if (window.pdfjsLib) {
         syncSourceLatLng(mode, ll);
         if (labelMarkers[mode]) labelMarkers[mode].setLatLng(ll);
         /* Update subject site reference if this is source index 0 */
-        if (isSourceMode(mode) && sourceIdxFromMode(mode) === 0) window._subjectSiteLatlng = ll;
+        if (isSourceMode(mode) && sourceIdxFromMode(mode) === 0) {
+          window._subjectSiteLatlng = ll;
+          if (typeof window._subjectSiteOnDragEnd === 'function') window._subjectSiteOnDragEnd(ll);
+        }
         fetchPinElevation(mode, ll);
         /* Auto-detect zone — called before updateAll so it fires even if render throws */
         console.log('Zone detect triggered:', mode, ll);
@@ -16778,6 +17218,12 @@ if (window.pdfjsLib) {
         if (isSourceMode(mode) && currentState === 'SA') {
           // Source moved — re-query SA Clause 6 for all receivers
           triggerClause6AllReceivers();
+        }
+        if (typeof window._undoPushState === 'function') {
+          var _dragLabel = isSourceMode(mode)
+            ? ('Move source S' + (sourceIdxFromMode(mode) + 1))
+            : ('Move receiver ' + mode.toUpperCase());
+          window._undoPushState(_dragLabel);
         }
       });
 
@@ -16894,6 +17340,7 @@ if (window.pdfjsLib) {
       /* Exit addSource placement mode after placing one pin */
       setMode(null);
       if (typeof renderSourcePins === 'function') renderSourcePins();
+      if (typeof window._undoPushState === 'function') window._undoPushState('Place source S' + (idx + 1));
     }
 
     /* ---- map click ---- */
@@ -16934,6 +17381,10 @@ if (window.pdfjsLib) {
       _autoOpenRecvPopup = true;  // signal placeMarker to open popup on this user-initiated placement
       placeMarker(currentMode, e.latlng);
       _autoOpenRecvPopup = false;
+      if (typeof window._undoPushState === 'function') {
+        var _placeLabel = currentMode.startsWith('source_') ? ('Place source S' + (parseInt(currentMode.replace('source_',''),10)+1)) : ('Place ' + currentMode.toUpperCase());
+        window._undoPushState(_placeLabel);
+      }
     });
 
     /* ---- mode buttons (click to select mode, click again to remove placed marker) ---- */
@@ -17300,6 +17751,7 @@ if (window.pdfjsLib) {
 
         if (window._clearNoiseData) window._clearNoiseData();
         setMode('source');
+        if (typeof window._undoPushState === 'function') window._undoPushState('Clear all');
       });
     }
     /* ═══ OSM Building Footprints ═══ */
@@ -18776,15 +19228,18 @@ if (window.pdfjsLib) {
               map.closePopup();
               renderUserBarriers();
               rebuildBuildingsIndex();
+              if (typeof window._undoPushState === 'function') window._undoPushState('Edit barrier ' + ub.name);
             });
             if (deleteBtn) deleteBtn.addEventListener('click', function() {
               if (!confirm('Delete this barrier?')) return;
+              var _delBarLabel = 'Delete barrier ' + (ub.name || 'Barrier');
               var idx = userBarriers.indexOf(ub);
               if (idx !== -1) userBarriers.splice(idx, 1);
               map.closePopup();
               _selectedBarrier = null;
               renderUserBarriers();
               rebuildBuildingsIndex();
+              if (typeof window._undoPushState === 'function') window._undoPushState(_delBarLabel);
             });
             var shapeBtn = document.getElementById('editBarShape');
             if (shapeBtn) shapeBtn.addEventListener('click', function() {
@@ -18828,6 +19283,7 @@ if (window.pdfjsLib) {
                 if (save) {
                   if (typeof render === 'function') render();
                   if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                  if (typeof window._undoPushState === 'function') window._undoPushState('Edit barrier shape ' + (ub.name || 'Barrier'));
                 }
               }
               function _barEscHandler(e) {
@@ -18866,16 +19322,19 @@ if (window.pdfjsLib) {
                   userBarriers.push(newUb);
                   renderUserBarriers();
                   rebuildBuildingsIndex();
+                  if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate barrier ' + newUb.name);
               }},
               'sep',
               { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
                   if (!confirm('Delete barrier "' + (capturedUb.name || 'Barrier') + '"?')) return;
+                  var _delBarCtx = 'Delete barrier ' + (capturedUb.name || 'Barrier');
                   var idx = userBarriers.indexOf(capturedUb);
                   if (idx !== -1) userBarriers.splice(idx, 1);
                   map.closePopup();
                   _selectedBarrier = null;
                   renderUserBarriers();
                   rebuildBuildingsIndex();
+                  if (typeof window._undoPushState === 'function') window._undoPushState(_delBarCtx);
               }}
             ]);
           };
@@ -19093,15 +19552,18 @@ if (window.pdfjsLib) {
                   renderCustomBuildings();
                   rebuildBuildingsIndex();
                   if (typeof render === 'function') render();
+                  if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate building ' + newCb.name);
               }},
               'sep',
               { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
+                  var _delCbLabel = 'Delete ' + (capturedCb.name || 'Custom building');
                   var idx = customBuildings.indexOf(capturedCb);
                   if (idx !== -1) customBuildings.splice(idx, 1);
                   map.closePopup();
                   renderCustomBuildings();
                   rebuildBuildingsIndex();
                   if (typeof render === 'function') render();
+                  if (typeof window._undoPushState === 'function') window._undoPushState(_delCbLabel);
               }}
             ]);
           };
@@ -19245,6 +19707,7 @@ if (window.pdfjsLib) {
               map.closePopup();
               renderUserBarriers();
               rebuildBuildingsIndex();
+              if (typeof window._undoPushState === 'function') window._undoPushState('Add barrier ' + name);
             });
             if (cancelBtn) cancelBtn.addEventListener('click', function() {
               map.closePopup();
@@ -19314,6 +19777,7 @@ if (window.pdfjsLib) {
               map.closePopup();
               if (typeof render === 'function') render();
               if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              if (typeof window._undoPushState === 'function') window._undoPushState('Add ground absorption ' + gzName);
             });
             if (cancelBtnGz) cancelBtnGz.addEventListener('click', function() { map.closePopup(); });
           }, 50);
@@ -19374,6 +19838,7 @@ if (window.pdfjsLib) {
               openBsPanel(newBs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
               if (typeof render === 'function') render();
               if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              if (typeof window._undoPushState === 'function') window._undoPushState('Add building source');
             });
             if (cancelBtnBs) cancelBtnBs.addEventListener('click', function() { map.closePopup(); });
           }, 50);
@@ -19408,6 +19873,7 @@ if (window.pdfjsLib) {
           openAsPanel(newAs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
           if (typeof render === 'function') render();
           if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+          if (typeof window._undoPushState === 'function') window._undoPushState('Add area source');
           return;
         }
 
@@ -19477,6 +19943,7 @@ if (window.pdfjsLib) {
             renderCustomBuildings();
             rebuildBuildingsIndex();
             if (typeof render === 'function') render();
+            if (typeof window._undoPushState === 'function') window._undoPushState('Add building ' + name);
           });
 
           if (cancelBtn) cancelBtn.addEventListener('click', function() {
@@ -19667,16 +20134,19 @@ if (window.pdfjsLib) {
                 _renderGroundZone(newGz);
                 if (typeof render === 'function') render();
                 if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate ground absorption ' + newGz.name);
             }},
             'sep',
             { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
                 if (!confirm('Delete "' + (capturedGz.name || 'Ground absorption') + '"?')) return;
+                var _delGzLabel = 'Delete ' + (capturedGz.name || 'Ground absorption');
                 var idx = _groundZones.indexOf(capturedGz);
                 if (idx !== -1) _groundZones.splice(idx, 1);
                 if (capturedGz._polygon) _groundZoneLayer.removeLayer(capturedGz._polygon);
                 map.closePopup();
                 if (typeof render === 'function') render();
                 if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                if (typeof window._undoPushState === 'function') window._undoPushState(_delGzLabel);
             }}
           ]);
         };
@@ -20341,14 +20811,17 @@ if (window.pdfjsLib) {
                   renderAreaSourceLayer();
                   if (typeof render === 'function') render();
                   if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                  if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate area source ' + newAs.name);
               }},
               'sep',
               { id: 'del', label: 'Delete', icon: '\ud83d\uddd1', cls: 'ctx-danger', action: function() {
+                  var _delAsLabel = 'Delete ' + (capturedAs.name || 'Area source');
                   var idx = areaSources.indexOf(capturedAs);
                   if (idx !== -1) areaSources.splice(idx, 1);
                   renderAreaSourceLayer();
                   if (typeof render === 'function') render();
                   if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                  if (typeof window._undoPushState === 'function') window._undoPushState(_delAsLabel);
               }}
             ]);
           };
@@ -20988,14 +21461,17 @@ if (window.pdfjsLib) {
                 buildingSources.push(nb); renderBuildingSourceLayer();
                 if (typeof render==='function') render();
                 if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate building source ' + nb.name);
               }},
               'sep',
               { id:'del', label:'Delete', icon:'\ud83d\uddd1', cls:'ctx-danger', action:function() {
+                var _delBsLabel = 'Delete ' + (capturedBs.name||'Building source');
                 var idx = buildingSources.indexOf(capturedBs);
                 if (idx !== -1) buildingSources.splice(idx, 1);
                 renderBuildingSourceLayer();
                 if (typeof render==='function') render();
                 if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                if (typeof window._undoPushState === 'function') window._undoPushState(_delBsLabel);
               }}
             ]);
           };
@@ -22544,15 +23020,18 @@ if (window.pdfjsLib) {
                   renderLineSourceCards();
                   if (typeof render === 'function') render();
                   if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                  if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate line source ' + newLs.name);
               }},
               'sep',
               { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
+                  var _delLsLabel = 'Delete ' + (capturedLs.name || 'Line source');
                   var idx = lineSources.indexOf(capturedLs);
                   if (idx !== -1) lineSources.splice(idx, 1);
                   renderLineSourceLayer();
                   renderLineSourceCards();
                   if (typeof render === 'function') render();
                   if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                  if (typeof window._undoPushState === 'function') window._undoPushState(_delLsLabel);
               }}
             ]);
           };
@@ -22769,6 +23248,7 @@ if (window.pdfjsLib) {
       renderLineSourceCards();
       if (typeof render === 'function') render();
       if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      if (typeof window._undoPushState === 'function') window._undoPushState('Add line source');
       // Open floating panel for configuration
       var cx = e.originalEvent ? e.originalEvent.clientX : window.innerWidth / 2;
       var cy = e.originalEvent ? e.originalEvent.clientY : window.innerHeight / 2;
@@ -23084,6 +23564,11 @@ if (window.pdfjsLib) {
       }
     }
     var _lastNoiseData = null;
+    var _complianceMode = false;
+    var _complianceCriterion = null;
+    var _complianceCanvasLayer = null;
+    var _complianceContourLayer = null;
+    var _complianceLegend = null;
 
     // Legend scale state (user-configurable)
     var _legendMin = 25;
@@ -23158,6 +23643,45 @@ if (window.pdfjsLib) {
         if (dB >= NOISE_COLOURS[i].min && dB < NOISE_COLOURS[i].max) return NOISE_COLOURS[i].color;
       }
       return NOISE_COLOURS[NOISE_COLOURS.length - 1].color;
+    }
+
+    // ── Compliance heatmap colours (diverging green/red, centred on 0 dB) ──
+    var COMPLIANCE_COLOURS = [
+      { min: -Infinity, max: -10, color: 'rgba(0,100,0,0.65)' },
+      { min: -10, max:  -5, color: 'rgba(22,163,74,0.60)' },
+      { min:  -5, max:  -3, color: 'rgba(134,239,172,0.55)' },
+      { min:  -3, max:  -1, color: 'rgba(187,247,208,0.50)' },
+      { min:  -1, max:   0, color: 'rgba(220,252,231,0.45)' },
+      { min:   0, max:   1, color: 'rgba(254,226,226,0.45)' },
+      { min:   1, max:   3, color: 'rgba(252,165,165,0.50)' },
+      { min:   3, max:   5, color: 'rgba(248,113,113,0.55)' },
+      { min:   5, max:  10, color: 'rgba(220,38,38,0.60)' },
+      { min:  10, max: Infinity, color: 'rgba(127,29,29,0.70)' }
+    ];
+    var COMPLIANCE_THRESHOLDS = [-10, -5, -3, -1, 0, 1, 3, 5, 10];
+
+    function getComplianceColour(delta) {
+      if (!isFinite(delta)) return null;
+      for (var i = 0; i < COMPLIANCE_COLOURS.length; i++) {
+        if (delta >= COMPLIANCE_COLOURS[i].min && delta < COMPLIANCE_COLOURS[i].max)
+          return COMPLIANCE_COLOURS[i].color;
+      }
+      return COMPLIANCE_COLOURS[COMPLIANCE_COLOURS.length - 1].color;
+    }
+
+    function getLowestReceiverCriterion(period) {
+      var suffix = period === 'eve' ? '_evecrit' : period === 'night' ? '_nightcrit' : '_daycrit';
+      var ids = ['r1', 'r2', 'r3', 'r4'];
+      var values = [];
+      ids.forEach(function(id) {
+        var cell = document.getElementById(id + suffix);
+        if (!cell) return;
+        var inp = cell.querySelector('input.manual-crit-input');
+        var raw = inp ? inp.value : (cell.textContent || '');
+        var v = parseFloat(raw.replace(/[^\d.]/g, ''));
+        if (Number.isFinite(v) && v > 0) values.push(v);
+      });
+      return values.length > 0 ? Math.min.apply(null, values) : null;
     }
 
     function buildWorkerSources(period) {
@@ -23581,6 +24105,216 @@ if (window.pdfjsLib) {
       if (_noiseLegend) { map.removeControl(_noiseLegend); _noiseLegend = null; }
     }
 
+    // ── Compliance map rendering ──────────────────────────────────────────
+
+    function renderComplianceCanvas(data, criterion) {
+      if (_complianceCanvasLayer) { map.removeLayer(_complianceCanvasLayer); _complianceCanvasLayer = null; }
+      var canvas = document.createElement('canvas');
+      canvas.width = data.cols; canvas.height = data.rows;
+      var ctx = canvas.getContext('2d');
+      for (var r = 0; r < data.rows; r++) {
+        for (var c = 0; c < data.cols; c++) {
+          var dB = data.grid[r * data.cols + c];
+          if (!isFinite(dB)) continue;
+          var color = getComplianceColour(dB - criterion);
+          if (!color) continue;
+          ctx.fillStyle = color;
+          ctx.fillRect(c, data.rows - 1 - r, 1, 1);
+        }
+      }
+      var imageUrl = canvas.toDataURL('image/png');
+      var _gridSouth = (data.startLat !== undefined) ? data.startLat : data.bounds.south;
+      var _gridWest  = (data.startLng  !== undefined) ? data.startLng  : data.bounds.west;
+      var bounds = L.latLngBounds(
+        [_gridSouth, _gridWest],
+        [_gridSouth + data.rows * data.dLat, _gridWest + data.cols * data.dLng]
+      );
+      _complianceCanvasLayer = L.imageOverlay(imageUrl, bounds, { opacity: 0.82, interactive: false });
+      _complianceCanvasLayer.addTo(map);
+    }
+
+    function generateComplianceContours(data, criterion) {
+      if (_complianceContourLayer) { map.removeLayer(_complianceContourLayer); _complianceContourLayer = null; }
+      _complianceContourLayer = L.layerGroup();
+      var rows = data.rows, cols = data.cols, grid = data.grid;
+      var _cSLat = (data.startLat !== undefined) ? data.startLat : data.bounds.south;
+      var _cSLng  = (data.startLng  !== undefined) ? data.startLng  : data.bounds.west;
+      function valC(r, c) {
+        if (r < 0 || r >= rows || c < 0 || c >= cols) return NaN;
+        var dB = grid[r * cols + c]; return isFinite(dB) ? dB - criterion : NaN;
+      }
+      function interpC(r1, c1, r2, c2, thr) {
+        var v1 = valC(r1,c1), v2 = valC(r2,c2);
+        if (!isFinite(v1) || !isFinite(v2) || v1 === v2) return 0.5;
+        return (thr - v1) / (v2 - v1);
+      }
+      COMPLIANCE_THRESHOLDS.forEach(function(thr) {
+        var segments = [];
+        for (var r = 0; r < rows - 1; r++) {
+          for (var c = 0; c < cols - 1; c++) {
+            var tl = valC(r+1,c), tr = valC(r+1,c+1), br = valC(r,c+1), bl = valC(r,c);
+            if (!isFinite(tl)||!isFinite(tr)||!isFinite(br)||!isFinite(bl)) continue;
+            var idx = 0;
+            if (tl >= thr) idx |= 8; if (tr >= thr) idx |= 4;
+            if (br >= thr) idx |= 2; if (bl >= thr) idx |= 1;
+            if (idx === 0 || idx === 15) continue;
+            var tFrac = interpC(r+1,c,   r+1,c+1, thr);
+            var top   = [_cSLat+(r+1)*data.dLat,      _cSLng+(c+tFrac)*data.dLng];
+            var rFrac = interpC(r+1,c+1, r,  c+1,  thr);
+            var right = [_cSLat+(r+1-rFrac)*data.dLat, _cSLng+(c+1)*data.dLng];
+            var bFrac = interpC(r,  c,   r,  c+1,  thr);
+            var bot   = [_cSLat+r*data.dLat,           _cSLng+(c+bFrac)*data.dLng];
+            var lFrac = interpC(r+1,c,   r,  c,    thr);
+            var left  = [_cSLat+(r+1-lFrac)*data.dLat, _cSLng+c*data.dLng];
+            switch(idx) {
+              case 1: case 14: segments.push([left,bot]); break;
+              case 2: case 13: segments.push([bot,right]); break;
+              case 3: case 12: segments.push([left,right]); break;
+              case 4: case 11: segments.push([top,right]); break;
+              case 5:  segments.push([left,top]); segments.push([bot,right]); break;
+              case 6: case 9:  segments.push([top,bot]); break;
+              case 7: case 8:  segments.push([left,top]); break;
+              case 10: segments.push([left,bot]); segments.push([top,right]); break;
+            }
+          }
+        }
+        if (!segments.length) return;
+        var PREC = 8;
+        function ptKey(p) { return p[0].toFixed(PREC)+','+p[1].toFixed(PREC); }
+        var endMap = {};
+        for (var si = 0; si < segments.length; si++) {
+          for (var ei = 0; ei < 2; ei++) {
+            var k = ptKey(segments[si][ei]);
+            if (!endMap[k]) endMap[k] = [];
+            endMap[k].push({ seg: si, end: ei });
+          }
+        }
+        var used = new Array(segments.length);
+        var chains = [];
+        for (var si2 = 0; si2 < segments.length; si2++) {
+          if (used[si2]) continue;
+          used[si2] = true;
+          var chain = [segments[si2][0], segments[si2][1]];
+          var ext = true;
+          while (ext) {
+            ext = false;
+            var tk = ptKey(chain[chain.length-1]);
+            var cc = endMap[tk];
+            if (cc) for (var ci = 0; ci < cc.length; ci++) {
+              if (used[cc[ci].seg]) continue;
+              used[cc[ci].seg] = true; chain.push(segments[cc[ci].seg][1-cc[ci].end]); ext = true; break;
+            }
+          }
+          ext = true;
+          while (ext) {
+            ext = false;
+            var hk = ptKey(chain[0]);
+            var cc2 = endMap[hk];
+            if (cc2) for (var ci2 = 0; ci2 < cc2.length; ci2++) {
+              if (used[cc2[ci2].seg]) continue;
+              used[cc2[ci2].seg] = true; chain.unshift(segments[cc2[ci2].seg][1-cc2[ci2].end]); ext = true; break;
+            }
+          }
+          if (chain.length >= 3) chains.push(chain);
+        }
+        var EPS2 = (data.dLat + data.dLng) * 0.01;
+        var isZero = (thr === 0);
+        chains.forEach(function(chain) {
+          var isClosed = chain.length >= 4 &&
+            Math.abs(chain[0][0]-chain[chain.length-1][0]) < EPS2 &&
+            Math.abs(chain[0][1]-chain[chain.length-1][1]) < EPS2;
+          if (isClosed) chain.push(chain[0]);
+          var smoothed = chaikinSmooth(chain, 3);
+          _complianceContourLayer.addLayer(L.polyline(smoothed, {
+            color:     isZero ? '#1e293b' : '#555555',
+            weight:    isZero ? 2.5 : 1,
+            opacity:   isZero ? 0.95 : 0.55,
+            dashArray: isZero ? '6 4' : null,
+            interactive: false
+          }));
+        });
+      });
+      _complianceContourLayer.addTo(map);
+    }
+
+    function showComplianceLegend(criterion, period) {
+      if (_complianceLegend) { map.removeControl(_complianceLegend); _complianceLegend = null; }
+      _complianceLegend = L.control({ position: 'bottomright' });
+      _complianceLegend.onAdd = function() {
+        var div = L.DomUtil.create('div', 'noise-legend');
+        div.style.cssText = 'background:#fff;padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
+        var pLabel = { day: 'Day L<sub>Aeq</sub>', eve: 'Eve L<sub>Aeq</sub>', night: 'Night L<sub>Aeq</sub>', lmax: 'Night L<sub>Amax</sub>' }[period] || 'Day L<sub>Aeq</sub>';
+        var s = '<b>Compliance \u0394 dB(A)</b><br>';
+        s += '<span style="color:#888;font-size:10px;">' + pLabel + ' vs ' + criterion + ' dB(A)</span><br>';
+        var labels = ['\u2264\u221210','\u221210 to \u22125','\u22125 to \u22123','\u22123 to \u22121',
+                      '\u22121 to 0','0 to +1','+1 to +3','+3 to +5','+5 to +10','> +10'];
+        COMPLIANCE_COLOURS.forEach(function(cc, i) {
+          var sc = _legendSwatchColor(cc.color);
+          s += '<span style="display:inline-block;width:14px;height:10px;background:' + sc + ';margin-right:4px;border:1px solid rgba(0,0,0,0.2);vertical-align:middle;border-radius:2px;"></span>' + labels[i] + '<br>';
+        });
+        s += '<div style="margin-top:4px;padding-top:4px;border-top:1px solid #e5e7eb;font-size:10px;color:#6b7280;">&#x2014;&#x2014; 0 dB = compliance boundary</div>';
+        div.innerHTML = s;
+        return div;
+      };
+      _complianceLegend.addTo(map);
+    }
+
+    function hideComplianceLegend() {
+      if (_complianceLegend) { map.removeControl(_complianceLegend); _complianceLegend = null; }
+    }
+
+    function clearComplianceMap() {
+      if (_complianceCanvasLayer) { map.removeLayer(_complianceCanvasLayer); _complianceCanvasLayer = null; }
+      if (_complianceContourLayer) { map.removeLayer(_complianceContourLayer); _complianceContourLayer = null; }
+      hideComplianceLegend();
+    }
+
+    function renderComplianceMap() {
+      clearComplianceMap();
+      if (!_lastNoiseData || !_complianceMode) return;
+      var period = _noiseMapPeriod === 'lmax' ? 'night' : _noiseMapPeriod;
+      var crit = _complianceCriterion;
+      if (!Number.isFinite(crit)) {
+        crit = getLowestReceiverCriterion(period);
+        if (!Number.isFinite(crit)) crit = 45;
+        _complianceCriterion = crit;
+        var critInput = document.getElementById('complianceCriterion');
+        if (critInput) critInput.value = Math.round(crit);
+      }
+      renderComplianceCanvas(_lastNoiseData, crit);
+      generateComplianceContours(_lastNoiseData, crit);
+      showComplianceLegend(crit, period);
+    }
+
+    function activateComplianceView() {
+      if (!_lastNoiseData) return;
+      _complianceMode = true;
+      var period = _noiseMapPeriod === 'lmax' ? 'night' : _noiseMapPeriod;
+      var autoCrit = getLowestReceiverCriterion(period);
+      if (!Number.isFinite(autoCrit)) autoCrit = 45;
+      _complianceCriterion = autoCrit;
+      var critInput = document.getElementById('complianceCriterion');
+      if (critInput) critInput.value = Math.round(autoCrit);
+      if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); }
+      if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); }
+      hideNoiseLegend();
+      var ccr = document.getElementById('complianceCritRow');
+      if (ccr) ccr.style.display = 'flex';
+      renderComplianceMap();
+    }
+
+    function deactivateComplianceView() {
+      _complianceMode = false;
+      _complianceCriterion = null;
+      clearComplianceMap();
+      var ccr = document.getElementById('complianceCritRow');
+      if (ccr) ccr.style.display = 'none';
+      if (_lastNoiseData) {
+        renderNoiseCanvas(_lastNoiseData);
+        showNoiseLegend();
+      }
+    }
+
     function computeNoiseMap() {
       if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
       if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); _noiseCanvasLayer = null; }
@@ -23687,8 +24421,19 @@ if (window.pdfjsLib) {
         } else if (msg.type === 'complete') {
           if (noiseMapBtn) noiseMapBtn.innerHTML = _nmSvg + ' Noise Map';
           _lastNoiseData = msg;
-          renderNoiseCanvas(msg);
-          showNoiseLegend();
+          var _nvRow = document.getElementById('noiseViewRow');
+          if (_nvRow) _nvRow.style.display = 'flex';
+          if (_complianceMode) {
+            renderNoiseCanvas(msg);
+            showNoiseLegend();
+            if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); }
+            if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); }
+            hideNoiseLegend();
+            renderComplianceMap();
+          } else {
+            renderNoiseCanvas(msg);
+            showNoiseLegend();
+          }
           _noiseWorker = null;
         } else if (msg.type === 'error') {
           console.warn('Noise map error:', msg.message);
@@ -23778,6 +24523,17 @@ if (window.pdfjsLib) {
           hideNoiseLegend();
           hideTerrainWarning();
           noiseMapBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise Map';
+          clearComplianceMap();
+          _complianceMode = false;
+          _complianceCriterion = null;
+          var _nvRowOff = document.getElementById('noiseViewRow');
+          if (_nvRowOff) _nvRowOff.style.display = 'none';
+          var _ccRowOff = document.getElementById('complianceCritRow');
+          if (_ccRowOff) _ccRowOff.style.display = 'none';
+          var _vlBtn = document.getElementById('viewLevelsBtn');
+          var _vcBtn = document.getElementById('viewComplianceBtn');
+          if (_vlBtn) _vlBtn.classList.add('active');
+          if (_vcBtn) _vcBtn.classList.remove('active');
         }
       });
     }
@@ -23829,8 +24585,48 @@ if (window.pdfjsLib) {
         // Immediately regenerate noise map using the new period's Lw values
         if (_noiseMapOn) computeNoiseMap();
         else debouncedRecompute();
+        // Auto-update compliance criterion when period changes
+        if (_complianceMode) {
+          var _cpPeriod = _noiseMapPeriod === 'lmax' ? 'night' : _noiseMapPeriod;
+          var _cpAuto = getLowestReceiverCriterion(_cpPeriod) || 45;
+          _complianceCriterion = _cpAuto;
+          var _cpInput = document.getElementById('complianceCriterion');
+          if (_cpInput) _cpInput.value = Math.round(_cpAuto);
+        }
       });
     });
+
+    // ── Compliance view toggle buttons ───────────────────────────────────
+    var viewLevelsBtn = document.getElementById('viewLevelsBtn');
+    var viewComplianceBtn = document.getElementById('viewComplianceBtn');
+    if (viewLevelsBtn) {
+      viewLevelsBtn.addEventListener('click', function() {
+        if (!_complianceMode) return;
+        viewLevelsBtn.classList.add('active');
+        viewComplianceBtn.classList.remove('active');
+        deactivateComplianceView();
+      });
+    }
+    if (viewComplianceBtn) {
+      viewComplianceBtn.addEventListener('click', function() {
+        if (_complianceMode) return;
+        if (!_lastNoiseData) return;
+        viewComplianceBtn.classList.add('active');
+        viewLevelsBtn.classList.remove('active');
+        activateComplianceView();
+      });
+    }
+
+    // ── Compliance criterion input ────────────────────────────────────────
+    var compCritInput = document.getElementById('complianceCriterion');
+    if (compCritInput) {
+      compCritInput.addEventListener('change', function() {
+        var v = parseFloat(this.value);
+        if (!Number.isFinite(v) || v <= 0) return;
+        _complianceCriterion = v;
+        if (_complianceMode && _lastNoiseData) renderComplianceMap();
+      });
+    }
 
     // Lmax method radio buttons
     document.querySelectorAll('[name="lmaxMethod"]').forEach(function(radio) {
@@ -24380,6 +25176,7 @@ if (window.pdfjsLib) {
         if (!markers[modeKey]) return; // already not placed
         if (!confirm('Remove Receiver ' + (idx + 1) + ' from the map?')) return;
         removeMarker(modeKey);
+        if (typeof window._undoPushState === 'function') window._undoPushState('Remove receiver R' + (idx + 1));
         return;
       }
       if (type === 'source') {
@@ -24389,48 +25186,61 @@ if (window.pdfjsLib) {
         window._refreshAllSourceMarkers();
         if (typeof renderSourcePins === 'function') renderSourcePins();
         if (typeof render === 'function') render();
+        if (typeof window._undoPushState === 'function') window._undoPushState('Delete source S' + (idx + 1));
       } else if (type === 'linesource') {
         var ls = lineSources[idx];
         if (!confirm('Delete "' + (ls ? ls.name || 'Line source' : 'Line source') + '"?')) return;
+        var _lsLabel = 'Delete ' + (ls ? ls.name || 'Line source' : 'Line source');
         lineSources.splice(idx, 1);
         renderLineSourceLayer();
         if (typeof renderLineSourceCards === 'function') renderLineSourceCards();
         if (typeof render === 'function') render();
+        if (typeof window._undoPushState === 'function') window._undoPushState(_lsLabel);
       } else if (type === 'areasource') {
         var as = areaSources[idx];
         if (!confirm('Delete "' + (as ? as.name || 'Area source' : 'Area source') + '"?')) return;
+        var _asLabel = 'Delete ' + (as ? as.name || 'Area source' : 'Area source');
         areaSources.splice(idx, 1);
         if (as && as._poly) areaSourceLayer.removeLayer(as._poly);
         renderAreaSourceLayer();
         if (typeof render === 'function') render();
+        if (typeof window._undoPushState === 'function') window._undoPushState(_asLabel);
       } else if (type === 'buildingsource') {
         var bsrc3 = buildingSources[idx];
         if (!confirm('Delete "' + (bsrc3 ? bsrc3.name||'Building source' : 'Building source') + '"?')) return;
+        var _bsLabel = 'Delete ' + (bsrc3 ? bsrc3.name||'Building source' : 'Building source');
         buildingSources.splice(idx, 1);
         renderBuildingSourceLayer();
         if (typeof render==='function') render();
         if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+        if (typeof window._undoPushState === 'function') window._undoPushState(_bsLabel);
       } else if (type === 'barrier') {
         var ub = userBarriers[idx];
         if (!confirm('Delete barrier "' + (ub ? ub.name || 'Barrier' : 'Barrier') + '"?')) return;
+        var _ubLabel = 'Delete barrier ' + (ub ? ub.name || 'Barrier' : 'Barrier');
         userBarriers.splice(idx, 1);
         if (ub && ub._line) barrierLayer.removeLayer(ub._line);
         renderUserBarriers();
         if (typeof rebuildBuildingsIndex === 'function') rebuildBuildingsIndex();
+        if (typeof window._undoPushState === 'function') window._undoPushState(_ubLabel);
       } else if (type === 'building') {
         var cb = customBuildings[idx];
         if (!confirm('Delete "' + (cb ? cb.name || 'Custom building' : 'Custom building') + '"?')) return;
+        var _cbLabel = 'Delete ' + (cb ? cb.name || 'Custom building' : 'Custom building');
         customBuildings.splice(idx, 1);
         if (typeof renderCustomBuildings === 'function') renderCustomBuildings();
         if (typeof rebuildBuildingsIndex === 'function') rebuildBuildingsIndex();
         if (typeof render === 'function') render();
+        if (typeof window._undoPushState === 'function') window._undoPushState(_cbLabel);
       } else if (type === 'groundzone') {
         var gz = _groundZones[idx];
         if (!confirm('Delete "' + (gz ? gz.name || 'Ground absorption' : 'Ground absorption') + '"?')) return;
+        var _gzLabel = 'Delete ' + (gz ? gz.name || 'Ground absorption' : 'Ground absorption');
         _groundZones.splice(idx, 1);
         if (gz && gz._polygon) _groundZoneLayer.removeLayer(gz._polygon);
         if (window._renderObjectList) window._renderObjectList();
         if (typeof render === 'function') render();
+        if (typeof window._undoPushState === 'function') window._undoPushState(_gzLabel);
       }
     }
 
@@ -25606,13 +26416,14 @@ if (window.pdfjsLib) {
   'use strict';
 
   // Per-receiver flag: true = geocode may set name; false = user has edited it
-  var _autoName = { r1: true, r2: true, r3: true, r4: true };
+  // 'src' key covers the subject site (S1 location)
+  var _autoName = { r1: true, r2: true, r3: true, r4: true, src: true };
   // Debounce timers (avoid flooding Nominatim on drag)
-  var _geocodeTimers = { r1: null, r2: null, r3: null, r4: null };
+  var _geocodeTimers = { r1: null, r2: null, r3: null, r4: null, src: null };
   // Suppress geocoding while loading from JSON
   var _isLoading = false;
   // Track last-geocoded position to detect movement on drag
-  var _lastHash = { r1: '', r2: '', r3: '', r4: '' };
+  var _lastHash = { r1: '', r2: '', r3: '', r4: '', src: '' };
 
   // ── Expose for save/load integration ─────────────────────────────────────
   window._recvAutoName      = _autoName;
@@ -25624,7 +26435,8 @@ if (window.pdfjsLib) {
   }
 
   function updateCoordsSpan(mode, ll) {
-    var span = document.getElementById('recvCoords_' + mode);
+    var spanId = (mode === 'src') ? 'subjectSiteCoords' : 'recvCoords_' + mode;
+    var span = document.getElementById(spanId);
     if (span) span.textContent = ll ? fmtCoords(ll) : '';
   }
 
@@ -25647,23 +26459,33 @@ if (window.pdfjsLib) {
       .catch(function(e) { cb(e, null); });
   }
 
-  // ── Schedule geocode for a receiver (debounced, 500ms) ───────────────────
+  // ── Schedule geocode for a receiver or subject site (debounced, 500ms) ──
   function scheduleGeocode(mode, lat, lng) {
     if (!_autoName[mode] || _isLoading) return;
     clearTimeout(_geocodeTimers[mode]);
     _geocodeTimers[mode] = setTimeout(function() {
       reverseGeocode(lat, lng, function(err, address) {
         if (err || !address || !_autoName[mode] || _isLoading) return;
-        // Guard: ensure receiver hasn't moved significantly since schedule
-        var ll = window.getReceiverLatLng ? window.getReceiverLatLng(mode) : null;
-        if (!ll || Math.abs(ll.lat - lat) > 0.0001 || Math.abs(ll.lng - lng) > 0.0001) return;
-        var idx = parseInt(mode.replace('r', ''), 10);
-        var inp = document.getElementById('recvName' + idx);
-        if (!inp || !_autoName[mode]) return;
-        inp.value = address;
-        if (typeof saveLS === 'function') saveLS('recvName_' + idx, address);
-        if (typeof render === 'function') render();
-        if (typeof window._renderObjectList === 'function') window._renderObjectList();
+        var inp;
+        if (mode === 'src') {
+          // Guard: ensure S1 hasn't moved significantly since schedule
+          var ssll = window._subjectSiteLatlng;
+          if (!ssll || Math.abs(ssll.lat - lat) > 0.0001 || Math.abs(ssll.lng - lng) > 0.0001) return;
+          inp = document.getElementById('subjectSiteName');
+          if (!inp || !_autoName[mode]) return;
+          inp.value = address;
+        } else {
+          // Guard: ensure receiver hasn't moved significantly since schedule
+          var ll = window.getReceiverLatLng ? window.getReceiverLatLng(mode) : null;
+          if (!ll || Math.abs(ll.lat - lat) > 0.0001 || Math.abs(ll.lng - lng) > 0.0001) return;
+          var idx = parseInt(mode.replace('r', ''), 10);
+          inp = document.getElementById('recvName' + idx);
+          if (!inp || !_autoName[mode]) return;
+          inp.value = address;
+          if (typeof saveLS === 'function') saveLS('recvName_' + idx, address);
+          if (typeof render === 'function') render();
+          if (typeof window._renderObjectList === 'function') window._renderObjectList();
+        }
       });
     }, 500);
   }
@@ -25689,6 +26511,22 @@ if (window.pdfjsLib) {
         });
       })(i);
     }
+    // Subject site name input
+    (function() {
+      var inp = document.getElementById('subjectSiteName');
+      if (!inp) return;
+      inp.addEventListener('input', function() {
+        _autoName.src = false; // user is typing — lock name
+      });
+      inp.addEventListener('blur', function() {
+        var v = inp.value.trim();
+        if (!v || v === 'Subject site') {
+          _autoName.src = true;
+          var ssll = window._subjectSiteLatlng;
+          if (ssll) scheduleGeocode('src', ssll.lat, ssll.lng);
+        }
+      });
+    })();
   }
 
   // ── Callbacks called directly from placeMarker() and its dragend handler ──
@@ -25709,6 +26547,23 @@ if (window.pdfjsLib) {
     if (hash !== _lastHash[mode]) {
       _lastHash[mode] = hash;
       if (_autoName[mode] && !_isLoading) scheduleGeocode(mode, lat, lng);
+    }
+  };
+
+  // Called by placeMarker() when S1 (source_0) is placed
+  window._subjectSiteOnPlaced = function(ll) {
+    updateCoordsSpan('src', { lat: ll.lat, lng: ll.lng });
+    if (!_isLoading) scheduleGeocode('src', ll.lat, ll.lng);
+  };
+
+  // Called by placeMarker()'s dragend handler when S1 is dropped
+  window._subjectSiteOnDragEnd = function(ll) {
+    var lat = ll.lat, lng = ll.lng;
+    updateCoordsSpan('src', { lat: lat, lng: lng });
+    var hash = lat.toFixed(5) + ',' + lng.toFixed(5);
+    if (hash !== _lastHash.src) {
+      _lastHash.src = hash;
+      if (_autoName.src && !_isLoading) scheduleGeocode('src', lat, lng);
     }
   };
 
@@ -25810,13 +26665,16 @@ if (window.pdfjsLib) {
       return rows;
     }
 
+    var subjectSiteName = (document.getElementById('subjectSiteName') || {}).value || 'Subject site';
+
     return {
-      projectNumber: pnNum,
-      projectName:   pnNam,
-      receivers:     receivers,
-      sources:       sources,
-      predDay:       readPredRows('rowsDay'),
-      predNight:     readPredRows('rowsNight')
+      projectNumber:   pnNum,
+      projectName:     pnNam,
+      subjectSiteName: subjectSiteName,
+      receivers:       receivers,
+      sources:         sources,
+      predDay:         readPredRows('rowsDay'),
+      predNight:       readPredRows('rowsNight')
     };
   }
 
@@ -25864,7 +26722,8 @@ if (window.pdfjsLib) {
       '$Author':             '',
       '$Reviewer':           '',
       '$RevisionNumber':     '0',
-      '$RevisionText':       'First issue'
+      '$RevisionText':       'First issue',
+      '$SubjectSite':        data.subjectSiteName || 'Subject site'
     };
     Object.keys(fieldMap).forEach(function(k) {
       var token = '{' + k + '}';
