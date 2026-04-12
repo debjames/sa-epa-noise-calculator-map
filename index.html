@@ -1397,7 +1397,10 @@ body.map-fs-active { overflow: hidden; }
       <div class="card span2">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
           <h2 style="margin:0;">Receivers &amp; criteria</h2>
-          <button class="crit-refresh-btn" onclick="refreshZonesAndCriteria()" title="Refresh all: addresses, coordinates, ASL, zones and criteria for all placed markers">&#x21BB;</button>
+          <div style="display:flex;gap:5px;align-items:center;">
+            <button class="crit-refresh-btn" id="exportCriteriaPdfBtn" onclick="exportCriteriaPdf(this)" title="Export criteria derivation PDF (A4 portrait)">&#x21E9; PDF</button>
+            <button class="crit-refresh-btn" onclick="refreshZonesAndCriteria()" title="Refresh all: addresses, coordinates, ASL, zones and criteria for all placed markers">&#x21BB;</button>
+          </div>
         </div>
         <div class="p" id="policyNoteText" style="display:none;font-style:italic;margin-bottom:4px;"></div>
         <div class="p" id="zoneDescText"></div>
@@ -6129,6 +6132,326 @@ function refreshZonesAndCriteria() {
   if (typeof render === 'function') render();
 
   setTimeout(function() { showToast('Done', 1200); }, 3000);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   CRITERIA DERIVATION PDF EXPORT
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+async function exportCriteriaPdf(btn) {
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Exporting\u2026'; }
+  try {
+    var jsPDF = (window.jspdf || {}).jsPDF;
+    if (!jsPDF) throw new Error('jsPDF library not loaded');
+    if (!window.html2canvas) throw new Error('html2canvas not loaded');
+
+    var projNum  = (document.getElementById('projectNumberInput') || {}).value || '';
+    var projName = (document.getElementById('projectNameInput')   || {}).value || '';
+    var today    = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    // ── 1. Prepare zone map: hide non-zone layers, capture, restore ──────────
+    var captureState = typeof window._prepareZoneCapture === 'function'
+      ? window._prepareZoneCapture() : null;
+
+    // Two rAFs + 300ms for Leaflet to apply layer changes before html2canvas reads the DOM
+    await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+    await new Promise(function(r) { setTimeout(r, 300); });
+
+    var mapEl = document.getElementById('noise-map');
+    var zoneMapDataUrl = null, zoneMapAspect = 1;
+    if (mapEl) {
+      var mc = await html2canvas(mapEl, { scale: 3, useCORS: true, allowTaint: true });
+      zoneMapDataUrl = mc.toDataURL('image/png');
+      zoneMapAspect  = mc.height / mc.width;
+    }
+
+    // Restore all layers immediately after capture
+    if (captureState && typeof window._restoreAfterCapture === 'function') {
+      window._restoreAfterCapture(captureState);
+    }
+
+    // ── 2. Build PDF ─────────────────────────────────────────────────────────
+    var pdf    = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    var pW = 210, pH = 297, margin = 20, cW = pW - 2 * margin;
+
+    var GOLD  = [194, 155, 40];
+    var DARK  = [25,  25,  25];
+    var MUTED = [110, 110, 110];
+    var state = (typeof currentState !== 'undefined') ? currentState : '';
+
+    var y = margin;
+
+    // ── Page 1: title + zone map ─────────────────────────────────────────────
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(15);
+    pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
+    pdf.text('Derivation of Noise Emission Criteria', margin, y);
+    y += 7;
+
+    if (projNum || projName) {
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+      pdf.text([projNum, projName].filter(Boolean).join(' \u2014 '), margin, y);
+      y += 5;
+    }
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    pdf.text(today, margin, y);
+    y += 6;
+
+    pdf.setDrawColor(DARK[0], DARK[1], DARK[2]);
+    pdf.setLineWidth(0.4);
+    pdf.line(margin, y, pW - margin, y);
+    y += 8;
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
+    pdf.text('1  Zoning', margin, y);
+    y += 6;
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
+    var zoningBlurb = 'The zoning of the subject site and noise-affected premises is shown in Figure\u00a01.';
+    var zLines = pdf.splitTextToSize(zoningBlurb, cW);
+    pdf.text(zLines, margin, y);
+    y += zLines.length * 4.5 + 4;
+
+    if (zoneMapDataUrl) {
+      var imgH  = cW * zoneMapAspect;
+      var avail = pH - margin - y - 14;
+      var drawH = Math.min(imgH, avail > 20 ? avail : imgH);
+      var drawW = drawH / zoneMapAspect;
+      var imgX  = margin + (cW - drawW) / 2;
+      pdf.setDrawColor(180, 180, 180);
+      pdf.setLineWidth(0.2);
+      pdf.rect(imgX - 0.5, y - 0.5, drawW + 1, drawH + 1, 'S');
+      pdf.addImage(zoneMapDataUrl, 'PNG', imgX, y, drawW, drawH);
+      y += drawH + 4;
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(8);
+      pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+      pdf.text('Figure 1 \u2014 Site zoning', margin + cW / 2, y, { align: 'center' });
+    }
+
+    // ── Page 2: noise criteria table ─────────────────────────────────────────
+    pdf.addPage();
+    y = margin;
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
+    pdf.text('2  Noise criteria', margin, y);
+    y += 6;
+
+    var policyName = state === 'SA'
+      ? 'the Environment Protection (Commercial \u0026 Industrial Noise) Policy 2023'
+      : state === 'VIC' ? 'Noise from Industry in Regional Victoria (NIRV) and State Environment Protection Policy (NIRV)'
+      : state === 'NSW' ? 'the NSW Noise Policy for Industry (2017)'
+      : 'the applicable noise policy';
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
+    var critBlurb = 'Environmental noise criteria derived in accordance with ' + policyName + ' are summarised in Table\u00a01.';
+    var cLines = pdf.splitTextToSize(critBlurb, cW);
+    pdf.text(cLines, margin, y);
+    y += cLines.length * 4.5 + 5;
+
+    y = _renderCriteriaTablePDF(pdf, margin, y, cW, GOLD, DARK, MUTED);
+    y += 4;
+    pdf.setFont('helvetica', 'italic');
+    pdf.setFontSize(8);
+    pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+    pdf.text('Table 1 \u2014 Summary of zones and noise criteria', margin + cW / 2, y, { align: 'center' });
+
+    // ── Page 3: emergency equipment (SA, if selected) ────────────────────────
+    var emergSection = document.getElementById('emergEquipSection');
+    var firePump  = (document.getElementById('saEmergFire') || {}).checked;
+    var generator = (document.getElementById('saEmergGen')  || {}).checked;
+    var emergVisible = emergSection && emergSection.style.display !== 'none' && (firePump || generator);
+
+    if (emergVisible) {
+      pdf.addPage();
+      y = margin;
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
+      pdf.text('3  Emergency equipment criteria', margin, y);
+      y += 6;
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
+      pdf.text('Criteria for emergency equipment are summarised in Table\u00a02.', margin, y);
+      y += 9;
+      y = _renderEmergTablePDF(pdf, margin, y, cW, GOLD, DARK, MUTED);
+      y += 4;
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(8);
+      pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+      pdf.text('Table 2 \u2014 Emergency equipment criteria', margin + cW / 2, y, { align: 'center' });
+    }
+
+    // ── Page numbers ─────────────────────────────────────────────────────────
+    var pageCount = pdf.getNumberOfPages();
+    for (var p = 1; p <= pageCount; p++) {
+      pdf.setPage(p);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+      pdf.text(String(p) + ' / ' + String(pageCount), pW / 2, pH - 10, { align: 'center' });
+    }
+
+    // ── Download ─────────────────────────────────────────────────────────────
+    var fname = (projNum ? projNum.trim() + ' - ' : '') + 'Criteria Derivation.pdf';
+    pdf.save(fname);
+
+  } catch (e) {
+    console.error('exportCriteriaPdf error:', e);
+    alert('PDF export failed: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#x21E9; PDF'; }
+  }
+}
+
+function _renderCriteriaTablePDF(pdf, margin, startY, cW, GOLD, DARK, MUTED) {
+  var state = (typeof currentState !== 'undefined') ? currentState : 'SA';
+  var isVIC = state === 'VIC', isNSW = state === 'NSW', isSA = !isVIC && !isNSW;
+
+  // Column definitions (widths in mm, normalised to cW below)
+  var cols = isSA ? [
+    { key: 'name',  label: 'Location',        w: 44, align: 'left'   },
+    { key: 'zone',  label: 'Zone',             w: 44, align: 'left'   },
+    { key: 'crit',  label: 'Criteria',         w: 20, align: 'center' },
+    { key: 'day',   label: 'Day LAeq (dB)',    w: 21, align: 'center' },
+    { key: 'night', label: 'Night LAeq (dB)',  w: 21, align: 'center' },
+    { key: 'lmax',  label: 'Night LAmax (dB)', w: 20, align: 'center' }
+  ] : isVIC ? [
+    { key: 'name',  label: 'Location',        w: 36, align: 'left'   },
+    { key: 'zone',  label: 'Zone',             w: 32, align: 'left'   },
+    { key: 'land',  label: 'Land use',         w: 28, align: 'left'   },
+    { key: 'day',   label: 'Day LAeq (dB)',    w: 19, align: 'center' },
+    { key: 'eve',   label: 'Eve LAeq (dB)',    w: 19, align: 'center' },
+    { key: 'night', label: 'Night LAeq (dB)',  w: 19, align: 'center' },
+    { key: 'lmax',  label: 'Night LAmax (dB)', w: 17, align: 'center' }
+  ] : /* NSW */ [
+    { key: 'name',  label: 'Location',        w: 42, align: 'left'   },
+    { key: 'zone',  label: 'Zone',             w: 36, align: 'left'   },
+    { key: 'land',  label: 'Land use',         w: 26, align: 'left'   },
+    { key: 'day',   label: 'Day LAeq (dB)',    w: 22, align: 'center' },
+    { key: 'night', label: 'Night LAeq (dB)',  w: 22, align: 'center' },
+    { key: 'lmax',  label: 'Night LAmax (dB)', w: 22, align: 'center' }
+  ];
+  // Normalise to exactly cW
+  var totalW = cols.reduce(function(s, c) { return s + c.w; }, 0);
+  cols.forEach(function(c) { c.w = c.w / totalW * cW; });
+
+  var hdrH = 8, rowH = 7, fs = 8.5;
+  var SHADE_SRC = [242, 242, 242], SHADE_ALT = [250, 250, 250];
+  var y = startY;
+
+  function colX(i) { var x = margin; for (var j = 0; j < i; j++) x += cols[j].w; return x; }
+
+  function drawCell(ci, cy, w, h, text, align, bg, bold, color) {
+    if (bg) { pdf.setFillColor(bg[0], bg[1], bg[2]); pdf.rect(ci, cy, w, h, 'F'); }
+    pdf.setDrawColor(180, 180, 180); pdf.setLineWidth(0.18); pdf.rect(ci, cy, w, h, 'S');
+    if (text == null || text === '') return;
+    pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+    pdf.setFontSize(fs);
+    pdf.setTextColor(color ? color[0] : DARK[0], color ? color[1] : DARK[1], color ? color[2] : DARK[2]);
+    var lines = pdf.splitTextToSize(String(text), w - 4);
+    if (align === 'center') pdf.text(lines, ci + w / 2, cy + h / 2, { align: 'center', baseline: 'middle' });
+    else pdf.text(lines, ci + 2, cy + h / 2, { align: 'left', baseline: 'middle' });
+  }
+
+  // Header row
+  pdf.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
+  pdf.rect(margin, y, cW, hdrH, 'F');
+  cols.forEach(function(col, i) { drawCell(colX(i), y, col.w, hdrH, col.label, col.align, null, true, [255,255,255]); });
+  y += hdrH;
+
+  // Data rows
+  ['src','r1','r2','r3','r4'].forEach(function(id, rowIdx) {
+    var isSrc = id === 'src';
+    if (!isSrc && !(window.getReceiverLatLng && window.getReceiverLatLng(id))) return;
+
+    var nameEl = isSrc ? document.getElementById('subjectSiteName')
+                       : document.getElementById('recvName' + id.replace('r',''));
+    var nameVal = nameEl ? nameEl.value.trim() : id;
+
+    var zdEl = document.getElementById(id + '_zdisp');
+    var zoneVal = '—';
+    if (zdEl) {
+      var nl = zdEl.querySelector('.zone-name-line'), sl = zdEl.querySelector('.zone-sub-line');
+      var parts = [];
+      if (nl && nl.textContent.trim() && nl.textContent.trim() !== '—') parts.push(nl.textContent.trim());
+      if (sl && sl.textContent.trim()) parts.push(sl.textContent.trim());
+      if (parts.length) zoneVal = parts.join(' / ');
+    }
+
+    var landEl  = document.getElementById(id + '_land');
+    var landVal = landEl ? landEl.textContent.trim() : '—';
+
+    var critEl  = document.getElementById(id + '_recvtype_disp');
+    var critVal = isSrc ? 'Subject site' : (critEl ? critEl.textContent.trim() : '—');
+
+    function txt(elId) { var el = document.getElementById(elId); return el ? (el.textContent.trim() || '\u2014') : '\u2014'; }
+    var dayVal   = isSrc ? '\u2014' : txt(id + '_daycrit');
+    var eveVal   = isSrc ? '\u2014' : txt(id + '_evecrit');
+    var nightVal = isSrc ? '\u2014' : txt(id + '_nightcrit');
+    var lmaxVal  = isSrc ? '\u2014' : txt(id + '_lmaxcrit');
+
+    var bg        = isSrc ? SHADE_SRC : (rowIdx % 2 === 0 ? null : SHADE_ALT);
+    var textColor = isSrc ? MUTED : null;
+
+    cols.forEach(function(col, ci) {
+      var val = { name:nameVal, zone:zoneVal, crit:critVal, land:landVal,
+                  day:dayVal, eve:eveVal, night:nightVal, lmax:lmaxVal }[col.key] || '\u2014';
+      drawCell(colX(ci), y, col.w, rowH, val, col.align, bg, false, textColor);
+    });
+    y += rowH;
+  });
+  return y;
+}
+
+function _renderEmergTablePDF(pdf, margin, startY, cW, GOLD, DARK, MUTED) {
+  var thead = document.getElementById('emergEquipHead');
+  var tbody = document.getElementById('emergEquipBody');
+  if (!thead || !tbody) return startY;
+  var headerCells = thead.querySelectorAll('th');
+  var bodyRows    = tbody.querySelectorAll('tr');
+  if (!headerCells.length) return startY;
+
+  var n = headerCells.length, colW = cW / n;
+  var hdrH = 8, rowH = 7, fs = 8.5;
+  var SHADE = [242, 242, 242];
+  var y = startY;
+
+  function drawCell(x, cy, w, h, text, bold, bg) {
+    if (bg) { pdf.setFillColor(bg[0], bg[1], bg[2]); pdf.rect(x, cy, w, h, 'F'); }
+    pdf.setDrawColor(180, 180, 180); pdf.setLineWidth(0.18); pdf.rect(x, cy, w, h, 'S');
+    if (!text) return;
+    pdf.setFont('helvetica', bold ? 'bold' : 'normal'); pdf.setFontSize(fs);
+    var color = bold ? [255,255,255] : DARK;
+    pdf.setTextColor(color[0], color[1], color[2]);
+    var lines = pdf.splitTextToSize(text, w - 4);
+    pdf.text(lines, x + 2, cy + h / 2, { baseline: 'middle' });
+  }
+
+  pdf.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
+  pdf.rect(margin, y, cW, hdrH, 'F');
+  headerCells.forEach(function(th, i) { drawCell(margin + i * colW, y, colW, hdrH, th.textContent.trim(), true, null); });
+  y += hdrH;
+
+  bodyRows.forEach(function(tr, ri) {
+    var tds = tr.querySelectorAll('td');
+    var bg  = ri % 2 === 1 ? SHADE : null;
+    tds.forEach(function(td, i) { drawCell(margin + i * colW, y, colW, rowH, td.textContent.trim(), false, bg); });
+    y += rowH;
+  });
+  return y;
 }
 
 /** Called when user explicitly clicks Major urban / Rural button. Locks area type. */
@@ -15652,6 +15975,62 @@ if (window.pdfjsLib) {
     /* --- Expose SA SAPPA zone query functions for Clause 6 (used outside IIFE) --- */
     window.querySAZoningAtPoint = queryZoningAtPoint;
     window._saMatchZoneToKey = matchZoneToKey;
+
+    /* ── Zone map capture helpers for exportCriteriaPdf() ─────────────────── */
+    window._prepareZoneCapture = function() {
+      var overlay = (typeof getActiveZoneOverlay === 'function') ? getActiveZoneOverlay() : null;
+      var state = {
+        pinsOn:       _allObjVisible,
+        aerialOn:     isAerial,
+        cadastreOn:   isCadastreOn,
+        buildingsOn:  _buildingsOn,
+        zoneOn:       isZoneOn,
+        tcHadLayer:   !!(window._terrainContourLayer && window._map && window._map.hasLayer(window._terrainContourLayer)),
+        noiseOpacity: (_noiseCanvasLayer && window._map && window._map.hasLayer(_noiseCanvasLayer)) ? 0.8 : null,
+        compOpacity:  (_complianceCanvasLayer && window._map && window._map.hasLayer(_complianceCanvasLayer)) ? 0.82 : null,
+        noiseContour: !!(_noiseContourLayer && window._map && window._map.hasLayer(_noiseContourLayer))
+      };
+      // Ensure zone overlay is ON (only if overlay exists — avoids alert)
+      if (!isZoneOn && overlay) { var zb = document.getElementById('zoneToggleBtn'); if (zb) zb.click(); }
+      // Turn OFF objects
+      if (_allObjVisible) { var pb = document.getElementById('pinsToggleBtn'); if (pb) pb.click(); }
+      // Turn OFF aerial (back to street tiles)
+      if (isAerial) { var ab = document.getElementById('aerialToggleBtn'); if (ab) ab.click(); }
+      // Turn OFF cadastre
+      if (isCadastreOn) { var cb = document.getElementById('cadastreToggleBtn'); if (cb) cb.click(); }
+      // Turn OFF OSM buildings
+      if (_buildingsOn) { var bb = document.getElementById('buildingsToggleBtn'); if (bb) bb.click(); }
+      // Hide terrain contour layer (remove, preserving layer contents for restore)
+      if (state.tcHadLayer && window._terrainContourLayer) window._map.removeLayer(window._terrainContourLayer);
+      // Hide noise map canvas (opacity 0 — instant, no Leaflet repaint needed)
+      if (state.noiseOpacity !== null && _noiseCanvasLayer) _noiseCanvasLayer.setOpacity(0);
+      // Hide compliance canvas
+      if (state.compOpacity !== null && _complianceCanvasLayer) _complianceCanvasLayer.setOpacity(0);
+      // Hide noise contour lines layer
+      if (state.noiseContour && _noiseContourLayer && window._map) window._map.removeLayer(_noiseContourLayer);
+      return state;
+    };
+
+    window._restoreAfterCapture = function(state) {
+      // Restore zone to original state
+      if (!state.zoneOn && isZoneOn) { var zb = document.getElementById('zoneToggleBtn'); if (zb) zb.click(); }
+      // Restore objects
+      if (state.pinsOn && !_allObjVisible) { var pb = document.getElementById('pinsToggleBtn'); if (pb) pb.click(); }
+      // Restore aerial
+      if (state.aerialOn && !isAerial) { var ab = document.getElementById('aerialToggleBtn'); if (ab) ab.click(); }
+      // Restore cadastre
+      if (state.cadastreOn && !isCadastreOn) { var cb = document.getElementById('cadastreToggleBtn'); if (cb) cb.click(); }
+      // Restore OSM buildings
+      if (state.buildingsOn && !_buildingsOn) { var bb = document.getElementById('buildingsToggleBtn'); if (bb) bb.click(); }
+      // Restore terrain contour layer
+      if (state.tcHadLayer && window._terrainContourLayer && window._map) window._terrainContourLayer.addTo(window._map);
+      // Restore noise canvas opacity
+      if (state.noiseOpacity !== null && _noiseCanvasLayer) _noiseCanvasLayer.setOpacity(state.noiseOpacity);
+      // Restore compliance canvas opacity
+      if (state.compOpacity !== null && _complianceCanvasLayer) _complianceCanvasLayer.setOpacity(state.compOpacity);
+      // Restore noise contour layer
+      if (state.noiseContour && _noiseContourLayer && window._map) _noiseContourLayer.addTo(window._map);
+    };
 
     /* --- Urban Boundary toggle (VIC only — Major Urban Area polygons) --- */
     var _vicMuaBoundaryLayer = null;
