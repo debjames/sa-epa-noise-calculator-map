@@ -13602,20 +13602,26 @@ initCollapse();
           var map = window._getMapRef ? window._getMapRef() : null;
           // Suppress geocoding during load (names come from saved data, not geocode)
           if (window._recvGeoSetLoading) window._recvGeoSetLoading(true);
-          // Place all source markers (source_0 may be saved as 'source_0' or legacy 'source')
-          sourcePins.forEach(function(src, si) {
-            var key = 'source_' + si;
-            var markerData = data.markers[key] ||
-                             (si === 0 ? data.markers['source'] : null) ||
-                             (src.lat !== null ? { lat: src.lat, lng: src.lng } : null);
-            if (markerData) window._placeMarker(key, markerData);
+          // Clear and re-place ALL source markers (handles orphaned markers from undo/redo)
+          if (window._refreshAllSourceMarkers) {
+            window._refreshAllSourceMarkers();
+          } else {
+            sourcePins.forEach(function(src, si) {
+              var key = 'source_' + si;
+              var markerData = data.markers[key] ||
+                               (si === 0 ? data.markers['source'] : null) ||
+                               (src.lat !== null ? { lat: src.lat, lng: src.lng } : null);
+              if (markerData) window._placeMarker(key, markerData);
+            });
+          }
+          // Clear ALL receiver markers first (handles orphaned markers from undo/redo),
+          // then re-place only those present in the snapshot
+          ['r1','r2','r3','r4'].forEach(function(rk) {
+            if (window._clearMarker) window._clearMarker(rk);
           });
-          // Place receivers
           for (var mi = 1; mi <= 4; mi++) {
-            var key = 'r' + mi;
-            if (data.markers[key]) {
-              window._placeMarker(key, data.markers[key]);
-            }
+            var rKey = 'r' + mi;
+            if (data.markers[rKey]) window._placeMarker(rKey, data.markers[rKey]);
           }
           if (window._recvGeoSetLoading) window._recvGeoSetLoading(false);
           // Update coordinate spans now that markers are loaded
@@ -13730,28 +13736,28 @@ initCollapse();
       if (data.buildingOverrides && data.buildingOverrides.length > 0) {
         window._pendingBuildingOverrides = data.buildingOverrides;
       }
-      // Restore custom buildings
-      if (data.customBuildings && data.customBuildings.length > 0 && window._setCustomBuildings) {
-        window._setCustomBuildings(data.customBuildings.map(function(cb) {
+      // Restore custom buildings (always call to clear orphaned layers from undo/redo)
+      if (window._setCustomBuildings) {
+        window._setCustomBuildings((data.customBuildings || []).map(function(cb) {
           return {
             id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0,
             heightM: cb.heightM, name: cb.name, isCustom: true, userHeightOverride: true
           };
         }));
       }
-      // Restore user-drawn barriers
-      if (data.userBarriers && data.userBarriers.length > 0 && window._setUserBarriers) {
-        window._setUserBarriers(data.userBarriers);
+      // Restore user-drawn barriers (always call to clear orphaned layers from undo/redo)
+      if (window._setUserBarriers) {
+        window._setUserBarriers(data.userBarriers || []);
       }
 
-      // Restore ground absorption zones
-      if (data.groundZones && data.groundZones.length > 0 && window._setGroundZones) {
-        window._setGroundZones(data.groundZones);
+      // Restore ground absorption zones (always call to clear orphaned layers from undo/redo)
+      if (window._setGroundZones) {
+        window._setGroundZones(data.groundZones || []);
       }
 
       // Restore line sources (with legacy migration: period→operatingPct)
-      if (data.lineSources && data.lineSources.length > 0 && window._setLineSources) {
-        var migratedLs = data.lineSources.map(function(ls) {
+      if (window._setLineSources) {
+        var migratedLs = (data.lineSources || []).map(function(ls) {
           if (ls.movements) {
             ['day','eve','night'].forEach(function(p) {
               var m = ls.movements[p];
@@ -13768,14 +13774,14 @@ initCollapse();
         window._setLineSources(migratedLs);
       }
 
-      // Restore area sources
-      if (data.areaSources && data.areaSources.length > 0 && window._setAreaSources) {
-        window._setAreaSources(data.areaSources);
+      // Restore area sources (always call to clear orphaned layers from undo/redo)
+      if (window._setAreaSources) {
+        window._setAreaSources(data.areaSources || []);
       }
 
-      // Restore building sources
-      if (data.buildingSources && data.buildingSources.length > 0 && window._setBuildingSources) {
-        window._setBuildingSources(data.buildingSources);
+      // Restore building sources (always call to clear orphaned layers from undo/redo)
+      if (window._setBuildingSources) {
+        window._setBuildingSources(data.buildingSources || []);
       }
 
       // 16. Re-render detected zones panel for VIC, then push undo snapshot
@@ -14067,6 +14073,11 @@ initCollapse();
 
   function restoreState(json) {
     if (!json || !window._loadAssessment) return;
+    // Disable both buttons immediately while restore is in flight
+    var uBtn = document.getElementById('undoBtn');
+    var rBtn = document.getElementById('redoBtn');
+    if (uBtn) { uBtn.style.opacity = '0.4'; uBtn.style.cursor = 'default'; }
+    if (rBtn) { rBtn.style.opacity = '0.4'; rBtn.style.cursor = 'default'; }
     window._undoRestoring = true;
     try {
       window._loadAssessment(JSON.parse(json));
@@ -14080,12 +14091,14 @@ initCollapse();
   function undo() {
     if (_pointer <= 0) return;
     _pointer--;
+    updateButtons(); // update button state immediately before async restore begins
     restoreState(_history[_pointer].state);
   }
 
   function redo() {
     if (_pointer >= _history.length - 1) return;
     _pointer++;
+    updateButtons(); // update button state immediately before async restore begins
     restoreState(_history[_pointer].state);
   }
 
@@ -14633,6 +14646,14 @@ if (window.pdfjsLib) {
     window._placeMarker = function(mode, ll) { placeMarker(mode, L.latLng(ll.lat, ll.lng)); };
     window._setMode = function(mode) { setMode(mode); };
     window._removeMarker = function(mode) { removeMarker(mode); };
+    /* Silently remove a marker (no render/updateAll side-effects — for undo restore cleanup) */
+    window._clearMarker = function(mode) {
+      if (!markers[mode]) return;
+      map.removeLayer(markers[mode]);
+      delete markers[mode];
+      if (labelMarkers[mode]) { map.removeLayer(labelMarkers[mode]); delete labelMarkers[mode]; }
+      delete latlngs[mode];
+    };
     window._getMapRef = function() { return map; };
     window._getAllLatLngs = function() { return latlngs; };
     /* Refresh all source_N dot+label markers after array splice (renumbers labels S1,S2,…) */
