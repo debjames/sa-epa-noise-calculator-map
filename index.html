@@ -462,13 +462,17 @@ body.state-other.hide-day-col .crit-day-section { display: none !important; }
 body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
 /* ===== P&D Code Provisions Table (SA only) ===== */
+#pdcProvisionsSection { display: none; }
+body.state-sa #pdcProvisionsSection { display: grid; }
 .pdc-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
 .pdc-table th { padding:5px 8px; text-align:left; vertical-align:top; font-size:11px; }
 .pdc-table td { padding:5px 8px; vertical-align:top; line-height:1.45; }
-.pdc-ref-col { width:9%; font-weight:600; white-space:nowrap; font-size:11px; }
+td.pdc-ref-col { font-weight:600; white-space:nowrap; font-size:11px; }
+.pdc-ref-col { width:9%; }
 .pdc-po-col  { width:36%; }
 .pdc-dts-col { width:33%; }
 .pdc-rel-col { width:22%; }
+.pdc-tbc { color:#9ca3af; font-style:italic; }
 .pdc-rel-cell [contenteditable] { outline:none; min-height:1.3em; cursor:text; display:block; }
 .pdc-rel-cell [contenteditable]:focus { background:#f0f9ff; border-radius:3px; }
 .pdc-row-relevant td.pdc-rel-cell { border-left:3px solid #4CAF50; padding-left:6px; }
@@ -1411,7 +1415,10 @@ body.map-fs-active { overflow: hidden; }
       <div class="card span2">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
           <h2 style="margin:0;">Planning &amp; Design Code &#x2014; Interface between Land Uses</h2>
-          <button class="collapse-btn" id="pdcToggleBtn" title="Toggle section" onclick="(function(btn){var b=document.getElementById('pdcBody');var open=b.style.display!=='none';b.style.display=open?'none':'';btn.innerHTML=open?'&#x25BC;':'&#x25B2;';})(this)">&#x25B2;</button>
+          <div style="display:flex;gap:5px;align-items:center;">
+            <button class="crit-refresh-btn" onclick="(function(){showToast('Refreshing provisions\u2026',1500);_pdcProvisions.forEach(function(p){if(!p.manual)p.relevance='';});updatePDCProvisions();})()" title="Re-scan source names and PDF for provision relevance">&#x21BB;</button>
+            <button class="collapse-btn" id="pdcToggleBtn" title="Toggle section" onclick="(function(btn){var b=document.getElementById('pdcBody');var open=b.style.display!=='none';b.style.display=open?'none':'';btn.innerHTML=open?'&#x25BC;':'&#x25B2;';})(this)">&#x25B2;</button>
+          </div>
         </div>
         <div id="pdcBody">
           <div class="p" style="margin-bottom:8px;color:#6b7280;font-style:italic;font-size:12px;">Upload PDF and/or undertake noise modelling to understand noise sources and relevant provisions from the Planning &amp; Design Code under Part 4 Interface between Land Uses.</div>
@@ -6251,6 +6258,13 @@ function _pdcAutoDetectRelevance() {
   if (typeof lineSources !== 'undefined') hasAnySource = hasAnySource || lineSources.length > 0;
   if (typeof areaSources !== 'undefined') hasAnySource = hasAnySource || areaSources.length > 0;
   if (typeof buildingSources !== 'undefined') hasAnySource = hasAnySource || buildingSources.length > 0;
+  var hasPdf = window._pdfSuggestedGroups !== null && window._pdfSuggestedGroups !== undefined;
+
+  // No sources and no PDF yet — return TBC for all rows
+  if (!hasAnySource && !hasPdf) {
+    return ['TBC', 'TBC', 'TBC', 'TBC', 'TBC', 'TBC'];
+  }
+
   if (hasAnySource) results[0] = 'Noise sources identified \u2014 assessed under Noise Policy';
 
   // PO 4.2 — vehicles, manoeuvring, outdoor plant
@@ -6307,15 +6321,18 @@ function _renderPDCTable() {
     var prov = _PDC_PROVISIONS[i];
     var state = _pdcProvisions[i];
     var rel = state.relevance || '\u2014';
-    var isRelevant = state.relevance !== '' && state.relevance !== '\u2014';
+    var isTbc = rel === 'TBC';
+    var isRelevant = !isTbc && state.relevance !== '' && state.relevance !== '\u2014';
     var rowCls = isRelevant ? 'pdc-row-relevant' : 'pdc-row-muted';
     var relCls = isRelevant ? 'pdc-rel-cell pdc-relevant-border' : 'pdc-rel-cell';
     var badge = state.manual ? '<div class="pdc-manual-badge">(edited)</div>' : '';
+    var tbcClass = isTbc ? ' class="pdc-tbc"' : '';
+    var displayRel = isTbc ? 'TBC pending modelling' : rel;
     html += '<tr class="' + rowCls + '" id="pdcRow' + i + '">';
     html += '<td class="pdc-ref-col">' + escapeHTML(prov.ref) + '</td>';
     html += '<td class="pdc-po-col">' + escapeHTML(prov.po) + '</td>';
     html += '<td class="pdc-dts-col">' + escapeHTML(prov.dts) + '</td>';
-    html += '<td class="' + relCls + '"><div contenteditable="true" id="pdcRelCell' + i + '" oninput="window._pdcOnEdit(' + i + ',this.textContent)" style="outline:none;min-height:1.3em;">' + escapeHTML(rel) + '</div>' + badge + '</td>';
+    html += '<td class="' + relCls + '"><div contenteditable="true" id="pdcRelCell' + i + '" oninput="window._pdcOnEdit(' + i + ',this.textContent)"' + tbcClass + ' style="outline:none;min-height:1.3em;">' + escapeHTML(displayRel) + '</div>' + badge + '</td>';
     html += '</tr>';
   }
   tbody.innerHTML = html;
@@ -11389,6 +11406,9 @@ function render() {
   // Update octave band spectrum chart
   if (typeof updateSpectrumChart === 'function') updateSpectrumChart();
 
+  // Update P&D Code provisions (SA only)
+  if (typeof updatePDCProvisions === 'function') updatePDCProvisions();
+
 }
 
 
@@ -11751,8 +11771,6 @@ function renderRecommendations() {
     'Verify with detailed modelling before use in assessment reports.</div>';
   html += '</div>';
   body.innerHTML = html;
-  // Update P&D Code provisions auto-detection after every render (SA only)
-  if (typeof updatePDCProvisions === 'function') updatePDCProvisions();
 }
 
 
