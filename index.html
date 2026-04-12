@@ -1446,7 +1446,7 @@ body.map-fs-active { overflow: hidden; }
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
           <h2 style="margin:0;">Receivers &amp; criteria</h2>
           <div style="display:flex;gap:5px;align-items:center;">
-            <button class="crit-refresh-btn" id="exportCriteriaPdfBtn" onclick="exportCriteriaPdf(this)" title="Export criteria derivation PDF (A4 portrait)">&#x21E9; PDF</button>
+            <button class="crit-refresh-btn" id="exportCriteriaPdfBtn" onclick="exportCriteriaPdf(this)" title="Export criteria derivation PDF (A4 portrait)">&#x21E9;</button>
             <button class="crit-refresh-btn" onclick="refreshZonesAndCriteria()" title="Refresh all: addresses, coordinates, ASL, zones and criteria for all placed markers">&#x21BB;</button>
           </div>
         </div>
@@ -1690,8 +1690,13 @@ body.map-fs-active { overflow: hidden; }
     <!-- SA: MBS 010 -->
     <div class="grid2 sa-only" id="mbs010Section" style="padding-top:0;display:none;">
       <div class="card span2">
-        <h2>MBS 010</h2>
-        <div class="p">The application of MBS 010 will be triggered if the subject site is located in an ANEF contour or is within a Noise Attenuation Area (Noise and Air Emissions Overlay). <a id="sappaLink" href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener" class="tool-btn map-mode-btn" style="text-decoration:none;display:inline-block;font-size:12px;padding:3px 10px;vertical-align:middle;" title="Open SAPPA to view layers">SAPPA &#8599;</a> <button class="tool-btn map-mode-btn" id="mbs010RefreshBtn" onclick="refreshMBS010()" style="font-size:12px;padding:3px 10px;" title="Re-query SAPPA for MBS 010 data">&#8635; Refresh</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <h2 style="margin:0;">MBS 010</h2>
+          <div style="display:flex;gap:5px;align-items:center;">
+            <button class="crit-refresh-btn" id="mbs010RefreshBtn" onclick="refreshMBS010()" title="Re-query SAPPA for MBS 010 data">&#x21BB;</button>
+          </div>
+        </div>
+        <div class="p">The application of MBS 010 will be triggered if the subject site is located in an ANEF contour or is within a Noise Attenuation Area (Noise and Air Emissions Overlay). <a id="sappaLink" href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener" class="tool-btn map-mode-btn" style="text-decoration:none;display:inline-block;font-size:12px;padding:3px 10px;vertical-align:middle;" title="Open SAPPA to view layers">SAPPA &#8599;</a></div>
         <div class="table-scroll">
           <table class="crit-table" style="margin-top:8px;" id="mbs010Table">
             <thead>
