@@ -463,12 +463,12 @@ body.state-other.hide-eve-col .crit-eve-section { display: none !important; }
 
 /* ===== P&D Code Provisions Table (SA only) ===== */
 .pdc-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
-.pdc-table th { background:#f3f4f6; font-weight:600; padding:5px 8px; text-align:left; vertical-align:top; border-bottom:2px solid #d1d5db; font-size:11px; }
-.pdc-table td { padding:5px 8px; vertical-align:top; border-top:1px solid var(--border); line-height:1.45; }
+.pdc-table th { padding:5px 8px; text-align:left; vertical-align:top; font-size:11px; }
+.pdc-table td { padding:5px 8px; vertical-align:top; line-height:1.45; }
 .pdc-ref-col { width:9%; font-weight:600; white-space:nowrap; font-size:11px; }
+.pdc-po-col  { width:36%; }
+.pdc-dts-col { width:33%; }
 .pdc-rel-col { width:22%; }
-.pdc-po-col  { width:35%; }
-.pdc-dts-col { width:34%; }
 .pdc-rel-cell [contenteditable] { outline:none; min-height:1.3em; cursor:text; display:block; }
 .pdc-rel-cell [contenteditable]:focus { background:#f0f9ff; border-radius:3px; }
 .pdc-row-relevant td.pdc-rel-cell { border-left:3px solid #4CAF50; padding-left:6px; }
@@ -1419,10 +1419,10 @@ body.map-fs-active { overflow: hidden; }
             <table class="pdc-table">
               <thead>
                 <tr>
-                  <th class="pdc-rel-col">Relevance</th>
                   <th class="pdc-ref-col">Provision</th>
                   <th class="pdc-po-col">Performance Outcome</th>
                   <th class="pdc-dts-col">DTS/DPF</th>
+                  <th class="pdc-rel-col">Relevance</th>
                 </tr>
               </thead>
               <tbody id="pdcTableBody">
@@ -6312,10 +6312,10 @@ function _renderPDCTable() {
     var relCls = isRelevant ? 'pdc-rel-cell pdc-relevant-border' : 'pdc-rel-cell';
     var badge = state.manual ? '<div class="pdc-manual-badge">(edited)</div>' : '';
     html += '<tr class="' + rowCls + '" id="pdcRow' + i + '">';
-    html += '<td class="' + relCls + '"><div contenteditable="true" id="pdcRelCell' + i + '" oninput="window._pdcOnEdit(' + i + ',this.textContent)" style="outline:none;min-height:1.3em;">' + escapeHTML(rel) + '</div>' + badge + '</td>';
     html += '<td class="pdc-ref-col">' + escapeHTML(prov.ref) + '</td>';
     html += '<td class="pdc-po-col">' + escapeHTML(prov.po) + '</td>';
     html += '<td class="pdc-dts-col">' + escapeHTML(prov.dts) + '</td>';
+    html += '<td class="' + relCls + '"><div contenteditable="true" id="pdcRelCell' + i + '" oninput="window._pdcOnEdit(' + i + ',this.textContent)" style="outline:none;min-height:1.3em;">' + escapeHTML(rel) + '</div>' + badge + '</td>';
     html += '</tr>';
   }
   tbody.innerHTML = html;
