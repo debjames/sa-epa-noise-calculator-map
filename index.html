@@ -13572,6 +13572,13 @@ initCollapse();
             }
           }
           if (window._recvGeoSetLoading) window._recvGeoSetLoading(false);
+          // Update coordinate spans now that markers are loaded
+          for (var ci = 1; ci <= 4; ci++) {
+            var cmode = 'r' + ci;
+            if (data.markers && data.markers[cmode] && typeof window._recvOnDragEnd === 'function') {
+              window._recvOnDragEnd(cmode, data.markers[cmode]);
+            }
+          }
           // Fit map bounds to markers
           if (map) {
             var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
@@ -16704,6 +16711,11 @@ if (window.pdfjsLib) {
       fetchPinElevation(mode, latlng);
       if (typeof _renderObjectList === 'function') _renderObjectList();
 
+      /* Receiver placed — notify geocode/coords hook */
+      if (!isSourceMode(mode) && typeof window._recvOnPlaced === 'function') {
+        window._recvOnPlaced(mode, latlng);
+      }
+
       /* Auto-detect zone — called here (before updateAll) so it fires even if render throws */
       console.log('Zone detect triggered:', mode, latlng);
       queryAndSetZone(mode, latlng);
@@ -16756,6 +16768,8 @@ if (window.pdfjsLib) {
           }
           // Refresh Objects panel so coordinates update immediately
           if (typeof _renderObjectList === 'function') _renderObjectList();
+          // Receiver dragged — notify geocode/coords hook
+          if (typeof window._recvOnDragEnd === 'function') window._recvOnDragEnd(mode, ll);
         }
         if (isSourceMode(mode) && currentState === 'VIC' && vicAreaType === 'rural') {
           // Source moved — re-query Clause 20 for all receivers
@@ -25677,54 +25691,44 @@ if (window.pdfjsLib) {
     }
   }
 
-  // ── Override window._placeMarker to hook geocoding + coords ──────────────
-  function hookPlaceMarker() {
-    var orig = window._placeMarker;
-    if (!orig) { console.warn('[recvGeo] window._placeMarker not found yet'); return; }
-    window._placeMarker = function(mode, ll) {
-      orig(mode, ll);
-      if (!/^r[1-4]$/.test(mode)) return;
-      updateCoordsSpan(mode, ll);
-      if (!_isLoading) scheduleGeocode(mode, ll.lat, ll.lng);
-    };
-  }
+  // ── Callbacks called directly from placeMarker() and its dragend handler ──
+  // (window._placeMarker is only called during JSON load, NOT on user map-click;
+  //  so we hook via callbacks set on window from inside the inner closure)
 
-  // ── Wrap _renderObjectList to update coords + detect drag ─────────────────
-  function hookRenderObjectList() {
-    var orig = window._renderObjectList;
-    window._renderObjectList = function() {
-      if (typeof orig === 'function') orig();
-      // Update coord spans and detect position changes (drag)
-      for (var i = 1; i <= 4; i++) {
-        var mode = 'r' + i;
-        var ll   = window.getReceiverLatLng ? window.getReceiverLatLng(mode) : null;
-        if (!ll) continue;
-        updateCoordsSpan(mode, ll);
-        var hash = ll.lat.toFixed(5) + ',' + ll.lng.toFixed(5);
-        if (hash !== _lastHash[mode]) {
-          _lastHash[mode] = hash;
-          // Receiver moved — re-geocode if auto-name is still enabled
-          if (_autoName[mode] && !_isLoading) {
-            scheduleGeocode(mode, ll.lat, ll.lng);
-          }
-        }
-      }
-    };
-  }
+  // Called by placeMarker() immediately after a receiver marker is created
+  window._recvOnPlaced = function(mode, ll) {
+    updateCoordsSpan(mode, { lat: ll.lat, lng: ll.lng });
+    if (!_isLoading) scheduleGeocode(mode, ll.lat, ll.lng);
+  };
 
-  // ── Initialise once DOM/map are ready ────────────────────────────────────
-  // window._placeMarker and window._renderObjectList are set synchronously in
-  // the same script block above, so they're available immediately at page load.
+  // Called by placeMarker()'s dragend handler after a receiver is dropped
+  window._recvOnDragEnd = function(mode, ll) {
+    var lat = ll.lat, lng = ll.lng;
+    updateCoordsSpan(mode, { lat: lat, lng: lng });
+    var hash = lat.toFixed(5) + ',' + lng.toFixed(5);
+    if (hash !== _lastHash[mode]) {
+      _lastHash[mode] = hash;
+      if (_autoName[mode] && !_isLoading) scheduleGeocode(mode, lat, lng);
+    }
+  };
+
+  // ── Also update coord spans on any external _renderObjectList call ────────
+  // (covers the suggested-sources IIFE and other callers that use window.*)
+  var _origROL = window._renderObjectList;
+  window._renderObjectList = function() {
+    if (typeof _origROL === 'function') _origROL();
+    for (var i = 1; i <= 4; i++) {
+      var mode = 'r' + i;
+      var ll   = window.getReceiverLatLng ? window.getReceiverLatLng(mode) : null;
+      if (ll) updateCoordsSpan(mode, ll);
+    }
+  };
+
+  // ── Wire name input events (detects manual edits) ─────────────────────────
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-      wireInputs();
-      hookPlaceMarker();
-      hookRenderObjectList();
-    });
+    document.addEventListener('DOMContentLoaded', wireInputs);
   } else {
     wireInputs();
-    hookPlaceMarker();
-    hookRenderObjectList();
   }
 
 })();
