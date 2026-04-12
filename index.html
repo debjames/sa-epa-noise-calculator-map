@@ -300,7 +300,20 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   0%   { background-color: rgba(242,203,0,0.4); }
   100% { background-color: transparent; }
 }
-
+/* Zone text display — replaces raw dropdown for readability */
+.zone-text-wrap { display: flex; align-items: flex-start; gap: 4px; }
+.zone-display-text { flex: 1; min-width: 0; }
+.zone-name-line { display: block; font-size: 13px; line-height: 1.35; }  /* matches td default */
+.zone-sub-line { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+.zone-edit-btn { flex-shrink:0; background:none; border:none; cursor:pointer; font-size:11px; padding:1px 3px; color:var(--muted); border-radius:3px; opacity:.55; line-height:1; margin-top:2px; }
+.zone-edit-btn:hover { opacity:1; background:rgba(255,255,255,.12); }
+/* Zone col select (edit mode) — compact to fit in table cell */
+.zone-col select { font-size:12px; padding:4px 6px; border-radius:6px; }
+/* Subject-site row — criteria cells (no criteria apply to source) */
+.src-crit-shade { background: rgba(0,0,0,.03); color: var(--muted); }
+/* Refresh button in panel header */
+.crit-refresh-btn { background:none; border:1px solid var(--border); border-radius:5px; padding:2px 8px; cursor:pointer; font-size:14px; color:var(--muted); line-height:1.2; }
+.crit-refresh-btn:hover { background:rgba(255,255,255,.08); color:var(--fg); }
 .zone-status-label {
   font-size: 10px;
   color: var(--muted);
@@ -413,6 +426,7 @@ body.state-nsw span.nsw-only { display: inline-block !important; }
 .state-badge-nsw { background: #dbeafe; color: #1e3a5f; }
 .nsw-amenity-area-sel { width: 140px; font-size: 12px; }
 .nsw-recv-type-sel { width: 100%; font-size: 11px; margin-top: 3px; }
+.recv-type-select { width: 100%; min-width: 52px; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
 .nsw-rbl-input { width: 60px; text-align: center; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
 .nsw-mod-section label { display: block; font-size: 12px; margin: 3px 0; cursor: pointer; }
 .nsw-mod-section input[type="checkbox"], .nsw-mod-section input[type="radio"] { margin-right: 5px; }
@@ -1381,10 +1395,13 @@ body.map-fs-active { overflow: hidden; }
     <div class="grid2" style="padding-top:0;">
       <!-- ===== SELECTIONS CARD ===== -->
       <div class="card span2">
-        <h2>Receivers & criteria</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <h2 style="margin:0;">Receivers &amp; criteria</h2>
+          <button class="crit-refresh-btn" onclick="refreshZonesAndCriteria()" title="Re-fetch zones and criteria for all placed markers">&#x21BB;</button>
+        </div>
         <div class="p" id="policyNoteText" style="display:none;font-style:italic;margin-bottom:4px;"></div>
         <div class="p" id="zoneDescText">
-          Zones and subzones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA</a>). You can also select manually from the dropdowns.
+          Zones and subzones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA</a>). Click &#x270F; to override manually. Use &#x21BB; to re-fetch.
         </div>
 
         <div class="other-only" style="margin-bottom:12px;">
@@ -1409,24 +1426,36 @@ body.map-fs-active { overflow: hidden; }
         <div class="table-scroll">
         <table>
           <tr>
-            <th style="width:25%;">Location</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:10%;" class="landuse-col">Land use</th><th style="width:8%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="num crit-day-col">Day L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num vic-only crit-eve-col">Evening L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-night-col">Night L<sub>eq</sub><br>criterion</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>max</sub><br>criterion</th>
+            <th style="width:25%;">Location</th><th style="width:25%;" class="zone-col">Zone / Subzone</th><th class="vic-only vic-zone-col">Zone</th><th style="width:10%;" class="landuse-col">Land use</th><th style="width:8%;" class="sa-only recv-type-col">Criteria</th><th style="width:10%;" class="num crit-day-col">Day L<sub>Aeq</sub><br>dB</th><th style="width:10%;" class="num vic-only crit-eve-col">Eve L<sub>Aeq</sub><br>dB</th><th style="width:10%;" class="num crit-night-col">Night L<sub>Aeq</sub><br>dB</th><th style="width:10%;" class="num crit-lmax-col">Night L<sub>Amax</sub><br>dB</th>
           </tr>
 
           <tr>
             <td><input type="text" class="recv-name-input" id="subjectSiteName" value="Subject site" placeholder="Subject site"><br><span id="subjectSiteCoords" style="font-size:9px;color:#9ca3af;display:block;"></span><span id="subjectSiteElev" style="font-size:9px;color:#999;font-style:italic;"></span></td>
-            <td class="zone-col"><select id="src"></select><div id="src-zone-autodetect" style="display:none;font-size:10px;color:#6b7280;font-style:italic;margin-top:2px;line-height:1.3;">Auto-detected from source location</div></td>
+            <td class="zone-col">
+              <div class="zone-text-wrap">
+                <div class="zone-display-text" id="src_zdisp"><span class="zone-name-line">—</span><span class="zone-sub-line"></span></div>
+                <select id="src" style="display:none;width:100%;margin-top:2px;" onchange="updateZoneDisplay('src');render();"></select>
+                <button class="zone-edit-btn" onclick="toggleZoneEdit('src')" title="Edit zone">&#x270F;</button>
+              </div>
+            </td>
             <td id="src_viczone" class="vic-only vic-zone-col"></td>
             <td id="src_land" class="left landuse-col"></td>
-            <td class="sa-only recv-type-col"></td>
-            <td class="num crit-day-col"></td>
-            <td class="num vic-only crit-eve-col"></td>
-            <td class="num crit-night-col"></td>
-            <td class="num crit-lmax-col"></td>
+            <td class="sa-only recv-type-col src-crit-shade" style="text-align:center;">Subject site</td>
+            <td class="num crit-day-col src-crit-shade">—</td>
+            <td class="num vic-only crit-eve-col src-crit-shade">—</td>
+            <td class="num crit-night-col src-crit-shade">—</td>
+            <td class="num crit-lmax-col src-crit-shade">—</td>
           </tr>
 
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"><span id="r1_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="recvCoords_r1" style="font-size:9px;color:#9ca3af;display:block;"></span><span id="groundElev_r1" style="font-size:9px;color:#999;font-style:italic;"></span></td>
-            <td class="zone-col"><select id="r1"></select></td>
+            <td class="zone-col">
+              <div class="zone-text-wrap">
+                <div class="zone-display-text" id="r1_zdisp"><span class="zone-name-line">—</span><span class="zone-sub-line"></span></div>
+                <select id="r1" style="display:none;width:100%;margin-top:2px;" onchange="updateZoneDisplay('r1');render();"></select>
+                <button class="zone-edit-btn" onclick="toggleZoneEdit('r1')" title="Edit zone">&#x270F;</button>
+              </div>
+            </td>
             <td id="r1_viczone" class="vic-only vic-zone-col"></td>
             <td id="r1_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r1_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
@@ -1437,7 +1466,13 @@ body.map-fs-active { overflow: hidden; }
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"><span id="r2_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="recvCoords_r2" style="font-size:9px;color:#9ca3af;display:block;"></span><span id="groundElev_r2" style="font-size:9px;color:#999;font-style:italic;"></span></td>
-            <td class="zone-col"><select id="r2"></select></td>
+            <td class="zone-col">
+              <div class="zone-text-wrap">
+                <div class="zone-display-text" id="r2_zdisp"><span class="zone-name-line">—</span><span class="zone-sub-line"></span></div>
+                <select id="r2" style="display:none;width:100%;margin-top:2px;" onchange="updateZoneDisplay('r2');render();"></select>
+                <button class="zone-edit-btn" onclick="toggleZoneEdit('r2')" title="Edit zone">&#x270F;</button>
+              </div>
+            </td>
             <td id="r2_viczone" class="vic-only vic-zone-col"></td>
             <td id="r2_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r2_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
@@ -1448,7 +1483,13 @@ body.map-fs-active { overflow: hidden; }
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"><span id="r3_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="recvCoords_r3" style="font-size:9px;color:#9ca3af;display:block;"></span><span id="groundElev_r3" style="font-size:9px;color:#999;font-style:italic;"></span></td>
-            <td class="zone-col"><select id="r3"></select></td>
+            <td class="zone-col">
+              <div class="zone-text-wrap">
+                <div class="zone-display-text" id="r3_zdisp"><span class="zone-name-line">—</span><span class="zone-sub-line"></span></div>
+                <select id="r3" style="display:none;width:100%;margin-top:2px;" onchange="updateZoneDisplay('r3');render();"></select>
+                <button class="zone-edit-btn" onclick="toggleZoneEdit('r3')" title="Edit zone">&#x270F;</button>
+              </div>
+            </td>
             <td id="r3_viczone" class="vic-only vic-zone-col"></td>
             <td id="r3_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r3_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
@@ -1459,7 +1500,13 @@ body.map-fs-active { overflow: hidden; }
           </tr>
           <tr>
             <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"><span id="r4_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="recvCoords_r4" style="font-size:9px;color:#9ca3af;display:block;"></span><span id="groundElev_r4" style="font-size:9px;color:#999;font-style:italic;"></span></td>
-            <td class="zone-col"><select id="r4"></select></td>
+            <td class="zone-col">
+              <div class="zone-text-wrap">
+                <div class="zone-display-text" id="r4_zdisp"><span class="zone-name-line">—</span><span class="zone-sub-line"></span></div>
+                <select id="r4" style="display:none;width:100%;margin-top:2px;" onchange="updateZoneDisplay('r4');render();"></select>
+                <button class="zone-edit-btn" onclick="toggleZoneEdit('r4')" title="Edit zone">&#x270F;</button>
+              </div>
+            </td>
             <td id="r4_viczone" class="vic-only vic-zone-col"></td>
             <td id="r4_land" class="left landuse-col"></td>
             <td class="sa-only recv-type-col"><select id="r4_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
@@ -5870,13 +5917,13 @@ function updateZoneDescText() {
   const el = document.getElementById('zoneDescText');
   if (!el) return;
   if (currentState === 'VIC') {
-    el.innerHTML = 'Zones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://mapshare.vic.gov.au/vicplan/" target="_blank" rel="noopener">VicPlan</a>). You can also select manually from the dropdowns.';
+    el.innerHTML = 'Zones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://mapshare.vic.gov.au/vicplan/" target="_blank" rel="noopener">VicPlan</a>). Click the &#x270F; icon to override manually.';
   } else if (currentState === 'NSW') {
     el.innerHTML = 'Planning zones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://www.planningportal.nsw.gov.au/spatialviewer/" target="_blank" rel="noopener">NSW Planning Portal</a>). The noise amenity area is derived from the zone code.';
   } else if (currentState === 'OTHER') {
     el.innerHTML = '';
   } else {
-    el.innerHTML = 'Zones and subzones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA</a>). You can also select manually from the dropdowns.';
+    el.innerHTML = 'Zones and subzones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA</a>). Click the &#x270F; icon to override manually. Use &#x21BB; to re-fetch.';
   }
 }
 
@@ -5906,22 +5953,94 @@ function rebuildZoneSelects() {
     ['src','r1','r2','r3','r4'].forEach(function(id) {
       var sel = document.getElementById(id);
       if (sel) { sel.innerHTML = ''; sel.value = ''; }
+      updateZoneDisplay(id);
     });
     return;
   }
   if (currentState === 'VIC') {
-    fillSelectVIC('src');
-    fillSelectVIC('r1');
-    fillSelectVIC('r2');
-    fillSelectVIC('r3');
-    fillSelectVIC('r4');
+    fillSelectVIC('src'); fillSelectVIC('r1'); fillSelectVIC('r2'); fillSelectVIC('r3'); fillSelectVIC('r4');
   } else {
-    fillSelect('src');
-    fillSelect('r1');
-    fillSelect('r2');
-    fillSelect('r3');
-    fillSelect('r4');
+    fillSelect('src'); fillSelect('r1'); fillSelect('r2'); fillSelect('r3'); fillSelect('r4');
   }
+  // Update text displays after options are rebuilt
+  ['src','r1','r2','r3','r4'].forEach(updateZoneDisplay);
+}
+
+// ── Zone text display helpers ────────────────────────────────────────────────
+
+/** Update the read-only zone text display for a given select id. */
+function updateZoneDisplay(id) {
+  var sel  = document.getElementById(id);
+  var disp = document.getElementById(id + '_zdisp');
+  if (!disp) return;
+  var nameLine = disp.querySelector('.zone-name-line');
+  var subLine  = disp.querySelector('.zone-sub-line');
+  if (!nameLine || !subLine) return;
+
+  var val = sel ? sel.value : '';
+  if (!val) {
+    nameLine.textContent = '—';
+    subLine.textContent  = '';
+    return;
+  }
+
+  // SA format: "Zone Name Zone | Subzone Name Subzone" or "Zone Name Zone | (no subzone)"
+  if (val.indexOf(' | ') !== -1) {
+    var parts   = val.split(' | ');
+    nameLine.textContent = parts[0] || '—';
+    var sub = parts[1] || '';
+    subLine.textContent  = (sub && sub !== '(no subzone)') ? sub : '';
+  } else {
+    // VIC format: use option label text
+    var opt = sel && sel.options[sel.selectedIndex];
+    nameLine.textContent = opt ? opt.textContent : val;
+    subLine.textContent  = '';
+  }
+
+}
+
+/** Toggle between read-only text display and the edit dropdown. */
+function toggleZoneEdit(id) {
+  var sel  = document.getElementById(id);
+  var disp = document.getElementById(id + '_zdisp');
+  if (!sel || !disp) return;
+  var editing = sel.style.display !== 'none';
+  if (editing) {
+    // Commit: hide select, show text
+    sel.style.display = 'none';
+    disp.style.display = '';
+    updateZoneDisplay(id);
+    render();
+  } else {
+    // Open: show select, hide text
+    sel.style.display = '';
+    disp.style.display = 'none';
+    sel.focus();
+    // Auto-close when user clicks away
+    sel.addEventListener('blur', function onBlur() {
+      sel.removeEventListener('blur', onBlur);
+      // Small delay so a click on an option registers first
+      setTimeout(function() { toggleZoneEdit(id); }, 150);
+    });
+  }
+}
+
+/** Refresh button handler — re-fetches zones, terrain and recomputes criteria. */
+function refreshZonesAndCriteria() {
+  showToast('Refreshing zones and criteria\u2026', 3500);
+  // Re-query zones for all placed markers
+  if (typeof window._requeryAllZones === 'function') window._requeryAllZones();
+  if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
+  // SA Clause 6 ray casts
+  if (typeof triggerClause6AllReceivers === 'function') triggerClause6AllReceivers();
+  // VIC IF and Clause 20
+  if (typeof triggerAutoIFAllReceivers === 'function') triggerAutoIFAllReceivers();
+  if (typeof triggerClause20AllReceivers === 'function') triggerClause20AllReceivers();
+  // Terrain
+  if (typeof refreshAllTerrainIL === 'function' && typeof _terrainEnabled !== 'undefined' && _terrainEnabled) {
+    refreshAllTerrainIL();
+  }
+  setTimeout(function() { showToast('Done', 1200); }, 3000);
 }
 
 /** Called when user explicitly clicks Major urban / Rural button. Locks area type. */
@@ -13799,6 +13918,8 @@ initCollapse();
                 el.appendChild(opt);
                 el.value = data.zones[id];
               }
+              // Update zone text display after restoring value
+              if (typeof updateZoneDisplay === 'function') updateZoneDisplay(id);
             }
           });
 
@@ -15892,9 +16013,14 @@ if (window.pdfjsLib) {
             if (sel) {
               sel.value = key;
               sel.dispatchEvent(new Event('change', { bubbles: true }));
-              /* Flash highlight on auto-selected dropdown */
-              sel.classList.add('zone-detect-flash');
-              setTimeout(function() { sel.classList.remove('zone-detect-flash'); }, 1600);
+              /* Flash highlight on zone text display (select is now hidden) */
+              var _dispEl = document.getElementById(selectId + '_zdisp');
+              if (_dispEl) {
+                _dispEl.classList.remove('zone-detect-flash');
+                void _dispEl.offsetWidth;
+                _dispEl.classList.add('zone-detect-flash');
+                setTimeout(function() { _dispEl.classList.remove('zone-detect-flash'); }, 1600);
+              }
               // Re-render criteria after zone detection sets dropdown value
               if (typeof render === 'function') render();
             }
@@ -16746,8 +16872,14 @@ if (window.pdfjsLib) {
               }
             }
             sel.dispatchEvent(new Event('change', { bubbles: true }));
-            sel.classList.add('zone-detect-flash');
-            setTimeout(function() { sel.classList.remove('zone-detect-flash'); }, 1600);
+            /* Flash the visible display text element (select is now hidden) */
+            var _vDispEl = document.getElementById(selectId + '_zdisp');
+            if (_vDispEl) {
+              _vDispEl.classList.remove('zone-detect-flash');
+              void _vDispEl.offsetWidth;
+              _vDispEl.classList.add('zone-detect-flash');
+              setTimeout(function() { _vDispEl.classList.remove('zone-detect-flash'); }, 1600);
+            }
             // Re-render criteria after zone detection sets dropdown value
             if (typeof render === 'function') render();
           }
