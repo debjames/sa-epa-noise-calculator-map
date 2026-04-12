@@ -24218,7 +24218,14 @@ if (window.pdfjsLib) {
           if (chain.length >= 3) chains.push(chain);
         }
         var EPS2 = (data.dLat + data.dLng) * 0.01;
-        var isZero = (thr === 0);
+        var isZero    = (thr === 0);
+        var isMarginal = (thr === -1 || thr === 1);
+        // Label text for key thresholds
+        var thrLabel = isZero ? '0 dB' :
+                       (thr > 0 ? ('+' + thr + ' dB') : (thr + ' dB'));
+        var showLabel = (thr === -5 || thr === -3 || thr === -1 ||
+                         thr ===  0 || thr ===  1 || thr ===  3 || thr ===  5);
+
         chains.forEach(function(chain) {
           var isClosed = chain.length >= 4 &&
             Math.abs(chain[0][0]-chain[chain.length-1][0]) < EPS2 &&
@@ -24226,12 +24233,32 @@ if (window.pdfjsLib) {
           if (isClosed) chain.push(chain[0]);
           var smoothed = chaikinSmooth(chain, 3);
           _complianceContourLayer.addLayer(L.polyline(smoothed, {
-            color:     isZero ? '#1e293b' : '#555555',
-            weight:    isZero ? 2.5 : 1,
-            opacity:   isZero ? 0.95 : 0.55,
-            dashArray: isZero ? '6 4' : null,
+            color:     isZero ? '#000000' : '#555555',
+            weight:    isZero ? 3.5 : (isMarginal ? 1.8 : 1),
+            opacity:   isZero ? 1.0 : 0.6,
+            dashArray: null,
             interactive: false
           }));
+
+          // Place one label per chain near the midpoint
+          if (showLabel && smoothed.length >= 2) {
+            var midIdx = Math.floor(smoothed.length / 2);
+            var midPt = smoothed[midIdx];
+            var fontSize = isZero ? '11px' : '10px';
+            var fontWeight = isZero ? '700' : '500';
+            var color = isZero ? '#000' : '#333';
+            var icon = L.divIcon({
+              className: '',
+              html: '<span style="font-size:' + fontSize + ';font-weight:' + fontWeight + ';color:' + color + ';' +
+                    'background:rgba(255,255,255,0.85);padding:1px 3px;border-radius:2px;' +
+                    'white-space:nowrap;pointer-events:none;line-height:1;">' + thrLabel + '</span>',
+              iconSize: null,
+              iconAnchor: [16, 8]
+            });
+            _complianceContourLayer.addLayer(L.marker([midPt[0], midPt[1]], {
+              icon: icon, interactive: false, keyboard: false
+            }));
+          }
         });
       });
       _complianceContourLayer.addTo(map);
@@ -24300,6 +24327,15 @@ if (window.pdfjsLib) {
       hideNoiseLegend();
       var ccr = document.getElementById('complianceCritRow');
       if (ccr) ccr.style.display = 'flex';
+      // Hide interval control — compliance uses fixed thresholds
+      var intRow = document.querySelector('#noiseMapControls .mp-sub-row:has(#legendInterval)');
+      if (!intRow) {
+        // Fallback: find by content
+        document.querySelectorAll('#noiseMapControls .mp-sub-row').forEach(function(row) {
+          if (row.querySelector('#legendInterval')) intRow = row;
+        });
+      }
+      if (intRow) intRow.style.display = 'none';
       renderComplianceMap();
     }
 
@@ -24309,6 +24345,12 @@ if (window.pdfjsLib) {
       clearComplianceMap();
       var ccr = document.getElementById('complianceCritRow');
       if (ccr) ccr.style.display = 'none';
+      // Restore interval control
+      var intRow = null;
+      document.querySelectorAll('#noiseMapControls .mp-sub-row').forEach(function(row) {
+        if (row.querySelector('#legendInterval')) intRow = row;
+      });
+      if (intRow) intRow.style.display = '';
       if (_lastNoiseData) {
         renderNoiseCanvas(_lastNoiseData);
         showNoiseLegend();
