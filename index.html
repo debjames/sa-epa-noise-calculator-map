@@ -246,6 +246,7 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .mp-btn.mp-danger { color: #fca5a5; }
 .mp-btn.mp-danger:hover { background: rgba(239,68,68,.18); }
 .mp-sep { height: 1px; background: rgba(255,255,255,.1); margin: 3px 4px; }
+.mp-kbd { margin-left: auto; padding-left: 8px; font-size: 10px; color: rgba(255,255,255,.28); font-family: ui-monospace,monospace; flex-shrink: 0; letter-spacing: 0; }
 .mp-sub-row {
   display: flex;
   align-items: center;
@@ -1086,11 +1087,11 @@ body.map-fs-active { overflow: hidden; }
                 <span>Mapping</span><span class="mp-arrow">&#9660;</span>
               </div>
               <div class="mp-body">
-                <button class="mp-btn zone-toggle-btn" id="zoneToggleBtn" title="Toggle zoning overlay on map (Z)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Show zones</button>
-                <button class="mp-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 screening</button>
-                <button class="mp-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial</button>
-                <button class="mp-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastral</button>
-                <button class="mp-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Urban area</button>
+                <button class="mp-btn zone-toggle-btn" id="zoneToggleBtn" title="Toggle zoning overlay on map (Z)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Show zones<span class="mp-kbd">Z</span></button>
+                <button class="mp-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 screening<span class="mp-kbd">X</span></button>
+                <button class="mp-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial<span class="mp-kbd">I</span></button>
+                <button class="mp-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastral<span class="mp-kbd">D</span></button>
+                <button class="mp-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Urban area<span class="mp-kbd">U</span></button>
               </div>
             </div>
 
@@ -1101,34 +1102,34 @@ body.map-fs-active { overflow: hidden; }
               </div>
               <div class="mp-body">
                 <!-- Group 1: Map layers & analysis tools -->
-                <button class="mp-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API) (T)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain</button>
-                <button class="mp-btn" id="terrainContourBtn" title="Show terrain elevation contour lines on map (requires Terrain ON) (C)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 15 Q8 9 12 12 Q16 15 21 9"/><path d="M3 20 Q8 14 12 17 Q16 20 21 14"/></svg> Contours</button>
-                <button class="mp-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints (O)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
-                <button class="mp-btn" id="reflectionsBtn" title="Apply ISO 9613-2 §7.5 image source facade reflections to receiver predictions and noise map (F)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections</button>
+                <button class="mp-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API) (T)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain<span class="mp-kbd">T</span></button>
+                <button class="mp-btn" id="terrainContourBtn" title="Show terrain elevation contour lines on map (requires Terrain ON) (C)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 15 Q8 9 12 12 Q16 15 21 9"/><path d="M3 20 Q8 14 12 17 Q16 20 21 14"/></svg> Contours<span class="mp-kbd">C</span></button>
+                <button class="mp-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints (O)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings<span class="mp-kbd">O</span></button>
+                <button class="mp-btn" id="reflectionsBtn" title="Apply ISO 9613-2 §7.5 image source facade reflections to receiver predictions and noise map (F)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections<span class="mp-kbd">F</span></button>
                 <span id="reflectionsBuildingWarning" style="display:none;font-size:10px;color:#fbbf24;padding:2px 8px;white-space:normal;line-height:1.4;">&#9888; Enable Buildings layer to apply reflections to noise map</span>
-                <button class="mp-btn" id="rulerBtn" title="Measure distance: click two points on the map (R)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="8" width="20" height="8" rx="1"/><line x1="6" y1="8" x2="6" y2="13"/><line x1="10" y1="8" x2="10" y2="11"/><line x1="14" y1="8" x2="14" y2="11"/><line x1="18" y1="8" x2="18" y2="13"/></svg> Ruler</button>
+                <button class="mp-btn" id="rulerBtn" title="Measure distance: click two points on the map (R)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="8" width="20" height="8" rx="1"/><line x1="6" y1="8" x2="6" y2="13"/><line x1="10" y1="8" x2="10" y2="11"/><line x1="14" y1="8" x2="14" y2="11"/><line x1="18" y1="8" x2="18" y2="13"/></svg> Ruler<span class="mp-kbd">R</span></button>
                 <button class="mp-btn" id="moveGeomBtn" title="Move mode: click to activate, then drag any barrier, building, or source to reposition it. Click again to exit."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg> Move</button>
                 <div class="mp-sep"></div>
                 <!-- Group 2: Site elements -->
                 <button class="mp-btn" id="sitePlanOverlayBtn" title="Upload a site plan image or PDF and position it as a map overlay (PDF: page 1 rendered as image; address auto-detected)" onclick="soOpenPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Site plan overlay</button>
                 <input type="file" id="soFileInput" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" style="display:none;">
-                <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map (N)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building</button>
-                <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map (B)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier</button>
-                <button class="mp-btn" id="drawGroundZoneBtn" title="Draw a ground absorption polygon (overrides default G value for propagation paths passing through it) (G)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17 Q8 11 12 14 Q16 17 21 11"/><path d="M3 21h18" stroke-dasharray="2 2"/></svg> Ground absorption</button>
+                <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map (N)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building<span class="mp-kbd">N</span></button>
+                <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map (B)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier<span class="mp-kbd">B</span></button>
+                <button class="mp-btn" id="drawGroundZoneBtn" title="Draw a ground absorption polygon (overrides default G value for propagation paths passing through it) (G)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17 Q8 11 12 14 Q16 17 21 11"/><path d="M3 21h18" stroke-dasharray="2 2"/></svg> Ground absorption<span class="mp-kbd">G</span></button>
                 <div class="mp-sep"></div>
                 <!-- Group 3: Sources & receivers -->
                 <button class="mp-btn map-mode-btn" id="mapMode-source" title="Click map to place noise source" style="display:none;border-left:3px solid #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise source</button>
-                <button class="mp-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source (P)" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Point source</button>
-                <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.) (L)" style="border-left:3px solid #d32f2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#d32f2f"/><circle cx="19" cy="5" r="2" fill="#d32f2f"/></svg> Line source</button>
-                <button class="mp-btn" id="drawAreaSourceBtn" title="Draw an area source polygon (car park, outdoor dining, industrial activity, etc.) (A)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(217,119,6,0.25)" stroke="#d97706" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="2" fill="#d97706" stroke="none"/></svg> Area source</button>
-                <button class="mp-btn" id="drawBuildingSourceBtn" title="Draw a building source polygon (noise radiating from building facade/roof) (K)" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(124,58,237,0.18)" stroke="#7c3aed" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#7c3aed" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#7c3aed" stroke-width="1.5"/></svg> Building source</button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1 (1)" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1</button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2 (2)" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3 (3)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4 (4)" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4</button>
+                <button class="mp-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source (P)" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Point source<span class="mp-kbd">P</span></button>
+                <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.) (L)" style="border-left:3px solid #d32f2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#d32f2f"/><circle cx="19" cy="5" r="2" fill="#d32f2f"/></svg> Line source<span class="mp-kbd">L</span></button>
+                <button class="mp-btn" id="drawAreaSourceBtn" title="Draw an area source polygon (car park, outdoor dining, industrial activity, etc.) (A)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(217,119,6,0.25)" stroke="#d97706" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="2" fill="#d97706" stroke="none"/></svg> Area source<span class="mp-kbd">A</span></button>
+                <button class="mp-btn" id="drawBuildingSourceBtn" title="Draw a building source polygon (noise radiating from building facade/roof) (K)" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(124,58,237,0.18)" stroke="#7c3aed" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#7c3aed" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#7c3aed" stroke-width="1.5"/></svg> Building source<span class="mp-kbd">K</span></button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1 (1)" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1<span class="mp-kbd">1</span></button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2 (2)" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2<span class="mp-kbd">2</span></button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3 (3)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3<span class="mp-kbd">3</span></button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4 (4)" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4<span class="mp-kbd">4</span></button>
                 <div class="mp-sep"></div>
                 <!-- Group 4: Visibility -->
-                <button class="mp-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide all modelling objects on the map (sources, receivers, barriers, buildings, zones) (H)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Show / hide objects</button>
+                <button class="mp-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide all modelling objects on the map (sources, receivers, barriers, buildings, zones) (H)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Show / hide objects<span class="mp-kbd">H</span></button>
                 <button class="mp-btn parcel-toggle-btn active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Show / hide boundary</button>
                 <button class="mp-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;">Reset overrides</button>
                 <div class="mp-sep"></div>
@@ -1142,7 +1143,7 @@ body.map-fs-active { overflow: hidden; }
                 <span>Modelling</span><span class="mp-arrow">&#9660;</span>
               </div>
               <div class="mp-body">
-                <button class="mp-btn" id="noiseMapBtn" title="Compute and display noise contour map (M)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise map</button>
+                <button class="mp-btn" id="noiseMapBtn" title="Compute and display noise contour map (M)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise map<span class="mp-kbd">M</span></button>
                 <div id="noiseMapControls" style="display:none;flex-direction:column;gap:3px;">
                   <div style="display:flex;gap:2px;padding:2px 4px;">
                     <button class="mp-btn active" data-nmperiod="day" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">Day</button>
@@ -2009,6 +2010,15 @@ body.map-fs-active { overflow: hidden; }
   <button class="pdf-btn" id="pdfBtn" type="button" style="display:none;">Export PDF</button>
   <button class="pdf-btn" id="pdfCriteriaBtn" type="button" style="display:none;">PDF Criteria</button>
   <input type="file" id="importJsonFile" accept=".json" style="display:none;">
+
+  <!-- Recommended treatments panel -->
+  <div class="card" id="recommendationsCard" style="margin-top:14px;display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2 style="margin:0;">Recommended treatments <span style="font-size:11px;color:var(--muted);font-weight:normal;">(indicative)</span></h2>
+      <button class="collapse-btn" id="recommendationsCollapseBtn" title="Expand/collapse" onclick="(function(){var b=document.getElementById('recommendationsBody');var btn=document.getElementById('recommendationsCollapseBtn');if(!b)return;var open=b.style.display!=='none';b.style.display=open?'none':'';btn.textContent=open?'\u25BC':'\u25B2';})()">&#9650;</button>
+    </div>
+    <div id="recommendationsBody"></div>
+  </div>
 
   <!-- GIS Export panel -->
   <div class="card" style="margin-top:14px;">
@@ -10569,12 +10579,375 @@ function render() {
   if (typeof renderScenariosTable === 'function') renderScenariosTable();
   if (typeof renderContributions === 'function') renderContributions();
 
+  // Update recommended treatments panel
+  if (typeof renderRecommendations === 'function') renderRecommendations();
+
   // Update octave band spectrum chart
   if (typeof updateSpectrumChart === 'function') updateSpectrumChart();
 
 }
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Recommended treatments — reverse calculation panel
+// ─────────────────────────────────────────────────────────────────────────────
+function renderRecommendations() {
+  var card = document.getElementById('recommendationsCard');
+  var body = document.getElementById('recommendationsBody');
+  if (!card || !body) return;
+
+  var allLL    = window._getAllLatLngs ? window._getAllLatLngs() : {};
+  var recvIds  = ['r1','r2','r3','r4'];
+  var periods  = [
+    {key:'day',   label:'Day'},
+    {key:'eve',   label:'Evening'},
+    {key:'night', label:'Night'}
+  ];
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+  function rIdx(rid) { return parseInt(rid.slice(1)) - 1; }
+
+  function getCriterion(rid, period) {
+    var sfx = period === 'day' ? '_daycrit' : period === 'eve' ? '_evecrit' : '_nightcrit';
+    var el  = document.getElementById(rid + sfx);
+    if (!el) return null;
+    // manual-crit inputs store value in dataset.manualVal
+    var v = (el.dataset && el.dataset.manualVal !== undefined && el.dataset.manualVal !== '')
+      ? Number(el.dataset.manualVal)
+      : Number(el.textContent.trim());
+    return Number.isFinite(v) && v > 0 ? v : null;
+  }
+
+  // Contribution of a single point-source pin at one receiver, matching forward calc
+  function singlePinContrib(si, period, ri) {
+    var pin = sourcePins[si];
+    if (!pin || pin.lat === null) return NaN;
+    if (pin.activeInPeriod && pin.activeInPeriod[period] === false) return NaN;
+    if (!pin.lw || !Number.isFinite(pin.lw[period])) return NaN;
+
+    if (propagationMethod === 'iso9613') {
+      var d = getDistanceForSourceReceiver(si, ri);
+      if (!Number.isFinite(d) || d <= 0) return NaN;
+      var v = calcISO9613forSourcePin(si, period, d, ri);
+      return Number.isFinite(v) ? v : NaN;
+    }
+
+    // Simple method
+    var ds = getDistanceForSourceReceiver(si, ri);
+    if (!Number.isFinite(ds) || ds <= 0) return NaN;
+    var lwVal = pin.lw[period];
+    var opAdj = 10 * log10(_getPinOpPct(pin, period) / 100);
+    var qAdj  = 10 * log10(_getNumUnits(pin, period));
+    var lwW   = lwVal + opAdj + qAdj;
+    var lp    = attenuatePoint(lwW, ds);
+    var screenable = window._getScreenableBuildings ? window._getScreenableBuildings() : [];
+    var recLL = allLL['r' + (ri + 1)];
+    if (screenable.length && recLL) {
+      var bar = SharedCalc.getDominantBarrier(
+        {lat: pin.lat, lng: pin.lng}, recLL,
+        pin.height_m || 1.5, getReceiverHeight(ri), screenable);
+      lp -= calcBarrierIL_broadband(bar);
+    }
+    if (_terrainEnabled && _terrainIL[si] && _terrainIL[si][ri]) {
+      lp -= (_terrainIL[si][ri].insertionLoss_dB || 0);
+    }
+    return Number.isFinite(lp) ? lp : NaN;
+  }
+
+  // Simplified broadband barrier IL using Maekawa at 500 Hz, barrier at midpoint
+  function barrierILEst(d, hs, hr, H) {
+    var xb = d / 2;
+    if (H <= Math.max(hs, hr)) return 0;
+    var dSB     = Math.sqrt(xb * xb + (H - hs) * (H - hs));
+    var dBR     = Math.sqrt((d - xb) * (d - xb) + (H - hr) * (H - hr));
+    var dDirect = Math.sqrt(d * d + (hs - hr) * (hs - hr));
+    var delta   = dSB + dBR - dDirect;
+    if (delta <= 0) return 0;
+    return Math.min(20, 10 * Math.log10(3 + 20 * (2 * delta * 500 / 340)));
+  }
+
+  function findBarrierH(d, hs, hr, requiredIL) {
+    for (var H = 1.5; H <= 10.5; H += 0.5) {
+      if (barrierILEst(d, hs, hr, H) >= requiredIL) return Math.round(H * 10) / 10;
+    }
+    return null; // >10.5 m
+  }
+
+  // ── receiver and source lists ─────────────────────────────────────────────
+  var placedRecvs = recvIds.filter(function(rid) {
+    var ll = allLL[rid]; return ll && Number.isFinite(ll.lat);
+  });
+
+  var activePins = sourcePins
+    .map(function(p, i) { return {pin: p, si: i}; })
+    .filter(function(x) { return x.pin.lat !== null; });
+
+  if (!placedRecvs.length || !activePins.length) { card.style.display = 'none'; return; }
+
+  // ── per-period exceedance matrix ──────────────────────────────────────────
+  var hasAnyPred = false;
+  var hasAnyExc  = false;
+
+  var periodResults = periods.map(function(pDef) {
+    var period = pDef.key;
+    var rows   = [];
+    placedRecvs.forEach(function(rid) {
+      var ri   = rIdx(rid);
+      var dist = getReceiverDistance(ri + 1);
+      var pred = calcPredAtReceiver(period, null, ri, dist);
+      if (pred === '' || !Number.isFinite(Number(pred))) return;
+      var predN = Number(pred);
+      var rp    = recvPenalties[rid] || {day:0, eve:0, night:0};
+      var pen   = period === 'day' ? rp.day : period === 'eve' ? rp.eve : rp.night;
+      var predP = predN + (pen || 0);
+      var crit  = getCriterion(rid, period);
+      if (crit === null) return;
+      hasAnyPred = true;
+      var delta  = Math.round((predP - crit) * 10) / 10;
+      var nameEl = document.getElementById('recvName' + (ri + 1));
+      var label  = (nameEl && nameEl.value.trim()) ? nameEl.value.trim() : ('Receiver ' + (ri + 1));
+      rows.push({rid: rid, ri: ri, label: label, pred: predP, crit: crit, delta: delta, exc: delta > 0});
+      if (delta > 0) hasAnyExc = true;
+    });
+    return {period: period, label: pDef.label, rows: rows};
+  }).filter(function(pr) { return pr.rows.length > 0; });
+
+  if (!hasAnyPred) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  var html = '<div style="padding:10px 14px;">';
+
+  // ── summary table ─────────────────────────────────────────────────────────
+  html += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px;">';
+  html += '<thead><tr style="border-bottom:2px solid var(--border);">' +
+    '<th style="text-align:left;padding:4px 6px;width:16%;">Period</th>' +
+    '<th style="text-align:left;padding:4px 6px;width:30%;">Status</th>' +
+    '<th style="text-align:left;padding:4px 6px;">Key finding</th>' +
+    '</tr></thead><tbody>';
+  periodResults.forEach(function(pr) {
+    var excRows = pr.rows.filter(function(r) { return r.exc; });
+    var statusHtml, findingHtml;
+    if (!excRows.length) {
+      statusHtml  = '<span class="ok" style="font-weight:600;">&#10003; Complies</span>';
+      findingHtml = 'All receivers within criteria.';
+    } else {
+      var worst = excRows.slice().sort(function(a,b){ return b.delta - a.delta; })[0];
+      statusHtml  = '<span class="bad" style="font-weight:600;">&#10007; +' + worst.delta.toFixed(1) + ' dB at ' + escapeHTML(worst.label) + '</span>';
+      findingHtml = excRows.length + ' receiver' + (excRows.length > 1 ? 's' : '') + ' exceed' + (excRows.length === 1 ? 's' : '') + ' criteria — see treatments below.';
+    }
+    html += '<tr style="border-top:1px solid var(--border);">' +
+      '<td style="padding:4px 6px;font-weight:600;">' + pr.label + '</td>' +
+      '<td style="padding:4px 6px;">' + statusHtml + '</td>' +
+      '<td style="padding:4px 6px;">' + findingHtml + '</td></tr>';
+  });
+  html += '</tbody></table>';
+
+  if (!hasAnyExc) {
+    html += '<div style="font-size:12px;color:var(--muted);padding-bottom:6px;">All receivers comply — no treatments required.</div>';
+    html += '</div>';
+    body.innerHTML = html;
+    return;
+  }
+
+  var excPeriods = periodResults.filter(function(pr) { return pr.rows.some(function(r){ return r.exc; }); });
+
+  // ── max allowable Lw table ────────────────────────────────────────────────
+  if (activePins.length) {
+    html += '<div style="font-weight:600;font-size:12px;margin:8px 0 4px;">Maximum allowable sound power level (L<sub>w</sub>)</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:4px;">';
+    html += '<thead><tr style="border-bottom:1px solid var(--border);">' +
+      '<th style="text-align:left;padding:3px 5px;">Source</th>' +
+      '<th class="num" style="padding:3px 5px;">Current<br>L<sub>w</sub></th>';
+    excPeriods.forEach(function(pr) {
+      html += '<th class="num" style="padding:3px 5px;">Max L<sub>w</sub><br>' + pr.label + '</th>';
+    });
+    html += '<th style="padding:3px 5px;font-size:10px;color:var(--muted);">Governing</th></tr></thead><tbody>';
+
+    activePins.forEach(function(x) {
+      var si = x.si; var pin = x.pin;
+      var name = pin.name || ('S' + (si + 1));
+      var curLw = ['day','eve','night'].reduce(function(m, p) {
+        var v = pin.lw && Number.isFinite(pin.lw[p]) ? pin.lw[p] : -Infinity;
+        return v > m ? v : m;
+      }, -Infinity);
+      if (!Number.isFinite(curLw)) return;
+
+      var cells = []; var govLabel = ''; var insignifAll = true;
+
+      excPeriods.forEach(function(pr) {
+        var period  = pr.period;
+        var lwP     = pin.lw && Number.isFinite(pin.lw[period]) ? pin.lw[period] : null;
+        if (!lwP || (pin.activeInPeriod && pin.activeInPeriod[period] === false)) {
+          cells.push({text:'—', color:'', gov:''}); return;
+        }
+
+        var minAllow = Infinity; var minGov = '';
+
+        pr.rows.forEach(function(e) {
+          var contrib = singlePinContrib(si, period, e.ri);
+          if (!Number.isFinite(contrib)) return;
+          var totLin  = Math.pow(10, e.pred  / 10);
+          var cLin    = Math.pow(10, contrib / 10);
+          var othLin  = Math.max(0, totLin - cLin);
+          var criLin  = Math.pow(10, e.crit  / 10);
+
+          // Check significance (impact on total > 1 dB)
+          if (totLin > 0) {
+            var impact = 10 * Math.log10(totLin / Math.max(othLin, 1e-30));
+            if (impact > 1) insignifAll = false;
+          }
+
+          var allowContribLin = criLin - othLin;
+          var deltaContrib;
+          if (allowContribLin <= 0) {
+            deltaContrib = -Infinity; // other sources alone exceed — can't fix by reducing this one
+          } else {
+            deltaContrib = 10 * Math.log10(allowContribLin) - contrib;
+          }
+
+          var allowLw = isFinite(deltaContrib) ? lwP + deltaContrib : -Infinity;
+          if (allowLw < minAllow) { minAllow = allowLw; minGov = e.label; }
+        });
+
+        if (!isFinite(minAllow) || minAllow >= lwP) {
+          cells.push({text:'OK', color:'#16a34a', gov:''});
+        } else {
+          cells.push({text: Math.round(minAllow) + ' dB(A)', color:'#dc2626', gov: minGov});
+          if (!govLabel) govLabel = minGov;
+        }
+      });
+
+      html += '<tr style="border-top:1px solid var(--border);">' +
+        '<td style="padding:3px 5px;">' + escapeHTML(name) + '</td>' +
+        '<td class="num" style="padding:3px 5px;">' + Math.round(curLw) + ' dB(A)</td>';
+      cells.forEach(function(c) {
+        html += '<td class="num" style="padding:3px 5px;' + (c.color ? 'color:' + c.color + ';font-weight:600;' : '') + '">' + c.text + '</td>';
+      });
+      html += '<td style="padding:3px 5px;font-size:10px;color:var(--muted);">' + escapeHTML(govLabel) + '</td></tr>';
+
+      if (insignifAll && activePins.length > 1) {
+        html += '<tr><td colspan="' + (3 + excPeriods.length) + '" style="padding:1px 5px 4px;font-size:10px;color:var(--muted);">' +
+          '&#8505; ' + escapeHTML(name) + ' contributes &lt;1 dB at all receivers — reduction will not materially improve compliance.</td></tr>';
+      }
+    });
+    html += '</tbody></table>';
+    html += '<div style="font-size:10px;color:var(--muted);margin-bottom:10px;">Max L<sub>w</sub> is the source sound power level that would just achieve the criterion at the governing receiver, accounting for the combined contribution of all sources. ' +
+      '"OK" means the source has headroom at its current level.</div>';
+  }
+
+  // ── barrier height table ──────────────────────────────────────────────────
+  var barrierRows = [];
+  excPeriods.forEach(function(pr) {
+    var period = pr.period;
+    pr.rows.filter(function(r){ return r.exc; }).forEach(function(e) {
+      var dist = getReceiverDistance(e.ri + 1);
+      if (!Number.isFinite(dist) || dist <= 0) return;
+
+      var requiredIL = e.delta + 2; // 2 dB robustness margin
+
+      // Use max height of active point sources this period as representative source height
+      var hs = activePins.reduce(function(mxH, x) {
+        if (x.pin.activeInPeriod && x.pin.activeInPeriod[period] === false) return mxH;
+        var h = x.pin.height_m || 1.5;
+        return h > mxH ? h : mxH;
+      }, 1.5);
+      var hr   = getReceiverHeight(e.ri);
+      var barH = findBarrierH(dist, hs, hr, requiredIL);
+      var barText, barNote;
+      if (barH === null) {
+        barText = '>10 m'; barNote = 'Impractical — consider Lw reduction or operational controls';
+      } else if (barH > 5) {
+        barText = barH.toFixed(1) + ' m'; barNote = 'May require engineering assessment';
+      } else {
+        barText = barH.toFixed(1) + ' m'; barNote = '';
+      }
+      barrierRows.push({period: pr.label, recv: e.label, exc: '+' + e.delta.toFixed(1) + ' dB', h: barText, note: barNote});
+    });
+  });
+
+  if (barrierRows.length) {
+    html += '<div style="font-weight:600;font-size:12px;margin:12px 0 4px;">Indicative barrier height</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:4px;">';
+    html += '<thead><tr style="border-bottom:1px solid var(--border);">' +
+      '<th style="text-align:left;padding:3px 5px;">Period</th>' +
+      '<th style="text-align:left;padding:3px 5px;">Receiver</th>' +
+      '<th class="num" style="padding:3px 5px;">Exceedance</th>' +
+      '<th class="num" style="padding:3px 5px;">Barrier ht</th>' +
+      '<th style="padding:3px 5px;font-size:10px;">Notes</th></tr></thead><tbody>';
+    barrierRows.forEach(function(r) {
+      html += '<tr style="border-top:1px solid var(--border);">' +
+        '<td style="padding:3px 5px;">' + r.period + '</td>' +
+        '<td style="padding:3px 5px;">' + escapeHTML(r.recv) + '</td>' +
+        '<td class="num" style="padding:3px 5px;color:#dc2626;">' + r.exc + '</td>' +
+        '<td class="num" style="padding:3px 5px;font-weight:600;">' + r.h + '</td>' +
+        '<td style="padding:3px 5px;font-size:10px;color:#d97706;">' + r.note + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    html += '<div style="font-size:10px;color:var(--muted);margin-bottom:10px;">Simplified Maekawa formula at 500 Hz, barrier at midpoint between source and receiver. ' +
+      'Includes 2 dB robustness margin. Closer placement to source or receiver is more effective. ' +
+      'Verify with detailed acoustic modelling before use in design.</div>';
+  }
+
+  // ── operating time restrictions ───────────────────────────────────────────
+  var opRows = [];
+  excPeriods.forEach(function(pr) {
+    var period = pr.period;
+    pr.rows.filter(function(r){ return r.exc; }).forEach(function(e) {
+      activePins.forEach(function(x) {
+        var si = x.si; var pin = x.pin;
+        if (pin.activeInPeriod && pin.activeInPeriod[period] === false) return;
+        if (!pin.lw || !Number.isFinite(pin.lw[period])) return;
+        var lwP    = pin.lw[period];
+        var contrib = singlePinContrib(si, period, e.ri);
+        if (!Number.isFinite(contrib)) return;
+        var totLin = Math.pow(10, e.pred  / 10);
+        var cLin   = Math.pow(10, contrib / 10);
+        var othLin = Math.max(0, totLin - cLin);
+        var criLin = Math.pow(10, e.crit  / 10);
+        var allowContribLin = criLin - othLin;
+        if (allowContribLin <= 0) return;
+        var deltaContrib = 10 * Math.log10(allowContribLin) - contrib;
+        if (deltaContrib >= 0) return; // already complies
+        var curPct = _getPinOpPct(pin, period);
+        var newPct = Math.round(Math.min(100, curPct * Math.pow(10, deltaContrib / 10)));
+        if (newPct >= curPct) return;
+        var durH = period === 'day' ? 12 : period === 'eve' ? 4 : 8;
+        opRows.push({
+          src:    pin.name || ('S' + (si + 1)),
+          period: pr.label,
+          recv:   e.label,
+          pct:    newPct,
+          maxH:   (newPct / 100 * durH).toFixed(1),
+          durH:   durH + ' h'
+        });
+      });
+    });
+  });
+
+  if (opRows.length) {
+    html += '<div style="font-weight:600;font-size:12px;margin:12px 0 4px;">Operating time restrictions</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px;">';
+    html += '<thead><tr style="border-bottom:1px solid var(--border);">' +
+      '<th style="text-align:left;padding:3px 5px;">Source</th>' +
+      '<th style="text-align:left;padding:3px 5px;">Period</th>' +
+      '<th style="text-align:left;padding:3px 5px;">Governing receiver</th>' +
+      '<th class="num" style="padding:3px 5px;">Max operating time</th></tr></thead><tbody>';
+    opRows.forEach(function(r) {
+      html += '<tr style="border-top:1px solid var(--border);">' +
+        '<td style="padding:3px 5px;">' + escapeHTML(r.src)  + '</td>' +
+        '<td style="padding:3px 5px;">' + r.period + '</td>' +
+        '<td style="padding:3px 5px;">' + escapeHTML(r.recv) + '</td>' +
+        '<td class="num" style="padding:3px 5px;">' + r.pct + '% (&le;\u2009' + r.maxH + '\u202fh / ' + r.durH + ')</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+
+  html += '<div style="font-size:10px;color:var(--muted);padding:6px 0 2px;">' +
+    'All recommendations are indicative only and subject to detailed acoustic design. ' +
+    'Verify with detailed modelling before use in assessment reports.</div>';
+  html += '</div>';
+  body.innerHTML = html;
+}
 
 
 function initReceiverDistances(){
