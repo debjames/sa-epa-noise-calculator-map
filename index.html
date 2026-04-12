@@ -1145,9 +1145,9 @@ body.map-fs-active { overflow: hidden; }
                       <button class="mp-btn active" id="viewLevelsBtn" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;" title="Show predicted noise levels">Levels</button>
                       <button class="mp-btn" id="viewComplianceBtn" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;" title="Show compliance map (\u0394 = Predicted \u2212 Criterion)">Compliance</button>
                     </div>
-                    <div id="complianceCritRow" style="display:none;align-items:center;gap:4px;padding:0 4px;">
-                      <span style="font-size:11px;white-space:nowrap;">Criterion:</span>
-                      <input type="number" id="complianceCriterion" min="20" max="90" step="1" style="width:44px;" title="Comparison criterion dB(A)">
+                    <div id="complianceCritRow" style="display:none;align-items:center;gap:4px;padding:0 4px;flex-wrap:wrap;">
+                      <span style="font-size:11px;white-space:nowrap;">Enter noise criterion:</span>
+                      <input type="number" id="complianceCriterion" min="20" max="100" step="1" style="width:75px;" title="Noise criterion dB(A) — compliance map shows Δ = Predicted − this value">
                       <span style="font-size:11px;">dB(A)</span>
                     </div>
                   </div>
@@ -24322,7 +24322,7 @@ if (window.pdfjsLib) {
       var crit = _complianceCriterion;
       if (!Number.isFinite(crit)) {
         crit = getLowestReceiverCriterion(period);
-        if (!Number.isFinite(crit)) crit = 45;
+        if (!Number.isFinite(crit)) crit = 40;
         _complianceCriterion = crit;
         var critInput = document.getElementById('complianceCriterion');
         if (critInput) critInput.value = Math.round(crit);
@@ -24337,7 +24337,7 @@ if (window.pdfjsLib) {
       _complianceMode = true;
       var period = _noiseMapPeriod === 'lmax' ? 'night' : _noiseMapPeriod;
       var autoCrit = getLowestReceiverCriterion(period);
-      if (!Number.isFinite(autoCrit)) autoCrit = 45;
+      if (!Number.isFinite(autoCrit)) autoCrit = 40;
       _complianceCriterion = autoCrit;
       var critInput = document.getElementById('complianceCriterion');
       if (critInput) critInput.value = Math.round(autoCrit);
