@@ -467,12 +467,12 @@ body.state-sa #pdcProvisionsSection { display: grid; }
 .pdc-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
 .pdc-table th { padding:5px 8px; text-align:left; vertical-align:top; font-size:11px; }
 .pdc-table td { padding:5px 8px; vertical-align:top; line-height:1.45; }
-td.pdc-ref-col { font-weight:600; white-space:nowrap; font-size:11px; }
-.pdc-ref-col { width:9%; }
-.pdc-po-col  { width:36%; }
+.pdc-po-col  { width:47%; }
 .pdc-dts-col { width:33%; }
-.pdc-rel-col { width:22%; }
+.pdc-rel-col { width:20%; }
 .pdc-tbc { color:#9ca3af; font-style:italic; }
+.pdc-subheading { background:#f0f0f0; font-weight:600; text-align:center; font-size:11px; padding:5px 8px; color:var(--dark,#1a1a2e); }
+.pdc-ref-label { display:block; font-weight:700; font-size:11px; margin-bottom:3px; }
 .pdc-rel-cell [contenteditable] { outline:none; min-height:1.3em; cursor:text; display:block; }
 .pdc-rel-cell [contenteditable]:focus { background:#f0f9ff; border-radius:3px; }
 .pdc-row-relevant td.pdc-rel-cell { border-left:3px solid #4CAF50; padding-left:6px; }
@@ -1426,10 +1426,9 @@ body.map-fs-active { overflow: hidden; }
             <table class="pdc-table">
               <thead>
                 <tr>
-                  <th class="pdc-ref-col">Provision</th>
+                  <th class="pdc-rel-col">Relevance</th>
                   <th class="pdc-po-col">Performance Outcome</th>
                   <th class="pdc-dts-col">DTS/DPF</th>
-                  <th class="pdc-rel-col">Relevance</th>
                 </tr>
               </thead>
               <tbody id="pdcTableBody">
@@ -6326,7 +6325,7 @@ function updatePDCProvisions() {
 function _renderPDCTable() {
   var tbody = document.getElementById('pdcTableBody');
   if (!tbody) return;
-  var html = '';
+  var html = '<tr><td colspan="3" class="pdc-subheading">Activities Generating Noise or Vibration</td></tr>';
   for (var i = 0; i < _PDC_PROVISIONS.length; i++) {
     var prov = _PDC_PROVISIONS[i];
     var state = _pdcProvisions[i];
@@ -6338,11 +6337,13 @@ function _renderPDCTable() {
     var badge = state.manual ? '<div class="pdc-manual-badge">(edited)</div>' : '';
     var tbcClass = isTbc ? ' class="pdc-tbc"' : '';
     var displayRel = isTbc ? 'TBC pending modelling' : rel;
+    var parts = prov.ref.split(' / ');
+    var poRef = parts[0] || '';
+    var dtsRef = parts[1] || '';
     html += '<tr class="' + rowCls + '" id="pdcRow' + i + '">';
-    html += '<td class="pdc-ref-col">' + escapeHTML(prov.ref) + '</td>';
-    html += '<td class="pdc-po-col">' + escapeHTML(prov.po) + '</td>';
-    html += '<td class="pdc-dts-col">' + escapeHTML(prov.dts) + '</td>';
     html += '<td class="' + relCls + '"><div contenteditable="true" id="pdcRelCell' + i + '" oninput="window._pdcOnEdit(' + i + ',this.textContent)"' + tbcClass + ' style="outline:none;min-height:1.3em;">' + escapeHTML(displayRel) + '</div>' + badge + '</td>';
+    html += '<td class="pdc-po-col"><span class="pdc-ref-label">' + escapeHTML(poRef) + '</span>' + escapeHTML(prov.po) + '</td>';
+    html += '<td class="pdc-dts-col"><span class="pdc-ref-label">' + escapeHTML(dtsRef) + '</span>' + escapeHTML(prov.dts) + '</td>';
     html += '</tr>';
   }
   tbody.innerHTML = html;
@@ -6487,9 +6488,9 @@ async function exportCriteriaPdf(btn) {
       pdf.text(provLines, margin, y);
       y += provLines.length * 4.5 + 5;
 
-      // Table header
-      var c1 = cW * 0.22, c2 = cW * 0.10, c3 = cW * 0.34, c4 = cW * 0.34;
-      var cols = [margin, margin + c1, margin + c1 + c2, margin + c1 + c2 + c3];
+      // Table header — 3 columns: Relevance | Performance Outcome | DTS/DPF
+      var c1 = cW * 0.20, c2 = cW * 0.47, c3 = cW * 0.33;
+      var cols = [margin, margin + c1, margin + c1 + c2];
       var rowH = 7;
       pdf.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
       pdf.rect(margin, y, cW, rowH, 'F');
@@ -6497,10 +6498,19 @@ async function exportCriteriaPdf(btn) {
       pdf.setFontSize(8);
       pdf.setTextColor(255, 255, 255);
       pdf.text('Relevance', cols[0] + 2, y + 5);
-      pdf.text('Provision', cols[1] + 2, y + 5);
-      pdf.text('Performance Outcome', cols[2] + 2, y + 5);
-      pdf.text('DTS/DPF', cols[3] + 2, y + 5);
+      pdf.text('Performance Outcome', cols[1] + 2, y + 5);
+      pdf.text('DTS/DPF', cols[2] + 2, y + 5);
       y += rowH;
+
+      // Subheading row
+      var subH = 6;
+      pdf.setFillColor(240, 240, 240);
+      pdf.rect(margin, y, cW, subH, 'F');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
+      pdf.text('Activities Generating Noise or Vibration', margin + cW / 2, y + 4.2, { align: 'center' });
+      y += subH;
 
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(7.5);
@@ -6509,12 +6519,14 @@ async function exportCriteriaPdf(btn) {
         return { prov: p, rel: ('\u2014') };
       });
       provRowsData.forEach(function(r, ri) {
-        var relLines  = pdf.splitTextToSize(r.rel || '\u2014', c1 - 4);
-        var poLines   = pdf.splitTextToSize(r.prov.po,          c3 - 4);
-        var dtsLines  = pdf.splitTextToSize(r.prov.dts,         c4 - 4);
-        var refLines  = pdf.splitTextToSize(r.prov.ref,         c2 - 4);
-        var nLines    = Math.max(relLines.length, poLines.length, dtsLines.length, refLines.length);
-        var rH        = nLines * 4 + 5;
+        var parts   = r.prov.ref.split(' / ');
+        var poRef   = parts[0] || '';
+        var dtsRef  = parts[1] || '';
+        var relLines = pdf.splitTextToSize(r.rel || '\u2014', c1 - 4);
+        var poLines  = pdf.splitTextToSize(poRef + ' \u2014 ' + r.prov.po,  c2 - 4);
+        var dtsLines = pdf.splitTextToSize(dtsRef + ' \u2014 ' + r.prov.dts, c3 - 4);
+        var nLines   = Math.max(relLines.length, poLines.length, dtsLines.length);
+        var rH       = nLines * 4 + 5;
         // Page break
         if (y + rH > pH - margin - 15) { pdf.addPage(); y = margin; }
         // Row background
@@ -6522,10 +6534,9 @@ async function exportCriteriaPdf(btn) {
         pdf.setDrawColor(220, 220, 220);
         pdf.line(margin, y, margin + cW, y);
         pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-        pdf.text(relLines,  cols[0] + 2, y + 4);
-        pdf.text(refLines,  cols[1] + 2, y + 4);
-        pdf.text(poLines,   cols[2] + 2, y + 4);
-        pdf.text(dtsLines,  cols[3] + 2, y + 4);
+        pdf.text(relLines, cols[0] + 2, y + 4);
+        pdf.text(poLines,  cols[1] + 2, y + 4);
+        pdf.text(dtsLines, cols[2] + 2, y + 4);
         y += rH;
       });
 
