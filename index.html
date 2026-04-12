@@ -1383,7 +1383,7 @@ body.map-fs-active { overflow: hidden; }
           </tr>
 
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"><span id="r1_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="groundElev_r1" style="font-size:9px;color:#999;font-style:italic;"></span></td>
+            <td><input type="text" class="recv-name-input" id="recvName1" value="Receiver 1" placeholder="Receiver 1"><span id="r1_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="recvCoords_r1" style="font-size:9px;color:#9ca3af;display:block;"></span><span id="groundElev_r1" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="zone-col"><select id="r1"></select></td>
             <td id="r1_viczone" class="vic-only vic-zone-col"></td>
             <td id="r1_land" class="left landuse-col"></td>
@@ -1394,7 +1394,7 @@ body.map-fs-active { overflow: hidden; }
           <td id="r1_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"><span id="r2_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="groundElev_r2" style="font-size:9px;color:#999;font-style:italic;"></span></td>
+            <td><input type="text" class="recv-name-input" id="recvName2" value="Receiver 2" placeholder="Receiver 2"><span id="r2_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="recvCoords_r2" style="font-size:9px;color:#9ca3af;display:block;"></span><span id="groundElev_r2" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="zone-col"><select id="r2"></select></td>
             <td id="r2_viczone" class="vic-only vic-zone-col"></td>
             <td id="r2_land" class="left landuse-col"></td>
@@ -1405,7 +1405,7 @@ body.map-fs-active { overflow: hidden; }
           <td id="r2_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"><span id="r3_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="groundElev_r3" style="font-size:9px;color:#999;font-style:italic;"></span></td>
+            <td><input type="text" class="recv-name-input" id="recvName3" value="Receiver 3" placeholder="Receiver 3"><span id="r3_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="recvCoords_r3" style="font-size:9px;color:#9ca3af;display:block;"></span><span id="groundElev_r3" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="zone-col"><select id="r3"></select></td>
             <td id="r3_viczone" class="vic-only vic-zone-col"></td>
             <td id="r3_land" class="left landuse-col"></td>
@@ -1416,7 +1416,7 @@ body.map-fs-active { overflow: hidden; }
           <td id="r3_lmaxcrit" class="num crit-lmax-col"></td>
           </tr>
           <tr>
-            <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"><span id="r4_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="groundElev_r4" style="font-size:9px;color:#999;font-style:italic;"></span></td>
+            <td><input type="text" class="recv-name-input" id="recvName4" value="Receiver 4" placeholder="Receiver 4"><span id="r4_cl6ind" class="sa-only" style="display:none;margin-left:4px;font-size:9px;color:#6b7280;cursor:help;vertical-align:super;" title="Cl 5(6) \u2014 intervening noise-designated zone detected; criteria based on receiver zone land use only">Cl 5(6)</span><br><span id="recvCoords_r4" style="font-size:9px;color:#9ca3af;display:block;"></span><span id="groundElev_r4" style="font-size:9px;color:#999;font-style:italic;"></span></td>
             <td class="zone-col"><select id="r4"></select></td>
             <td id="r4_viczone" class="vic-only vic-zone-col"></td>
             <td id="r4_land" class="left landuse-col"></td>
@@ -10434,7 +10434,9 @@ function render() {
     function cellClass(v) { return v === '' ? '' : (v ? 'cell-ok' : 'cell-bad'); }
 
     // Shared receiver label cell
-    const recvCell = `<td><b>${recvLabel}</b>${keyText ? '<br><span class="small">' + keyText + '</span>' : ''}${terrainBadge}</td>`;
+    var _rll = window.getReceiverLatLng ? window.getReceiverLatLng('r' + (i + 1)) : null;
+    var _rcoord = _rll ? '<br><span style="font-size:10px;color:#9ca3af;">' + _rll.lat.toFixed(5) + ', ' + _rll.lng.toFixed(5) + '</span>' : '';
+    const recvCell = `<td><b>${recvLabel}</b>${keyText ? '<br><span class="small">' + keyText + '</span>' : ''}${_rcoord}${terrainBadge}</td>`;
 
     // Build one result row for a given period
     function makeRow(predicted, criterion, cmp) {
@@ -11786,7 +11788,10 @@ function renderContributions() {
 
       var recvHdr = document.createElement('tr');
       recvHdr.className = 'contrib-recv-hdr';
-      recvHdr.innerHTML = '<td colspan="5" style="cursor:pointer;" title="Click for per-band ISO 9613-2 breakdown"><b>' + escapeHTML(recvLabel) + ' \u2014 click for ISO breakdown</b></td>';
+      var _rcCoordStr = recLL ? recLL.lat.toFixed(5) + ', ' + recLL.lng.toFixed(5) : '';
+      recvHdr.innerHTML = '<td colspan="5" style="cursor:pointer;" title="Click for per-band ISO 9613-2 breakdown"><b>' + escapeHTML(recvLabel) + '</b>' +
+        (_rcCoordStr ? '<br><span style="font-size:10px;color:#9ca3af;font-weight:normal;">' + _rcCoordStr + '</span>' : '') +
+        '<span style="font-weight:normal;color:#9ca3af;"> \u2014 click for ISO breakdown</span></td>';
       (function(recvIdx) {
         recvHdr.addEventListener('click', function() {
           var firstSrcIdx = 0;
@@ -12306,6 +12311,12 @@ initCollapse();
         for (var ri = 1; ri <= 4; ri++) {
           var nameEl = document.getElementById('recvName' + ri);
           if (nameEl && nameEl.value) data.receiverNames['recvName' + ri] = nameEl.value;
+        }
+        // Receiver auto-name flags (true = geocode can overwrite; false = user edited)
+        data.recvAutoName = {};
+        for (var ri = 1; ri <= 4; ri++) {
+          var rKey = 'r' + ri;
+          data.recvAutoName[rKey] = (window._recvAutoName && window._recvAutoName[rKey] !== false);
         }
 
         // Distances: no longer exported — computed from marker coordinates.
@@ -13321,6 +13332,18 @@ initCollapse();
           saveLS('recvName_' + idx, data.receiverNames[k]);
         });
       }
+      // 4b. Restore receiver auto-name flags (so loaded names aren't overwritten by geocoding)
+      if (data.recvAutoName && window._recvAutoName) {
+        Object.keys(data.recvAutoName).forEach(function(k) {
+          window._recvAutoName[k] = data.recvAutoName[k];
+        });
+      } else if (data.receiverNames && window._recvAutoName) {
+        // Older saves without flags: assume all are manually set
+        Object.keys(data.receiverNames).forEach(function(k) {
+          var mode = 'r' + k.replace('recvName', '');
+          window._recvAutoName[mode] = false;
+        });
+      }
 
       // 5. Distances: ignored — now computed from marker coordinates.
       // v1 files may contain data.distances; safely skipped.
@@ -13531,6 +13554,8 @@ initCollapse();
       if (data.markers && window._placeMarker) {
         setTimeout(function() {
           var map = window._getMapRef ? window._getMapRef() : null;
+          // Suppress geocoding during load (names come from saved data, not geocode)
+          if (window._recvGeoSetLoading) window._recvGeoSetLoading(true);
           // Place all source markers (source_0 may be saved as 'source_0' or legacy 'source')
           sourcePins.forEach(function(src, si) {
             var key = 'source_' + si;
@@ -13546,6 +13571,7 @@ initCollapse();
               window._placeMarker(key, data.markers[key]);
             }
           }
+          if (window._recvGeoSetLoading) window._recvGeoSetLoading(false);
           // Fit map bounds to markers
           if (map) {
             var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
@@ -24081,10 +24107,11 @@ if (window.pdfjsLib) {
           var rHt = (recvHeights[modeKey] !== null && Number.isFinite(recvHeights[modeKey]))
             ? recvHeights[modeKey]
             : (typeof iso_receiverHeight !== 'undefined' ? (iso_receiverHeight || 1.5) : 1.5);
-          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' +
-            name +
-            ' <span style="color:#9ca3af;font-size:11px;">(' + ll.lat.toFixed(3) + ', ' + ll.lng.toFixed(3) + ')</span>' +
-            ' <span style="color:#6b7280;font-size:11px;">' + rHt.toFixed(1) + 'm</span></span>';
+          html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name +
+            ' <span style="color:#6b7280;font-size:11px;">' + rHt.toFixed(1) + 'm</span></div>' +
+            '<div style="font-size:10px;color:#9ca3af;">' + ll.lat.toFixed(5) + ', ' + ll.lng.toFixed(5) + '</div>' +
+            '</span>';
           html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'receiver\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
         } else {
           html += '<span style="flex:1;font-size:12px;color:#bbb;font-style:italic;">not placed \u2014 click to place</span>';
@@ -25555,6 +25582,154 @@ if (window.pdfjsLib) {
 })();
 
 /* ═══════════════════════════════════════════════════════════════════════
+   RECEIVER AUTO-GEOCODE & COORDINATES
+   Reverse geocodes receiver positions to produce street-address names.
+   Tracks manual edits so geocoding never overwrites user input.
+   Exposes window._recvAutoName and window._recvGeoSetLoading for
+   save/load integration.
+   ═══════════════════════════════════════════════════════════════════════ */
+(function() {
+  'use strict';
+
+  // Per-receiver flag: true = geocode may set name; false = user has edited it
+  var _autoName = { r1: true, r2: true, r3: true, r4: true };
+  // Debounce timers (avoid flooding Nominatim on drag)
+  var _geocodeTimers = { r1: null, r2: null, r3: null, r4: null };
+  // Suppress geocoding while loading from JSON
+  var _isLoading = false;
+  // Track last-geocoded position to detect movement on drag
+  var _lastHash = { r1: '', r2: '', r3: '', r4: '' };
+
+  // ── Expose for save/load integration ─────────────────────────────────────
+  window._recvAutoName      = _autoName;
+  window._recvGeoSetLoading = function(v) { _isLoading = v; };
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function fmtCoords(ll) {
+    return ll.lat.toFixed(5) + ', ' + ll.lng.toFixed(5);
+  }
+
+  function updateCoordsSpan(mode, ll) {
+    var span = document.getElementById('recvCoords_' + mode);
+    if (span) span.textContent = ll ? fmtCoords(ll) : '';
+  }
+
+  // ── Nominatim reverse geocode ─────────────────────────────────────────────
+  function reverseGeocode(lat, lng, cb) {
+    var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=18&addressdetails=1';
+    fetch(url, { headers: { 'Accept-Language': 'en' } })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var a     = d.address || {};
+        var num   = a.house_number || '';
+        var road  = a.road        || '';
+        var sub   = a.suburb || a.city_district || a.town || a.village || a.city || '';
+        var parts = [];
+        if (num && road) parts.push(num + ' ' + road);
+        else if (road)   parts.push(road);
+        if (sub) parts.push(sub);
+        cb(null, parts.join(', ').trim() || null);
+      })
+      .catch(function(e) { cb(e, null); });
+  }
+
+  // ── Schedule geocode for a receiver (debounced, 500ms) ───────────────────
+  function scheduleGeocode(mode, lat, lng) {
+    if (!_autoName[mode] || _isLoading) return;
+    clearTimeout(_geocodeTimers[mode]);
+    _geocodeTimers[mode] = setTimeout(function() {
+      reverseGeocode(lat, lng, function(err, address) {
+        if (err || !address || !_autoName[mode] || _isLoading) return;
+        // Guard: ensure receiver hasn't moved significantly since schedule
+        var ll = window.getReceiverLatLng ? window.getReceiverLatLng(mode) : null;
+        if (!ll || Math.abs(ll.lat - lat) > 0.0001 || Math.abs(ll.lng - lng) > 0.0001) return;
+        var idx = parseInt(mode.replace('r', ''), 10);
+        var inp = document.getElementById('recvName' + idx);
+        if (!inp || !_autoName[mode]) return;
+        inp.value = address;
+        if (typeof saveLS === 'function') saveLS('recvName_' + idx, address);
+        if (typeof render === 'function') render();
+        if (typeof window._renderObjectList === 'function') window._renderObjectList();
+      });
+    }, 500);
+  }
+
+  // ── Wire input events to track manual edits ───────────────────────────────
+  function wireInputs() {
+    for (var i = 1; i <= 4; i++) {
+      (function(idx) {
+        var mode = 'r' + idx;
+        var inp  = document.getElementById('recvName' + idx);
+        if (!inp) return;
+        inp.addEventListener('input', function() {
+          _autoName[mode] = false; // user is typing — lock name
+        });
+        inp.addEventListener('blur', function() {
+          // If cleared / reset to generic default, re-enable auto-geocoding
+          var v = inp.value.trim();
+          if (!v || /^Receiver [1-4]$/.test(v)) {
+            _autoName[mode] = true;
+            var ll = window.getReceiverLatLng ? window.getReceiverLatLng(mode) : null;
+            if (ll) scheduleGeocode(mode, ll.lat, ll.lng);
+          }
+        });
+      })(i);
+    }
+  }
+
+  // ── Override window._placeMarker to hook geocoding + coords ──────────────
+  function hookPlaceMarker() {
+    var orig = window._placeMarker;
+    if (!orig) { console.warn('[recvGeo] window._placeMarker not found yet'); return; }
+    window._placeMarker = function(mode, ll) {
+      orig(mode, ll);
+      if (!/^r[1-4]$/.test(mode)) return;
+      updateCoordsSpan(mode, ll);
+      if (!_isLoading) scheduleGeocode(mode, ll.lat, ll.lng);
+    };
+  }
+
+  // ── Wrap _renderObjectList to update coords + detect drag ─────────────────
+  function hookRenderObjectList() {
+    var orig = window._renderObjectList;
+    window._renderObjectList = function() {
+      if (typeof orig === 'function') orig();
+      // Update coord spans and detect position changes (drag)
+      for (var i = 1; i <= 4; i++) {
+        var mode = 'r' + i;
+        var ll   = window.getReceiverLatLng ? window.getReceiverLatLng(mode) : null;
+        if (!ll) continue;
+        updateCoordsSpan(mode, ll);
+        var hash = ll.lat.toFixed(5) + ',' + ll.lng.toFixed(5);
+        if (hash !== _lastHash[mode]) {
+          _lastHash[mode] = hash;
+          // Receiver moved — re-geocode if auto-name is still enabled
+          if (_autoName[mode] && !_isLoading) {
+            scheduleGeocode(mode, ll.lat, ll.lng);
+          }
+        }
+      }
+    };
+  }
+
+  // ── Initialise once DOM/map are ready ────────────────────────────────────
+  // window._placeMarker and window._renderObjectList are set synchronously in
+  // the same script block above, so they're available immediately at page load.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      wireInputs();
+      hookPlaceMarker();
+      hookRenderObjectList();
+    });
+  } else {
+    wireInputs();
+    hookPlaceMarker();
+    hookRenderObjectList();
+  }
+
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════
    GENERATE REPORT — creates a pre-filled Word .docx from template
    ═══════════════════════════════════════════════════════════════════════ */
 (function() {
@@ -25614,15 +25789,16 @@ if (window.pdfjsLib) {
       var rows = [];
       var tbody = document.getElementById(tbodyId);
       if (!tbody) return rows;
-      Array.prototype.forEach.call(tbody.querySelectorAll('tr'), function(tr) {
+      Array.prototype.forEach.call(tbody.querySelectorAll('tr'), function(tr, rowIdx) {
         var tds = tr.querySelectorAll('td');
         if (tds.length < 3) return;
         var bEl      = tds[0].querySelector('b');
-        var smallEl  = tds[0].querySelector('span.small, span[class*="small"]');
         var recvName = bEl ? bEl.textContent.trim() : tds[0].textContent.replace(/\s+/g, ' ').trim();
-        var zoneTxt  = smallEl ? smallEl.textContent.trim() : '';
+        // Append coordinates for this receiver position
+        var ll = window.getReceiverLatLng ? window.getReceiverLatLng('r' + (rowIdx + 1)) : null;
+        var coordStr = ll ? ' (' + ll.lat.toFixed(5) + ', ' + ll.lng.toFixed(5) + ')' : '';
         rows.push({
-          receiver:  recvName + (zoneTxt ? ' — ' + zoneTxt : ''),
+          receiver:  recvName + coordStr,
           predicted: tds[1].textContent.trim(),
           criterion: tds[2].textContent.trim()
         });
