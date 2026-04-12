@@ -967,6 +967,7 @@ body.map-fs-active { overflow: hidden; }
     <button class="pdf-btn" id="exportJsonBtn" type="button">Save Assessment</button>
     <button class="pdf-btn" id="importJsonBtn" type="button">Load Assessment</button>
     <button class="pdf-btn" id="generateReportBtn" type="button">Generate Report</button>
+    <button class="pdf-btn" id="shareAssessmentBtn" type="button" title="Generate a read-only link to share this assessment with a client">Share Assessment</button>
   </div>
 
   <div class="sheet">
@@ -14193,6 +14194,7 @@ initCollapse();
   // ── Expose ─────────────────────────────────────────────────────────────────
   window._undoPushState  = pushState;
   window._undoManager    = { undo: undo, redo: redo, pushState: pushState };
+  window._serialiseState = serialiseState; // used by share feature
 
 })();
 </script>
@@ -14697,6 +14699,13 @@ if (window.pdfjsLib) {
       if (typeof _renderObjectList === 'function') _renderObjectList();
     };
     window._fetchPinElevation = function(mode, ll) { fetchPinElevation(mode, ll); };
+    /* Disable dragging on all placed markers — called by read-only mode */
+    window._disableAllMarkerDragging = function () {
+      Object.keys(markers).forEach(function (key) {
+        var mk = markers[key];
+        if (mk && mk.dragging) mk.dragging.disable();
+      });
+    };
     window._setSrcMarkerTitle = function(idx, title) {
       var mode = 'source_' + idx;
       var m = markers[mode];
@@ -24485,82 +24494,108 @@ if (window.pdfjsLib) {
         console.warn('Noise map: terrain data unavailable \u2014 no terrain screening applied.');
       }
 
-      if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... 0%';
-
-      _noiseWorker = new Worker('noise-worker.js');
       var _nmSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg>';
-      _noiseWorker.onmessage = function(e) {
-        var msg = e.data;
-        if (msg.type === 'progress') {
-          if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... ' + msg.percent + '%';
-        } else if (msg.type === 'complete') {
-          if (noiseMapBtn) noiseMapBtn.innerHTML = _nmSvg + ' Noise Map';
-          _lastNoiseData = msg;
-          var _nvRow = document.getElementById('noiseViewRow');
-          if (_nvRow) _nvRow.style.display = 'flex';
-          if (_complianceMode) {
-            renderNoiseCanvas(msg);
-            showNoiseLegend();
-            if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); }
-            if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); }
-            hideNoiseLegend();
-            renderComplianceMap();
-          } else {
-            renderNoiseCanvas(msg);
-            showNoiseLegend();
+      function _nmReset() { if (noiseMapBtn) noiseMapBtn.innerHTML = _nmSvg + ' Noise Map'; _noiseWorker = null; }
+
+      try {
+        if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... 0%';
+
+        _noiseWorker = new Worker('noise-worker.js');
+        _noiseWorker.onmessage = function(e) {
+          var msg = e.data;
+          if (msg.type === 'progress') {
+            if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... ' + msg.percent + '%';
+          } else if (msg.type === 'complete') {
+            if (noiseMapBtn) noiseMapBtn.innerHTML = _nmSvg + ' Noise Map';
+            _lastNoiseData = msg;
+            var _nvRow = document.getElementById('noiseViewRow');
+            if (_nvRow) _nvRow.style.display = 'flex';
+            if (_complianceMode) {
+              renderNoiseCanvas(msg);
+              showNoiseLegend();
+              if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); }
+              if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); }
+              hideNoiseLegend();
+              renderComplianceMap();
+            } else {
+              renderNoiseCanvas(msg);
+              showNoiseLegend();
+            }
+            _noiseWorker = null;
+          } else if (msg.type === 'error') {
+            console.warn('Noise map error:', msg.message);
+            _nmReset();
           }
-          _noiseWorker = null;
-        } else if (msg.type === 'error') {
-          console.warn('Noise map error:', msg.message);
-          if (noiseMapBtn) noiseMapBtn.innerHTML = _nmSvg + ' Noise Map';
-          _noiseWorker = null;
+        };
+        _noiseWorker.onerror = function(e) {
+          console.error('Noise map worker error:', e);
+          _nmReset();
+        };
+
+        // Sanitise buildings polygon vertices to plain [lat,lng] arrays
+        // (Leaflet LatLng objects are not structured-cloneable)
+        var _buildingsForWorker = screenable.map(function(b) {
+          var poly = (b.polygon || []).map(function(v) {
+            if (Array.isArray(v)) return [v[0], v[1]];
+            return [v.lat !== undefined ? v.lat : v[0], v.lng !== undefined ? v.lng : v[1]];
+          });
+          return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null };
+        });
+
+        _noiseWorker.postMessage({
+          bounds: {
+            north: mapBounds.getNorth(),
+            south: mapBounds.getSouth(),
+            east: mapBounds.getEast(),
+            west: mapBounds.getWest()
+          },
+          gridResolutionM: gridRes,
+          sources: workerSources,
+          buildings: _buildingsForWorker,
+          propagationMethod: propagationMethod || 'simple',
+          isoParams: {
+            receiverHeight: _noiseMapHeight || 1.5,
+            groundFactor: iso_groundFactor,
+            temperature: iso_temperature,
+            humidity: iso_humidity
+          },
+          demCache: demEntries,
+          demSpacing: demSpacing,
+          terrainEnabled: _terrainEnabled,
+          debugTerrain: !!window._debugTerrain,
+          period: _noiseMapPeriod || 'day',
+          lmaxMethod: _lmaxMethod || 'simple',
+          reflectionsEnabled: !!_reflectionsOn,
+          groundZones: (window._getGroundZones ? window._getGroundZones() : []).map(function(gz) {
+            var verts = (gz.vertices || []).map(function(v) {
+              if (Array.isArray(v)) return [v[0], v[1]];
+              return [v.lat !== undefined ? v.lat : v[0], v.lng !== undefined ? v.lng : v[1]];
+            });
+            return { g: gz.g, vertices: verts };
+          })
+        });
+
+        // Diagnostic: confirm DEM cache contents reaching worker
+        if (window._debugTerrain) {
+          if (demEntries.length > 0) {
+            console.log('Noise map: DEM cache passed to worker —', demEntries.length + '/' + demTotal,
+              'valid points (' + Math.round(_demValidFrac * 100) + '%) | sample elev[0]:', demEntries[0].elev);
+          } else {
+            console.warn('Noise map: DEM cache empty — terrain screening will NOT be applied in worker.');
+          }
         }
-      };
-      _noiseWorker.onerror = function(e) {
-        console.error('Noise map worker error:', e);
-        if (noiseMapBtn) noiseMapBtn.innerHTML = _nmSvg + ' Noise Map';
-        _noiseWorker = null;
-      };
-
-      _noiseWorker.postMessage({
-        bounds: {
-          north: mapBounds.getNorth(),
-          south: mapBounds.getSouth(),
-          east: mapBounds.getEast(),
-          west: mapBounds.getWest()
-        },
-        gridResolutionM: gridRes,
-        sources: workerSources,
-        buildings: screenable.map(function(b) {
-          return { polygon: b.polygon, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null };
-        }),
-        propagationMethod: propagationMethod || 'simple',
-        isoParams: {
-          receiverHeight: _noiseMapHeight || 1.5,
-          groundFactor: iso_groundFactor,
-          temperature: iso_temperature,
-          humidity: iso_humidity
-        },
-        demCache: demEntries,
-        demSpacing: demSpacing,
-        terrainEnabled: _terrainEnabled,
-        debugTerrain: !!window._debugTerrain,
-        period: _noiseMapPeriod || 'day',
-        lmaxMethod: _lmaxMethod || 'simple',
-        reflectionsEnabled: !!_reflectionsOn,
-        groundZones: (window._getGroundZones ? window._getGroundZones() : []).map(function(gz) {
-          return { g: gz.g, vertices: gz.vertices };
-        })
-      });
-
-      // Diagnostic: confirm DEM cache contents reaching worker
-      if (window._debugTerrain) {
-        if (demEntries.length > 0) {
-          console.log('Noise map: DEM cache passed to worker —', demEntries.length + '/' + demTotal,
-            'valid points (' + Math.round(_demValidFrac * 100) + '%) | sample elev[0]:', demEntries[0].elev);
+      } catch (workerErr) {
+        console.error('Noise map: failed to start worker —', workerErr);
+        // Check for file:// origin restriction (Chrome blocks Workers from file:// pages)
+        var _isFileOrigin = workerErr && workerErr.message &&
+          (workerErr.message.indexOf('origin') !== -1 || workerErr.message.indexOf('null') !== -1 || workerErr.message.indexOf('file') !== -1);
+        if (_isFileOrigin) {
+          if (noiseMapBtn) noiseMapBtn.textContent = 'Serve via HTTP to use Noise Map';
+          console.warn('Noise map: open the page via http://localhost (e.g. python -m http.server 8000) instead of file:// to enable the noise map worker.');
         } else {
-          console.warn('Noise map: DEM cache empty — terrain screening will NOT be applied in worker.');
+          _nmReset();
         }
+        _noiseWorker = null;
       }
 
       }); // end demPromise.then
@@ -27489,6 +27524,447 @@ if (window.pdfjsLib) {
         e.preventDefault(); break;
     }
   });
+})();
+</script>
+
+<style>
+/* ── READ-ONLY MODE ─────────────────────────────────────────────────────
+   Activated when page is loaded from a #share= link.
+   Strategy: block inputs broadly (with exceptions for viewer controls),
+   block buttons only in specific sections/by ID — never globally block
+   .sheet button so the Modelling/Tools/Mapping toolbar panels keep working.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* 1. Block all form inputs/selects/textareas in .sheet
+      except viewer controls (search, noise map display, compliance criterion) */
+body.readonly-mode .sheet input:not(#mapSearchInput):not(#complianceCriterion):not(#noiseMapHeight):not(#legendMin):not(#legendMax):not(#legendInterval),
+body.readonly-mode .sheet select:not(#noiseMapGridSel),
+body.readonly-mode .sheet textarea {
+  pointer-events: none !important;
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
+/* 2. Block all buttons in the Objects panel and every panel below it
+      (Receivers & criteria, Propagation, Noise sources, Predicted levels, etc.) */
+body.readonly-mode #objectsPanelSection button,
+body.readonly-mode #objectsPanelSection ~ * button {
+  pointer-events: none !important;
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+
+/* 3. Block toolbar editing buttons in the map panel
+      (draw tools, placement modes, move, site plan, clear) */
+body.readonly-mode .map-mode-btn,
+body.readonly-mode #drawBarrierBtn,
+body.readonly-mode #drawLineSourceBtn,
+body.readonly-mode #drawAreaSourceBtn,
+body.readonly-mode #drawBuildingSourceBtn,
+body.readonly-mode #drawBuildingBtn,
+body.readonly-mode #drawGroundZoneBtn,
+body.readonly-mode #moveGeomBtn,
+body.readonly-mode #sitePlanOverlayBtn,
+body.readonly-mode #mapClearBtn,
+body.readonly-mode #buildingsResetAllBtn,
+body.readonly-mode #uploadProposalBtn {
+  pointer-events: none !important;
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+
+/* 4. Block editing div.mp-hdr elements (undo, redo, suggest sources) */
+body.readonly-mode #undoBtn,
+body.readonly-mode #redoBtn,
+body.readonly-mode #suggestToggleBtn {
+  pointer-events: none !important;
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+}
+
+/* 5. Block Save/Load/Report buttons (these sit outside .sheet) */
+body.readonly-mode #exportJsonBtn,
+body.readonly-mode #importJsonBtn,
+body.readonly-mode #generateReportBtn {
+  pointer-events: none !important;
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+
+/* 6. Block buttons in Leaflet popups (source/object context menus) */
+body.readonly-mode .leaflet-popup-content button,
+body.readonly-mode .leaflet-popup-content input,
+body.readonly-mode .leaflet-popup-content select,
+body.readonly-mode .leaflet-popup-content textarea {
+  pointer-events: none !important;
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* 7. Block buttons in the fullscreen map sidebar (object edit panels) */
+body.readonly-mode #mapFullscreenSidebarInner button,
+body.readonly-mode #mapFsSidebarDetailBody button,
+body.readonly-mode #mapFullscreenSidebarInner input,
+body.readonly-mode #mapFsSidebarDetailBody input,
+body.readonly-mode #mapFullscreenSidebarInner select,
+body.readonly-mode #mapFsSidebarDetailBody select {
+  pointer-events: none !important;
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+</style>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   CLIENT SHARE — read-only shareable assessment link
+   Compresses assessment JSON with pako (deflate), encodes as base64url,
+   appends as URL hash: #share=<token>
+   On load: detects #share= hash, decompresses, loads assessment in
+   read-only mode (no editing, visual banner).
+   ═══════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  /* ── base64url encode / decode ─────────────────────────────────────── */
+  function toBase64Url(uint8arr) {
+    var binary = '';
+    for (var i = 0; i < uint8arr.length; i++) binary += String.fromCharCode(uint8arr[i]);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function fromBase64Url(str) {
+    var s = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var binary = atob(s);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  /* ── On-demand pako loader ─────────────────────────────────────────── */
+  var _pakoLoading = false;
+  var _pakoCallbacks = [];
+  function loadPako(callback) {
+    if (window.pako) { callback(); return; }
+    _pakoCallbacks.push(callback);
+    if (_pakoLoading) return;
+    _pakoLoading = true;
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js';
+    s.crossOrigin = 'anonymous';
+    s.onload = function () {
+      _pakoLoading = false;
+      var cbs = _pakoCallbacks.splice(0);
+      cbs.forEach(function (cb) { cb(); });
+    };
+    s.onerror = function () {
+      _pakoLoading = false;
+      _pakoCallbacks.length = 0;
+      alert('Failed to load compression library. Check your internet connection and try again.');
+    };
+    document.head.appendChild(s);
+  }
+
+  /* ── HTML escape helper ────────────────────────────────────────────── */
+  function esc(s) {
+    return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /* ── Collect share data ────────────────────────────────────────────── */
+  function collectShareData() {
+    if (!window._serialiseState) {
+      alert('Share is not available yet — please wait for the tool to finish loading.');
+      return null;
+    }
+    try {
+      var json = window._serialiseState();
+      if (!json) return null;
+      var data = JSON.parse(json);
+      // Share metadata
+      data._readOnly  = true;
+      data._sharedAt  = new Date().toISOString();
+      var pn = (document.getElementById('projectNumberInput') || {}).value || '';
+      var pnm = (document.getElementById('projectNameInput')  || {}).value || '';
+      data._sharedBy  = [pn, pnm].filter(Boolean).join(' \u2014 ') || '';
+      // Strip large blobs that don't belong in a URL
+      delete data.siteOverlays;  // base64 images — far too large
+      delete data._noiseGrid;    // computed grid — recipient recomputes
+      return JSON.stringify(data);
+    } catch (e) {
+      console.error('[share] collectShareData failed:', e);
+      alert('Failed to collect assessment data: ' + e.message);
+      return null;
+    }
+  }
+
+  /* ── Compress JSON → base64url token (async, pako loaded on-demand) ── */
+  function compressAsync(json, onDone) {
+    loadPako(function () {
+      try {
+        onDone(toBase64Url(window.pako.deflate(json, { level: 9 })));
+      } catch (e) {
+        console.error('[share] compress failed:', e);
+        onDone(null);
+      }
+    });
+  }
+
+  /* ── Decompress token → data object (pako must already be loaded) ─── */
+  function decompress(token) {
+    if (!window.pako) return null;
+    try {
+      return JSON.parse(window.pako.inflate(fromBase64Url(token), { to: 'string' }));
+    } catch (e) {
+      console.error('[share] decompress failed:', e);
+      return null;
+    }
+  }
+
+  /* ── IDs that remain interactive in read-only mode ───────────────── */
+  var _RO_ALLOW_INPUTS = {
+    mapSearchInput: true, complianceCriterion: true,
+    noiseMapHeight: true, legendMin: true, legendMax: true,
+    legendInterval: true, noiseMapGridSel: true
+  };
+
+  /* ── Disable all editable elements in .sheet (and outside it) ──── */
+  function _roDisableAll() {
+    // Disable inputs/selects/textareas in .sheet that aren't viewing controls
+    document.querySelectorAll('.sheet input, .sheet select, .sheet textarea').forEach(function (el) {
+      if (_RO_ALLOW_INPUTS[el.id]) return;
+      if (el.name === 'lmaxMethod') return; // radio buttons for noise map L_Amax method
+      el.disabled = true;
+    });
+  }
+
+  /* ── Enter read-only mode ──────────────────────────────────────────── */
+  function enterReadOnlyMode(projectLabel) {
+    window._readOnlyMode = true;
+    document.body.classList.add('readonly-mode');
+
+    // 1. Block map placement modes — override _setMode so clicking toolbar
+    //    placement buttons does nothing. Also clear any currently active mode.
+    if (window._setMode) window._setMode(null);
+    window._setMode = function () {};
+
+    // 2. Banner
+    var old = document.getElementById('readOnlyBanner');
+    if (old) old.remove();
+    var banner = document.createElement('div');
+    banner.id = 'readOnlyBanner';
+    banner.style.cssText =
+      'background:#1e40af;color:#fff;padding:10px 20px;text-align:center;' +
+      'font-size:13px;font-weight:600;position:relative;z-index:9999;';
+    banner.textContent = 'Read-only view' +
+      (projectLabel ? ' \u2014 ' + projectLabel : '') +
+      '. Editing is disabled. Noise map can be recomputed using the Modelling panel.';
+    document.body.insertBefore(banner, document.body.firstChild);
+
+    // 3. Disable existing elements (CSS handles pointer-events; disabled handles keyboard)
+    _roDisableAll();
+    // Additional passes to catch panels rendered after initial load
+    setTimeout(_roDisableAll, 600);
+    setTimeout(_roDisableAll, 1500);
+
+    // 4. MutationObserver — catches inputs added to content panels dynamically
+    //    (e.g. source edit forms opened in the fullscreen sidebar, object panels).
+    //    Intentionally does NOT watch #noise-map / .leaflet-container to avoid
+    //    interfering with the noise map computation which adds many Leaflet nodes.
+    //    Buttons in popups/sidebar are locked by CSS (pointer-events: none), so
+    //    the observer only needs to handle inputs/selects/textareas.
+    if (window.MutationObserver) {
+      var _roObs = new MutationObserver(function (mutations) {
+        mutations.forEach(function (m) {
+          m.addedNodes.forEach(function (node) {
+            if (node.nodeType !== 1) return;
+            var els = node.querySelectorAll
+              ? node.querySelectorAll('input, select, textarea')
+              : [];
+            for (var i = 0; i < els.length; i++) {
+              if (!_RO_ALLOW_INPUTS[els[i].id] && els[i].name !== 'lmaxMethod') {
+                els[i].disabled = true;
+              }
+            }
+            if ((node.tagName === 'INPUT' || node.tagName === 'SELECT' || node.tagName === 'TEXTAREA') &&
+                !_RO_ALLOW_INPUTS[node.id] && node.name !== 'lmaxMethod') {
+              node.disabled = true;
+            }
+          });
+        });
+      });
+      // Watch only the content panels, NOT #noise-map (which changes heavily during computation)
+      var _roTargets = ['#objectsPanelSection', '#mapFullscreenSidebar'];
+      _roTargets.forEach(function (sel) {
+        var el = document.querySelector(sel);
+        if (el) _roObs.observe(el, { childList: true, subtree: true });
+      });
+    }
+
+    // Disable dragging on all placed markers — runs after _loadAssessment's async ops settle
+    setTimeout(function () {
+      if (window._disableAllMarkerDragging) window._disableAllMarkerDragging();
+    }, 900);
+  }
+
+  /* ── Show share modal ──────────────────────────────────────────────── */
+  function showShareModal(shareUrl, projectLabel) {
+    var old = document.getElementById('shareModal');
+    if (old) old.remove();
+
+    var urlLen = shareUrl.length;
+    var warnHtml = urlLen > 8000
+      ? '<div style="background:#fef3cd;border:1px solid #ffc107;color:#856404;' +
+        'padding:8px 12px;border-radius:4px;font-size:12px;margin-bottom:10px;">' +
+        '\u26a0\ufe0f This link is long (' + urlLen.toLocaleString() + '\u00a0chars). ' +
+        'Some messaging apps may truncate it. Use <strong>Download share file</strong> instead.</div>'
+      : '';
+
+    var modal = document.createElement('div');
+    modal.id = 'shareModal';
+    modal.style.cssText =
+      'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;' +
+      'justify-content:center;background:rgba(15,23,42,0.72);';
+    modal.innerHTML =
+      '<div style="background:#fff;border-radius:10px;padding:24px 24px 20px;' +
+      'max-width:540px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.28);font-family:inherit;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
+          '<h3 style="margin:0;font-size:16px;color:#1e293b;">Share Assessment</h3>' +
+          '<button id="shareModalClose" style="background:none;border:none;font-size:22px;' +
+          'cursor:pointer;color:#64748b;padding:0 4px;line-height:1;">&times;</button>' +
+        '</div>' +
+        (projectLabel ? '<div style="font-size:12px;color:#64748b;margin-bottom:10px;">' + esc(projectLabel) + '</div>' : '') +
+        '<p style="font-size:13px;color:#475569;margin:0 0 12px;">Share this link with your client. ' +
+        'They can view the assessment in read-only mode \u2014 no editing or account required.</p>' +
+        warnHtml +
+        '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
+          '<input id="shareUrlInput" type="text" readonly ' +
+          'style="flex:1;min-width:0;font-size:11px;padding:6px 8px;border:1px solid #e2e8f0;' +
+          'border-radius:4px;background:#f8fafc;color:#334155;outline:none;">' +
+          '<button id="shareCopyBtn" style="flex-shrink:0;padding:6px 14px;background:#2563eb;' +
+          'color:#fff;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">' +
+          'Copy link</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button id="shareDownloadBtn" style="flex:1;padding:8px;background:#f1f5f9;' +
+          'color:#334155;border:1px solid #e2e8f0;border-radius:4px;' +
+          'font-size:12px;font-weight:600;cursor:pointer;">&#x2B07; Download share file</button>' +
+          '<button id="shareModalClose2" style="padding:8px 16px;background:#e2e8f0;' +
+          'color:#334155;border:none;border-radius:4px;font-size:12px;cursor:pointer;">Close</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    // Set URL value after append (avoids some browser truncation)
+    document.getElementById('shareUrlInput').value = shareUrl;
+
+    // Copy button
+    document.getElementById('shareCopyBtn').addEventListener('click', function () {
+      var copyBtn = document.getElementById('shareCopyBtn');
+      var urlInp  = document.getElementById('shareUrlInput');
+      urlInp.select();
+      (navigator.clipboard
+        ? navigator.clipboard.writeText(urlInp.value).catch(function () { document.execCommand('copy'); })
+        : Promise.resolve(document.execCommand('copy'))
+      ).then(function () {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(function () { if (copyBtn) copyBtn.textContent = 'Copy link'; }, 2000);
+      });
+    });
+
+    // Download share file
+    document.getElementById('shareDownloadBtn').addEventListener('click', function () {
+      downloadShareFile(shareUrl, projectLabel);
+    });
+
+    // Close
+    function closeModal() { if (modal.parentNode) modal.parentNode.removeChild(modal); }
+    document.getElementById('shareModalClose').addEventListener('click', closeModal);
+    document.getElementById('shareModalClose2').addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+  }
+
+  /* ── Download share file (tiny HTML redirect) ──────────────────────── */
+  function downloadShareFile(shareUrl, projectLabel) {
+    var title = projectLabel ? 'Noise Assessment \u2014 ' + projectLabel : 'Noise Assessment';
+    var safeUrl = shareUrl.replace(/"/g, '&quot;');
+    var html =
+      '<!DOCTYPE html>\n<html lang="en">\n<head>\n' +
+      '<meta charset="UTF-8">\n' +
+      '<meta http-equiv="refresh" content="0; url=' + safeUrl + '">\n' +
+      '<title>' + esc(title) + '</title>\n' +
+      '</head>\n<body>\n' +
+      '<p style="font-family:sans-serif;margin:40px auto;max-width:500px;color:#334155;">' +
+      'Opening noise assessment\u2026 ' +
+      '<a href="' + safeUrl + '">Click here if not redirected.</a></p>\n' +
+      '</body>\n</html>';
+    var blob = new Blob([html], { type: 'text/html' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href   = url;
+    var fname = (projectLabel || 'Noise Assessment').replace(/[^a-zA-Z0-9 _\-]/g, '').trim() || 'Noise Assessment';
+    a.download = fname + ' - Share.html';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  }
+
+  /* ── Wire share button + detect #share= hash on load ──────────────── */
+  document.addEventListener('DOMContentLoaded', function () {
+
+    /* Share button */
+    var btn = document.getElementById('shareAssessmentBtn');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        var json = collectShareData();
+        if (!json) return;
+        btn.disabled = true;
+        btn.textContent = 'Preparing\u2026';
+        compressAsync(json, function (token) {
+          btn.disabled = false;
+          btn.textContent = 'Share Assessment';
+          if (!token) return;
+          var baseUrl   = window.location.href.split('#')[0];
+          var shareUrl  = baseUrl + '#share=' + token;
+          var data      = JSON.parse(json);
+          var projLabel = [data.projectNumber, data.projectName].filter(Boolean).join(' \u2014 ') ||
+                          data._sharedBy || '';
+          showShareModal(shareUrl, projLabel);
+        });
+      });
+    }
+
+    /* Detect #share= on page load */
+    var hash = window.location.hash;
+    if (hash && hash.indexOf('#share=') === 0) {
+      var token = hash.slice(7);
+      if (!token) return;
+
+      function tryLoad() {
+        if (!window._loadAssessment) {
+          setTimeout(tryLoad, 250);   // wait only for map to initialise
+          return;
+        }
+        loadPako(function () {        // load pako on-demand, then decompress
+          var data = decompress(token);
+          if (!data) {
+            alert('Failed to load shared assessment \u2014 the link may be corrupted or truncated.');
+            return;
+          }
+          if (data._format !== 'resonate-noise-tool') {
+            alert('Invalid format in share link.');
+            return;
+          }
+          window._loadAssessment(data);
+          var projLabel = [data.projectNumber, data.projectName].filter(Boolean).join(' \u2014 ') ||
+                          data._sharedBy || '';
+          // Delay so _loadAssessment's async ops (zone detection, geocoding) settle
+          // before read-only locking runs and markers are dragging-disabled
+          setTimeout(function () { enterReadOnlyMode(projLabel); }, 800);
+        });
+      }
+      tryLoad();
+    }
+  });
+
 })();
 </script>
 
