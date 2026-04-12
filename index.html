@@ -1456,7 +1456,15 @@ body.map-fs-active { overflow: hidden; }
             </td>
             <td id="r1_viczone" class="vic-only vic-zone-col"></td>
             <td id="r1_land" class="left landuse-col"></td>
-            <td class="sa-only recv-type-col"><select id="r1_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
+            <td class="sa-only recv-type-col">
+              <div class="zone-text-wrap">
+                <span id="r1_recvtype_disp" class="zone-name-line" style="flex:1;cursor:default;">INL-5</span>
+                <select id="r1_recvtype" style="display:none;font-size:12px;padding:2px 4px;border-radius:5px;" onchange="updateRecvTypeDisplay('r1');render();">
+                  <option value="existing" selected>INL-5</option><option value="vacant">INL</option>
+                </select>
+                <button class="zone-edit-btn" onclick="toggleRecvTypeEdit('r1')" title="Edit criteria type">&#x270F;</button>
+              </div>
+            </td>
           <td id="r1_daycrit" class="num crit-day-col"></td>
           <td id="r1_evecrit" class="num vic-only crit-eve-col"></td>
           <td id="r1_nightcrit" class="num crit-night-col"></td>
@@ -1473,7 +1481,15 @@ body.map-fs-active { overflow: hidden; }
             </td>
             <td id="r2_viczone" class="vic-only vic-zone-col"></td>
             <td id="r2_land" class="left landuse-col"></td>
-            <td class="sa-only recv-type-col"><select id="r2_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
+            <td class="sa-only recv-type-col">
+              <div class="zone-text-wrap">
+                <span id="r2_recvtype_disp" class="zone-name-line" style="flex:1;cursor:default;">INL-5</span>
+                <select id="r2_recvtype" style="display:none;font-size:12px;padding:2px 4px;border-radius:5px;" onchange="updateRecvTypeDisplay('r2');render();">
+                  <option value="existing" selected>INL-5</option><option value="vacant">INL</option>
+                </select>
+                <button class="zone-edit-btn" onclick="toggleRecvTypeEdit('r2')" title="Edit criteria type">&#x270F;</button>
+              </div>
+            </td>
           <td id="r2_daycrit" class="num crit-day-col"></td>
           <td id="r2_evecrit" class="num vic-only crit-eve-col"></td>
           <td id="r2_nightcrit" class="num crit-night-col"></td>
@@ -1490,7 +1506,15 @@ body.map-fs-active { overflow: hidden; }
             </td>
             <td id="r3_viczone" class="vic-only vic-zone-col"></td>
             <td id="r3_land" class="left landuse-col"></td>
-            <td class="sa-only recv-type-col"><select id="r3_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
+            <td class="sa-only recv-type-col">
+              <div class="zone-text-wrap">
+                <span id="r3_recvtype_disp" class="zone-name-line" style="flex:1;cursor:default;">INL-5</span>
+                <select id="r3_recvtype" style="display:none;font-size:12px;padding:2px 4px;border-radius:5px;" onchange="updateRecvTypeDisplay('r3');render();">
+                  <option value="existing" selected>INL-5</option><option value="vacant">INL</option>
+                </select>
+                <button class="zone-edit-btn" onclick="toggleRecvTypeEdit('r3')" title="Edit criteria type">&#x270F;</button>
+              </div>
+            </td>
           <td id="r3_daycrit" class="num crit-day-col"></td>
           <td id="r3_evecrit" class="num vic-only crit-eve-col"></td>
           <td id="r3_nightcrit" class="num crit-night-col"></td>
@@ -1507,7 +1531,15 @@ body.map-fs-active { overflow: hidden; }
             </td>
             <td id="r4_viczone" class="vic-only vic-zone-col"></td>
             <td id="r4_land" class="left landuse-col"></td>
-            <td class="sa-only recv-type-col"><select id="r4_recvtype" class="recv-type-select" onchange="render()"><option value="existing" selected>INL-5</option><option value="vacant">INL</option></select></td>
+            <td class="sa-only recv-type-col">
+              <div class="zone-text-wrap">
+                <span id="r4_recvtype_disp" class="zone-name-line" style="flex:1;cursor:default;">INL-5</span>
+                <select id="r4_recvtype" style="display:none;font-size:12px;padding:2px 4px;border-radius:5px;" onchange="updateRecvTypeDisplay('r4');render();">
+                  <option value="existing" selected>INL-5</option><option value="vacant">INL</option>
+                </select>
+                <button class="zone-edit-btn" onclick="toggleRecvTypeEdit('r4')" title="Edit criteria type">&#x270F;</button>
+              </div>
+            </td>
           <td id="r4_daycrit" class="num crit-day-col"></td>
           <td id="r4_evecrit" class="num vic-only crit-eve-col"></td>
           <td id="r4_nightcrit" class="num crit-night-col"></td>
@@ -6019,6 +6051,36 @@ function toggleZoneEdit(id) {
       sel.removeEventListener('blur', onBlur);
       // Small delay so a click on an option registers first
       setTimeout(function() { toggleZoneEdit(id); }, 150);
+    });
+  }
+}
+
+/** Update the recv-type display span (INL-5 / INL) from the hidden select value. */
+function updateRecvTypeDisplay(id) {
+  var sel  = document.getElementById(id + '_recvtype');
+  var disp = document.getElementById(id + '_recvtype_disp');
+  if (!sel || !disp) return;
+  disp.textContent = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '—';
+}
+
+/** Toggle recv-type cell between read-only display and editable select. */
+function toggleRecvTypeEdit(id) {
+  var sel  = document.getElementById(id + '_recvtype');
+  var disp = document.getElementById(id + '_recvtype_disp');
+  if (!sel || !disp) return;
+  var editing = sel.style.display !== 'none';
+  if (editing) {
+    sel.style.display = 'none';
+    disp.style.display = '';
+    updateRecvTypeDisplay(id);
+    render();
+  } else {
+    sel.style.display = '';
+    disp.style.display = 'none';
+    sel.focus();
+    sel.addEventListener('blur', function onBlur() {
+      sel.removeEventListener('blur', onBlur);
+      setTimeout(function() { toggleRecvTypeEdit(id); }, 150);
     });
   }
 }
@@ -13954,6 +14016,7 @@ initCollapse();
             Object.keys(data.saRecvTypes).forEach(function(id) {
               var el = document.getElementById(id + '_recvtype');
               if (el) el.value = data.saRecvTypes[id];
+              if (typeof updateRecvTypeDisplay === 'function') updateRecvTypeDisplay(id);
             });
           }
 
