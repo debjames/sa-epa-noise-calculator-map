@@ -24220,11 +24220,9 @@ if (window.pdfjsLib) {
         var EPS2 = (data.dLat + data.dLng) * 0.01;
         var isZero    = (thr === 0);
         var isMarginal = (thr === -1 || thr === 1);
-        // Label text for key thresholds
-        var thrLabel = isZero ? '0 dB' :
-                       (thr > 0 ? ('+' + thr + ' dB') : (thr + ' dB'));
-        var showLabel = (thr === -5 || thr === -3 || thr === -1 ||
-                         thr ===  0 || thr ===  1 || thr ===  3 || thr ===  5);
+        // Label text for key thresholds — exceedance side + boundary only
+        var thrLabel = isZero ? '0 dB' : ('+' + thr + ' dB');
+        var showLabel = (thr === 0 || thr === 1 || thr === 3 || thr === 5 || thr === 10);
 
         chains.forEach(function(chain) {
           var isClosed = chain.length >= 4 &&
@@ -24233,7 +24231,7 @@ if (window.pdfjsLib) {
           if (isClosed) chain.push(chain[0]);
           var smoothed = chaikinSmooth(chain, 3);
           _complianceContourLayer.addLayer(L.polyline(smoothed, {
-            color:     isZero ? '#000000' : '#555555',
+            color:     isZero ? '#666666' : '#555555',
             weight:    isZero ? 3.5 : (isMarginal ? 1.8 : 1),
             opacity:   isZero ? 1.0 : 0.6,
             dashArray: null,
