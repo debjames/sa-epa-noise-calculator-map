@@ -952,6 +952,7 @@ body.map-fs-active { overflow: hidden; }
   <div style="display:flex;gap:8px;margin:10px 0;">
     <button class="pdf-btn" id="exportJsonBtn" type="button">Save Assessment</button>
     <button class="pdf-btn" id="importJsonBtn" type="button">Load Assessment</button>
+    <button class="pdf-btn" id="generateReportBtn" type="button">Generate Report</button>
   </div>
 
   <div class="sheet">
@@ -13714,6 +13715,7 @@ initCollapse();
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous"></script>
 <!-- pdf.js UMD build: exposes window.pdfjsLib directly, no module magic needed -->
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.min.js"></script>
 <script>
 if (window.pdfjsLib) {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -25549,6 +25551,349 @@ if (window.pdfjsLib) {
     };
     reader.readAsArrayBuffer(file);
   });
+
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GENERATE REPORT — creates a pre-filled Word .docx from template
+   ═══════════════════════════════════════════════════════════════════════ */
+(function() {
+  'use strict';
+
+  // ── Collect data from app state + DOM ──────────────────────────────────
+  function collectReportData() {
+    var pnNum = (document.getElementById('projectNumberInput') || {}).value || '';
+    var pnNam = (document.getElementById('projectNameInput')   || {}).value || '';
+
+    // Receivers: name, zone label, day/night criteria
+    var receivers = [];
+    for (var ri = 1; ri <= 4; ri++) {
+      var nameEl   = document.getElementById('recvName' + ri);
+      var zoneEl   = document.getElementById('r' + ri);
+      var dcEl     = document.getElementById('r' + ri + '_daycrit');
+      var ncEl     = document.getElementById('r' + ri + '_nightcrit');
+      var recvName = nameEl ? nameEl.value.trim() : ('Receiver ' + ri);
+      var recvZone = '';
+      if (zoneEl && zoneEl.selectedIndex >= 0) {
+        var opt = zoneEl.options[zoneEl.selectedIndex];
+        recvZone = opt ? opt.text : '';
+      }
+      receivers.push({
+        name:      recvName || ('Receiver ' + ri),
+        zone:      recvZone,
+        dayCrit:   dcEl ? dcEl.textContent.trim()  : '',
+        nightCrit: ncEl ? ncEl.textContent.trim() : ''
+      });
+    }
+
+    // Sources: point sources from sourcePins
+    var sources = [];
+    if (typeof sourcePins !== 'undefined') {
+      sourcePins.forEach(function(pin, i) {
+        var hasLw = pin.lw && (Number.isFinite(pin.lw.day) || Number.isFinite(pin.lw.night));
+        if (!pin.name && !hasLw) return;
+        sources.push({
+          name:  pin.name || ('Source ' + (i + 1)),
+          type:  'Point source',
+          day:   (pin.lw && Number.isFinite(pin.lw.day))   ? Math.round(pin.lw.day)   : null,
+          night: (pin.lw && Number.isFinite(pin.lw.night)) ? Math.round(pin.lw.night) : null,
+          lmax:  Number.isFinite(pin.lw_max) ? Math.round(pin.lw_max) : null
+        });
+      });
+    }
+    // Line sources (name + type only; Lw/m not directly comparable to point Lw)
+    if (typeof lineSources !== 'undefined') {
+      lineSources.forEach(function(ls, i) {
+        if (!ls.name) return;
+        sources.push({ name: ls.name || ('Line source ' + (i + 1)), type: 'Line source', day: null, night: null, lmax: null });
+      });
+    }
+
+    // Prediction rows — read from rendered DOM tables
+    function readPredRows(tbodyId) {
+      var rows = [];
+      var tbody = document.getElementById(tbodyId);
+      if (!tbody) return rows;
+      Array.prototype.forEach.call(tbody.querySelectorAll('tr'), function(tr) {
+        var tds = tr.querySelectorAll('td');
+        if (tds.length < 3) return;
+        var bEl      = tds[0].querySelector('b');
+        var smallEl  = tds[0].querySelector('span.small, span[class*="small"]');
+        var recvName = bEl ? bEl.textContent.trim() : tds[0].textContent.replace(/\s+/g, ' ').trim();
+        var zoneTxt  = smallEl ? smallEl.textContent.trim() : '';
+        rows.push({
+          receiver:  recvName + (zoneTxt ? ' — ' + zoneTxt : ''),
+          predicted: tds[1].textContent.trim(),
+          criterion: tds[2].textContent.trim()
+        });
+      });
+      return rows;
+    }
+
+    return {
+      projectNumber: pnNum,
+      projectName:   pnNam,
+      receivers:     receivers,
+      sources:       sources,
+      predDay:       readPredRows('rowsDay'),
+      predNight:     readPredRows('rowsNight')
+    };
+  }
+
+  // ── XML helpers ───────────────────────────────────────────────────────────
+  function xmlEsc(s) {
+    return (s || '').toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Minimal Word table row with auto-width cells
+  function makeWordRow(cells) {
+    var tr = '<w:tr><w:trPr><w:cantSplit/></w:trPr>';
+    cells.forEach(function(cell) {
+      tr += '<w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/></w:tcPr>';
+      tr += '<w:p><w:pPr><w:pStyle w:val="Tabletext"/></w:pPr>';
+      tr += '<w:r><w:t xml:space="preserve">' + xmlEsc(cell) + '</w:t></w:r></w:p></w:tc>';
+    });
+    tr += '</w:tr>';
+    return tr;
+  }
+
+  // ── Merge field replacement ───────────────────────────────────────────────
+  function replaceMergeFields(xml, data) {
+    var projectDesc = data.projectName
+      ? 'Noise impact assessment for ' + data.projectName + (data.projectNumber ? ' (' + data.projectNumber + ')' : '')
+      : '[project description]';
+
+    var fieldMap = {
+      '$ProjectTitle':       data.projectName  || '',
+      '$ProjectName':        data.projectName  || '',
+      '$ProjectNumber':      data.projectNumber || '',
+      '$DocumentNumber':     data.projectNumber || '',
+      '$DocumentTitle':      'Noise Impact Assessment',
+      '$CustomTitle':        'Noise Impact Assessment',
+      '$ProjectDescription': projectDesc,
+      '$DocumentType':       'Report',
+      '$Client':             '',
+      '$ClientName':         '',
+      '$ClientFirstName':    '',
+      '$CompanyName':        '',
+      '$CompanyAddress':     '',
+      '$Author':             '',
+      '$Reviewer':           '',
+      '$RevisionNumber':     '0',
+      '$RevisionText':       'First issue'
+    };
+    Object.keys(fieldMap).forEach(function(k) {
+      var token = '{' + k + '}';
+      var val   = xmlEsc(fieldMap[k]);
+      // replace all occurrences
+      while (xml.indexOf(token) !== -1) {
+        xml = xml.replace(token, val);
+      }
+    });
+    return xml;
+  }
+
+  // ── Conditional resolution ────────────────────────────────────────────────
+  function resolveConditionals(xml) {
+    // {if $DocumentType eq 'Report'}...{/if} → TRUE: keep content, remove tag
+    xml = xml.split("{if $DocumentType eq 'Report'}").join('');
+    // {if $DocumentTitle eq 'Custom Title of Document'}A{else}B{/if} → B (FALSE)
+    var ifTitleRe = /\{if \$DocumentTitle eq 'Custom Title of Document'\}([\s\S]*?)\{else\}([\s\S]*?)\{\/if\}/g;
+    xml = xml.replace(ifTitleRe, '$2');
+    // Remove any remaining conditional tags
+    xml = xml.split('{else}').join('').split('{/if}').join('');
+    xml = xml.replace(/\{if [^}]+\}/g, '');
+    return xml;
+  }
+
+  // ── Table row replacement ─────────────────────────────────────────────────
+  // Find the Nth table following the given title text, replace its data rows.
+  function replaceTableDataRows(xml, titleText, dataRows, nth) {
+    var searchFrom = 0;
+    var titleIdx   = -1;
+    for (var n = 0; n < (nth || 1); n++) {
+      titleIdx = xml.indexOf(titleText, searchFrom);
+      if (titleIdx === -1) return xml;
+      searchFrom = titleIdx + titleText.length;
+    }
+
+    var tblStart = xml.indexOf('<w:tbl>', titleIdx);
+    if (tblStart === -1) return xml;
+    var tblEnd   = xml.indexOf('</w:tbl>', tblStart);
+    if (tblEnd   === -1) return xml;
+    tblEnd += '</w:tbl>'.length;
+
+    var tableXml = xml.substring(tblStart, tblEnd);
+
+    // Find end of tblGrid (table column definitions)
+    var gridEnd = tableXml.indexOf('</w:tblGrid>');
+    if (gridEnd === -1) {
+      gridEnd = tableXml.indexOf('</w:tblPr>');
+      if (gridEnd === -1) return xml;
+      gridEnd += '</w:tblPr>'.length;
+    } else {
+      gridEnd += '</w:tblGrid>'.length;
+    }
+
+    var preamble = tableXml.substring(0, gridEnd);
+
+    // Collect header rows (rows marked with <w:tblHeader/>)
+    var headerRows = '';
+    var pos = gridEnd;
+    while (true) {
+      var trIdx = tableXml.indexOf('<w:tr ', pos);
+      if (trIdx === -1) break;
+      var trEnd = tableXml.indexOf('</w:tr>', trIdx);
+      if (trEnd === -1) break;
+      trEnd += '</w:tr>'.length;
+      var rowContent = tableXml.substring(trIdx, trEnd);
+      if (rowContent.indexOf('<w:tblHeader') !== -1) {
+        headerRows += rowContent;
+        pos = trEnd;
+      } else {
+        break; // first non-header row — stop collecting headers
+      }
+    }
+    // Fallback: if no tblHeader markup, treat first row as header
+    if (!headerRows) {
+      var firstTr = tableXml.indexOf('<w:tr ', gridEnd);
+      if (firstTr !== -1) {
+        var firstTrEnd = tableXml.indexOf('</w:tr>', firstTr) + '</w:tr>'.length;
+        headerRows = tableXml.substring(firstTr, firstTrEnd);
+      }
+    }
+
+    var newData  = dataRows.map(makeWordRow).join('');
+    var newTable = preamble + headerRows + newData + '</w:tbl>';
+    return xml.substring(0, tblStart) + newTable + xml.substring(tblEnd);
+  }
+
+  // ── Main generate function ────────────────────────────────────────────────
+  function generateReport() {
+    var data = collectReportData();
+    var btn  = document.getElementById('generateReportBtn');
+
+    function setBusy(busy) {
+      if (!btn) return;
+      btn.disabled    = busy;
+      btn.textContent = busy ? 'Generating…' : 'Generate Report';
+    }
+
+    setBusy(true);
+
+    fetch('report-template.docx')
+      .then(function(r) {
+        if (!r.ok) throw new Error(
+          'Could not load report-template.docx (HTTP ' + r.status + ').\n' +
+          'Make sure report-template.docx is in the same folder and you\'re running via a local server.'
+        );
+        return r.arrayBuffer();
+      })
+      .then(function(buf) {
+        if (!window.PizZip) throw new Error('PizZip not loaded — check internet connection.');
+        var zip    = new window.PizZip(buf);
+        var xmlRef = zip.file('word/document.xml');
+        if (!xmlRef) throw new Error('word/document.xml not found inside template.');
+        var xml = xmlRef.asText();
+
+        // 1. Merge fields
+        xml = replaceMergeFields(xml, data);
+
+        // 2. Conditionals
+        xml = resolveConditionals(xml);
+
+        // 3. Modelling scenarios table
+        var scenRows = data.sources.length
+          ? data.sources.map(function(s) {
+              var periods = [];
+              if (s.day   !== null) periods.push('Day');
+              if (s.night !== null) periods.push('Night');
+              if (s.lmax  !== null) periods.push('Night L\u2090\u2098\u2090\u2093');
+              return [s.name, s.type, periods.join(', ') || '\u2014'];
+            })
+          : [['No sources defined', '', '']];
+        xml = replaceTableDataRows(xml, 'Modelling scenarios', scenRows, 1);
+
+        // 4. Sound levels table
+        var lwRows = data.sources.length
+          ? data.sources.map(function(s) {
+              return [
+                s.name,
+                s.type,
+                s.day   !== null ? s.day   + ' dB(A)' : '\u2014',
+                s.night !== null ? s.night + ' dB(A)' : '\u2014',
+                s.lmax  !== null ? s.lmax  + ' dB(A)' : '\u2014'
+              ];
+            })
+          : [['No sources defined', '', '', '', '']];
+        xml = replaceTableDataRows(xml, 'Sound levels', lwRows, 1);
+
+        // 5. Predicted noise levels — day (1st occurrence of title)
+        var dayRows = data.predDay.length
+          ? data.predDay.map(function(r) {
+              return [
+                r.receiver,
+                r.predicted ? r.predicted + ' dB(A)' : '\u2014',
+                r.criterion ? r.criterion + ' dB(A)' : '\u2014'
+              ];
+            })
+          : [['\u2014', '\u2014', '\u2014']];
+        xml = replaceTableDataRows(xml, 'Predicted noise levels', dayRows, 1);
+
+        // 6. Predicted noise levels — night (2nd occurrence of title)
+        var nightRows = data.predNight.length
+          ? data.predNight.map(function(r) {
+              return [
+                r.receiver,
+                r.predicted ? r.predicted + ' dB(A)' : '\u2014',
+                r.criterion ? r.criterion + ' dB(A)' : '\u2014'
+              ];
+            })
+          : [['\u2014', '\u2014', '\u2014']];
+        xml = replaceTableDataRows(xml, 'Predicted noise levels', nightRows, 2);
+
+        // Write back modified XML
+        zip.file('word/document.xml', xml);
+
+        // Download
+        var pn    = data.projectNumber.replace(/[\\/:*?"<>|]/g, '-');
+        var nm    = data.projectName.replace(/[\\/:*?"<>|]/g, '-');
+        var pfx   = (pn ? pn + ' - ' : '') + (nm ? nm + ' - ' : '');
+        var today = new Date().toISOString().slice(0, 10);
+        var fname = pfx + 'Noise Report - ' + today + '.docx';
+
+        var blob = zip.generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fname;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 1000);
+
+        setBusy(false);
+      })
+      .catch(function(e) {
+        console.error('generateReport:', e);
+        alert('Failed to generate report:\n\n' + e.message);
+        setBusy(false);
+      });
+  }
+
+  // Wire button once DOM is ready
+  document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('generateReportBtn');
+    if (btn) btn.addEventListener('click', generateReport);
+  });
+  // Also wire immediately if DOM already loaded
+  var _grBtn = document.getElementById('generateReportBtn');
+  if (_grBtn) _grBtn.addEventListener('click', generateReport);
 
 })();
 
