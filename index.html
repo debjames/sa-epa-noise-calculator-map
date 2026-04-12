@@ -1397,12 +1397,10 @@ body.map-fs-active { overflow: hidden; }
       <div class="card span2">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
           <h2 style="margin:0;">Receivers &amp; criteria</h2>
-          <button class="crit-refresh-btn" onclick="refreshZonesAndCriteria()" title="Re-fetch zones and criteria for all placed markers">&#x21BB;</button>
+          <button class="crit-refresh-btn" onclick="refreshZonesAndCriteria()" title="Refresh all: addresses, coordinates, ASL, zones and criteria for all placed markers">&#x21BB;</button>
         </div>
         <div class="p" id="policyNoteText" style="display:none;font-style:italic;margin-bottom:4px;"></div>
-        <div class="p" id="zoneDescText">
-          Zones and subzones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA</a>). Click &#x270F; to override manually. Use &#x21BB; to re-fetch.
-        </div>
+        <div class="p" id="zoneDescText"></div>
 
         <div class="other-only" style="margin-bottom:12px;">
           <div class="h2" style="margin-bottom:6px;">Assessment criteria selection</div>
@@ -6027,19 +6025,47 @@ function toggleZoneEdit(id) {
 
 /** Refresh button handler — re-fetches zones, terrain and recomputes criteria. */
 function refreshZonesAndCriteria() {
-  showToast('Refreshing zones and criteria\u2026', 3500);
-  // Re-query zones for all placed markers
+  showToast('Refreshing\u2026', 3500);
+
+  // 1. Re-fetch zones for all placed markers (source + receivers)
   if (typeof window._requeryAllZones === 'function') window._requeryAllZones();
   if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
-  // SA Clause 6 ray casts
+
+  // 2. Re-run reverse geocode for subject site (S1) and all receivers
+  //    Force re-geocode by resetting lastHash guard and calling the placed callbacks
+  var autoName = window._recvAutoName;
+  var ssll = window._subjectSiteLatlng;
+  if (ssll && typeof window._subjectSiteOnPlaced === 'function') {
+    if (autoName) autoName.src = true;
+    window._subjectSiteOnPlaced(ssll);
+  }
+  for (var i = 1; i <= 4; i++) {
+    var mode = 'r' + i;
+    var rll = window.getReceiverLatLng ? window.getReceiverLatLng(mode) : null;
+    if (rll && typeof window._recvOnPlaced === 'function') {
+      if (autoName) autoName[mode] = true;
+      window._recvOnPlaced(mode, rll);
+    }
+  }
+
+  // 3. Re-fetch coordinates display for all placed markers
+  //    (covered by _subjectSiteOnPlaced / _recvOnPlaced above via updateCoordsSpan)
+
+  // 4. SA Clause 6 ray casts
   if (typeof triggerClause6AllReceivers === 'function') triggerClause6AllReceivers();
-  // VIC IF and Clause 20
+
+  // 5. VIC IF auto-detection and Clause 20
   if (typeof triggerAutoIFAllReceivers === 'function') triggerAutoIFAllReceivers();
   if (typeof triggerClause20AllReceivers === 'function') triggerClause20AllReceivers();
-  // Terrain
+
+  // 6. Terrain elevations + IL (if terrain enabled)
   if (typeof refreshAllTerrainIL === 'function' && typeof _terrainEnabled !== 'undefined' && _terrainEnabled) {
     refreshAllTerrainIL();
   }
+
+  // 7. Recalculate criteria
+  if (typeof render === 'function') render();
+
   setTimeout(function() { showToast('Done', 1200); }, 3000);
 }
 
