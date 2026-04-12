@@ -771,6 +771,20 @@ body.map-fs-active { overflow: hidden; }
   text-transform: uppercase;
   letter-spacing: .04em;
 }
+/* Keyboard shortcut key badges in Quick Reference */
+#helpPanelContent kbd {
+  display: inline-block;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: #1e293b;
+  line-height: 1.4;
+}
 /* Help toggle button active state */
 #mp-help .mp-hdr.help-active { background: rgba(59,130,246,.35); }
 /* Suggest toggle button active state */
@@ -980,7 +994,7 @@ body.map-fs-active { overflow: hidden; }
       <div class="card span2" id="mapCard">
         <div class="card-header">
           <h2 style="margin:0;">Map</h2>
-          <button id="mapMaximiseBtn" onclick="toggleMapFullscreen()" title="Maximise map to full screen (Esc to exit)">
+          <button id="mapMaximiseBtn" onclick="toggleMapFullscreen()" title="Maximise map to full screen — E or Esc to exit">
             <svg id="mapMaximiseBtnIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
             <span id="mapMaximiseBtnLabel">Expand</span>
           </button>
@@ -1046,7 +1060,7 @@ body.map-fs-active { overflow: hidden; }
 
             <!-- Help toggle button -->
             <div class="mp" id="mp-help" style="pointer-events:all;">
-              <div class="mp-hdr" id="helpToggleBtn" title="Quick reference guide" style="cursor:pointer;">
+              <div class="mp-hdr" id="helpToggleBtn" title="Quick reference guide (?)" style="cursor:pointer;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round" stroke-width="3"/></svg>
               </div>
             </div>
@@ -1071,7 +1085,7 @@ body.map-fs-active { overflow: hidden; }
                 <span>Mapping</span><span class="mp-arrow">&#9660;</span>
               </div>
               <div class="mp-body">
-                <button class="mp-btn zone-toggle-btn" id="zoneToggleBtn" title="Toggle zoning overlay on map" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Show zones</button>
+                <button class="mp-btn zone-toggle-btn" id="zoneToggleBtn" title="Toggle zoning overlay on map (Z)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Show zones</button>
                 <button class="mp-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 screening</button>
                 <button class="mp-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial</button>
                 <button class="mp-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastral</button>
@@ -1086,34 +1100,34 @@ body.map-fs-active { overflow: hidden; }
               </div>
               <div class="mp-body">
                 <!-- Group 1: Map layers & analysis tools -->
-                <button class="mp-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain</button>
-                <button class="mp-btn" id="terrainContourBtn" title="Show terrain elevation contour lines on map (requires Terrain ON)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 15 Q8 9 12 12 Q16 15 21 9"/><path d="M3 20 Q8 14 12 17 Q16 20 21 14"/></svg> Contours</button>
-                <button class="mp-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
-                <button class="mp-btn" id="reflectionsBtn" title="Apply ISO 9613-2 §7.5 image source facade reflections to receiver predictions and noise map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections</button>
+                <button class="mp-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API) (T)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain</button>
+                <button class="mp-btn" id="terrainContourBtn" title="Show terrain elevation contour lines on map (requires Terrain ON) (C)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 15 Q8 9 12 12 Q16 15 21 9"/><path d="M3 20 Q8 14 12 17 Q16 20 21 14"/></svg> Contours</button>
+                <button class="mp-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints (O)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings</button>
+                <button class="mp-btn" id="reflectionsBtn" title="Apply ISO 9613-2 §7.5 image source facade reflections to receiver predictions and noise map (F)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections</button>
                 <span id="reflectionsBuildingWarning" style="display:none;font-size:10px;color:#fbbf24;padding:2px 8px;white-space:normal;line-height:1.4;">&#9888; Enable Buildings layer to apply reflections to noise map</span>
-                <button class="mp-btn" id="rulerBtn" title="Measure distance: click two points on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="8" width="20" height="8" rx="1"/><line x1="6" y1="8" x2="6" y2="13"/><line x1="10" y1="8" x2="10" y2="11"/><line x1="14" y1="8" x2="14" y2="11"/><line x1="18" y1="8" x2="18" y2="13"/></svg> Ruler</button>
+                <button class="mp-btn" id="rulerBtn" title="Measure distance: click two points on the map (R)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="8" width="20" height="8" rx="1"/><line x1="6" y1="8" x2="6" y2="13"/><line x1="10" y1="8" x2="10" y2="11"/><line x1="14" y1="8" x2="14" y2="11"/><line x1="18" y1="8" x2="18" y2="13"/></svg> Ruler</button>
                 <button class="mp-btn" id="moveGeomBtn" title="Move mode: click to activate, then drag any barrier, building, or source to reposition it. Click again to exit."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg> Move</button>
                 <div class="mp-sep"></div>
                 <!-- Group 2: Site elements -->
                 <button class="mp-btn" id="sitePlanOverlayBtn" title="Upload a site plan image or PDF and position it as a map overlay (PDF: page 1 rendered as image; address auto-detected)" onclick="soOpenPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Site plan overlay</button>
                 <input type="file" id="soFileInput" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" style="display:none;">
-                <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building</button>
-                <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier</button>
-                <button class="mp-btn" id="drawGroundZoneBtn" title="Draw a ground absorption polygon (overrides default G value for propagation paths passing through it)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17 Q8 11 12 14 Q16 17 21 11"/><path d="M3 21h18" stroke-dasharray="2 2"/></svg> Ground absorption</button>
+                <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map (N)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building</button>
+                <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map (B)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier</button>
+                <button class="mp-btn" id="drawGroundZoneBtn" title="Draw a ground absorption polygon (overrides default G value for propagation paths passing through it) (G)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17 Q8 11 12 14 Q16 17 21 11"/><path d="M3 21h18" stroke-dasharray="2 2"/></svg> Ground absorption</button>
                 <div class="mp-sep"></div>
                 <!-- Group 3: Sources & receivers -->
                 <button class="mp-btn map-mode-btn" id="mapMode-source" title="Click map to place noise source" style="display:none;border-left:3px solid #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise source</button>
-                <button class="mp-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Point source</button>
-                <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.)" style="border-left:3px solid #d32f2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#d32f2f"/><circle cx="19" cy="5" r="2" fill="#d32f2f"/></svg> Line source</button>
-                <button class="mp-btn" id="drawAreaSourceBtn" title="Draw an area source polygon (car park, outdoor dining, industrial activity, etc.)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(217,119,6,0.25)" stroke="#d97706" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="2" fill="#d97706" stroke="none"/></svg> Area source</button>
-                <button class="mp-btn" id="drawBuildingSourceBtn" title="Draw a building source polygon (noise radiating from building facade/roof)" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(124,58,237,0.18)" stroke="#7c3aed" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#7c3aed" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#7c3aed" stroke-width="1.5"/></svg> Building source</button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1</button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4</button>
+                <button class="mp-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source (P)" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Point source</button>
+                <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.) (L)" style="border-left:3px solid #d32f2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#d32f2f"/><circle cx="19" cy="5" r="2" fill="#d32f2f"/></svg> Line source</button>
+                <button class="mp-btn" id="drawAreaSourceBtn" title="Draw an area source polygon (car park, outdoor dining, industrial activity, etc.) (A)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(217,119,6,0.25)" stroke="#d97706" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="2" fill="#d97706" stroke="none"/></svg> Area source</button>
+                <button class="mp-btn" id="drawBuildingSourceBtn" title="Draw a building source polygon (noise radiating from building facade/roof) (K)" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(124,58,237,0.18)" stroke="#7c3aed" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#7c3aed" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#7c3aed" stroke-width="1.5"/></svg> Building source</button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1 (1)" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1</button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2 (2)" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2</button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3 (3)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3</button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4 (4)" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4</button>
                 <div class="mp-sep"></div>
                 <!-- Group 4: Visibility -->
-                <button class="mp-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide all modelling objects on the map (sources, receivers, barriers, buildings, zones)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Show / hide objects</button>
+                <button class="mp-btn pins-toggle-btn active" id="pinsToggleBtn" title="Show or hide all modelling objects on the map (sources, receivers, barriers, buildings, zones) (H)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Show / hide objects</button>
                 <button class="mp-btn parcel-toggle-btn active" id="parcelToggleBtn" title="Show or hide subject site cadastral boundary" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Show / hide boundary</button>
                 <button class="mp-btn" id="buildingsResetAllBtn" title="Reset all building height overrides" style="display:none;">Reset overrides</button>
                 <div class="mp-sep"></div>
@@ -1127,7 +1141,7 @@ body.map-fs-active { overflow: hidden; }
                 <span>Modelling</span><span class="mp-arrow">&#9660;</span>
               </div>
               <div class="mp-body">
-                <button class="mp-btn" id="noiseMapBtn" title="Compute and display noise contour map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise map</button>
+                <button class="mp-btn" id="noiseMapBtn" title="Compute and display noise contour map (M)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise map</button>
                 <div id="noiseMapControls" style="display:none;flex-direction:column;gap:3px;">
                   <div style="display:flex;gap:2px;padding:2px 4px;">
                     <button class="mp-btn active" data-nmperiod="day" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">Day</button>
@@ -25978,6 +25992,50 @@ if (window.pdfjsLib) {
       </div>
     </details>
 
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> Keyboard shortcuts</summary>
+      <div class="help-body">
+        <div class="help-sub">Sources</div>
+        <ul>
+          <li><kbd>P</kbd> &nbsp;Point source</li>
+          <li><kbd>L</kbd> &nbsp;Line source</li>
+          <li><kbd>A</kbd> &nbsp;Area source</li>
+          <li><kbd>K</kbd> &nbsp;Building source</li>
+          <li><kbd>1</kbd>&ndash;<kbd>4</kbd> &nbsp;Receivers 1&ndash;4</li>
+        </ul>
+        <div class="help-sub">Site elements</div>
+        <ul>
+          <li><kbd>B</kbd> &nbsp;Barrier</li>
+          <li><kbd>N</kbd> &nbsp;New building</li>
+          <li><kbd>G</kbd> &nbsp;Ground absorption</li>
+        </ul>
+        <div class="help-sub">Layers</div>
+        <ul>
+          <li><kbd>T</kbd> &nbsp;Terrain</li>
+          <li><kbd>C</kbd> &nbsp;Contours</li>
+          <li><kbd>O</kbd> &nbsp;Buildings (OSM)</li>
+          <li><kbd>F</kbd> &nbsp;Reflections</li>
+          <li><kbd>Z</kbd> &nbsp;Zones</li>
+        </ul>
+        <div class="help-sub">Tools</div>
+        <ul>
+          <li><kbd>R</kbd> &nbsp;Ruler</li>
+          <li><kbd>M</kbd> &nbsp;Noise map</li>
+          <li><kbd>H</kbd> &nbsp;Show/hide objects</li>
+          <li><kbd>S</kbd> &nbsp;Search bar</li>
+          <li><kbd>E</kbd> &nbsp;Expand/restore map</li>
+          <li><kbd>?</kbd> &nbsp;Quick reference</li>
+        </ul>
+        <div class="help-sub">Editing</div>
+        <ul>
+          <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> &nbsp;Undo</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> &nbsp;Redo</li>
+          <li><kbd>Esc</kbd> &nbsp;Exit maximised mode</li>
+        </ul>
+        <p style="margin:4px 0 0;font-size:10px;color:#9ca3af;">Keys inactive while typing in any input field.</p>
+      </div>
+    </details>
+
   </div><!-- /helpPanelContent -->
 </div><!-- /helpFloatPanel -->
 
@@ -27277,6 +27335,160 @@ if (window.pdfjsLib) {
   panel.addEventListener('mousedown', function(e) { e.stopPropagation(); });
   panel.addEventListener('wheel',     function(e) { e.stopPropagation(); });
 
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUTS — single-key accelerators for power users
+   Does NOT intercept text inputs, selects, or contenteditable.
+   Does NOT intercept modifier combos (Ctrl/Meta/Alt handled
+   separately by undo manager and browser defaults).
+   ══════════════════════════════════════════════════════════════ */
+(function() {
+  'use strict';
+
+  /* Short-lived toast at bottom-centre of screen */
+  function _kbToast(msg) {
+    var existing = document.getElementById('_kbToastEl');
+    if (existing) existing.remove();
+    var t = document.createElement('div');
+    t.id = '_kbToastEl';
+    t.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);' +
+      'z-index:99999;background:rgba(30,41,59,0.92);color:#f8fafc;' +
+      'padding:6px 16px;font-size:12px;border-radius:20px;' +
+      'box-shadow:0 2px 8px rgba(0,0,0,0.28);pointer-events:none;' +
+      'letter-spacing:0.01em;white-space:nowrap;';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 1500);
+  }
+
+  /* Simulate a button click by ID */
+  function _btn(id) {
+    var el = document.getElementById(id);
+    if (el) el.click();
+    return el;
+  }
+
+  /* Read active state AFTER clicking (for toggles) */
+  function _isActive(id) {
+    var el = document.getElementById(id);
+    return el ? el.classList.contains('active') : false;
+  }
+
+  document.addEventListener('keydown', function(e) {
+    /* Skip when user is typing */
+    var tag = ((e.target && e.target.tagName) || '').toUpperCase();
+    var editable = e.target && e.target.isContentEditable;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
+
+    /* Skip modifier combos — Ctrl+Z etc. handled by undo manager */
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    var key = e.key;
+
+    switch (key) {
+      /* ── Sources ─────────────────────────────────────────────── */
+      case 'p': case 'P':
+        _btn('mapMode-addSource');
+        _kbToast('Point source (P)');
+        e.preventDefault(); break;
+
+      case 'l': case 'L':
+        _btn('drawLineSourceBtn');
+        _kbToast('Line source (L)');
+        e.preventDefault(); break;
+
+      case 'a': case 'A':
+        _btn('drawAreaSourceBtn');
+        _kbToast('Area source (A)');
+        e.preventDefault(); break;
+
+      case 'k': case 'K':
+        _btn('drawBuildingSourceBtn');
+        _kbToast('Building source (K)');
+        e.preventDefault(); break;
+
+      /* ── Receivers ───────────────────────────────────────────── */
+      case '1': _btn('mapMode-r1'); _kbToast('Receiver 1 (1)'); e.preventDefault(); break;
+      case '2': _btn('mapMode-r2'); _kbToast('Receiver 2 (2)'); e.preventDefault(); break;
+      case '3': _btn('mapMode-r3'); _kbToast('Receiver 3 (3)'); e.preventDefault(); break;
+      case '4': _btn('mapMode-r4'); _kbToast('Receiver 4 (4)'); e.preventDefault(); break;
+
+      /* ── Site elements ───────────────────────────────────────── */
+      case 'b': case 'B':
+        _btn('drawBarrierBtn');
+        _kbToast('Barrier (B)');
+        e.preventDefault(); break;
+
+      case 'n': case 'N':
+        _btn('drawBuildingBtn');
+        _kbToast('New building (N)');
+        e.preventDefault(); break;
+
+      case 'g': case 'G':
+        _btn('drawGroundZoneBtn');
+        _kbToast('Ground absorption (G)');
+        e.preventDefault(); break;
+
+      /* ── Map layers ──────────────────────────────────────────── */
+      case 't': case 'T':
+        _btn('terrainToggleBtn');
+        _kbToast('Terrain ' + (_isActive('terrainToggleBtn') ? 'ON' : 'OFF') + ' (T)');
+        e.preventDefault(); break;
+
+      case 'c': case 'C':
+        _btn('terrainContourBtn');
+        _kbToast('Contours ' + (_isActive('terrainContourBtn') ? 'ON' : 'OFF') + ' (C)');
+        e.preventDefault(); break;
+
+      case 'o': case 'O':
+        _btn('buildingsToggleBtn');
+        _kbToast('Buildings ' + (_isActive('buildingsToggleBtn') ? 'ON' : 'OFF') + ' (O)');
+        e.preventDefault(); break;
+
+      case 'f': case 'F':
+        _btn('reflectionsBtn');
+        _kbToast('Reflections ' + (_isActive('reflectionsBtn') ? 'ON' : 'OFF') + ' (F)');
+        e.preventDefault(); break;
+
+      case 'r': case 'R':
+        _btn('rulerBtn');
+        _kbToast('Ruler (R)');
+        e.preventDefault(); break;
+
+      /* ── Modelling ───────────────────────────────────────────── */
+      case 'm': case 'M':
+        _btn('noiseMapBtn');
+        _kbToast('Noise map ' + (_isActive('noiseMapBtn') ? 'ON' : 'OFF') + ' (M)');
+        e.preventDefault(); break;
+
+      case 'h': case 'H':
+        _btn('pinsToggleBtn');
+        _kbToast('Objects ' + (_isActive('pinsToggleBtn') ? 'shown' : 'hidden') + ' (H)');
+        e.preventDefault(); break;
+
+      case 'z': case 'Z':
+        _btn('zoneToggleBtn');
+        _kbToast('Zones ' + (_isActive('zoneToggleBtn') ? 'ON' : 'OFF') + ' (Z)');
+        e.preventDefault(); break;
+
+      /* ── Navigation ──────────────────────────────────────────── */
+      case 's': case 'S':
+        var _si = document.getElementById('mapSearchInput');
+        if (_si) { _si.focus(); _si.select(); }
+        e.preventDefault(); break;
+
+      case 'e': case 'E':
+        if (typeof toggleMapFullscreen === 'function') toggleMapFullscreen();
+        e.preventDefault(); break;
+
+      case '?':
+        _btn('helpToggleBtn');
+        e.preventDefault(); break;
+    }
+  });
 })();
 </script>
 
