@@ -1448,8 +1448,10 @@ body.map-fs-active { overflow: hidden; }
           <div style="display:flex;gap:5px;align-items:center;">
             <button class="crit-refresh-btn" id="exportCriteriaPdfBtn" onclick="exportCriteriaPdf(this)" title="Export criteria derivation PDF (A4 portrait)">&#x21E9;</button>
             <button class="crit-refresh-btn" onclick="refreshZonesAndCriteria()" title="Refresh all: addresses, coordinates, ASL, zones and criteria for all placed markers">&#x21BB;</button>
+            <button class="collapse-btn" id="critToggleBtn" title="Toggle section" onclick="(function(btn){var b=document.getElementById('critBody');var open=b.style.display!=='none';b.style.display=open?'none':'';btn.innerHTML=open?'&#x25BC;':'&#x25B2;';})(this)">&#x25B2;</button>
           </div>
         </div>
+        <div id="critBody">
         <div class="p" id="policyNoteText" style="display:none;font-style:italic;margin-bottom:4px;"></div>
         <div class="p" id="zoneDescText"></div>
 
@@ -1670,6 +1672,7 @@ body.map-fs-active { overflow: hidden; }
             </tbody>
           </table>
         </div>
+        </div><!-- end critBody -->
       </div>
     </div>
 
@@ -1694,8 +1697,10 @@ body.map-fs-active { overflow: hidden; }
           <h2 style="margin:0;">MBS 010</h2>
           <div style="display:flex;gap:5px;align-items:center;">
             <button class="crit-refresh-btn" id="mbs010RefreshBtn" onclick="refreshMBS010()" title="Re-query SAPPA for MBS 010 data">&#x21BB;</button>
+            <button class="collapse-btn" id="mbs010ToggleColBtn" title="Toggle section" onclick="(function(btn){var b=document.getElementById('mbs010Body');var open=b.style.display!=='none';b.style.display=open?'none':'';btn.innerHTML=open?'&#x25BC;':'&#x25B2;';})(this)">&#x25B2;</button>
           </div>
         </div>
+        <div id="mbs010Body">
         <div class="p">The application of MBS 010 will be triggered if the subject site is located in an ANEF contour or is within a Noise Attenuation Area (Noise and Air Emissions Overlay). <a id="sappaLink" href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener" class="tool-btn map-mode-btn" style="text-decoration:none;display:inline-block;font-size:12px;padding:3px 10px;vertical-align:middle;" title="Open SAPPA to view layers">SAPPA &#8599;</a></div>
         <div class="table-scroll">
           <table class="crit-table" style="margin-top:8px;" id="mbs010Table">
@@ -1739,6 +1744,7 @@ body.map-fs-active { overflow: hidden; }
             </details>
           </div>
         </div>
+        </div><!-- end mbs010Body -->
       </div>
     </div>
 
