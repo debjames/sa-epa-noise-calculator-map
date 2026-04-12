@@ -20149,6 +20149,389 @@ if (window.pdfjsLib) {
       if (typeof triggerRecalculation === 'function') triggerRecalculation();
     }
 
+    /* ═══ Shared drag helper for floating panels ═══════════════════════════ */
+    function _makePanelDraggable(panel, header) {
+      var dragging = false, dx = 0, dy = 0, px = 0, py = 0;
+      header.addEventListener('mousedown', function(ev) {
+        if (ev.target.tagName === 'BUTTON' || ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT') return;
+        dragging = true; dx = ev.clientX; dy = ev.clientY;
+        var r = panel.getBoundingClientRect(); px = r.left; py = r.top;
+        ev.preventDefault();
+      });
+      document.addEventListener('mousemove', function(ev) {
+        if (!dragging) return;
+        panel.style.left = (px + ev.clientX - dx) + 'px';
+        panel.style.top  = (py + ev.clientY - dy) + 'px';
+      });
+      document.addEventListener('mouseup', function() { dragging = false; });
+    }
+
+    /* ═══ Barrier floating panel ════════════════════════════════════════════ */
+    var _barrierPanel = null;
+
+    function closeBarrierPanel() {
+      if (_barrierPanel && _barrierPanel.parentNode) _barrierPanel.parentNode.removeChild(_barrierPanel);
+      _barrierPanel = null;
+    }
+
+    function openBarrierPanel(ubId, clientX, clientY) {
+      closeBarrierPanel();
+      var ub = null;
+      for (var i = 0; i < userBarriers.length; i++) {
+        if (userBarriers[i].id === ubId) { ub = userBarriers[i]; break; }
+      }
+      if (!ub) return;
+      var curBase = ub.baseHeightM || 0, curHt = ub.heightM || 2;
+      var mid = _lsPolylineMidpoint(ub.vertices || []);
+      var coordStr = mid ? mid.lat.toFixed(5) + ', ' + mid.lng.toFixed(5) : '';
+      var div = document.createElement('div');
+      div.innerHTML =
+        '<div id="barrierFloatPanel" style="position:fixed;width:300px;max-height:calc(100vh-80px);overflow-y:auto;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;">' +
+          '<div id="bpHeader" style="background:#fff;border-left:4px solid #4CAF50;border-radius:8px 8px 0 0;padding:10px 14px;display:flex;align-items:center;gap:8px;cursor:move;border-bottom:1px solid #f0f0f0;">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="2.5" style="flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg>' +
+            '<span style="font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;">' + escapeHTML(ub.name || 'Barrier') + '</span>' +
+            '<button id="bpClose" style="background:none;border:none;color:#bbb;font-size:18px;cursor:pointer;padding:0 4px;">&#x2715;</button>' +
+          '</div>' +
+          '<div style="padding:12px 14px 10px;">' +
+            (coordStr ? '<div style="font-size:10px;color:#9ca3af;margin-bottom:8px;">' + coordStr + '</div>' : '') +
+            '<div style="margin-bottom:8px;"><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Name</label>' +
+              '<input type="text" id="bpName" value="' + escapeHTML(ub.name || '') + '" style="width:100%;box-sizing:border-box;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;"></div>' +
+            '<div style="display:flex;gap:8px;margin-bottom:6px;">' +
+              '<div style="flex:1;"><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Base height (m)</label>' +
+                '<input type="number" id="bpBase" value="' + curBase.toFixed(1) + '" step="0.1" min="0" style="width:100%;box-sizing:border-box;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;"></div>' +
+              '<div style="flex:1;"><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Height (m)</label>' +
+                '<input type="number" id="bpHeight" value="' + curHt.toFixed(1) + '" step="0.1" min="0.1" style="width:100%;box-sizing:border-box;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;"></div>' +
+            '</div>' +
+            '<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Top: <b id="bpTopDisplay">' + (curBase + curHt).toFixed(1) + '</b> m above ground' +
+              '<span id="bpFloatNote" style="color:#e67e22;margin-left:6px;display:' + (curBase > 0 ? 'inline' : 'none') + ';">\u26a0 Floating</span></div>' +
+            '<div id="bpTerrainInfo" style="font-size:11px;color:#6b7280;margin-bottom:8px;"></div>' +
+            '<label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:10px;">' +
+              '<input type="checkbox" id="bpSuppressed"' + (ub.suppressed ? ' checked' : '') + '> Suppressed (excluded from calculations)</label>' +
+            '<div style="display:flex;gap:6px;">' +
+              '<button id="bpApply" style="flex:1;padding:5px 8px;font-size:12px;font-weight:600;background:#4CAF50;color:#fff;border:none;border-radius:5px;cursor:pointer;">Apply</button>' +
+              '<button id="bpShape" style="padding:5px 8px;font-size:12px;background:#f0f7ff;color:#2980b9;border:1px solid #c3d9f0;border-radius:5px;cursor:pointer;">Edit shape</button>' +
+              '<button id="bpDelete" style="padding:5px 8px;font-size:12px;background:#fff5f5;color:#dc2626;border:1px solid #fecaca;border-radius:5px;cursor:pointer;">Delete</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      var panel = div.firstChild;
+      document.body.appendChild(panel);
+      _barrierPanel = panel;
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var left = Math.min((clientX || vw/2) + 10, vw - 310); if (left < 10) left = 10;
+      var top  = Math.min((clientY || vh/2) - 30, vh - 320); if (top < 10) top = 10;
+      panel.style.left = left + 'px'; panel.style.top = top + 'px';
+      _makePanelDraggable(panel, panel.querySelector('#bpHeader'));
+      panel.querySelector('#bpClose').addEventListener('click', closeBarrierPanel);
+      // Live top display
+      function _bpUpdateTop() {
+        var b = parseFloat(panel.querySelector('#bpBase').value) || 0;
+        var h = parseFloat(panel.querySelector('#bpHeight').value) || 0;
+        panel.querySelector('#bpTopDisplay').textContent = (b + h).toFixed(1);
+        panel.querySelector('#bpFloatNote').style.display = b > 0 ? 'inline' : 'none';
+        _bpTerrainInfo();
+      }
+      function _bpTerrainInfo() {
+        var el = panel.querySelector('#bpTerrainInfo'); if (!el) return;
+        if (!_terrainEnabled) { el.textContent = ''; return; }
+        var mid2 = _lsPolylineMidpoint(ub.vertices || []); if (!mid2) return;
+        var b = parseFloat(panel.querySelector('#bpBase').value) || 0;
+        var h = parseFloat(panel.querySelector('#bpHeight').value) || 0;
+        if (typeof DEMCache !== 'undefined' && DEMCache.getElevation) {
+          DEMCache.getElevation(mid2.lat, mid2.lng).then(function(elev) {
+            if (elev !== null && Number.isFinite(elev) && el.isConnected)
+              el.textContent = 'Terrain: ' + elev.toFixed(1) + '\u202fm\u202fAHD \u2014 Top: ' + (elev + b + h).toFixed(1) + '\u202fm\u202fAHD';
+          }).catch(function() {});
+        }
+      }
+      panel.querySelector('#bpBase').addEventListener('input', _bpUpdateTop);
+      panel.querySelector('#bpHeight').addEventListener('input', _bpUpdateTop);
+      _bpTerrainInfo();
+      // Apply
+      panel.querySelector('#bpApply').addEventListener('click', function() {
+        var nv = panel.querySelector('#bpName').value;
+        var bv = parseFloat(panel.querySelector('#bpBase').value);
+        var hv = parseFloat(panel.querySelector('#bpHeight').value);
+        if (nv) ub.name = nv;
+        if (Number.isFinite(bv) && bv >= 0) ub.baseHeightM = bv;
+        if (Number.isFinite(hv) && hv > 0)  ub.heightM = hv;
+        ub.suppressed = !!panel.querySelector('#bpSuppressed').checked;
+        closeBarrierPanel();
+        renderUserBarriers(); rebuildBuildingsIndex();
+        if (typeof render === 'function') render();
+        if (typeof window._undoPushState === 'function') window._undoPushState('Edit barrier ' + (ub.name || 'Barrier'));
+      });
+      // Delete
+      panel.querySelector('#bpDelete').addEventListener('click', function() {
+        if (!confirm('Delete barrier "' + (ub.name || 'Barrier') + '"?')) return;
+        var lbl = 'Delete barrier ' + (ub.name || 'Barrier');
+        userBarriers.splice(userBarriers.indexOf(ub), 1);
+        closeBarrierPanel(); _selectedBarrier = null;
+        renderUserBarriers(); rebuildBuildingsIndex();
+        if (typeof render === 'function') render();
+        if (typeof window._undoPushState === 'function') window._undoPushState(lbl);
+      });
+      // Edit shape
+      panel.querySelector('#bpShape').addEventListener('click', function() {
+        var line = ub._line; if (!line || !line.editing) return;
+        closeBarrierPanel();
+        var origV = ub.vertices.map(function(v) { return [v[0], v[1]]; });
+        _drawingActive = true; line.editing.enable();
+        var dbBtn = document.getElementById('drawBarrierBtn'); if (dbBtn) dbBtn.classList.add('active');
+        var eb = document.createElement('div'); eb.id = 'shapeEditBar';
+        eb.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #4CAF50;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.18);pointer-events:all;white-space:nowrap;';
+        eb.innerHTML = '<span style="color:#4CAF50;font-weight:600;">Editing: ' + escapeHTML(ub.name || 'Barrier') + '</span><span style="color:#666;font-size:11px;">Drag vertices</span>' +
+          '<button id="bpShapeSave" style="padding:3px 12px;font-size:12px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+          '<button id="bpShapeCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
+        map.getContainer().style.position = 'relative'; map.getContainer().appendChild(eb);
+        function _remEb() { var x = document.getElementById('shapeEditBar'); if (x && x.parentNode) x.parentNode.removeChild(x); }
+        document.getElementById('bpShapeSave').addEventListener('click', function() {
+          line.editing.disable(); _drawingActive = false;
+          ub.vertices = line.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+          _remEb(); if (dbBtn) dbBtn.classList.remove('active');
+          renderUserBarriers(); rebuildBuildingsIndex();
+          if (typeof render === 'function') render();
+          if (typeof window._undoPushState === 'function') window._undoPushState('Edit barrier shape ' + (ub.name || 'Barrier'));
+        });
+        document.getElementById('bpShapeCancel').addEventListener('click', function() {
+          line.editing.disable(); _drawingActive = false; line.setLatLngs(origV);
+          _remEb(); if (dbBtn) dbBtn.classList.remove('active');
+        });
+      });
+    }
+
+    /* ═══ Custom building floating panel ════════════════════════════════════ */
+    var _buildingPanel = null;
+
+    function closeBuildingPanel() {
+      if (_buildingPanel && _buildingPanel.parentNode) _buildingPanel.parentNode.removeChild(_buildingPanel);
+      _buildingPanel = null;
+    }
+
+    function openBuildingPanel(cbId, clientX, clientY) {
+      closeBuildingPanel();
+      var cb = null;
+      for (var i = 0; i < customBuildings.length; i++) {
+        if (customBuildings[i].id === cbId) { cb = customBuildings[i]; break; }
+      }
+      if (!cb) return;
+      var curBase = cb.baseHeightM || 0, curHt = cb.heightM || 3;
+      var ctr = _asPolygonCentroid(cb.polygon || []);
+      var coordStr = ctr ? ctr.lat.toFixed(5) + ', ' + ctr.lng.toFixed(5) : '';
+      var div = document.createElement('div');
+      div.innerHTML =
+        '<div id="buildingFloatPanel" style="position:fixed;width:300px;max-height:calc(100vh-80px);overflow-y:auto;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;">' +
+          '<div id="cbpHeader" style="background:#fff;border-left:4px solid #465a78;border-radius:8px 8px 0 0;padding:10px 14px;display:flex;align-items:center;gap:8px;cursor:move;border-bottom:1px solid #f0f0f0;">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#465a78" stroke-width="2" style="flex-shrink:0;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/></svg>' +
+            '<span style="font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;">' + escapeHTML(cb.name || 'Custom building') + '</span>' +
+            '<button id="cbpClose" style="background:none;border:none;color:#bbb;font-size:18px;cursor:pointer;padding:0 4px;">&#x2715;</button>' +
+          '</div>' +
+          '<div style="padding:12px 14px 10px;">' +
+            (coordStr ? '<div style="font-size:10px;color:#9ca3af;margin-bottom:8px;">' + coordStr + '</div>' : '') +
+            '<div style="margin-bottom:8px;"><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Name</label>' +
+              '<input type="text" id="cbpName" value="' + escapeHTML(cb.name || '') + '" style="width:100%;box-sizing:border-box;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;"></div>' +
+            '<div style="display:flex;gap:8px;margin-bottom:6px;">' +
+              '<div style="flex:1;"><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Base height (m)</label>' +
+                '<input type="number" id="cbpBase" value="' + curBase.toFixed(1) + '" step="0.1" min="0" style="width:100%;box-sizing:border-box;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;"></div>' +
+              '<div style="flex:1;"><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Building height (m)</label>' +
+                '<input type="number" id="cbpHeight" value="' + curHt.toFixed(1) + '" step="0.5" min="0.5" style="width:100%;box-sizing:border-box;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;"></div>' +
+            '</div>' +
+            '<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Top: <b id="cbpTopDisplay">' + (curBase + curHt).toFixed(1) + '</b> m above ground' +
+              '<span id="cbpFloatNote" style="color:#c0392b;margin-left:6px;display:' + (curBase > 0 ? 'inline' : 'none') + ';">\u26a0 Elevated</span></div>' +
+            '<div id="cbpTerrainInfo" style="font-size:11px;color:#6b7280;margin-bottom:10px;"></div>' +
+            '<div style="display:flex;gap:6px;">' +
+              '<button id="cbpApply" style="flex:1;padding:5px 8px;font-size:12px;font-weight:600;background:#465a78;color:#fff;border:none;border-radius:5px;cursor:pointer;">Apply</button>' +
+              '<button id="cbpShape" style="padding:5px 8px;font-size:12px;background:#f0f7ff;color:#2980b9;border:1px solid #c3d9f0;border-radius:5px;cursor:pointer;">Edit shape</button>' +
+              '<button id="cbpDelete" style="padding:5px 8px;font-size:12px;background:#fff5f5;color:#dc2626;border:1px solid #fecaca;border-radius:5px;cursor:pointer;">Delete</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      var panel = div.firstChild;
+      document.body.appendChild(panel);
+      _buildingPanel = panel;
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var left = Math.min((clientX || vw/2) + 10, vw - 310); if (left < 10) left = 10;
+      var top  = Math.min((clientY || vh/2) - 30, vh - 300); if (top < 10) top = 10;
+      panel.style.left = left + 'px'; panel.style.top = top + 'px';
+      _makePanelDraggable(panel, panel.querySelector('#cbpHeader'));
+      panel.querySelector('#cbpClose').addEventListener('click', closeBuildingPanel);
+      function _cbpUpdateTop() {
+        var b = parseFloat(panel.querySelector('#cbpBase').value) || 0;
+        var h = parseFloat(panel.querySelector('#cbpHeight').value) || 0;
+        panel.querySelector('#cbpTopDisplay').textContent = (b + h).toFixed(1);
+        panel.querySelector('#cbpFloatNote').style.display = b > 0 ? 'inline' : 'none';
+        _cbpTerrainInfo();
+      }
+      function _cbpTerrainInfo() {
+        var el = panel.querySelector('#cbpTerrainInfo'); if (!el) return;
+        if (!_terrainEnabled) { el.textContent = ''; return; }
+        var ctr2 = _asPolygonCentroid(cb.polygon || []); if (!ctr2) return;
+        var b = parseFloat(panel.querySelector('#cbpBase').value) || 0;
+        var h = parseFloat(panel.querySelector('#cbpHeight').value) || 0;
+        if (typeof DEMCache !== 'undefined' && DEMCache.getElevation) {
+          DEMCache.getElevation(ctr2.lat, ctr2.lng).then(function(elev) {
+            if (elev !== null && Number.isFinite(elev) && el.isConnected)
+              el.textContent = 'Terrain: ' + elev.toFixed(1) + '\u202fm\u202fAHD \u2014 Roof: ' + (elev + b + h).toFixed(1) + '\u202fm\u202fAHD';
+          }).catch(function() {});
+        }
+      }
+      panel.querySelector('#cbpBase').addEventListener('input', _cbpUpdateTop);
+      panel.querySelector('#cbpHeight').addEventListener('input', _cbpUpdateTop);
+      _cbpTerrainInfo();
+      panel.querySelector('#cbpApply').addEventListener('click', function() {
+        var nv = panel.querySelector('#cbpName').value;
+        var bv = parseFloat(panel.querySelector('#cbpBase').value);
+        var hv = parseFloat(panel.querySelector('#cbpHeight').value);
+        if (nv) cb.name = nv;
+        if (Number.isFinite(bv) && bv >= 0) cb.baseHeightM = bv;
+        if (Number.isFinite(hv) && hv > 0)  cb.heightM = hv;
+        closeBuildingPanel();
+        renderCustomBuildings(); rebuildBuildingsIndex();
+        if (typeof render === 'function') render();
+        if (typeof window._undoPushState === 'function') window._undoPushState('Edit building ' + (cb.name || 'Building'));
+      });
+      panel.querySelector('#cbpDelete').addEventListener('click', function() {
+        if (!confirm('Delete building "' + (cb.name || 'Custom building') + '"?')) return;
+        var lbl = 'Delete building ' + (cb.name || 'Building');
+        customBuildings.splice(customBuildings.indexOf(cb), 1);
+        closeBuildingPanel();
+        renderCustomBuildings(); rebuildBuildingsIndex();
+        if (typeof render === 'function') render();
+        if (typeof window._undoPushState === 'function') window._undoPushState(lbl);
+      });
+      panel.querySelector('#cbpShape').addEventListener('click', function() {
+        var poly = cb._polygon; if (!poly || !poly.editing) return;
+        closeBuildingPanel();
+        var origV = (cb.polygon || []).map(function(v) { return [v[0], v[1]]; });
+        _drawingActive = true; poly.editing.enable();
+        var eb = document.createElement('div'); eb.id = 'shapeEditBar';
+        eb.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #465a78;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.18);pointer-events:all;white-space:nowrap;';
+        eb.innerHTML = '<span style="color:#465a78;font-weight:600;">Editing: ' + escapeHTML(cb.name || 'Building') + '</span><span style="color:#666;font-size:11px;">Drag vertices</span>' +
+          '<button id="cbpShapeSave" style="padding:3px 12px;font-size:12px;background:#465a78;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+          '<button id="cbpShapeCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
+        map.getContainer().style.position = 'relative'; map.getContainer().appendChild(eb);
+        function _remEb() { var x = document.getElementById('shapeEditBar'); if (x && x.parentNode) x.parentNode.removeChild(x); }
+        document.getElementById('cbpShapeSave').addEventListener('click', function() {
+          poly.editing.disable(); _drawingActive = false;
+          cb.polygon = poly.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+          _remEb(); renderCustomBuildings(); rebuildBuildingsIndex();
+          if (typeof render === 'function') render();
+          if (typeof window._undoPushState === 'function') window._undoPushState('Edit building shape ' + (cb.name || 'Building'));
+        });
+        document.getElementById('cbpShapeCancel').addEventListener('click', function() {
+          poly.editing.disable(); _drawingActive = false; poly.setLatLngs(origV); _remEb();
+        });
+      });
+    }
+
+    /* ═══ Ground absorption zone floating panel ═════════════════════════════ */
+    var _groundZonePanel = null;
+
+    function closeGroundZonePanel() {
+      if (_groundZonePanel && _groundZonePanel.parentNode) _groundZonePanel.parentNode.removeChild(_groundZonePanel);
+      _groundZonePanel = null;
+    }
+
+    function openGroundZonePanel(gzId, clientX, clientY) {
+      closeGroundZonePanel();
+      var gz = null;
+      for (var i = 0; i < _groundZones.length; i++) {
+        if (_groundZones[i].id === gzId) { gz = _groundZones[i]; break; }
+      }
+      if (!gz) return;
+      var g = gz.g; var isCustom = (g !== 0 && g !== 0.5 && g !== 1);
+      var gLabel = g === 0 ? 'Hard (G=0)' : g === 0.5 ? 'Mixed (G=0.5)' : g === 1 ? 'Soft (G=1)' : 'Custom (G=' + g.toFixed(2) + ')';
+      var ctr = _asPolygonCentroid(gz.vertices || []);
+      var coordStr = ctr ? ctr.lat.toFixed(5) + ', ' + ctr.lng.toFixed(5) : '';
+      var div = document.createElement('div');
+      div.innerHTML =
+        '<div id="groundZoneFloatPanel" style="position:fixed;width:290px;max-height:calc(100vh-80px);overflow-y:auto;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;">' +
+          '<div id="gzpHeader" style="background:#fff;border-left:4px solid #2d6a4f;border-radius:8px 8px 0 0;padding:10px 14px;display:flex;align-items:center;gap:8px;cursor:move;border-bottom:1px solid #f0f0f0;">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2d6a4f" stroke-width="2" style="flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>' +
+            '<span style="font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;">' + escapeHTML(gz.name || 'Ground absorption') + ' \u2014 ' + gLabel + '</span>' +
+            '<button id="gzpClose" style="background:none;border:none;color:#bbb;font-size:18px;cursor:pointer;padding:0 4px;">&#x2715;</button>' +
+          '</div>' +
+          '<div style="padding:12px 14px 10px;">' +
+            (coordStr ? '<div style="font-size:10px;color:#9ca3af;margin-bottom:8px;">' + coordStr + '</div>' : '') +
+            '<div style="margin-bottom:8px;"><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Name</label>' +
+              '<input type="text" id="gzpName" value="' + escapeHTML(gz.name || '') + '" style="width:100%;box-sizing:border-box;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;"></div>' +
+            '<div style="margin-bottom:8px;"><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Ground absorption G</label>' +
+              '<select id="gzpGSel" style="width:100%;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;">' +
+                '<option value="0"' + (g===0?' selected':'') + '>0.0 \u2014 Hard</option>' +
+                '<option value="0.5"' + (g===0.5?' selected':'') + '>0.5 \u2014 Mixed</option>' +
+                '<option value="1"' + (g===1?' selected':'') + '>1.0 \u2014 Soft</option>' +
+                '<option value="custom"' + (isCustom?' selected':'') + '>Custom\u2026</option>' +
+              '</select>' +
+              '<div id="gzpCustomRow" style="margin-top:6px;display:' + (isCustom ? 'block' : 'none') + ';">' +
+                '<label style="font-size:11px;">Custom G (0\u20131): <input type="number" id="gzpCustomG" min="0" max="1" step="0.05" value="' + g.toFixed(2) + '" style="width:70px;padding:4px 6px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;"></label>' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:6px;">' +
+              '<button id="gzpApply" style="flex:1;padding:5px 8px;font-size:12px;font-weight:600;background:#2d6a4f;color:#fff;border:none;border-radius:5px;cursor:pointer;">Apply</button>' +
+              '<button id="gzpShape" style="padding:5px 8px;font-size:12px;background:#f0f7ff;color:#2980b9;border:1px solid #c3d9f0;border-radius:5px;cursor:pointer;">Edit shape</button>' +
+              '<button id="gzpDelete" style="padding:5px 8px;font-size:12px;background:#fff5f5;color:#dc2626;border:1px solid #fecaca;border-radius:5px;cursor:pointer;">Delete</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      var panel = div.firstChild;
+      document.body.appendChild(panel);
+      _groundZonePanel = panel;
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var left = Math.min((clientX || vw/2) + 10, vw - 300); if (left < 10) left = 10;
+      var top  = Math.min((clientY || vh/2) - 30, vh - 280); if (top < 10) top = 10;
+      panel.style.left = left + 'px'; panel.style.top = top + 'px';
+      _makePanelDraggable(panel, panel.querySelector('#gzpHeader'));
+      panel.querySelector('#gzpClose').addEventListener('click', closeGroundZonePanel);
+      var gSel = panel.querySelector('#gzpGSel');
+      var custRow = panel.querySelector('#gzpCustomRow');
+      gSel.addEventListener('change', function() { custRow.style.display = this.value === 'custom' ? 'block' : 'none'; });
+      panel.querySelector('#gzpApply').addEventListener('click', function() {
+        var sv = gSel.value;
+        var gv = sv === 'custom' ? Math.max(0, Math.min(1, parseFloat(panel.querySelector('#gzpCustomG').value) || 0.5)) : parseFloat(sv);
+        gz.g = gv; gz.name = (panel.querySelector('#gzpName').value || '').trim() || gz.name;
+        closeGroundZonePanel();
+        _renderGroundZone(gz);
+        if (typeof render === 'function') render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+        if (typeof window._undoPushState === 'function') window._undoPushState('Edit ground zone ' + (gz.name || 'Ground zone'));
+      });
+      panel.querySelector('#gzpDelete').addEventListener('click', function() {
+        if (!confirm('Delete "' + (gz.name || 'Ground absorption') + '"?')) return;
+        var lbl = 'Delete ground zone ' + (gz.name || 'Ground zone');
+        var idx = _groundZones.indexOf(gz); if (idx !== -1) _groundZones.splice(idx, 1);
+        if (gz._polygon) _groundZoneLayer.removeLayer(gz._polygon);
+        closeGroundZonePanel();
+        if (typeof render === 'function') render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+        if (typeof window._undoPushState === 'function') window._undoPushState(lbl);
+      });
+      panel.querySelector('#gzpShape').addEventListener('click', function() {
+        var poly = gz._polygon; if (!poly || !poly.editing) return;
+        closeGroundZonePanel();
+        var origV = (gz.vertices || []).map(function(v) { return [v[0], v[1]]; });
+        _drawingActive = true; poly.editing.enable();
+        var accent = _gzBorderColor(gz.g);
+        var eb = document.createElement('div'); eb.id = 'shapeEditBar';
+        eb.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid ' + accent + ';border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.18);pointer-events:all;white-space:nowrap;';
+        eb.innerHTML = '<span style="color:' + accent + ';font-weight:600;">Editing: ' + escapeHTML(gz.name || 'Ground zone') + '</span><span style="color:#666;font-size:11px;">Drag vertices</span>' +
+          '<button id="gzpShapeSave" style="padding:3px 12px;font-size:12px;background:' + accent + ';color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+          '<button id="gzpShapeCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
+        map.getContainer().style.position = 'relative'; map.getContainer().appendChild(eb);
+        function _remEb() { var x = document.getElementById('shapeEditBar'); if (x && x.parentNode) x.parentNode.removeChild(x); }
+        document.getElementById('gzpShapeSave').addEventListener('click', function() {
+          poly.editing.disable(); _drawingActive = false;
+          gz.vertices = poly.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+          _remEb(); _renderGroundZone(gz);
+          if (typeof render === 'function') render();
+          if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+          if (typeof window._undoPushState === 'function') window._undoPushState('Edit ground zone shape ' + (gz.name || 'Ground zone'));
+        });
+        document.getElementById('gzpShapeCancel').addEventListener('click', function() {
+          poly.editing.disable(); _drawingActive = false; poly.setLatLngs(origV); _remEb();
+        });
+      });
+    }
+
     /** Render user-drawn barriers on the map */
     function renderUserBarriers() {
       barrierLayer.clearLayers();
@@ -20163,161 +20546,13 @@ if (window.pdfjsLib) {
         var suppStr = ub.suppressed ? ' <i>(suppressed)</i>' : '';
         line.bindTooltip((ub.name ? '<b>' + escapeHTML(ub.name) + '</b><br>' : '') + htStr + suppStr);
 
-        // Click popup for edit/delete (only when not in placement, drawing, or move mode)
+        // Click — open floating edit panel
         line.on('click', function(e) {
           if (_drawingActive || _moveMode) return;
           if (currentMode) return;
           L.DomEvent.stopPropagation(e);
-          var curBase = ub.baseHeightM || 0;
-          var curTop  = curBase + (ub.heightM || 2);
-          var html = '<div style="min-width:220px;font-size:13px;">';
-          html += '<b>' + escapeHTML(ub.name || 'Barrier') + '</b><br>';
-          html += '<div style="margin:6px 0;">';
-          html += 'Name: <input type="text" id="editBarName" value="' + escapeHTML(ub.name || '') + '" style="width:130px;padding:2px 4px;font-size:12px;"><br>';
-          html += '<table style="border-collapse:collapse;margin-top:4px;">';
-          html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;">Base height (m):</td>';
-          html += '<td><input type="number" id="editBarBase" value="' + curBase.toFixed(1) + '" step="0.1" min="0" style="width:55px;padding:2px 4px;font-size:12px;"></td></tr>';
-          html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;">Height (m):</td>';
-          html += '<td><input type="number" id="editBarHeight" value="' + (ub.heightM || 2).toFixed(1) + '" step="0.1" min="0.1" style="width:55px;padding:2px 4px;font-size:12px;"></td></tr>';
-          html += '<tr><td style="padding:2px 4px 2px 0;font-size:12px;color:#555;">Top of barrier:</td>';
-          html += '<td id="editBarTopDisplay" style="font-size:12px;color:#555;">' + curTop.toFixed(1) + 'm above ground</td></tr>';
-          html += '</table>';
-          html += '<div id="editBarFloatNote" style="font-size:11px;color:#4CAF50;margin-top:2px;display:' + (curBase > 0 ? 'block' : 'none') + ';">⚠ Floating barrier</div>';
-          html += '<div id="editBarTerrainInfo" style="font-size:11px;color:#6b7280;margin-top:2px;min-height:0;"></div>';
-          html += '<label style="font-size:12px;cursor:pointer;display:block;margin-top:6px;">';
-          html += '<input type="checkbox" id="editBarSuppressed"' + (ub.suppressed ? ' checked' : '') + '> Suppressed (excluded from calculations)</label>';
-          html += '</div>';
-          html += '<button id="editBarApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
-          html += '<button id="editBarShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#2980b9;">Edit shape</button> ';
-          html += '<button id="editBarDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#c0392b;">Delete</button>';
-          html += '</div>';
-
-          L.popup({ maxWidth: 300 })
-            .setLatLng(e.latlng)
-            .setContent(html)
-            .openOn(map);
-
-          setTimeout(function() {
-            // Live "Top of barrier" update
-            function updateTopDisplay() {
-              var b = parseFloat(document.getElementById('editBarBase').value) || 0;
-              var h = parseFloat(document.getElementById('editBarHeight').value) || 0;
-              var topEl = document.getElementById('editBarTopDisplay');
-              var noteEl = document.getElementById('editBarFloatNote');
-              if (topEl) topEl.textContent = (b + h).toFixed(1) + 'm above ground';
-              if (noteEl) noteEl.style.display = b > 0 ? 'block' : 'none';
-              updateBarTerrainInfo();
-            }
-            function updateBarTerrainInfo() {
-              var el = document.getElementById('editBarTerrainInfo');
-              if (!el) return;
-              if (!_terrainEnabled) { el.textContent = ''; return; }
-              var mid = _lsPolylineMidpoint(ub.vertices || []);
-              if (!mid || !Number.isFinite(mid.lat)) { el.textContent = ''; return; }
-              if (typeof DEMCache !== 'undefined' && DEMCache.getElevation) {
-                var b = parseFloat(document.getElementById('editBarBase') && document.getElementById('editBarBase').value) || (ub.baseHeightM || 0);
-                var h = parseFloat(document.getElementById('editBarHeight') && document.getElementById('editBarHeight').value) || (ub.heightM || 2);
-                DEMCache.getElevation(mid.lat, mid.lng).then(function(elev) {
-                  if (elev !== null && elev !== undefined && Number.isFinite(elev)) {
-                    var topAHD = (elev + b + h).toFixed(1);
-                    if (el && el.isConnected) {
-                      el.innerHTML = 'Terrain: ' + elev.toFixed(1) + '\u202fm\u202fAHD \u2014 Top: ' + topAHD + '\u202fm\u202fAHD';
-                    }
-                  }
-                }).catch(function() {});
-              }
-            }
-            updateBarTerrainInfo();
-            var baseInp = document.getElementById('editBarBase');
-            var htInp   = document.getElementById('editBarHeight');
-            if (baseInp) baseInp.addEventListener('input', updateTopDisplay);
-            if (htInp)   htInp.addEventListener('input', updateTopDisplay);
-
-            var applyBtn = document.getElementById('editBarApply');
-            var deleteBtn = document.getElementById('editBarDelete');
-            if (applyBtn) applyBtn.addEventListener('click', function() {
-              var baseVal = parseFloat(document.getElementById('editBarBase').value);
-              var ht = parseFloat(document.getElementById('editBarHeight').value);
-              if (Number.isFinite(baseVal) && baseVal >= 0) ub.baseHeightM = baseVal;
-              if (Number.isFinite(ht) && ht > 0) ub.heightM = ht;
-              ub.name = document.getElementById('editBarName').value || 'Barrier';
-              ub.suppressed = !!document.getElementById('editBarSuppressed').checked;
-              map.closePopup();
-              renderUserBarriers();
-              rebuildBuildingsIndex();
-              if (typeof window._undoPushState === 'function') window._undoPushState('Edit barrier ' + ub.name);
-            });
-            if (deleteBtn) deleteBtn.addEventListener('click', function() {
-              if (!confirm('Delete this barrier?')) return;
-              var _delBarLabel = 'Delete barrier ' + (ub.name || 'Barrier');
-              var idx = userBarriers.indexOf(ub);
-              if (idx !== -1) userBarriers.splice(idx, 1);
-              map.closePopup();
-              _selectedBarrier = null;
-              renderUserBarriers();
-              rebuildBuildingsIndex();
-              if (typeof window._undoPushState === 'function') window._undoPushState(_delBarLabel);
-            });
-            var shapeBtn = document.getElementById('editBarShape');
-            if (shapeBtn) shapeBtn.addEventListener('click', function() {
-              map.closePopup();
-              if (!line.editing) return;
-              var origVertices = ub.vertices.map(function(v) { return [v[0], v[1]]; });
-              _drawingActive = true;
-              line.editing.enable();
-              var editBarrierBtn = document.getElementById('drawBarrierBtn');
-              if (editBarrierBtn) editBarrierBtn.classList.add('active');
-              // Floating edit toolbar
-              var editBar = document.createElement('div');
-              editBar.id = 'shapeEditBar';
-              editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #4CAF50;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
-              editBar.innerHTML =
-                '<span style="color:#4CAF50;font-weight:600;">Editing barrier: ' + escapeHTML(ub.name || 'Barrier') + '</span>' +
-                '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
-                '<button id="shapeEditSave" style="padding:3px 12px;font-size:12px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
-                '<button id="shapeEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
-              var mapContainer = map.getContainer();
-              mapContainer.style.position = 'relative';
-              mapContainer.appendChild(editBar);
-              function _barRemoveEditBar() {
-                var bar = document.getElementById('shapeEditBar');
-                if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
-              }
-              function _barFinishEdit(save) {
-                line.off('edit');
-                if (line.editing) line.editing.disable();
-                _drawingActive = false;
-                if (editBarrierBtn) editBarrierBtn.classList.remove('active');
-                document.removeEventListener('keydown', _barEscHandler);
-                _barRemoveEditBar();
-                if (save) {
-                  ub.vertices = line.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
-                } else {
-                  line.setLatLngs(origVertices);
-                }
-                renderUserBarriers();
-                rebuildBuildingsIndex();
-                if (save) {
-                  if (typeof render === 'function') render();
-                  if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-                  if (typeof window._undoPushState === 'function') window._undoPushState('Edit barrier shape ' + (ub.name || 'Barrier'));
-                }
-              }
-              function _barEscHandler(e) {
-                if (e.key === 'Escape') { e.stopPropagation(); _barFinishEdit(false); }
-              }
-              document.addEventListener('keydown', _barEscHandler);
-              setTimeout(function() {
-                var saveBtn = document.getElementById('shapeEditSave');
-                var cancelBtn = document.getElementById('shapeEditCancel');
-                if (saveBtn) saveBtn.addEventListener('click', function() { _barFinishEdit(true); });
-                if (cancelBtn) cancelBtn.addEventListener('click', function() { _barFinishEdit(false); });
-              }, 50);
-            });
-          }, 50);
-
-          // Track selected barrier for keyboard Delete
           _selectedBarrier = ub;
+          if (typeof openBarrierPanel === 'function') openBarrierPanel(ub.id, e.originalEvent.clientX, e.originalEvent.clientY);
         });
 
         // Right-click context menu for barriers
@@ -20407,146 +20642,12 @@ if (window.pdfjsLib) {
           : 'Height: ' + htStr;
         poly.bindTooltip((cb.name ? '<b>' + escapeHTML(cb.name) + '</b><br>' : '') + topStr + ' (custom)');
 
-        // Click popup for edit/delete (only when not placing markers or in move mode)
+        // Click — open floating edit panel
         poly.on('click', function(e) {
           if (_drawingActive || _moveMode) return;
           if (currentMode) return;
           L.DomEvent.stopPropagation(e);
-          var html = '<div style="min-width:220px;font-size:13px;">';
-          html += '<b>' + escapeHTML(cb.name || 'Custom building') + '</b><br>';
-          html += '<div style="margin:6px 0;">';
-          html += 'Name: <input type="text" id="cbName" value="' + (cb.name || '') + '" style="width:120px;padding:2px 4px;font-size:12px;"><br>';
-          html += '<table style="border-collapse:collapse;margin-top:4px;">';
-          html += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Base height (m):</td>';
-          html += '<td><input type="number" id="cbBase" value="' + (cb.baseHeightM || 0).toFixed(1) + '" step="0.1" min="0" style="width:60px;padding:2px 4px;font-size:12px;"></td></tr>';
-          html += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Building height (m):</td>';
-          html += '<td><input type="number" id="cbHeight" value="' + (cb.heightM || 3) + '" step="0.5" min="0.5" style="width:60px;padding:2px 4px;font-size:12px;"></td></tr>';
-          html += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Top of building:</td>';
-          html += '<td id="cbTopDisplay" style="font-size:12px;color:#555;">' + ((cb.baseHeightM || 0) + (cb.heightM || 3)).toFixed(1) + 'm above ground</td></tr>';
-          html += '</table>';
-          html += '<div id="cbFloatNote" style="display:' + ((cb.baseHeightM || 0) > 0 ? 'block' : 'none') + ';font-size:11px;color:#c0392b;margin-top:3px;">&#9888; Elevated building (e.g. rooftop plant room)</div>';
-          html += '<div id="cbTerrainInfo" style="font-size:11px;color:#6b7280;margin-top:2px;min-height:0;"></div>';
-          html += '</div>';
-          html += '<button id="cbApply" style="font-size:11px;padding:2px 8px;cursor:pointer;">Apply</button> ';
-          html += '<button id="cbEditShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#922b21;">Edit shape</button> ';
-          html += '<button id="cbDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#dc2626;">Delete</button>';
-          html += '</div>';
-
-          L.popup({ maxWidth: 280 }).setLatLng(e.latlng).setContent(html).openOn(map);
-
-          setTimeout(function() {
-            var applyBtn = document.getElementById('cbApply');
-            var deleteBtn = document.getElementById('cbDelete');
-
-            function updateCbTerrainInfo() {
-              var el = document.getElementById('cbTerrainInfo');
-              if (!el) return;
-              if (!_terrainEnabled) { el.textContent = ''; return; }
-              var ctr = _asPolygonCentroid(cb.polygon || []);
-              if (!ctr || !Number.isFinite(ctr.lat)) { el.textContent = ''; return; }
-              if (typeof DEMCache !== 'undefined' && DEMCache.getElevation) {
-                var b = parseFloat(document.getElementById('cbBase') && document.getElementById('cbBase').value) || (cb.baseHeightM || 0);
-                var h = parseFloat(document.getElementById('cbHeight') && document.getElementById('cbHeight').value) || (cb.heightM || 3);
-                DEMCache.getElevation(ctr.lat, ctr.lng).then(function(elev) {
-                  if (elev !== null && elev !== undefined && Number.isFinite(elev)) {
-                    var roofAHD = (elev + b + h).toFixed(1);
-                    if (el && el.isConnected) {
-                      el.innerHTML = 'Terrain: ' + elev.toFixed(1) + '\u202fm\u202fAHD \u2014 Roof: ' + roofAHD + '\u202fm\u202fAHD';
-                    }
-                  }
-                }).catch(function() {});
-              }
-            }
-            updateCbTerrainInfo();
-
-            function updateCbTop() {
-              var b = parseFloat(document.getElementById('cbBase').value) || 0;
-              var h = parseFloat(document.getElementById('cbHeight').value) || 0;
-              var topEl = document.getElementById('cbTopDisplay');
-              var noteEl = document.getElementById('cbFloatNote');
-              if (topEl) topEl.textContent = (b + h).toFixed(1) + 'm above ground';
-              if (noteEl) noteEl.style.display = b > 0 ? 'block' : 'none';
-              updateCbTerrainInfo();
-            }
-            var baseInpE = document.getElementById('cbBase');
-            var htInpE   = document.getElementById('cbHeight');
-            if (baseInpE) baseInpE.addEventListener('input', updateCbTop);
-            if (htInpE)   htInpE.addEventListener('input', updateCbTop);
-
-            if (applyBtn) applyBtn.addEventListener('click', function() {
-              var nameVal = document.getElementById('cbName').value;
-              var baseVal = parseFloat(document.getElementById('cbBase').value);
-              var htVal = parseFloat(document.getElementById('cbHeight').value);
-              if (nameVal) cb.name = nameVal;
-              if (Number.isFinite(baseVal) && baseVal >= 0) cb.baseHeightM = baseVal;
-              if (Number.isFinite(htVal) && htVal > 0) cb.heightM = htVal;
-              map.closePopup();
-              renderCustomBuildings();
-              rebuildBuildingsIndex();
-              if (typeof render === 'function') render();
-            });
-
-            if (deleteBtn) deleteBtn.addEventListener('click', function() {
-              var idx = customBuildings.indexOf(cb);
-              if (idx !== -1) customBuildings.splice(idx, 1);
-              map.closePopup();
-              renderCustomBuildings();
-              rebuildBuildingsIndex();
-              if (typeof render === 'function') render();
-            });
-
-            var cbShapeBtn = document.getElementById('cbEditShape');
-            if (cbShapeBtn) cbShapeBtn.addEventListener('click', function() {
-              map.closePopup();
-              if (!poly.editing) return;
-              var origPolygon = cb.polygon.map(function(v) { return [v[0], v[1]]; });
-              _drawingActive = true;
-              poly.editing.enable();
-              // Floating edit toolbar
-              var editBar = document.createElement('div');
-              editBar.id = 'shapeEditBar';
-              editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid #922b21;border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
-              editBar.innerHTML =
-                '<span style="color:#922b21;font-weight:600;">Editing building: ' + escapeHTML(cb.name || 'Custom building') + '</span>' +
-                '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
-                '<button id="shapeEditSave" style="padding:3px 12px;font-size:12px;background:#922b21;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
-                '<button id="shapeEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
-              var mapContainer = map.getContainer();
-              mapContainer.style.position = 'relative';
-              mapContainer.appendChild(editBar);
-              function _cbRemoveEditBar() {
-                var bar = document.getElementById('shapeEditBar');
-                if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
-              }
-              function _cbFinishEdit(save) {
-                if (poly.editing) poly.editing.disable();
-                _drawingActive = false;
-                document.removeEventListener('keydown', _cbEscHandler);
-                _cbRemoveEditBar();
-                if (save) {
-                  cb.polygon = poly.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
-                } else {
-                  poly.setLatLngs([origPolygon]);
-                }
-                renderCustomBuildings();
-                rebuildBuildingsIndex();
-                if (save) {
-                  if (typeof render === 'function') render();
-                  if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-                }
-              }
-              function _cbEscHandler(e) {
-                if (e.key === 'Escape') { e.stopPropagation(); _cbFinishEdit(false); }
-              }
-              document.addEventListener('keydown', _cbEscHandler);
-              setTimeout(function() {
-                var saveBtn = document.getElementById('shapeEditSave');
-                var cancelBtn = document.getElementById('shapeEditCancel');
-                if (saveBtn) saveBtn.addEventListener('click', function() { _cbFinishEdit(true); });
-                if (cancelBtn) cancelBtn.addEventListener('click', function() { _cbFinishEdit(false); });
-              }, 50);
-            });
-          }, 50);
+          if (typeof openBuildingPanel === 'function') openBuildingPanel(cb.id, e.originalEvent.clientX, e.originalEvent.clientY);
         });
 
         // Right-click context menu for custom buildings
@@ -21018,116 +21119,11 @@ if (window.pdfjsLib) {
         (gz.g === 0 ? 'Hard (concrete, asphalt)' : gz.g >= 1 ? 'Soft (grass, soil)' : 'Mixed') + '</span>',
         { sticky: true, opacity: 0.9 }
       );
+      // Click — open floating edit panel
       poly.on('click', function(ev) {
         if (_drawingActive || _drawingGroundZone || _barrierDrawHandler) return;
         L.DomEvent.stopPropagation(ev);
-        var eHtml = '<div style="min-width:220px;font-size:13px;">';
-        eHtml += '<b>Edit ground absorption</b><br>';
-        eHtml += '<div style="margin:6px 0;">';
-        eHtml += 'Name: <input type="text" id="editGzName" value="' + (gz.name || '').replace(/"/g,'&quot;') + '" style="width:140px;padding:2px 4px;font-size:12px;"><br><br>';
-        eHtml += '<label style="font-size:12px;">Ground absorption G:</label><br>';
-        eHtml += '<select id="editGzGSel" style="width:170px;font-size:12px;padding:2px 4px;margin-top:2px;">';
-        eHtml += '<option value="0"' + (gz.g===0?' selected':'') + '>0.0 — Hard</option>';
-        eHtml += '<option value="0.5"' + (gz.g===0.5?' selected':'') + '>0.5 — Mixed</option>';
-        eHtml += '<option value="1"' + (gz.g===1?' selected':'') + '>1.0 — Soft</option>';
-        var isCustom = gz.g !== 0 && gz.g !== 0.5 && gz.g !== 1;
-        eHtml += '<option value="custom"' + (isCustom?' selected':'') + '>Custom…</option>';
-        eHtml += '</select>';
-        eHtml += '<div id="editGzCustomRow" style="display:' + (isCustom?'block':'none') + ';margin-top:4px;">';
-        eHtml += 'Custom G (0–1): <input type="number" id="editGzCustomG" min="0" max="1" step="0.05" value="' + gz.g + '" style="width:60px;padding:2px 4px;font-size:12px;">';
-        eHtml += '</div></div>';
-        eHtml += '<button id="editGzSave" style="font-size:11px;padding:2px 8px;cursor:pointer;">Save</button> ';
-        eHtml += '<button id="editGzEditShape" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#2d6a4f;">Edit shape</button> ';
-        eHtml += '<button id="editGzDelete" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#dc2626;">Delete</button> ';
-        eHtml += '<button id="editGzCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button>';
-        eHtml += '</div>';
-        L.popup({ maxWidth: 300, closeOnClick: false })
-          .setLatLng(ev.latlng).setContent(eHtml).openOn(map);
-        setTimeout(function() {
-          var selEl2 = document.getElementById('editGzGSel');
-          var custRow2 = document.getElementById('editGzCustomRow');
-          if (selEl2 && custRow2) selEl2.addEventListener('change', function() {
-            custRow2.style.display = this.value === 'custom' ? 'block' : 'none';
-          });
-          var saveBtn = document.getElementById('editGzSave');
-          if (saveBtn) saveBtn.addEventListener('click', function() {
-            var sv = document.getElementById('editGzGSel').value;
-            var gv;
-            if (sv === 'custom') {
-              gv = parseFloat(document.getElementById('editGzCustomG').value);
-              if (!Number.isFinite(gv)) gv = 0.5;
-              gv = Math.max(0, Math.min(1, gv));
-            } else { gv = parseFloat(sv); }
-            gz.g = gv;
-            gz.name = (document.getElementById('editGzName').value || '').trim() || gz.name;
-            _renderGroundZone(gz);
-            map.closePopup();
-            if (typeof render === 'function') render();
-            if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-          });
-          var delBtn = document.getElementById('editGzDelete');
-          if (delBtn) delBtn.addEventListener('click', function() {
-            if (!confirm('Delete "' + gz.name + '"?')) return;
-            var idx = _groundZones.indexOf(gz);
-            if (idx !== -1) _groundZones.splice(idx, 1);
-            if (gz._polygon) _groundZoneLayer.removeLayer(gz._polygon);
-            map.closePopup();
-            if (typeof render === 'function') render();
-            if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-          });
-          var cancelBtn2 = document.getElementById('editGzCancel');
-          if (cancelBtn2) cancelBtn2.addEventListener('click', function() { map.closePopup(); });
-
-          var gzShapeBtn = document.getElementById('editGzEditShape');
-          if (gzShapeBtn) gzShapeBtn.addEventListener('click', function() {
-            map.closePopup();
-            if (!poly.editing) return;
-            var origVertices = gz.vertices.map(function(v) { return [v[0], v[1]]; });
-            _drawingActive = true;
-            poly.editing.enable();
-            // Floating edit toolbar (accent colour matches zone G value)
-            var gzAccent = _gzBorderColor(gz.g);
-            var editBar = document.createElement('div');
-            editBar.id = 'shapeEditBar';
-            editBar.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid ' + gzAccent + ';border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:all;white-space:nowrap;';
-            editBar.innerHTML =
-              '<span style="color:' + gzAccent + ';font-weight:600;">Editing ground absorption: ' + escapeHTML(gz.name || 'Ground absorption') + '</span>' +
-              '<span style="color:#666;font-size:11px;">Drag vertices to reshape</span>' +
-              '<button id="shapeEditSave" style="padding:3px 12px;font-size:12px;background:' + gzAccent + ';color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
-              '<button id="shapeEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
-            var mapContainer = map.getContainer();
-            mapContainer.style.position = 'relative';
-            mapContainer.appendChild(editBar);
-            function _gzRemoveEditBar() {
-              var bar = document.getElementById('shapeEditBar');
-              if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
-            }
-            function _gzFinishShapeEdit(save) {
-              if (poly.editing) poly.editing.disable();
-              _drawingActive = false;
-              document.removeEventListener('keydown', _gzShapeEscHandler);
-              _gzRemoveEditBar();
-              if (save) {
-                gz.vertices = poly.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
-                _renderGroundZone(gz);
-                if (typeof render === 'function') render();
-                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-              } else {
-                poly.setLatLngs([origVertices]);
-              }
-            }
-            function _gzShapeEscHandler(e) {
-              if (e.key === 'Escape') { e.stopPropagation(); _gzFinishShapeEdit(false); }
-            }
-            document.addEventListener('keydown', _gzShapeEscHandler);
-            setTimeout(function() {
-              var saveBtn = document.getElementById('shapeEditSave');
-              var cancelBtn = document.getElementById('shapeEditCancel');
-              if (saveBtn) saveBtn.addEventListener('click', function() { _gzFinishShapeEdit(true); });
-              if (cancelBtn) cancelBtn.addEventListener('click', function() { _gzFinishShapeEdit(false); });
-            }, 50);
-          });
-        }, 50);
+        if (typeof openGroundZonePanel === 'function') openGroundZonePanel(gz.id, ev.originalEvent.clientX, ev.originalEvent.clientY);
       });
 
       // Right-click context menu for ground zones
@@ -26149,18 +26145,21 @@ if (window.pdfjsLib) {
         var ubMid = _lsPolylineMidpoint(ub.vertices);
         if (!inFs && ubMid) map.panTo([ubMid.lat, ubMid.lng]);
         if (ub._line) { var origStyle = ub.suppressed ? BARRIER_SUPPRESSED_STYLE : BARRIER_STYLE; ub._line.setStyle({ weight: 8, opacity: 1.0 }); setTimeout(function() { if (ub._line) ub._line.setStyle(origStyle); }, 1000); }
+        if (typeof openBarrierPanel === 'function') openBarrierPanel(ub.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
       } else if (type === 'building') {
         var cb = customBuildings[idx];
         if (!cb || !cb._polygon) return;
         if (!inFs) map.panTo(cb._polygon.getBounds().getCenter());
         cb._polygon.setStyle({ weight: 5, color: 'rgba(70,90,120,1)' });
         setTimeout(function() { if (cb._polygon) cb._polygon.setStyle(CUSTOM_STYLE); }, 1000);
+        if (typeof openBuildingPanel === 'function') openBuildingPanel(cb.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
       } else if (type === 'groundzone') {
         var gz = _groundZones[idx];
         if (!gz || !gz._polygon) return;
         if (!inFs) map.panTo(gz._polygon.getBounds().getCenter());
         gz._polygon.setStyle({ weight: 4, fillOpacity: 0.55 });
         setTimeout(function() { if (gz._polygon) gz._polygon.setStyle({ color: _gzBorderColor(gz.g), weight: 1.5, dashArray: '6 4', fillColor: _gzFillColor(gz.g), fillOpacity: 0.25 }); }, 1000);
+        if (typeof openGroundZonePanel === 'function') openGroundZonePanel(gz.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
       }
     }
 
@@ -26756,7 +26755,7 @@ if (window.pdfjsLib) {
 
     /* Watch document.body for floating edit panels being appended.
        When active, intercept and redirect them into the sidebar detail pane. */
-    var PANEL_IDS = ['srcFloatPanel', 'lsFloatPanel', 'asFloatPanel', 'bsFloatPanel'];
+    var PANEL_IDS = ['srcFloatPanel', 'lsFloatPanel', 'asFloatPanel', 'bsFloatPanel', 'barrierFloatPanel', 'buildingFloatPanel', 'groundZoneFloatPanel'];
     _fsBodyObserver = new MutationObserver(function(muts) {
       if (!_fsActive) return;
       muts.forEach(function(m) {
