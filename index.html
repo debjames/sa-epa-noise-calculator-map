@@ -10533,13 +10533,13 @@ function render() {
       if (dayEl) dayEl.textContent = fmt(crit.day);
       if (eveEl) eveEl.textContent = fmt(crit.evening);
       if (nightEl) nightEl.textContent = fmt(crit.night);
-      if (lmaxEl) lmaxEl.textContent = crit.lmax !== '' ? fmt(crit.lmax) : '';
+      if (lmaxEl) lmaxEl.textContent = crit.lmax !== '' ? fmt(crit.lmax) : '\u2014';
     } else {
       // Auto-calculated criteria (SA / VIC)
       const crit = isVIC ? calcCriteriaVICForReceiver(id) : calcCriteria(src, rec, id);
       if (eveEl) eveEl.textContent = isVIC && crit.evening !== undefined ? fmt(crit.evening) : "";
       if (nightEl) nightEl.textContent = fmt(crit.night);
-      if (lmaxEl) lmaxEl.textContent = crit.lmax === "" ? "" : fmt(crit.lmax);
+      if (lmaxEl) lmaxEl.textContent = crit.lmax === "" ? '\u2014' : fmt(crit.lmax);
       if (dayEl) dayEl.textContent = fmt(crit.day);
       // SA Clause 6: update per-receiver indicator span
       if (!isVIC) {
