@@ -29695,19 +29695,65 @@ if (window.pdfjsLib) {
       });
     }
 
+    // Assessment cases — collect enabled cases with predictions
+    var assessmentCasesData = [];
+    if (typeof assessmentCases !== 'undefined' && Array.isArray(assessmentCases)) {
+      var _PERIOD_LABELS_RPT = {
+        day: 'Day (7am\u201310pm)', eve: 'Evening (6pm\u201310pm)',
+        night: 'Night (10pm\u20137am)', lmax: 'Night L\u2090\u2098\u2090\u2093',
+        who_16h: '16-hour daytime', music_trading: 'Music trading hours'
+      };
+      var _CRITERIA_LABELS_RPT = {};
+      _CRITERIA_LABELS_RPT['noise_policy'] = 'Noise Policy';
+      _CRITERIA_LABELS_RPT['dts_dpf_4.6']  = 'DTS/DPF 4.6 (L\u209090+8 dB)';
+      _CRITERIA_LABELS_RPT['who']           = 'WHO 50 dB(A) L\u2090\u1d49\u1d60,16h';
+      _CRITERIA_LABELS_RPT['emergency']     = 'Emergency equipment criteria';
+
+      assessmentCases.filter(function(c){ return c.enabled; }).forEach(function(c) {
+        var srcNames = [];
+        if (c.activeSources && c.activeSources.length > 0) {
+          c.activeSources.forEach(function(sid) {
+            var item = typeof _acGetSourceById === 'function' ? _acGetSourceById(sid) : null;
+            if (item && item.src) srcNames.push(item.src.name || sid);
+          });
+        }
+        var preds = [];
+        for (var ri = 1; ri <= 4; ri++) {
+          var rk = 'r' + ri;
+          var recvLL = window.getReceiverLatLng ? window.getReceiverLatLng(rk) : null;
+          if (!recvLL) continue;
+          var nameEl2 = document.getElementById('recvName' + ri);
+          var rname = nameEl2 ? (nameEl2.value || ('R' + ri)) : ('R' + ri);
+          var cp = (typeof casePredictions !== 'undefined' && casePredictions[c.id])
+            ? casePredictions[c.id][rk] : null;
+          preds.push({ key: rk, name: rname, pred: cp });
+        }
+        assessmentCasesData.push({
+          id: c.id, name: c.name, type: c.type,
+          period: _PERIOD_LABELS_RPT[c.period] || c.period,
+          criteriaType: c.criteriaType,
+          criteriaLabel: _CRITERIA_LABELS_RPT[c.criteriaType] || c.criteriaType,
+          operatingPctOverrides: c.operatingPctOverrides || {},
+          sourceNames: srcNames,
+          predictions: preds
+        });
+      });
+    }
+
     return {
-      projectNumber:   pnNum,
-      projectName:     pnNam,
-      subjectSiteName: subjectSiteName,
-      receivers:       receivers,
-      sources:         sources,
-      predDay:         readPredRows('rowsDay'),
-      predNight:       readPredRows('rowsNight'),
-      musicOn:         musicOn,
-      musicBands:      musicBands,
-      musicBgVals:     musicBgVals,
-      musicCritVals:   musicCritVals,
-      hasMusicBg:      hasMusicBg
+      projectNumber:       pnNum,
+      projectName:         pnNam,
+      subjectSiteName:     subjectSiteName,
+      receivers:           receivers,
+      sources:             sources,
+      predDay:             readPredRows('rowsDay'),
+      predNight:           readPredRows('rowsNight'),
+      musicOn:             musicOn,
+      musicBands:          musicBands,
+      musicBgVals:         musicBgVals,
+      musicCritVals:       musicCritVals,
+      hasMusicBg:          hasMusicBg,
+      assessmentCasesData: assessmentCasesData
     };
   }
 
@@ -29844,6 +29890,58 @@ if (window.pdfjsLib) {
     return xml.substring(0, tblStart) + newTable + xml.substring(tblEnd);
   }
 
+  /** Make a Word heading paragraph using Heading2 style */
+  function makeWordHeading(text) {
+    return '<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr>'
+      + '<w:r><w:t xml:space="preserve">' + xmlEsc(text) + '</w:t></w:r></w:p>';
+  }
+
+  /** Make a Word table caption paragraph */
+  function makeWordCaption(text) {
+    return '<w:p><w:pPr><w:pStyle w:val="Tablecaption"/></w:pPr>'
+      + '<w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">' + xmlEsc(text) + '</w:t></w:r></w:p>';
+  }
+
+  /** Make a bold header row for an appended table */
+  function makeWordHeaderRow(cells) {
+    var tr = '<w:tr><w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>';
+    cells.forEach(function(cell) {
+      tr += '<w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/></w:tcPr>';
+      tr += '<w:p><w:pPr><w:pStyle w:val="Tabletext"/></w:pPr>';
+      tr += '<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">' + xmlEsc(cell) + '</w:t></w:r></w:p></w:tc>';
+    });
+    tr += '</w:tr>';
+    return tr;
+  }
+
+  /** Make a complete Word table from header cells and data rows */
+  function makeWordTable(headerCells, dataRows) {
+    var tbl = '<w:tbl>';
+    tbl += '<w:tblPr><w:tblStyle w:val="TableGrid"/>'
+         + '<w:tblW w:w="0" w:type="auto"/>'
+         + '<w:tblBorders>'
+         + '<w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+         + '<w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+         + '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+         + '<w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+         + '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+         + '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+         + '</w:tblBorders></w:tblPr>';
+    tbl += '<w:tblGrid/>';
+    if (headerCells && headerCells.length) tbl += makeWordHeaderRow(headerCells);
+    dataRows.forEach(function(row) { tbl += makeWordRow(row); });
+    tbl += '</w:tbl>';
+    return tbl;
+  }
+
+  /** Append XML block before the final <w:sectPr> (end of body) */
+  function appendToWordBody(xml, blockXml) {
+    var idx = xml.lastIndexOf('<w:sectPr');
+    if (idx === -1) idx = xml.lastIndexOf('</w:body>');
+    if (idx === -1) return xml + blockXml;
+    return xml.substring(0, idx) + blockXml + xml.substring(idx);
+  }
+
   // ── Main generate function ────────────────────────────────────────────────
   function generateReport() {
     var data = collectReportData();
@@ -29938,6 +30036,104 @@ if (window.pdfjsLib) {
             return data.musicCritVals[b] !== null ? String(data.musicCritVals[b]) : '\u2014';
           }));
           xml = replaceTableDataRows(xml, 'Music noise criteria', [musicHeaderRow, musicBgRow, musicCritRow], 1);
+        }
+
+        // 8. Assessment cases — append tables if any cases enabled
+        if (data.assessmentCasesData && data.assessmentCasesData.length > 0) {
+          var acBlock = '';
+
+          // Table A: Cases overview
+          acBlock += makeWordCaption('Assessment cases \u2014 sources and criteria');
+          var acOverviewRows = data.assessmentCasesData.map(function(c) {
+            var srcStr = c.sourceNames.length ? c.sourceNames.join(', ') : '\u2014';
+            if (srcStr.length > 80) srcStr = srcStr.slice(0, 77) + '\u2026';
+            return [c.name, c.period, srcStr, c.criteriaLabel];
+          });
+          acBlock += makeWordTable(
+            ['Case', 'Period', 'Sources', 'Criteria'],
+            acOverviewRows
+          );
+          acBlock += '<w:p/>';
+
+          // Table B: Governing case summary
+          var allReceiverKeys = [];
+          data.assessmentCasesData.forEach(function(c) {
+            c.predictions.forEach(function(p) {
+              if (allReceiverKeys.indexOf(p.key) < 0) allReceiverKeys.push(p.key);
+            });
+          });
+          var govRows = [];
+          allReceiverKeys.forEach(function(rk) {
+            var bestCase = null, bestDelta = -Infinity, bestPred = null, bestCrit = null, recvName = '';
+            data.assessmentCasesData.forEach(function(c) {
+              var pr = c.predictions.find(function(p){ return p.key === rk; });
+              if (!pr) return;
+              if (!recvName) recvName = pr.name;
+              if (c.criteriaType === 'dts_dpf_4.6') return; // music: skip
+              var rp = pr.pred;
+              if (rp && rp.delta !== null && rp.delta > bestDelta) {
+                bestDelta = rp.delta; bestCase = c; bestPred = rp.predicted; bestCrit = rp.criteria;
+              }
+            });
+            if (!recvName) return;
+            var predStr = (bestPred !== null && bestPred !== undefined) ? String(Math.round(bestPred)) + ' dB(A)' : '\u2014';
+            var critStr = (bestCrit !== null && bestCrit !== undefined) ? String(Math.round(bestCrit)) + ' dB(A)' : '\u2014';
+            var deltaStr = (bestCase && isFinite(bestDelta)) ? ((bestDelta > 0 ? '+' : '') + bestDelta.toFixed(1) + ' dB') : '\u2014';
+            var outcome = (bestCase && isFinite(bestDelta)) ? (bestDelta <= 0 ? 'Complies' : 'Exceeds') : '\u2014';
+            govRows.push([recvName, bestCase ? bestCase.name : '\u2014', predStr, critStr, deltaStr, outcome]);
+          });
+          if (govRows.length > 0) {
+            acBlock += makeWordCaption('Assessment summary and outcomes');
+            acBlock += makeWordTable(
+              ['Receiver', 'Governing case', 'Predicted', 'Criteria', '\u0394', 'Outcome'],
+              govRows
+            );
+            acBlock += '<w:p/>';
+          }
+
+          // Tables C+: Per-case prediction tables
+          data.assessmentCasesData.forEach(function(c) {
+            if (!c.predictions.length) return;
+            if (c.criteriaType === 'dts_dpf_4.6') {
+              var hasBands = c.predictions.some(function(p){ return p.pred && p.pred.bands && p.pred.bands.length; });
+              if (!hasBands) return;
+              acBlock += makeWordCaption('Predicted music noise levels \u2014 ' + c.name);
+              var musicHdr = ['Receiver', '63 Hz', '125 Hz', '250 Hz', '500 Hz', '1000 Hz', '2000 Hz', '4000 Hz'];
+              var musicDataRows = [];
+              c.predictions.forEach(function(p) {
+                if (!p.pred || !p.pred.bands || !p.pred.bands.length) return;
+                var predRow = [p.name + ' \u2014 Predicted'];
+                var critRow = [p.name + ' \u2014 Criterion (L\u209090+8)'];
+                p.pred.bands.forEach(function(b) {
+                  predRow.push(b.predicted !== null ? b.predicted.toFixed(1) : '\u2014');
+                  critRow.push(b.criteria !== null ? String(b.criteria) : '\u2014');
+                });
+                musicDataRows.push(predRow, critRow);
+              });
+              if (musicDataRows.length) {
+                acBlock += makeWordTable(musicHdr, musicDataRows);
+                acBlock += '<w:p/>';
+              }
+            } else {
+              acBlock += makeWordCaption('Predicted noise levels \u2014 ' + c.name + ' (' + c.period + ')');
+              var stdRows = c.predictions.map(function(p) {
+                var rp = p.pred;
+                if (!rp) return [p.name, '\u2014', '\u2014', '\u2014', '\u2014'];
+                var pred = (rp.predicted !== null && rp.predicted !== undefined) ? Math.round(rp.predicted) + ' dB(A)' : '\u2014';
+                var crit = (rp.criteria  !== null && rp.criteria  !== undefined) ? Math.round(rp.criteria)  + ' dB(A)' : '\u2014';
+                var delt = (rp.delta     !== null && rp.delta     !== undefined) ? ((rp.delta > 0 ? '+' : '') + rp.delta.toFixed(1) + ' dB') : '\u2014';
+                var out  = (rp.complies  !== null && rp.complies  !== undefined) ? (rp.complies ? 'Complies' : 'Exceeds') : '\u2014';
+                return [p.name, pred, crit, delt, out];
+              });
+              acBlock += makeWordTable(
+                ['Receiver', 'Predicted L\u2090\u1d49\u1d60 dB(A)', 'Criterion dB(A)', '\u0394 dB', 'Outcome'],
+                stdRows
+              );
+              acBlock += '<w:p/>';
+            }
+          });
+
+          xml = appendToWordBody(xml, acBlock);
         }
 
         // Write back modified XML
