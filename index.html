@@ -37,7 +37,7 @@ body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Aria
 .i{font-style: italic; font-weight: bold; font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.45;}
 .i a{color:var(--muted);}
   .sheet1{background:#f0f5fa;border:1px solid #c9d6e3;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:14px;margin-bottom: 14px;}
-.sheet{background:var(--sheet);border:1px solid var(--border);border-radius:14px;overflow:visible;box-shadow:0 1px 0 rgba(0,0,0,.03);}
+.sheet{background:var(--sheet);border:1px solid var(--border);border-radius:14px;overflow:visible;box-shadow:0 1px 0 rgba(0,0,0,.03);padding:0 12px;}
 table{width:100%;border-collapse:collapse;}
 td,th{border:1px solid var(--border);padding:8px 10px;font-size:13px;vertical-align: middle; text-align: left;}
 th{background:rgba(242,203,0,1);font-weight:700;}
@@ -2142,13 +2142,12 @@ body.map-fs-active { overflow: hidden; }
   </div>
   </div>
 
-  <div style="margin-top:14px;"></div>
   <button class="pdf-btn" id="pdfBtn" type="button" style="display:none;">Export PDF</button>
   <button class="pdf-btn" id="pdfCriteriaBtn" type="button" style="display:none;">PDF Criteria</button>
   <input type="file" id="importJsonFile" accept=".json" style="display:none;">
 
   <!-- Recommended treatments panel -->
-  <div class="card" id="recommendationsCard" style="margin-top:14px;display:none;">
+  <div class="card" id="recommendationsCard" style="margin-top:14px;margin-bottom:12px;display:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <h2 style="margin:0;">Recommended treatments <span style="font-size:11px;color:var(--muted);font-weight:normal;">(indicative)</span></h2>
       <button class="collapse-btn" id="recommendationsCollapseBtn" title="Expand/collapse" onclick="(function(){var b=document.getElementById('recommendationsBody');var btn=document.getElementById('recommendationsCollapseBtn');if(!b)return;var open=b.style.display!=='none';b.style.display=open?'none':'';btn.textContent=open?'\u25BC':'\u25B2';})()">&#9650;</button>
