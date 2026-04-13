@@ -5528,6 +5528,8 @@ var _globalPeriod = 'day'; // 'day' | 'eve' | 'night'
 var assessmentCases = window.assessmentCases = [];
 window._caseManualOverrides = {};
 var casePredictions = window.casePredictions = {};
+var _acRecvExpanded = {}; // { 'r1': true/false } — which receiver rows are expanded
+var _acMusicExpanded = {}; // { 'r1': true/false } — which music rows are expanded in receiver detail
 
 /** sourcePins[] — each entry is one discrete noise source.
  *  spectrum.day/eve/night: A-weighted per-band Lw [63,125,250,500,1k,2k,4k,8k] or null.
@@ -6627,10 +6629,231 @@ var _AC_CRITERIA_LABELS = { noise_policy:'Noise Policy', 'dts_dpf_4.6':'DTS/DPF 
 
 function _acEscH(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+function _acToggleRecv(key) {
+  _acRecvExpanded[key] = !_acRecvExpanded[key];
+  renderAssessmentCases();
+}
+function _acToggleMusic(key) {
+  _acMusicExpanded[key] = !_acMusicExpanded[key];
+  renderAssessmentCases();
+}
+
+function _acRenderRecvDetail(recv, activeCases) {
+  var h = '<div style="padding:8px 10px;">';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+  h += '<thead><tr>';
+  h += '<th style="text-align:left;padding:4px 6px;">Case</th>';
+  h += '<th class="num" style="padding:4px 6px;">Predicted</th>';
+  h += '<th class="num" style="padding:4px 6px;">Criteria</th>';
+  h += '<th class="num" style="padding:4px 6px;">&#916;</th>';
+  h += '</tr></thead><tbody>';
+
+  activeCases.forEach(function(c) {
+    var cp = casePredictions[c.id];
+    var rp = cp ? cp[recv.key] : null;
+
+    var predStr, critStr, deltaStr, deltaColor, rowBg;
+    deltaColor = '#6b7280';
+    rowBg = '';
+
+    if (!rp) {
+      predStr = '<span style="color:var(--muted);font-style:italic;">—</span>';
+      critStr = '—'; deltaStr = '—';
+    } else if (c.criteriaType === 'dts_dpf_4.6') {
+      // Music row — show per-band expandable
+      var musicExpanded = !!_acMusicExpanded[recv.key];
+      var overallComplies = rp.bands ? rp.bands.every(function(b){ return b.complies === true; }) : null;
+      var worstMusicDelta = null;
+      if (rp.bands) {
+        rp.bands.forEach(function(b){ if(b.delta!=null&&(worstMusicDelta===null||b.delta>worstMusicDelta)) worstMusicDelta=b.delta; });
+      }
+      var musicStatusColor = overallComplies === true ? '#166534' : (overallComplies === false ? '#b91c1c' : '#6b7280');
+      var musicArrow = musicExpanded ? '&#x25BC;' : '&#x25B6;';
+
+      h += '<tr style="cursor:pointer;" onclick="_acToggleMusic(\'' + recv.key + '\')">';
+      h += '<td style="padding:4px 6px;"><span style="font-size:10px;margin-right:4px;">' + musicArrow + '</span>' + _acEscH(c.name) + '</td>';
+      h += '<td class="num" style="padding:4px 6px;font-style:italic;color:var(--muted);">per-band</td>';
+      h += '<td class="num" style="padding:4px 6px;font-style:italic;color:var(--muted);">L90+8</td>';
+      h += '<td class="num" style="padding:4px 6px;font-weight:700;color:' + musicStatusColor + ';">' + (overallComplies === true ? '&#10003;' : (overallComplies === false ? '&#10007;' : '—')) + '</td>';
+      h += '</tr>';
+
+      if (musicExpanded && rp.bands && rp.bands.length) {
+        // Per-band detail rows
+        rp.bands.forEach(function(b) {
+          var bColor = b.complies === true ? '#166534' : (b.complies === false ? '#b91c1c' : '#6b7280');
+          var bBg = b.complies === false ? 'background:#fef2f2;' : '';
+          var bDelta = b.delta != null ? ((b.delta > 0 ? '+' : '') + b.delta.toFixed(1)) : '—';
+          var bCrit = b.criteria != null ? b.criteria.toFixed(0) : 'Bg reqd';
+          var bPred = b.predicted != null ? b.predicted.toFixed(1) : '—';
+          h += '<tr style="' + bBg + '">';
+          h += '<td style="padding:3px 6px 3px 20px;color:var(--muted);">' + b.freq + ' Hz</td>';
+          h += '<td class="num" style="padding:3px 6px;">' + bPred + '</td>';
+          h += '<td class="num" style="padding:3px 6px;">' + bCrit + '</td>';
+          h += '<td class="num" style="padding:3px 6px;font-weight:700;color:' + bColor + ';">' + bDelta + '</td>';
+          h += '</tr>';
+        });
+      } else if (musicExpanded && (!rp.bands || !rp.bands.length)) {
+        h += '<tr><td colspan="4" style="padding:3px 6px 3px 20px;color:var(--muted);font-style:italic;">Background levels required</td></tr>';
+      }
+      return; // skip standard row rendering below
+    } else {
+      // Standard case row
+      if (rp.predicted === null && (rp.predictedRaw === null || !isFinite(rp.predictedRaw))) {
+        // Check why: no active sources vs no Lw
+        var caseObj = assessmentCases.find(function(ac){ return ac.id === c.id; });
+        var hasActiveSources = caseObj && caseObj.activeSources && caseObj.activeSources.length > 0;
+        predStr = '<span style="color:var(--muted);font-style:italic;">' + (hasActiveSources ? 'Lw data required' : 'No sources assigned') + '</span>';
+        critStr = '—'; deltaStr = '—';
+      } else {
+        var pVal = rp.predicted != null ? rp.predicted : (rp.predictedRaw != null ? Math.round(rp.predictedRaw) : null);
+        predStr = pVal != null ? String(pVal) : '—';
+        critStr = rp.criteria != null ? String(rp.criteria) : '—';
+        var d = rp.delta;
+        if (d != null) {
+          deltaStr = (d > 0 ? '+' : '') + d;
+          deltaColor = d <= 0 ? '#166534' : '#b91c1c';
+          if (d > 0) rowBg = 'background:#fef2f2;';
+        } else {
+          deltaStr = '—';
+        }
+      }
+
+      h += '<tr style="' + rowBg + '">';
+      h += '<td style="padding:4px 6px;">' + _acEscH(c.name) + '</td>';
+      h += '<td class="num" style="padding:4px 6px;">' + predStr + '</td>';
+      h += '<td class="num" style="padding:4px 6px;">' + critStr + '</td>';
+      h += '<td class="num" style="padding:4px 6px;font-weight:700;color:' + deltaColor + ';">' + deltaStr + '</td>';
+      h += '</tr>';
+    }
+  });
+
+  h += '</tbody></table></div>';
+  return h;
+}
+
+function _acRenderSummaryTable() {
+  // Only show if at least one case enabled
+  var activeCases = assessmentCases.filter(function(c){ return c.enabled; });
+  if (!activeCases.length) return '';
+  if (!Object.keys(casePredictions).length) return '';
+
+  // Find placed receivers
+  var receivers = [];
+  for (var ri = 1; ri <= 4; ri++) {
+    var rk = 'r' + ri;
+    var ll = window.getReceiverLatLng ? window.getReceiverLatLng(rk) : null;
+    if (!ll) continue;
+    var nameEl = document.getElementById('recvName' + ri);
+    var name = nameEl ? (nameEl.value || ('R' + ri)) : ('R' + ri);
+    receivers.push({ key: rk, idx: ri, name: name });
+  }
+  if (!receivers.length) return '';
+
+  var h = '<div style="margin-bottom:12px;">';
+  h += '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">Assessment summary</div>';
+
+  // Summary table
+  h += '<div class="table-scroll"><table style="width:100%;border-collapse:collapse;">';
+  h += '<thead><tr>';
+  h += '<th style="text-align:left;padding:6px 8px;">Receiver</th>';
+  h += '<th style="text-align:left;padding:6px 8px;">Governing case</th>';
+  h += '<th class="num" style="padding:6px 8px;">&#916; dB</th>';
+  h += '<th class="num" style="padding:6px 8px;">Status</th>';
+  h += '</tr></thead><tbody>';
+
+  receivers.forEach(function(recv) {
+    // Find governing case = highest delta across all enabled cases
+    var governing = null;
+    var governingDelta = -Infinity;
+    var governingName = '—';
+
+    activeCases.forEach(function(c) {
+      var cp = casePredictions[c.id];
+      if (!cp || !cp[recv.key]) return;
+      var rp = cp[recv.key];
+      var delta;
+      if (c.criteriaType === 'dts_dpf_4.6' && rp.bands) {
+        // Music: find worst band delta
+        var worstBand = -Infinity;
+        rp.bands.forEach(function(b){ if (b.delta != null && b.delta > worstBand) worstBand = b.delta; });
+        delta = isFinite(worstBand) ? worstBand : null;
+      } else {
+        delta = rp.delta;
+      }
+      if (delta != null && delta > governingDelta) {
+        governingDelta = delta;
+        governing = c;
+        governingName = c.name;
+      }
+    });
+
+    var complies = governing && isFinite(governingDelta) ? governingDelta <= 0 : null;
+    var deltaStr = governing && isFinite(governingDelta) ? (governingDelta > 0 ? '+' : '') + Math.round(governingDelta) : '—';
+    var statusStr = complies === true ? '&#10003;' : (complies === false ? '&#10007;' : '—');
+    var statusColor = complies === true ? '#166534' : (complies === false ? '#b91c1c' : '#6b7280');
+    var rowBg = complies === false ? 'background:#fef2f2;' : '';
+
+    h += '<tr style="' + rowBg + '">';
+    h += '<td style="padding:5px 8px;font-size:13px;">' + _acEscH(recv.name) + '</td>';
+    h += '<td style="padding:5px 8px;font-size:13px;color:var(--muted);">' + _acEscH(governingName) + '</td>';
+    h += '<td class="num" style="padding:5px 8px;font-size:13px;font-weight:600;color:' + statusColor + ';">' + deltaStr + '</td>';
+    h += '<td class="num" style="padding:5px 8px;font-size:15px;font-weight:700;color:' + statusColor + ';">' + statusStr + '</td>';
+    h += '</tr>';
+  });
+
+  h += '</tbody></table></div>';
+
+  // Per-receiver expandable detail
+  h += '<div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;">';
+  receivers.forEach(function(recv) {
+    var expanded = !!_acRecvExpanded[recv.key];
+    var arrow = expanded ? '&#x25BC;' : '&#x25B6;';
+
+    // Find governing for header badge
+    var govDelta = null;
+    var govComplies = null;
+    activeCases.forEach(function(c) {
+      var cp = casePredictions[c.id];
+      if (!cp || !cp[recv.key]) return;
+      var rp = cp[recv.key];
+      var delta;
+      if (c.criteriaType === 'dts_dpf_4.6' && rp.bands) {
+        var worst = -Infinity;
+        rp.bands.forEach(function(b){ if(b.delta!=null&&b.delta>worst) worst=b.delta; });
+        delta = isFinite(worst) ? worst : null;
+      } else { delta = rp.delta; }
+      if (delta != null && (govDelta === null || delta > govDelta)) govDelta = delta;
+    });
+    if (govDelta !== null) govComplies = govDelta <= 0;
+    var badgeColor = govComplies === true ? '#166534' : (govComplies === false ? '#b91c1c' : '#6b7280');
+    var badgeStr = govDelta !== null ? ((govDelta > 0 ? '+' : '') + Math.round(govDelta) + ' dB ' + (govComplies ? '&#10003;' : '&#10007;')) : '';
+
+    h += '<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;">';
+    // Header
+    h += '<div onclick="_acToggleRecv(\'' + recv.key + '\')" style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:#f8f9fa;cursor:pointer;user-select:none;" onmouseenter="this.style.background=\'#f0f0f0\'" onmouseleave="this.style.background=\'#f8f9fa\'">';
+    h += '<span style="font-size:11px;color:var(--muted);">' + arrow + '</span>';
+    h += '<span style="font-size:13px;font-weight:600;flex:1;">' + _acEscH(recv.name) + '</span>';
+    if (badgeStr) h += '<span style="font-size:12px;font-weight:700;color:' + badgeColor + ';">' + badgeStr + '</span>';
+    h += '</div>';
+
+    if (expanded) {
+      h += _acRenderRecvDetail(recv, activeCases);
+    }
+    h += '</div>';
+  });
+  h += '</div>'; // end per-receiver sections
+
+  h += '</div>'; // end summary block
+  return h;
+}
+
 function renderAssessmentCases() {
   var container = document.getElementById('assessmentCasesPanel');
   if (!container) return;
   _refreshCaseSources();
+
+  // Render summary table first
+  var summaryHtml = _acRenderSummaryTable();
 
   var musicOn  = !!(document.getElementById('srcCatMusic')     && document.getElementById('srcCatMusic').checked);
   var childOn  = !!(document.getElementById('srcCatChildcare') && document.getElementById('srcCatChildcare').checked);
@@ -6682,7 +6905,7 @@ function renderAssessmentCases() {
     h += '</div>';
   }
 
-  container.innerHTML = h;
+  container.innerHTML = summaryHtml + h;
 }
 
 function _acRenderCase(c) {
