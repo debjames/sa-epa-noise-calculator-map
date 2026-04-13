@@ -54,7 +54,7 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .bad{color:var(--bad);font-weight:700;}
 .cell-ok{background:var(--okbg);}
 .cell-bad{background:var(--badbg);}
-.grid2{display:grid;grid-template-columns:1fr;gap:12px;padding:12px 14px;}
+.grid2{display:grid;grid-template-columns:1fr;gap:12px;padding:12px 0;}
 .span2{grid-column:1 / -1;}
 .grid-full{grid-template-columns:1fr !important;}
 @media print {.card, .sheet, table { break-inside: avoid; }}
@@ -2155,113 +2155,113 @@ body.map-fs-active { overflow: hidden; }
     </div>
     <div id="recommendationsBody"></div>
   </div>
+</div>
 
-  <!-- GIS Export panel -->
-  <div class="card" style="margin-top:14px;">
-    <h2>GIS Export</h2>
-    <div class="p" style="margin-bottom:8px;">Export assessment data for use in GIS applications (QGIS, ArcGIS, Google Earth).</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-      <button class="pdf-btn" id="exportGeoJsonBtn" type="button" title="To get a Shapefile, open this GeoJSON in QGIS and use Export → Save Features As → ESRI Shapefile.">Export GeoJSON</button>
-      <button class="pdf-btn" id="exportKmlBtn" type="button">Export KML</button>
-      <button class="pdf-btn" id="exportCsvBtn" type="button">Export CSV</button>
-    </div>
-    <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.6;">
-      <b>GeoJSON</b> — recommended for QGIS and ArcGIS. <span style="color:#888;">Tip: to get a Shapefile, open GeoJSON in QGIS &rarr; Export &rarr; Save Features As &rarr; ESRI Shapefile.</span><br>
-      <b>KML</b> — use with Google Earth or Google Maps.<br>
-      <b>CSV</b> — receivers only, for Excel or data joins.
-    </div>
+<!-- GIS Export panel -->
+<div class="card" style="margin-top:14px;">
+  <h2>GIS Export</h2>
+  <div class="p" style="margin-bottom:8px;">Export assessment data for use in GIS applications (QGIS, ArcGIS, Google Earth).</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+    <button class="pdf-btn" id="exportGeoJsonBtn" type="button" title="To get a Shapefile, open this GeoJSON in QGIS and use Export → Save Features As → ESRI Shapefile.">Export GeoJSON</button>
+    <button class="pdf-btn" id="exportKmlBtn" type="button">Export KML</button>
+    <button class="pdf-btn" id="exportCsvBtn" type="button">Export CSV</button>
   </div>
-
-
-  <!-- Methodology panel -->
-  <div class="card" style="margin-top:14px;">
-    <h2>Methodology</h2>
-    <div class="h2" style="font-size:13px;">Sound pressure level prediction</div>
-    <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Two propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), and ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity). It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
-    <div class="h2" style="font-size:13px;">Building sources</div>
-    <div class="p">Building sources model noise radiating from industrial or commercial building facades and roofs where the internal noise level (L<sub>p</sub>) is known. The user draws a building polygon on the map, enters the building height, internal L<sub>p</sub> per period, and wall and roof construction (R<sub>w</sub>). The radiated sound power per facade or roof panel is calculated as L<sub>w</sub>&thinsp;=&thinsp;L<sub>p</sub>&thinsp;&minus;&thinsp;R<sub>w</sub>&thinsp;+&thinsp;10&middot;log<sub>10</sub>(S)&thinsp;+&thinsp;6&thinsp;dB, where S is the facade or roof area. Facade elements (roller doors, louvres, glazing) with their own R<sub>w</sub> can be added per wall. Propagation from the resulting sub-sources uses the same method as point sources.</div>
-    <div class="h2" style="font-size:13px;">Barrier attenuation</div>
-    <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. The tool uses the Maekawa diffraction formula based on path-length difference to determine insertion loss, computed per octave band. Three diffraction paths are energy-summed: over the barrier top and around each lateral end. The over-top path is capped at 20&thinsp;dB (single diffraction) or 25&thinsp;dB (double diffraction); lateral paths are uncapped. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.</div>
-    <div class="h2" style="font-size:13px;">L<sub>Amax</sub> barrier and terrain screening</div>
-    <div class="p">L<sub>Amax</sub> barrier and building attenuation is calculated using the Maekawa diffraction formula applied per octave band to the source L<sub>max</sub> spectrum. Ground effect (A<sub>gr</sub>) is not applied to L<sub>Amax</sub> predictions. Terrain screening is applied where enabled. Barrier and terrain screening is applied regardless of whether the simple or ISO 9613-2 propagation method is selected.</div>
-    <div class="h2" style="font-size:13px;">Facade reflections</div>
-    <div class="p">Facade reflections are calculated using the image source method per ISO 9613-2 &sect;7.5. For each source&ndash;receiver pair, building and barrier edges within 50&thinsp;m of the receiver are tested as reflecting surfaces. The reflected contribution from the dominant surface is calculated as a separate propagation path (using the same propagation method as the direct path) and energy-added to the direct path. A single dominant reflection is considered per source&ndash;receiver pair. Grazing incidence is excluded (incidence angle &gt;80&deg; relative to surface normal). Hard surface reflection (0&thinsp;dB loss) is assumed for all buildings and barriers. Reflections are enabled via the Reflections toolbar button and apply to both receiver predictions and the noise map.</div>
-    <div class="h2" style="font-size:13px;">Operating % of period</div>
-    <div class="p" id="opTimeNote">The calculation provides an option to enter the percentage of the assessment period during which each source is operating. A 10&middot;log<sub>10</sub>(pct/100) weighting is applied to the source level: 100&thinsp;% &rarr; 0&thinsp;dB, 50&thinsp;% &rarr; &minus;3&thinsp;dB, 25&thinsp;% &rarr; &minus;6&thinsp;dB.</div>
-    <div class="h2" style="font-size:13px;">Multiple sources &mdash; energy summation</div>
-    <div class="p">Where more than one noise source is present, contributions at each receiver are combined by energy summation: L<sub>total</sub> = 10&middot;log<sub>10</sub>(&Sigma; 10<sup>L<sub>i</sub>/10</sup>). The combined level will always be higher than the loudest individual source, but by no more than 3 dB when two equal sources are present.</div>
-    <div class="h2" style="font-size:13px;">Noise map</div>
-    <div class="p">The noise map generates a predicted sound level grid across the map extent using the selected propagation method. Grid resolution is adaptive (5&ndash;50&thinsp;m based on zoom level). Contour lines are interpolated from the grid and represent equal noise level lines in dB(A). The noise map uses the same source inputs, propagation method, and receiver height as the receiver predictions. Contour accuracy degrades at the edges of the grid and at large distances from sources.</div>
-    <div class="h2" style="font-size:13px;">Zone detection</div>
-    <div class="p">Receiver zones are detected automatically by querying state planning portal APIs based on the receiver map location: SA uses the SA Planning Portal (SAPPA), VIC uses the Victorian Planning Authority API, and NSW uses the NSW Planning Portal. Zone detection requires an internet connection. Users should verify zone classifications independently, as APIs may not reflect recent planning amendments. Zone information is used to apply the applicable noise criteria for that receiver.</div>
-    <div class="h2" style="font-size:13px;">Terrain screening</div>
-    <div class="p">Where ground elevation data is available, the terrain profile between each source and receiver is sampled from DEM data. The Geoscience Australia 5&thinsp;m LiDAR WCS service is queried as the primary source; Open-Elevation (SRTM ~30&thinsp;m resolution) is used as a fallback where WCS data is unavailable. The dominant intervening ridgeline is identified and diffraction loss calculated using the Maekawa formula (identical to the building barrier method). Only the single dominant path is assessed; multiple diffraction is not modelled. Where terrain and building barriers coincide, the greater per-band insertion loss is applied.</div>
-    <div class="h2" style="font-size:13px;margin-top:18px;">Code quality and validation</div>
-    <div class="h2" style="font-size:12px;margin-top:10px;">ISO/TR 17534-3 validation</div>
-    <div class="p">The core propagation calculations are validated against the reference test cases defined in ISO/TR 17534-3:2015 &mdash; Acoustics: Software for the calculation of sound outdoors. This technical report defines input geometries and reference output values for testing implementations of ISO 9613-2. The in-app &ldquo;Run validation&rdquo; button (in the Propagation method panel) executes the following ground attenuation test cases:</div>
-    <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
-      <li>T01: Reflecting ground (G&thinsp;=&thinsp;0) &mdash; reference 44.29 dB &mdash; <b>pass</b> (&plusmn;0.05 dB)</li>
-      <li>T02: Mixed ground (G&thinsp;=&thinsp;0.5) &mdash; reference 41.53 dB &mdash; <b>pass</b> (&plusmn;0.05 dB)</li>
-      <li>T03: Porous ground (G&thinsp;=&thinsp;1.0) &mdash; reference 39.14 dB &mdash; <b>pass</b> (&plusmn;0.05 dB)</li>
-    </ul>
-    <div class="p">The full automated unit test suite (CAT tests, accessible via the developer console) additionally covers T04 (spatially varying ground &mdash; pass) and T08/T09/T11 (barrier + ground combined cases). T08, T09, and T11 currently produce results within &plusmn;1.0&thinsp;dB of the ISO/TR 17534-3 reference totals but do not meet the strict &plusmn;0.1&thinsp;dB tolerance due to the combined ground&ndash;barrier interaction term. These cases are noted as partial conformance. Users can run the in-app validation at any time via the &ldquo;Run validation&rdquo; button.</div>
-    <div class="h2" style="font-size:12px;margin-top:10px;">Terrain screening validation</div>
-    <div class="p">No terrain-specific test cases exist in ISO/TR 17534-3. The terrain diffraction implementation is validated by regression test: for a flat terrain profile (no elevation variation), the tool is required to return 0 dB terrain insertion loss for all source&ndash;receiver pairs. This is confirmed automatically as part of the validation suite.</div>
-    <div class="h2" style="font-size:12px;margin-top:10px;">Security</div>
-    <div class="p">User-entered data (source names, receiver names) is escaped before insertion into the interface using DOM-native <code>escapeHTML()</code> to prevent cross-site scripting (XSS). No user data is transmitted to any server &mdash; all calculations run entirely in the browser.</div>
-    <div class="h2" style="font-size:12px;margin-top:10px;">Conformity statement</div>
-    <div class="p">This tool implements ISO 9613-2:1996 (Attenuation of sound during propagation outdoors &mdash; Part 2: General method of calculation) and is partially conformant with ISO/TR 17534-3:2015 based on the test cases listed above. The GoI-form (Geometry of Implementation) identifies the following implementation status:</div>
-    <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
-      <li>Ground effect (&sect;7.3): fully implemented, per-band</li>
-      <li>Atmospheric absorption (&sect;7.2): fully implemented</li>
-      <li>Geometric divergence (&sect;7.1): fully implemented</li>
-      <li>Barrier / building screening (&sect;7.4): implemented, single dominant path, top and lateral diffraction</li>
-      <li>Terrain screening: partial &mdash; single dominant ridge, per-band Maekawa diffraction, DEM from Geoscience Australia WCS LiDAR (5&thinsp;m, primary) with Open-Elevation SRTM fallback</li>
-      <li>Meteorological correction (&sect;8): not implemented &mdash; this tool is intended for worst-case screening assessments; meteorological corrections are appropriate for detailed assessments only</li>
-    </ul>
-    <div class="h2" style="font-size:12px;margin-top:10px;">Limitations</div>
-    <div class="p" style="margin-bottom:0;">This tool is a screening tool intended to indicate whether more detailed assessment is warranted. It should not be used as a substitute for a full acoustic assessment by a qualified acoustic consultant. Predicted levels should be verified against site measurements before use in formal reports. Results are sensitive to source power level inputs &mdash; users are responsible for the accuracy of L<sub>w</sub> values entered.</div>
-    <div class="h2" style="font-size:13px;margin-top:18px;">Data sources</div>
-    <div class="h2" style="font-size:12px;margin-top:10px;">Planning zones</div>
-    <div class="p">Planning zone classifications are detected automatically via state planning portal APIs based on the placed receiver location. The data source varies by jurisdiction:</div>
-    <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
-      <li>SA: SA Planning Portal (SAPPA) &mdash; SA Planning and Design Code</li>
-      <li>VIC: Victorian Planning Authority &mdash; Planning Schemes Online</li>
-      <li>NSW: NSW Planning Portal &mdash; Environmental Planning Instruments (LEPs and SEPPs)</li>
-    </ul>
-    <div class="p">Zone detection requires an internet connection. Users should verify zone classifications independently as APIs may not reflect recent planning amendments or interim provisions.</div>
-    <div class="h2" style="font-size:12px;margin-top:10px;">Noise criteria</div>
-    <div class="p">Applicable noise criteria are applied based on the detected zone and the selected state. Criteria sources by jurisdiction:</div>
-    <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
-      <li>SA: Environment Protection (Commercial and Industrial Noise) Policy 2023 (SA EPA)</li>
-      <li>VIC: Environment Protection Act 2017 and Environment Protection Regulations 2021 (effective 1 July 2021). Noise limits and assessment methodology are set out in EPA Publication 1826.5 &mdash; Noise limit and assessment protocol for the control of noise from commercial, industrial and trade premises and entertainment venues. Note: the previous SEPP N-1 framework no longer applies from 1 July 2021.</li>
-      <li>NSW: Noise Policy for Industry (NSW EPA, 2017) &mdash; the current recommended guideline for new developments. The NSW Industrial Noise Policy (2000) may still apply to some existing developments and premises under transitional arrangements. Users should confirm which policy applies to their assessment with the NSW EPA.</li>
-    </ul>
-    <div class="p">Users should confirm the applicable policy version and any site-specific conditions with the relevant environment protection authority.</div>
-    <div class="h2" style="font-size:12px;margin-top:10px;">Aerial imagery</div>
-    <div class="p">Aerial imagery is provided by Esri World Imagery. Imagery currency varies by location &mdash; recent development or vegetation change may not be reflected.</div>
-    <div class="h2" style="font-size:12px;margin-top:10px;">Terrain elevation</div>
-    <div class="p">Ground elevations are fetched from two sources: the Geoscience Australia 5&thinsp;m LiDAR DEM via WCS (primary, covering most of Australia) and the Open-Elevation API serving SRTM data (~30&thinsp;m resolution) as a fallback. Elevation data is used to determine effective source and receiver heights above sea level and to calculate terrain diffraction loss along propagation paths. The 5&thinsp;m LiDAR DEM provides substantially better accuracy in areas of complex terrain. Accuracy of both sources may be reduced in areas of dense vegetation or built-up urban areas (where canopy or building returns affect the DEM surface).</div>
-    <div class="p">State LiDAR/DEM resources for reference:</div>
-    <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
-      <li>SA: Surveying and Spatial SA (SAILIS)</li>
-      <li>VIC: DataVic (Vicmap Elevation)</li>
-      <li>NSW: NSW Spatial Services (Elvis elevation portal)</li>
-    </ul>
-    <div class="h2" style="font-size:12px;margin-top:10px;">Buildings</div>
-    <div class="p">Building footprints are sourced from OpenStreetMap (OSM) via the Overpass API. Coverage varies by location &mdash; major urban areas generally have good coverage; regional and rural areas may be incomplete. Building heights where shown are sourced from OSM tags and may not be available for all structures. For critical assessments, verify building dimensions against survey data or local government records.</div>
-    <div class="h2" style="font-size:12px;margin-top:10px;">Cadastral boundaries</div>
-    <div class="p">Property boundaries are sourced from the Esri World Boundaries and Places layer. For definitive cadastral information consult the relevant state land registry:</div>
-    <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
-      <li>SA: Surveying and Spatial SA (SAILIS / Land Services SA)</li>
-      <li>VIC: Land Use Victoria (Landata)</li>
-      <li>NSW: NSW Land Registry Services (NSW LRS)</li>
-    </ul>
-    <div class="h2" style="font-size:12px;margin-top:10px;">MBS 010 screening</div>
-    <div class="p">MBS 010 (Ministerial Building Standard 010 &mdash; Construction requirements for the control of external sound) is a South Australian building standard published under the Planning, Development and Infrastructure Act 2016, available on the PlanSA website. It sets deemed-to-satisfy construction requirements for reducing the intrusion of road, rail, and aircraft noise into habitable rooms of residential buildings (Class 1, 2, 3, Class 4 and Class 9c aged care buildings).</div>
-    <div class="p" style="margin-bottom:0;">Application of MBS 010 is triggered by the Noise and Emissions Overlay in the SA Planning and Design Code. The current version is Version 3 (1 May 2023). The screening tool queries the SAPPA API to determine whether a receiver location falls within a Noise and Emissions Overlay area. Users should confirm overlay applicability and the current version of MBS 010 with the relevant consent authority.</div>
+  <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.6;">
+    <b>GeoJSON</b> — recommended for QGIS and ArcGIS. <span style="color:#888;">Tip: to get a Shapefile, open GeoJSON in QGIS &rarr; Export &rarr; Save Features As &rarr; ESRI Shapefile.</span><br>
+    <b>KML</b> — use with Google Earth or Google Maps.<br>
+    <b>CSV</b> — receivers only, for Excel or data joins.
   </div>
 </div>
+
+<!-- Methodology panel -->
+<div class="card" style="margin-top:14px;">
+  <h2>Methodology</h2>
+  <div class="h2" style="font-size:13px;">Sound pressure level prediction</div>
+  <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Two propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), and ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity). It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
+  <div class="h2" style="font-size:13px;">Building sources</div>
+  <div class="p">Building sources model noise radiating from industrial or commercial building facades and roofs where the internal noise level (L<sub>p</sub>) is known. The user draws a building polygon on the map, enters the building height, internal L<sub>p</sub> per period, and wall and roof construction (R<sub>w</sub>). The radiated sound power per facade or roof panel is calculated as L<sub>w</sub>&thinsp;=&thinsp;L<sub>p</sub>&thinsp;&minus;&thinsp;R<sub>w</sub>&thinsp;+&thinsp;10&middot;log<sub>10</sub>(S)&thinsp;+&thinsp;6&thinsp;dB, where S is the facade or roof area. Facade elements (roller doors, louvres, glazing) with their own R<sub>w</sub> can be added per wall. Propagation from the resulting sub-sources uses the same method as point sources.</div>
+  <div class="h2" style="font-size:13px;">Barrier attenuation</div>
+  <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. The tool uses the Maekawa diffraction formula based on path-length difference to determine insertion loss, computed per octave band. Three diffraction paths are energy-summed: over the barrier top and around each lateral end. The over-top path is capped at 20&thinsp;dB (single diffraction) or 25&thinsp;dB (double diffraction); lateral paths are uncapped. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.</div>
+  <div class="h2" style="font-size:13px;">L<sub>Amax</sub> barrier and terrain screening</div>
+  <div class="p">L<sub>Amax</sub> barrier and building attenuation is calculated using the Maekawa diffraction formula applied per octave band to the source L<sub>max</sub> spectrum. Ground effect (A<sub>gr</sub>) is not applied to L<sub>Amax</sub> predictions. Terrain screening is applied where enabled. Barrier and terrain screening is applied regardless of whether the simple or ISO 9613-2 propagation method is selected.</div>
+  <div class="h2" style="font-size:13px;">Facade reflections</div>
+  <div class="p">Facade reflections are calculated using the image source method per ISO 9613-2 &sect;7.5. For each source&ndash;receiver pair, building and barrier edges within 50&thinsp;m of the receiver are tested as reflecting surfaces. The reflected contribution from the dominant surface is calculated as a separate propagation path (using the same propagation method as the direct path) and energy-added to the direct path. A single dominant reflection is considered per source&ndash;receiver pair. Grazing incidence is excluded (incidence angle &gt;80&deg; relative to surface normal). Hard surface reflection (0&thinsp;dB loss) is assumed for all buildings and barriers. Reflections are enabled via the Reflections toolbar button and apply to both receiver predictions and the noise map.</div>
+  <div class="h2" style="font-size:13px;">Operating % of period</div>
+  <div class="p" id="opTimeNote">The calculation provides an option to enter the percentage of the assessment period during which each source is operating. A 10&middot;log<sub>10</sub>(pct/100) weighting is applied to the source level: 100&thinsp;% &rarr; 0&thinsp;dB, 50&thinsp;% &rarr; &minus;3&thinsp;dB, 25&thinsp;% &rarr; &minus;6&thinsp;dB.</div>
+  <div class="h2" style="font-size:13px;">Multiple sources &mdash; energy summation</div>
+  <div class="p">Where more than one noise source is present, contributions at each receiver are combined by energy summation: L<sub>total</sub> = 10&middot;log<sub>10</sub>(&Sigma; 10<sup>L<sub>i</sub>/10</sup>). The combined level will always be higher than the loudest individual source, but by no more than 3 dB when two equal sources are present.</div>
+  <div class="h2" style="font-size:13px;">Noise map</div>
+  <div class="p">The noise map generates a predicted sound level grid across the map extent using the selected propagation method. Grid resolution is adaptive (5&ndash;50&thinsp;m based on zoom level). Contour lines are interpolated from the grid and represent equal noise level lines in dB(A). The noise map uses the same source inputs, propagation method, and receiver height as the receiver predictions. Contour accuracy degrades at the edges of the grid and at large distances from sources.</div>
+  <div class="h2" style="font-size:13px;">Zone detection</div>
+  <div class="p">Receiver zones are detected automatically by querying state planning portal APIs based on the receiver map location: SA uses the SA Planning Portal (SAPPA), VIC uses the Victorian Planning Authority API, and NSW uses the NSW Planning Portal. Zone detection requires an internet connection. Users should verify zone classifications independently, as APIs may not reflect recent planning amendments. Zone information is used to apply the applicable noise criteria for that receiver.</div>
+  <div class="h2" style="font-size:13px;">Terrain screening</div>
+  <div class="p">Where ground elevation data is available, the terrain profile between each source and receiver is sampled from DEM data. The Geoscience Australia 5&thinsp;m LiDAR WCS service is queried as the primary source; Open-Elevation (SRTM ~30&thinsp;m resolution) is used as a fallback where WCS data is unavailable. The dominant intervening ridgeline is identified and diffraction loss calculated using the Maekawa formula (identical to the building barrier method). Only the single dominant path is assessed; multiple diffraction is not modelled. Where terrain and building barriers coincide, the greater per-band insertion loss is applied.</div>
+  <div class="h2" style="font-size:13px;margin-top:18px;">Code quality and validation</div>
+  <div class="h2" style="font-size:12px;margin-top:10px;">ISO/TR 17534-3 validation</div>
+  <div class="p">The core propagation calculations are validated against the reference test cases defined in ISO/TR 17534-3:2015 &mdash; Acoustics: Software for the calculation of sound outdoors. This technical report defines input geometries and reference output values for testing implementations of ISO 9613-2. The in-app &ldquo;Run validation&rdquo; button (in the Propagation method panel) executes the following ground attenuation test cases:</div>
+  <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+    <li>T01: Reflecting ground (G&thinsp;=&thinsp;0) &mdash; reference 44.29 dB &mdash; <b>pass</b> (&plusmn;0.05 dB)</li>
+    <li>T02: Mixed ground (G&thinsp;=&thinsp;0.5) &mdash; reference 41.53 dB &mdash; <b>pass</b> (&plusmn;0.05 dB)</li>
+    <li>T03: Porous ground (G&thinsp;=&thinsp;1.0) &mdash; reference 39.14 dB &mdash; <b>pass</b> (&plusmn;0.05 dB)</li>
+  </ul>
+  <div class="p">The full automated unit test suite (CAT tests, accessible via the developer console) additionally covers T04 (spatially varying ground &mdash; pass) and T08/T09/T11 (barrier + ground combined cases). T08, T09, and T11 currently produce results within &plusmn;1.0&thinsp;dB of the ISO/TR 17534-3 reference totals but do not meet the strict &plusmn;0.1&thinsp;dB tolerance due to the combined ground&ndash;barrier interaction term. These cases are noted as partial conformance. Users can run the in-app validation at any time via the &ldquo;Run validation&rdquo; button.</div>
+  <div class="h2" style="font-size:12px;margin-top:10px;">Terrain screening validation</div>
+  <div class="p">No terrain-specific test cases exist in ISO/TR 17534-3. The terrain diffraction implementation is validated by regression test: for a flat terrain profile (no elevation variation), the tool is required to return 0 dB terrain insertion loss for all source&ndash;receiver pairs. This is confirmed automatically as part of the validation suite.</div>
+  <div class="h2" style="font-size:12px;margin-top:10px;">Security</div>
+  <div class="p">User-entered data (source names, receiver names) is escaped before insertion into the interface using DOM-native <code>escapeHTML()</code> to prevent cross-site scripting (XSS). No user data is transmitted to any server &mdash; all calculations run entirely in the browser.</div>
+  <div class="h2" style="font-size:12px;margin-top:10px;">Conformity statement</div>
+  <div class="p">This tool implements ISO 9613-2:1996 (Attenuation of sound during propagation outdoors &mdash; Part 2: General method of calculation) and is partially conformant with ISO/TR 17534-3:2015 based on the test cases listed above. The GoI-form (Geometry of Implementation) identifies the following implementation status:</div>
+  <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+    <li>Ground effect (&sect;7.3): fully implemented, per-band</li>
+    <li>Atmospheric absorption (&sect;7.2): fully implemented</li>
+    <li>Geometric divergence (&sect;7.1): fully implemented</li>
+    <li>Barrier / building screening (&sect;7.4): implemented, single dominant path, top and lateral diffraction</li>
+    <li>Terrain screening: partial &mdash; single dominant ridge, per-band Maekawa diffraction, DEM from Geoscience Australia WCS LiDAR (5&thinsp;m, primary) with Open-Elevation SRTM fallback</li>
+    <li>Meteorological correction (&sect;8): not implemented &mdash; this tool is intended for worst-case screening assessments; meteorological corrections are appropriate for detailed assessments only</li>
+  </ul>
+  <div class="h2" style="font-size:12px;margin-top:10px;">Limitations</div>
+  <div class="p" style="margin-bottom:0;">This tool is a screening tool intended to indicate whether more detailed assessment is warranted. It should not be used as a substitute for a full acoustic assessment by a qualified acoustic consultant. Predicted levels should be verified against site measurements before use in formal reports. Results are sensitive to source power level inputs &mdash; users are responsible for the accuracy of L<sub>w</sub> values entered.</div>
+  <div class="h2" style="font-size:13px;margin-top:18px;">Data sources</div>
+  <div class="h2" style="font-size:12px;margin-top:10px;">Planning zones</div>
+  <div class="p">Planning zone classifications are detected automatically via state planning portal APIs based on the placed receiver location. The data source varies by jurisdiction:</div>
+  <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+    <li>SA: SA Planning Portal (SAPPA) &mdash; SA Planning and Design Code</li>
+    <li>VIC: Victorian Planning Authority &mdash; Planning Schemes Online</li>
+    <li>NSW: NSW Planning Portal &mdash; Environmental Planning Instruments (LEPs and SEPPs)</li>
+  </ul>
+  <div class="p">Zone detection requires an internet connection. Users should verify zone classifications independently as APIs may not reflect recent planning amendments or interim provisions.</div>
+  <div class="h2" style="font-size:12px;margin-top:10px;">Noise criteria</div>
+  <div class="p">Applicable noise criteria are applied based on the detected zone and the selected state. Criteria sources by jurisdiction:</div>
+  <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+    <li>SA: Environment Protection (Commercial and Industrial Noise) Policy 2023 (SA EPA)</li>
+    <li>VIC: Environment Protection Act 2017 and Environment Protection Regulations 2021 (effective 1 July 2021). Noise limits and assessment methodology are set out in EPA Publication 1826.5 &mdash; Noise limit and assessment protocol for the control of noise from commercial, industrial and trade premises and entertainment venues. Note: the previous SEPP N-1 framework no longer applies from 1 July 2021.</li>
+    <li>NSW: Noise Policy for Industry (NSW EPA, 2017) &mdash; the current recommended guideline for new developments. The NSW Industrial Noise Policy (2000) may still apply to some existing developments and premises under transitional arrangements. Users should confirm which policy applies to their assessment with the NSW EPA.</li>
+  </ul>
+  <div class="p">Users should confirm the applicable policy version and any site-specific conditions with the relevant environment protection authority.</div>
+  <div class="h2" style="font-size:12px;margin-top:10px;">Aerial imagery</div>
+  <div class="p">Aerial imagery is provided by Esri World Imagery. Imagery currency varies by location &mdash; recent development or vegetation change may not be reflected.</div>
+  <div class="h2" style="font-size:12px;margin-top:10px;">Terrain elevation</div>
+  <div class="p">Ground elevations are fetched from two sources: the Geoscience Australia 5&thinsp;m LiDAR DEM via WCS (primary, covering most of Australia) and the Open-Elevation API serving SRTM data (~30&thinsp;m resolution) as a fallback. Elevation data is used to determine effective source and receiver heights above sea level and to calculate terrain diffraction loss along propagation paths. The 5&thinsp;m LiDAR DEM provides substantially better accuracy in areas of complex terrain. Accuracy of both sources may be reduced in areas of dense vegetation or built-up urban areas (where canopy or building returns affect the DEM surface).</div>
+  <div class="p">State LiDAR/DEM resources for reference:</div>
+  <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+    <li>SA: Surveying and Spatial SA (SAILIS)</li>
+    <li>VIC: DataVic (Vicmap Elevation)</li>
+    <li>NSW: NSW Spatial Services (Elvis elevation portal)</li>
+  </ul>
+  <div class="h2" style="font-size:12px;margin-top:10px;">Buildings</div>
+  <div class="p">Building footprints are sourced from OpenStreetMap (OSM) via the Overpass API. Coverage varies by location &mdash; major urban areas generally have good coverage; regional and rural areas may be incomplete. Building heights where shown are sourced from OSM tags and may not be available for all structures. For critical assessments, verify building dimensions against survey data or local government records.</div>
+  <div class="h2" style="font-size:12px;margin-top:10px;">Cadastral boundaries</div>
+  <div class="p">Property boundaries are sourced from the Esri World Boundaries and Places layer. For definitive cadastral information consult the relevant state land registry:</div>
+  <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+    <li>SA: Surveying and Spatial SA (SAILIS / Land Services SA)</li>
+    <li>VIC: Land Use Victoria (Landata)</li>
+    <li>NSW: NSW Land Registry Services (NSW LRS)</li>
+  </ul>
+  <div class="h2" style="font-size:12px;margin-top:10px;">MBS 010 screening</div>
+  <div class="p">MBS 010 (Ministerial Building Standard 010 &mdash; Construction requirements for the control of external sound) is a South Australian building standard published under the Planning, Development and Infrastructure Act 2016, available on the PlanSA website. It sets deemed-to-satisfy construction requirements for reducing the intrusion of road, rail, and aircraft noise into habitable rooms of residential buildings (Class 1, 2, 3, Class 4 and Class 9c aged care buildings).</div>
+  <div class="p" style="margin-bottom:0;">Application of MBS 010 is triggered by the Noise and Emissions Overlay in the SA Planning and Design Code. The current version is Version 3 (1 May 2023). The screening tool queries the SAPPA API to determine whether a receiver location falls within a Noise and Emissions Overlay area. Users should confirm overlay applicability and the current version of MBS 010 with the relevant consent authority.</div>
+</div>
+
 </div>
 
 <!-- Load shared calculation and geometry functions (single canonical source) -->
