@@ -2109,12 +2109,11 @@ body.map-fs-active { overflow: hidden; }
 </div>
     </div>
    
-    <!-- ═══ Scenarios panel ═══ -->
-    <div class="grid2 grid-full" style="padding-top:0;">
+    <!-- ═══ Assessment cases panel ═══ -->
+    <div class="grid2" id="assessmentCasesSection" style="padding-top:0;">
       <div class="card span2">
-        <h2>Scenarios</h2>
-        <div class="p">Summary of which assessment periods each source is active in, based on entered Lw data. A tick indicates the source has Lw data entered for that period.</div>
-        <div id="scenariosTableContainer"></div>
+        <h2>Assessment cases</h2>
+        <div id="assessmentCasesPanel"></div>
       </div>
     </div>
 
@@ -5526,6 +5525,9 @@ function _newPinId() {
 
 var _globalPeriod = 'day'; // 'day' | 'eve' | 'night'
 
+var assessmentCases = window.assessmentCases = [];
+window._caseManualOverrides = {};
+
 /** sourcePins[] — each entry is one discrete noise source.
  *  spectrum.day/eve/night: A-weighted per-band Lw [63,125,250,500,1k,2k,4k,8k] or null.
  *  lw.day/eve/night: overall A-weighted Lw dB — pre-filled from spectrum sum, user-editable. */
@@ -6488,6 +6490,7 @@ function _onSourceCatChange() {
 
   // Update P&D Code provisions relevance (SA only)
   if (typeof updatePDCProvisions === 'function') updatePDCProvisions();
+  if (typeof renderAssessmentCases === 'function') renderAssessmentCases();
 }
 
 /** Emergency sub-checkbox change */
@@ -6522,6 +6525,242 @@ function _updateMusicCriteria() {
     }
   });
 }
+
+// ── Assessment Cases ──────────────────────────────────────────────────────
+
+var _CASE_DEFAULTS = [
+  { id:'day_general',   name:'Day \u2014 general activity',    type:'general_day',        period:'day',           criteriaType:'noise_policy' },
+  { id:'eve_general',   name:'Evening \u2014 general activity',type:'general_eve',        period:'eve',           criteriaType:'noise_policy' },
+  { id:'night_general', name:'Night \u2014 general activity',  type:'general_night',      period:'night',         criteriaType:'noise_policy' },
+  { id:'night_lmax',    name:'Night L\u2090\u2098\u2090\u2093',type:'general_lmax',       period:'lmax',          criteriaType:'noise_policy' },
+  { id:'music',         name:'Music',                          type:'music',              period:'music_trading', criteriaType:'dts_dpf_4.6' },
+  { id:'children',      name:'Children / students',            type:'children',           period:'who_16h',       criteriaType:'who' },
+  { id:'emerg_gen',     name:'Standby generator',              type:'emergency_generator',period:'night',         criteriaType:'emergency' },
+  { id:'emerg_fire',    name:'Fire \u0026 smoke control',      type:'emergency_fire',     period:'day',           criteriaType:'emergency' }
+];
+
+var _MUSIC_KW    = /music|dj\b|band\b|amplified|entertainment/i;
+var _CHILDREN_KW = /children|students|childcare|kindergarten|playground/i;
+var _GENERATOR_KW = /generator|genset|standby|load[\s-]*bank/i;
+var _FIRE_KW      = /fire[\s-]*pump|spf\b|sef\b|srf\b|smoke[\s-]*spill|stair[\s-]*press|pressuri[sz]|fire\b/i;
+
+function _acAllSources() {
+  var out = [];
+  function push(arr) {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(function(s) {
+      out.push({ id: s.id, name: s.name || '', activeInPeriod: s.activeInPeriod || {}, operatingPct: s.operatingPct != null ? s.operatingPct : 100 });
+    });
+  }
+  if (typeof sourcePins      !== 'undefined') push(sourcePins);
+  if (typeof lineSources     !== 'undefined') push(lineSources);
+  if (typeof areaSources     !== 'undefined') push(areaSources);
+  if (typeof buildingSources !== 'undefined') push(buildingSources);
+  return out;
+}
+
+function _acAutoAssign(caseType) {
+  var all = _acAllSources();
+  switch (caseType) {
+    case 'general_day':
+      return all.filter(function(s){ return s.activeInPeriod.day  && !_MUSIC_KW.test(s.name) && !_CHILDREN_KW.test(s.name); }).map(function(s){ return s.id; });
+    case 'general_eve':
+      return all.filter(function(s){ return s.activeInPeriod.eve  && !_MUSIC_KW.test(s.name) && !_CHILDREN_KW.test(s.name); }).map(function(s){ return s.id; });
+    case 'general_night':
+    case 'general_lmax':
+      return all.filter(function(s){ return s.activeInPeriod.night && !_MUSIC_KW.test(s.name) && !_CHILDREN_KW.test(s.name); }).map(function(s){ return s.id; });
+    case 'music':
+      return all.filter(function(s){ return _MUSIC_KW.test(s.name); }).map(function(s){ return s.id; });
+    case 'children':
+      return all.filter(function(s){ return _CHILDREN_KW.test(s.name); }).map(function(s){ return s.id; });
+    case 'emergency_generator': {
+      var base = all.filter(function(s){ return s.activeInPeriod.night && !_MUSIC_KW.test(s.name) && !_CHILDREN_KW.test(s.name); }).map(function(s){ return s.id; });
+      all.filter(function(s){ return _GENERATOR_KW.test(s.name); }).forEach(function(s){ if (base.indexOf(s.id) < 0) base.push(s.id); });
+      return base;
+    }
+    case 'emergency_fire': {
+      var base2 = all.filter(function(s){ return s.activeInPeriod.day && !_MUSIC_KW.test(s.name) && !_CHILDREN_KW.test(s.name); }).map(function(s){ return s.id; });
+      all.filter(function(s){ return _FIRE_KW.test(s.name); }).forEach(function(s){ if (base2.indexOf(s.id) < 0) base2.push(s.id); });
+      return base2;
+    }
+    default: return [];
+  }
+}
+
+function _acCreateCase(defn) {
+  return { id: defn.id, name: defn.name, type: defn.type, period: defn.period,
+           criteriaType: defn.criteriaType, activeSources: _acAutoAssign(defn.type),
+           operatingPctOverrides: {}, penalties: { r1:0, r2:0, r3:0, r4:0 },
+           enabled: true, _collapsed: true };
+}
+
+function _acEnableCase(id) {
+  var existing = assessmentCases.find(function(c){ return c.id === id; });
+  if (existing) { existing.enabled = true; return; }
+  var defn = _CASE_DEFAULTS.find(function(d){ return d.id === id; });
+  if (!defn) return;
+  assessmentCases.push(_acCreateCase(defn));
+  if (!window._caseManualOverrides[id]) window._caseManualOverrides[id] = {};
+}
+
+function _acDisableCase(id) {
+  var c = assessmentCases.find(function(c){ return c.id === id; });
+  if (c) c.enabled = false;
+}
+
+function _refreshCaseSources() {
+  var all = _acAllSources();
+  var allIds = all.map(function(s){ return s.id; });
+  assessmentCases.forEach(function(c) {
+    c.activeSources = c.activeSources.filter(function(id){ return allIds.indexOf(id) >= 0; });
+    Object.keys(c.operatingPctOverrides).forEach(function(id){ if (allIds.indexOf(id) < 0) delete c.operatingPctOverrides[id]; });
+    var autoIds = _acAutoAssign(c.type);
+    var manuals = window._caseManualOverrides[c.id] || {};
+    autoIds.forEach(function(id){ if (c.activeSources.indexOf(id) < 0 && manuals[id] !== 'unchecked') c.activeSources.push(id); });
+  });
+}
+
+var _AC_PERIOD_LABELS   = { day:'Day', eve:'Evening', night:'Night', lmax:'Night (L\u2090\u2098\u2090\u2093)', who_16h:'WHO 16h', music_trading:'Music trading hours' };
+var _AC_CRITERIA_LABELS = { noise_policy:'Noise Policy', 'dts_dpf_4.6':'DTS/DPF 4.6 (octave band)', who:'WHO 50 dB(A)', emergency:'Emergency criteria' };
+
+function _acEscH(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function renderAssessmentCases() {
+  var container = document.getElementById('assessmentCasesPanel');
+  if (!container) return;
+  _refreshCaseSources();
+
+  var musicOn  = !!(document.getElementById('srcCatMusic')     && document.getElementById('srcCatMusic').checked);
+  var childOn  = !!(document.getElementById('srcCatChildcare') && document.getElementById('srcCatChildcare').checked);
+  var emergOn  = !!(document.getElementById('srcCatEmergency') && document.getElementById('srcCatEmergency').checked);
+  var genOn    = emergOn && !!(document.getElementById('srcEmergGen')  && document.getElementById('srcEmergGen').checked);
+  var fireOn   = emergOn && !!(document.getElementById('srcEmergFire') && document.getElementById('srcEmergFire').checked);
+
+  var enabledIds = {};
+  assessmentCases.forEach(function(c){ if (c.enabled) enabledIds[c.id] = true; });
+
+  function chk(id, label, disabled) {
+    var checked = enabledIds[id] ? ' checked' : '';
+    var dis = disabled ? ' disabled' : '';
+    var sty = disabled ? 'opacity:.4;cursor:default;' : 'cursor:pointer;';
+    return '<label style="display:flex;align-items:center;gap:7px;font-size:13px;' + sty + '">' +
+           '<input type="checkbox"' + checked + dis + ' onchange="_onCaseToggle(\'' + id + '\',this.checked)">' +
+           '<span>' + label + '</span></label>';
+  }
+
+  var h = '';
+  // Group: General Noise Policy
+  h += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">General Noise Policy</div>';
+  h += '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px;">';
+  h += chk('day_general',   'Day \u2014 general activity',   false);
+  h += chk('eve_general',   'Evening \u2014 general activity',false);
+  h += chk('night_general', 'Night \u2014 general activity',  false);
+  h += chk('night_lmax',    'Night L<sub>Amax</sub>',         false);
+  h += '</div><div style="border-top:1px solid var(--border);margin-bottom:10px;"></div>';
+
+  // Group: Separate assessments
+  h += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Separate assessments</div>';
+  h += '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px;">';
+  h += chk('music',    'Music',              !musicOn);
+  h += chk('children', 'Children / students', !childOn);
+  h += '</div><div style="border-top:1px solid var(--border);margin-bottom:10px;"></div>';
+
+  // Group: Emergency
+  h += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Emergency equipment</div>';
+  h += '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:4px;">';
+  h += chk('emerg_gen',  'Standby generator',      !genOn);
+  h += chk('emerg_fire', 'Fire &amp; smoke control',!fireOn);
+  h += '</div>';
+
+  // Case sections
+  var active = assessmentCases.filter(function(c){ return c.enabled; });
+  if (active.length) {
+    h += '<div style="border-top:2px solid var(--border);margin-top:10px;padding-top:10px;display:flex;flex-direction:column;gap:6px;">';
+    active.forEach(function(c){ h += _acRenderCase(c); });
+    h += '</div>';
+  }
+
+  container.innerHTML = h;
+}
+
+function _acRenderCase(c) {
+  var all = _acAllSources();
+  var collapsed = c._collapsed !== false;
+  var arrow = collapsed ? '&#x25B6;' : '&#x25BC;';
+  var h = '<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;">';
+  // Header
+  h += '<div onclick="_acToggle(\'' + c.id + '\')" style="display:flex;align-items:center;gap:6px;padding:7px 10px;background:#f8f9fa;cursor:pointer;user-select:none;" onmouseenter="this.style.background=\'#f0f0f0\'" onmouseleave="this.style.background=\'#f8f9fa\'">';
+  h += '<span style="font-size:11px;color:var(--muted);">' + arrow + '</span>';
+  h += '<span contenteditable="true" onclick="event.stopPropagation()" onblur="_acRename(\'' + c.id + '\',this.textContent.trim())" style="font-weight:600;font-size:13px;flex:1;outline:none;" spellcheck="false">' + _acEscH(c.name) + '</span>';
+  h += '<span style="font-size:11px;color:var(--muted);white-space:nowrap;">' + (_AC_CRITERIA_LABELS[c.criteriaType] || c.criteriaType) + '</span>';
+  h += '</div>';
+
+  if (!collapsed) {
+    h += '<div style="padding:8px 10px;display:flex;flex-direction:column;gap:8px;">';
+    // Period
+    var periodEdit = c.type === 'emergency_generator' || c.type === 'emergency_fire';
+    h += '<div style="display:flex;align-items:center;gap:8px;font-size:12px;">';
+    h += '<span style="color:var(--muted);width:55px;">Period</span>';
+    if (periodEdit) {
+      h += '<select onchange="_acPeriod(\'' + c.id + '\',this.value)" style="font-size:12px;padding:2px 4px;border:1px solid var(--border);border-radius:3px;">';
+      ['day','eve','night','lmax'].forEach(function(p){ h += '<option value="' + p + '"' + (c.period===p?' selected':'') + '>' + _AC_PERIOD_LABELS[p] + '</option>'; });
+      h += '</select>';
+    } else {
+      h += '<span>' + (_AC_PERIOD_LABELS[c.period] || c.period) + '</span>';
+    }
+    h += '</div>';
+    // Sources
+    h += '<div style="font-size:12px;font-weight:600;color:var(--muted);">Sources</div>';
+    if (!all.length) {
+      h += '<div style="font-size:12px;color:var(--muted);font-style:italic;">No sources placed</div>';
+    } else {
+      h += '<div style="display:flex;flex-direction:column;gap:3px;">';
+      all.forEach(function(s) {
+        var active = c.activeSources.indexOf(s.id) >= 0;
+        var baseOp = s.operatingPct != null ? s.operatingPct : 100;
+        var ov = c.operatingPctOverrides[s.id];
+        var hasOv = ov !== undefined;
+        var dispOp = hasOv ? ov : baseOp;
+        var nameStyle = active ? '' : 'color:var(--muted);';
+        h += '<div style="display:flex;align-items:center;gap:6px;">';
+        h += '<input type="checkbox"' + (active?' checked':'') + ' onchange="_acSourceToggle(\'' + c.id + '\',\'' + s.id + '\',this.checked)" style="margin:0;flex-shrink:0;">';
+        h += '<span style="font-size:12px;flex:1;' + nameStyle + '">' + _acEscH(s.name || s.id) + '</span>';
+        if (active) {
+          h += '<span style="font-size:11px;color:var(--muted);">Op:</span>';
+          h += '<input type="number" min="0" max="100" value="' + dispOp + '" title="' + (hasOv ? 'Overridden from base value of '+baseOp+'%' : 'Base operating %') + '" onchange="_acOpPct(\'' + c.id + '\',\'' + s.id + '\',' + baseOp + ',this.value)" style="width:48px;font-size:12px;text-align:right;border:1px solid var(--border);border-radius:3px;padding:1px 3px;' + (hasOv?'color:#2563eb;':'') + '">';
+          h += '<span style="font-size:11px;color:var(--muted);">%</span>';
+          if (hasOv) {
+            h += '<span style="font-size:11px;color:#2563eb;" title="Overridden from base value of ' + baseOp + '%">*</span>';
+            h += '<button onclick="_acResetOp(\'' + c.id + '\',\'' + s.id + '\')" title="Reset to base ('+baseOp+'%)" style="background:none;border:none;cursor:pointer;font-size:11px;color:#9ca3af;padding:0 2px;line-height:1;">&#x21BB;</button>';
+          }
+        }
+        h += '</div>';
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function _acToggle(id) { var c=assessmentCases.find(function(c){return c.id===id;}); if(c){c._collapsed=!c._collapsed;renderAssessmentCases();} }
+function _onCaseToggle(id, on) { if(on) _acEnableCase(id); else _acDisableCase(id); renderAssessmentCases(); if(typeof window._undoPushState==='function') window._undoPushState('assessment cases'); }
+function _acRename(id, name) { var c=assessmentCases.find(function(c){return c.id===id;}); if(c&&name) c.name=name; }
+function _acPeriod(id, period) { var c=assessmentCases.find(function(c){return c.id===id;}); if(c) c.period=period; }
+function _acSourceToggle(id, sid, on) {
+  var c=assessmentCases.find(function(c){return c.id===id;}); if(!c) return;
+  if(on){ if(c.activeSources.indexOf(sid)<0) c.activeSources.push(sid); if(window._caseManualOverrides[id]) delete window._caseManualOverrides[id][sid]; }
+  else { c.activeSources=c.activeSources.filter(function(s){return s!==sid;}); if(!window._caseManualOverrides[id]) window._caseManualOverrides[id]={}; window._caseManualOverrides[id][sid]='unchecked'; }
+  renderAssessmentCases();
+}
+function _acOpPct(cid, sid, base, val) {
+  var c=assessmentCases.find(function(c){return c.id===cid;}); if(!c) return;
+  var v=parseFloat(val); if(isNaN(v)) return;
+  if(Math.abs(v-base)<0.001) delete c.operatingPctOverrides[sid]; else c.operatingPctOverrides[sid]=v;
+  renderAssessmentCases();
+}
+function _acResetOp(cid, sid) { var c=assessmentCases.find(function(c){return c.id===cid;}); if(c){ delete c.operatingPctOverrides[sid]; renderAssessmentCases(); } }
 
 var _PDC_SR_TIP = 'Sensitive receiver means: any use for residential purposes or land zoned primarily for residential purposes, childcare facility, educational facility, hospital, supported accommodation, or tourist accommodation.';
 function _pdcHighlightSR(escapedHtml) {
@@ -11629,6 +11868,7 @@ function render() {
   // Update source contribution tables whenever results re-render
   if (typeof renderScenariosTable === 'function') renderScenariosTable();
   if (typeof renderContributions === 'function') renderContributions();
+  if (typeof renderAssessmentCases === 'function') renderAssessmentCases();
 
   // Update recommended treatments panel
   if (typeof renderRecommendations === 'function') renderRecommendations();
@@ -13663,7 +13903,7 @@ function initCollapse() {
     header.appendChild(toggle);
 
     // Default-collapse specific sections
-    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Scenarios', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation', 'GIS Export', 'How to use', 'Methodology', 'Custom sources'];
+    var DEFAULT_COLLAPSED = ['Noise sources & location', 'Receivers & criteria', 'Noise sensitive areas & criteria', 'Predicted noise', 'Source contribution', 'Scenarios', 'Assessment cases', 'Propagation method', 'Characteristic penalties', 'Characteristic adjustments', 'Modifying factor corrections', 'Emergency equipment criteria', 'NSW assessment parameters', 'VIC assessment parameters', 'Day situation', 'Evening situation', 'Night situation', 'GIS Export', 'How to use', 'Methodology', 'Custom sources'];
     var titleText = h2.textContent.trim().toLowerCase();
     var startCollapsed = DEFAULT_COLLAPSED.some(function(t) { return titleText.indexOf(t.toLowerCase()) === 0; });
     if (startCollapsed) {
@@ -13895,6 +14135,12 @@ initCollapse();
         var _musicBg = {};
         _musicBgBands.forEach(function(b) { var el = document.getElementById('musicBg' + b); if (el && el.value !== '') _musicBg[b] = parseFloat(el.value); });
         if (Object.keys(_musicBg).length > 0) data.musicBackground = _musicBg;
+        data.assessmentCases = assessmentCases.map(function(c){
+          return {id:c.id,name:c.name,type:c.type,period:c.period,criteriaType:c.criteriaType,
+                  activeSources:c.activeSources.slice(),operatingPctOverrides:Object.assign({},c.operatingPctOverrides),
+                  penalties:Object.assign({},c.penalties),enabled:c.enabled};
+        });
+        data.caseManualOverrides = JSON.parse(JSON.stringify(window._caseManualOverrides));
 
         // Custom sources (include so assessment file is self-contained)
         if (_customSources.length > 0) {
@@ -15297,6 +15543,14 @@ initCollapse();
         });
         if (typeof _updateMusicCriteria === 'function') _updateMusicCriteria();
       }
+      assessmentCases = [];
+      window._caseManualOverrides = {};
+      if (data.assessmentCases && Array.isArray(data.assessmentCases)) {
+        assessmentCases = data.assessmentCases.map(function(c){ return Object.assign({_collapsed:true},c); });
+        window.assessmentCases = assessmentCases;
+        window._caseManualOverrides = data.caseManualOverrides || {};
+      }
+      if (typeof renderAssessmentCases === 'function') renderAssessmentCases();
 
       // 16. Re-render detected zones panel for VIC, then push undo snapshot
       setTimeout(function() {
@@ -15565,6 +15819,12 @@ initCollapse();
       var _sMusicBg = {};
       _sMbBands.forEach(function(b) { var el = document.getElementById('musicBg' + b); if (el && el.value !== '') _sMusicBg[b] = parseFloat(el.value); });
       if (Object.keys(_sMusicBg).length > 0) data.musicBackground = _sMusicBg;
+      data.assessmentCases = assessmentCases.map(function(c){
+        return {id:c.id,name:c.name,type:c.type,period:c.period,criteriaType:c.criteriaType,
+                activeSources:c.activeSources.slice(),operatingPctOverrides:Object.assign({},c.operatingPctOverrides),
+                penalties:Object.assign({},c.penalties),enabled:c.enabled};
+      });
+      data.caseManualOverrides = JSON.parse(JSON.stringify(window._caseManualOverrides));
 
       return JSON.stringify(data);
     } catch(e) {
