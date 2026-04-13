@@ -6233,35 +6233,43 @@ var _pdcProvisions = _PDC_PROVISIONS.map(function() { return { relevance: '', ma
 
 function _pdcGatherSources() {
   var names = [];
-  if (typeof sourcePins !== 'undefined') sourcePins.forEach(function(p) { if (p.name) names.push(p.name); });
-  if (typeof lineSources !== 'undefined') lineSources.forEach(function(ls) { if (ls.name) names.push(ls.name); });
-  if (typeof areaSources !== 'undefined') areaSources.forEach(function(as) { if (as.name) names.push(as.name); });
-  if (typeof buildingSources !== 'undefined') buildingSources.forEach(function(bs) { if (bs.name) names.push(bs.name); });
+  function _pdcAddNames(obj) {
+    if (obj.name) names.push(obj.name);
+    if (obj.libraryEntry) {
+      var le = obj.libraryEntry;
+      if (typeof le === 'string') names.push(le);
+      else if (le.name) names.push(le.name);
+      else if (le.label) names.push(le.label);
+    }
+  }
+  if (typeof sourcePins !== 'undefined') sourcePins.forEach(_pdcAddNames);
+  if (typeof lineSources !== 'undefined') lineSources.forEach(_pdcAddNames);
+  if (typeof areaSources !== 'undefined') areaSources.forEach(_pdcAddNames);
+  if (typeof buildingSources !== 'undefined') buildingSources.forEach(_pdcAddNames);
   return names;
 }
 
-function _pdcFindFirstMatch(keywords) {
+function _pdcAnyMatch(keywords) {
   var sources = _pdcGatherSources();
   for (var i = 0; i < sources.length; i++) {
     for (var j = 0; j < keywords.length; j++) {
-      if (keywords[j].test(sources[i])) return sources[i];
+      if (keywords[j].test(sources[i])) return true;
     }
   }
   if (window._pdfSuggestedGroups) {
     for (var k = 0; k < window._pdfSuggestedGroups.length; k++) {
-      var label = window._pdfSuggestedGroups[k].label;
+      var label = (window._pdfSuggestedGroups[k].label) || '';
       for (var m = 0; m < keywords.length; m++) {
-        if (keywords[m].test(label)) return label;
+        if (keywords[m].test(label)) return true;
       }
     }
   }
-  return null;
+  return false;
 }
 
 function _pdcAutoDetectRelevance() {
   var results = ['', '', '', '', '', ''];
 
-  // PO 4.1 — any source placed
   var hasAnySource = false;
   if (typeof sourcePins !== 'undefined') hasAnySource = hasAnySource || sourcePins.some(function(p) { return p.lat !== null && p.lat !== undefined; });
   if (typeof lineSources !== 'undefined') hasAnySource = hasAnySource || lineSources.length > 0;
@@ -6269,44 +6277,44 @@ function _pdcAutoDetectRelevance() {
   if (typeof buildingSources !== 'undefined') hasAnySource = hasAnySource || buildingSources.length > 0;
   var hasPdf = window._pdfSuggestedGroups !== null && window._pdfSuggestedGroups !== undefined;
 
-  // No sources and no PDF yet — return TBC for all rows
+  // No sources and no PDF yet — all rows TBC
   if (!hasAnySource && !hasPdf) {
     return ['TBC', 'TBC', 'TBC', 'TBC', 'TBC', 'TBC'];
   }
 
+  // PO 4.1 — any source placed
   if (hasAnySource) results[0] = 'Noise sources identified \u2014 assessed under Noise Policy';
 
-  // PO 4.2 — vehicles, manoeuvring, outdoor plant
-  var kw42 = [/\btruck\b/i, /\bvehicle\b/i, /\bloading\b/i, /\bdelivery\b/i, /manoeuv/i, /\bforklift\b/i, /car[\s-]?park/i, /\bparking\b/i, /service[\s-]?vehicle/i, /\bwarehouse\b/i, /\bfactory\b/i, /\brefrigerat/i, /\boutdoor\s+(plant|work|area)/i, /\bwork\s+area\b/i];
-  var match42 = _pdcFindFirstMatch(kw42);
-  if (match42) results[1] = match42 + ' \u2014 on-site manoeuvring / outdoor plant';
+  // PO 4.2 — three sub-categories checked independently; show only matching ones
+  var kw42v = [/\btruck\b/i, /\bvehicle\b/i, /\bdelivery\b/i, /\bloading\b/i, /\bforklift\b/i, /car[\s-]?movement/i, /service[\s-]?vehicle/i, /manoeuv/i, /car[\s-]?park/i];
+  var kw42p = [/\bfan\b/i, /\bcondenser\b/i, /\bevaporative\b/i, /dust[\s-]?extractor/i, /package[\s-]?unit/i, /\bchiller\b/i, /cooling[\s-]?tower/i, /\bcompressor\b/i, /\bpump\b/i, /mechanical[\s-]?plant/i, /\bhvac\b/i, /air[\s-]?condition/i, /\bextraction\b/i, /\bexhaust\b/i];
+  var kw42o = [/outdoor[\s-]?workshop/i, /maintenance[\s-]?area/i, /\byard\b/i, /\bfabrication\b/i, /\bwelding\b/i, /\bgrinding\b/i, /outdoor[\s-]?work/i];
+  var cats42 = [];
+  if (_pdcAnyMatch(kw42v)) cats42.push('On-site manoeuvring of service and delivery vehicles');
+  if (_pdcAnyMatch(kw42p)) cats42.push('Plant and equipment');
+  if (_pdcAnyMatch(kw42o)) cats42.push('Outdoor work spaces');
+  results[1] = cats42.length ? cats42.join('\n') : '';
 
   // PO 4.3 — pool / spa pump / filtration
   var kw43 = [/\bpool\b/i, /\bspa\b/i, /\bpump\b/i, /\bfiltration\b/i];
-  var match43 = _pdcFindFirstMatch(kw43);
-  if (match43) results[2] = match43 + ' \u2014 pool/spa equipment';
+  if (_pdcAnyMatch(kw43)) results[2] = 'Pumps and/or filtration systems for swimming pool or spa';
 
-  // PO 4.4 — fixed plant near residential receivers
+  // PO 4.4 — any source + residential receiver zone
   var hasResidential = false;
   ['r1', 'r2', 'r3', 'r4'].forEach(function(id) {
     var sel = document.getElementById(id);
     if (!sel) return;
-    if (/residential|dwelling|suburb/i.test(sel.value || '')) hasResidential = true;
+    if (/residential|dwelling|suburb|neighbourhood|living/i.test(sel.value || '')) hasResidential = true;
   });
-  var kw44 = [/\bhvac\b/i, /air[\s-]?condition/i, /\bextraction\b/i, /\bcondenser\b/i, /mechanical[\s-]?plant/i, /air[\s-]?handling/i, /\bchiller\b/i, /\bcooling\s+tower/i, /exhaust[\s-]?fan/i];
-  var match44 = _pdcFindFirstMatch(kw44);
-  if (hasResidential && match44) results[3] = 'Residential receivers adjacent to fixed plant';
-  else if (!hasResidential && match44) results[3] = match44 + ' \u2014 external plant near sensitive receivers';
+  if (hasAnySource && hasResidential) results[3] = 'Noise sources identified \u2014 assessed under Noise Policy';
 
-  // PO 4.5 — outdoor licensed / alfresco areas
-  var kw45 = [/beer[\s-]?garden/i, /outdoor[\s-]?dining/i, /\balfresco\b/i, /\bterrace\b/i, /rooftop[\s-]?bar/i, /\bcourtyard\b/i, /\blicensed\s+(premises|venue|area)/i, /\bpatron/i];
-  var match45 = _pdcFindFirstMatch(kw45);
-  if (match45) results[4] = match45 + ' \u2014 outdoor licensed area';
+  // PO 4.5 — outdoor licensed areas
+  var kw45 = [/beer[\s-]?garden/i, /outdoor[\s-]?dining/i, /\balfresco\b/i, /\bterrace\b/i, /\bcourtyard\b/i, /\bpatron/i, /\blicensed\b/i, /\bpub\b/i, /\bbar\b/i, /\bhotel\b/i, /\brestaurant\b/i, /\bcafe\b/i, /\bvenue\b/i, /\bfunction\b/i];
+  if (_pdcAnyMatch(kw45)) results[4] = 'Outdoor dining areas associated with licensed premises';
 
   // PO 4.6 — music
-  var kw46 = [/\bmusic\b/i, /\bDJ\b/i, /live[\s-]?music/i, /\bamplified\b/i, /\bnightclub\b/i, /\bbandroom\b/i, /\bfunction\b.*\broom\b/i];
-  var match46 = _pdcFindFirstMatch(kw46);
-  if (match46) results[5] = match46 + ' \u2014 music noise';
+  var kw46 = [/\bmusic\b/i, /\bDJ\b/i, /live[\s-]?music/i, /\bband\b/i, /\bamplified\b/i, /\bentertainment\b/i, /\bnightclub\b/i, /function[\s-]?room/i, /\bkaraoke\b/i];
+  if (_pdcAnyMatch(kw46)) results[5] = 'Amplified music above background';
 
   return results;
 }
@@ -6337,11 +6345,12 @@ function _renderPDCTable() {
     var badge = state.manual ? '<div class="pdc-manual-badge">(edited)</div>' : '';
     var tbcClass = isTbc ? ' class="pdc-tbc"' : '';
     var displayRel = isTbc ? 'TBC pending modelling' : rel;
+    var displayRelHtml = escapeHTML(displayRel).replace(/\n/g, '<br>');
     var parts = prov.ref.split(' / ');
     var poRef = parts[0] || '';
     var dtsRef = parts[1] || '';
     html += '<tr class="' + rowCls + '" id="pdcRow' + i + '">';
-    html += '<td class="' + relCls + '"><div contenteditable="true" id="pdcRelCell' + i + '" oninput="window._pdcOnEdit(' + i + ',this.textContent)"' + tbcClass + ' style="outline:none;min-height:1.3em;">' + escapeHTML(displayRel) + '</div>' + badge + '</td>';
+    html += '<td class="' + relCls + '"><div contenteditable="true" id="pdcRelCell' + i + '" oninput="window._pdcOnEdit(' + i + ',this.textContent)"' + tbcClass + ' style="outline:none;min-height:1.3em;">' + displayRelHtml + '</div>' + badge + '</td>';
     html += '<td class="pdc-po-col"><span class="pdc-ref-label">' + escapeHTML(poRef) + '</span>' + escapeHTML(prov.po) + '</td>';
     html += '<td class="pdc-dts-col"><span class="pdc-ref-label">' + escapeHTML(dtsRef) + '</span>' + escapeHTML(prov.dts) + '</td>';
     html += '</tr>';
