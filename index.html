@@ -1426,9 +1426,9 @@ body.map-fs-active { overflow: hidden; }
             <table class="pdc-table">
               <thead>
                 <tr>
-                  <th class="pdc-rel-col">Relevance</th>
                   <th class="pdc-po-col">Performance Outcome</th>
                   <th class="pdc-dts-col">DTS/DPF</th>
+                  <th class="pdc-rel-col">Relevance</th>
                 </tr>
               </thead>
               <tbody id="pdcTableBody">
@@ -6350,9 +6350,9 @@ function _renderPDCTable() {
     var poRef = parts[0] || '';
     var dtsRef = parts[1] || '';
     html += '<tr class="' + rowCls + '" id="pdcRow' + i + '">';
-    html += '<td class="' + relCls + '"><div contenteditable="true" id="pdcRelCell' + i + '" oninput="window._pdcOnEdit(' + i + ',this.textContent)"' + tbcClass + ' style="outline:none;min-height:1.3em;">' + displayRelHtml + '</div>' + badge + '</td>';
     html += '<td class="pdc-po-col"><span class="pdc-ref-label">' + escapeHTML(poRef) + '</span>' + escapeHTML(prov.po) + '</td>';
     html += '<td class="pdc-dts-col"><span class="pdc-ref-label">' + escapeHTML(dtsRef) + '</span>' + escapeHTML(prov.dts) + '</td>';
+    html += '<td class="' + relCls + '"><div contenteditable="true" id="pdcRelCell' + i + '" oninput="window._pdcOnEdit(' + i + ',this.textContent)"' + tbcClass + ' style="outline:none;min-height:1.3em;">' + displayRelHtml + '</div>' + badge + '</td>';
     html += '</tr>';
   }
   tbody.innerHTML = html;
