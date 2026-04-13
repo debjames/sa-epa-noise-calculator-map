@@ -58,7 +58,8 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .span2{grid-column:1 / -1;}
 @media (min-width: 980px){.grid2{grid-template-columns:1fr 1fr;}}
 .grid-full{grid-template-columns:1fr !important;}
-.sheet > .grid2{grid-template-columns:1fr !important;}
+.sheet > .grid2{display:block !important;padding:12px 14px;}
+.sheet > .grid2 > .card,.sheet > .grid2 > .card.span2{width:100%;box-sizing:border-box;}
 @media print {.card, .sheet, table { break-inside: avoid; }}
 .card{border:1px solid var(--border);border-radius:14px;background:#fff;padding:12px;overflow:visible;}
 .card h2{font-size:14px;margin:0 0 10px;}
