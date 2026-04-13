@@ -479,6 +479,7 @@ body.state-sa #pdcProvisionsSection { display: grid; }
 .pdc-manual-badge { font-size:9px; color:#6b7280; font-style:italic; }
 .pdc-sr { text-decoration:underline dotted; text-decoration-color:#6366f1; color:inherit; cursor:help; }
 .pdc-defn-note { margin-top:8px; padding:5px 8px; font-size:11.5px; color:#4b5563; border-left:2px solid #6366f1; line-height:1.5; }
+.devcat-sub { display:inline-flex;gap:8px;margin-left:8px;padding-left:10px;border-left:2px solid var(--border);font-size:12px;align-items:center; }
 
 /* VIC penalty checkboxes */
 .vic-penalty-section label { display:block; font-size:12px; margin:3px 0; cursor:pointer; }
@@ -1025,6 +1026,34 @@ body.map-fs-active { overflow: hidden; }
         <input type="file" id="proposalFileInput" accept=".pdf,application/pdf" style="display:none;">
       </div>
 
+      <!-- ===== DEVELOPMENT INFORMATION PANEL ===== -->
+      <div class="card span2" id="devInfoCard">
+        <h2>Development information</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:0 28px;align-items:flex-start;">
+          <div style="margin-bottom:6px;">
+            <div style="font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px;">Residential development?</div>
+            <div style="display:flex;gap:14px;font-size:13px;">
+              <label style="cursor:pointer;display:flex;align-items:center;gap:5px;"><input type="radio" name="isResidential" id="residentialYes" value="yes" checked onchange="_onResidentialChange()"> Yes</label>
+              <label style="cursor:pointer;display:flex;align-items:center;gap:5px;"><input type="radio" name="isResidential" id="residentialNo" value="no" onchange="_onResidentialChange()"> No</label>
+            </div>
+          </div>
+          <div style="width:1px;background:var(--border);align-self:stretch;margin:2px 0;flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px;">Source categories</div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px 18px;font-size:13px;align-items:center;">
+              <label style="cursor:default;opacity:.6;display:flex;align-items:center;gap:5px;" title="General activity is always included"><input type="checkbox" checked disabled> General activity</label>
+              <label style="cursor:pointer;display:flex;align-items:center;gap:5px;"><input type="checkbox" id="srcCatMusic" onchange="_onSourceCatChange()"> Music</label>
+              <label style="cursor:pointer;display:flex;align-items:center;gap:5px;"><input type="checkbox" id="srcCatChildcare" onchange="_onSourceCatChange()"> Childcare / students</label>
+              <label style="cursor:pointer;display:flex;align-items:center;gap:5px;"><input type="checkbox" id="srcCatEmergency" onchange="_onSourceCatChange()"> Emergency equipment</label>
+              <span id="emergSubChecks" style="display:none;" class="devcat-sub">
+                <label style="cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="srcEmergFire" onchange="_onEmergSubChange()"> Fire &amp; smoke control</label>
+                <label style="cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="srcEmergGen" onchange="_onEmergSubChange()"> Standby generator</label>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ===== DISTANCE MAP CARD ===== -->
       <div class="card span2" id="mapCard">
         <div class="card-header">
@@ -1260,157 +1289,6 @@ body.map-fs-active { overflow: hidden; }
       </div>
     </div>
 
-    <!-- VIC-only: Area type, Background classification, Distance to zone boundary -->
-    <div class="grid2 vic-only vic-settings-only" style="padding-top:0;">
-      <div class="card span2">
-        <h2>VIC assessment parameters</h2>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <div>
-            <label class="h2" style="font-size:12px;">Area type</label>
-            <div style="display:flex;gap:8px;margin-top:4px;">
-              <button type="button" class="penalty-btn active" id="vicAreaUrban" onclick="setVicAreaTypeManual('urban');document.getElementById('vicAreaUrban').classList.add('active');document.getElementById('vicAreaRural').classList.remove('active');">Major urban (&gt;7,000)</button>
-              <button type="button" class="penalty-btn" id="vicAreaRural" onclick="setVicAreaTypeManual('rural');document.getElementById('vicAreaRural').classList.add('active');document.getElementById('vicAreaUrban').classList.remove('active');">Rural</button>
-            </div>
-          </div>
-          <div class="vic-rural-only">
-            <label class="h2" style="font-size:12px;" for="vicDistToZoneBoundary">Distance: receiver to zone boundary (m)</label>
-            <input type="number" id="vicDistToZoneBoundary" min="0" max="10000" step="1" placeholder="0" style="width:120px;margin-top:4px;" oninput="renderDebounced()" onchange="render()">
-            <div class="small" style="margin-top:4px;">Applies −1 dB per 100 m (rounded down, max 9 dB) when source zone ≠ receiver zone.</div>
-          </div>
-          <div class="vic-urban-only">
-            <label class="h2" style="font-size:12px;" for="vicIF">Influencing Factor (IF)</label>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-              <input type="number" id="vicIF" min="0" max="1" step="0.01" placeholder="auto" style="width:120px;" oninput="handleIFInput()" onchange="handleIFInput()">
-              <a href="#" id="vicIFReset" style="font-size:10px;display:none;color:#2563eb;" onclick="event.preventDefault();document.getElementById('vicIF').value='';handleIFInput();">Reset to auto</a>
-            </div>
-            <div class="small" style="margin-top:4px;">0 = fully Type 1 (residential), 1 = fully Type 3 (industrial). Per Figure 1 of Pub 1826.5, IF is derived from zones within 140 m / 400 m circles around each <b>noise sensitive area</b> (NSA). Leave blank to auto-derive per NSA, or enter a value to override all.</div>
-          </div>
-        </div>
-        <div id="vicDetectedZones" style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;display:none;"></div>
-        <!-- Background levels are now per-NSA in the detected zones panel above -->
-        <div style="margin-top:12px;" class="vic-rural-only">
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
-            <input type="checkbox" id="vicIsUtility" onchange="if(this.checked){document.getElementById('vicIsEarthResources').checked=false;}render()"> Source is a utility (FZ/RAZ/GWZ → fixed 45/39/34)
-          </label>
-          <br>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:6px;">
-            <input type="checkbox" id="vicIsEarthResources" onchange="if(this.checked){document.getElementById('vicIsUtility').checked=false;}render()"> Source is earth resources (Clauses 33–36)
-          </label>
-          <br>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:6px;">
-            <input type="checkbox" id="vicIsIntensiveFarming" onchange="render()"> Intensive farming activity (Clause 139 — +3 dB to zone levels when FZ is generating zone)
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <!-- NSW NPI 2017: Assessment parameters -->
-    <div class="grid2 nsw-only" style="padding-top:0;">
-      <div class="card span2">
-        <h2>NSW assessment parameters</h2>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <div>
-            <label class="h2" style="font-size:12px;">Noise amenity area (Table 2.3)</label>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-              <select id="nswAmenityArea" class="nsw-amenity-area-sel" onchange="render()">
-                <option value="rural">Rural</option>
-                <option value="suburban" selected>Suburban</option>
-                <option value="urban">Urban</option>
-              </select>
-            </div>
-            <div class="small" style="margin-top:4px;">Auto-detected from planning zone code. Override if needed.</div>
-            <div id="nswDetectedZone" style="display:none;margin-top:6px;font-size:11px;color:#1e3a5f;font-weight:600;"></div>
-          </div>
-          <div>
-            <label class="h2" style="font-size:12px;">Rating Background Level — RBL, dB(A)</label>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;max-width:300px;">
-              <div>
-                <label style="font-size:11px;font-weight:600;">Day</label>
-                <input type="number" id="nswRblDay" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="35" oninput="updateNSWIntrusiveness();renderDebounced()" onchange="updateNSWIntrusiveness();render()">
-                <div class="nsw-intrusiveness-display" id="nswIntDay">Intrusiveness: 40</div>
-              </div>
-              <div>
-                <label style="font-size:11px;font-weight:600;">Evening</label>
-                <input type="number" id="nswRblEve" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();renderDebounced()" onchange="updateNSWIntrusiveness();render()">
-                <div class="nsw-intrusiveness-display" id="nswIntEve">Intrusiveness: 35</div>
-              </div>
-              <div>
-                <label style="font-size:11px;font-weight:600;">Night</label>
-                <input type="number" id="nswRblNight" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();renderDebounced()" onchange="updateNSWIntrusiveness();render()">
-                <div class="nsw-intrusiveness-display" id="nswIntNight">Intrusiveness: 35</div>
-              </div>
-            </div>
-            <div class="small" style="margin-top:4px;">Minimums: Day 35, Evening 30, Night 30. Intrusiveness = RBL + 5 dB (Table 2.1) — residential receivers only.</div>
-          </div>
-        </div>
-        <div style="margin-top:12px;">
-          <label class="h2" style="font-size:12px;">Receiver type</label>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px;">
-            <div>
-              <label style="font-size:11px;font-weight:600;">Receiver 1</label>
-              <select id="nswRecType1" class="nsw-recv-type-sel" onchange="render()">
-                <option value="residential">Residential</option>
-                <option value="hotel">Hotel / motel</option>
-                <option value="school">School (internal)</option>
-                <option value="hospital_internal">Hospital (internal)</option>
-                <option value="hospital_external">Hospital (external)</option>
-                <option value="worship">Place of worship (internal)</option>
-                <option value="recreation_passive">Passive recreation</option>
-                <option value="recreation_active">Active recreation</option>
-                <option value="commercial">Commercial</option>
-                <option value="industrial">Industrial</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:600;">Receiver 2</label>
-              <select id="nswRecType2" class="nsw-recv-type-sel" onchange="render()">
-                <option value="residential">Residential</option>
-                <option value="hotel">Hotel / motel</option>
-                <option value="school">School (internal)</option>
-                <option value="hospital_internal">Hospital (internal)</option>
-                <option value="hospital_external">Hospital (external)</option>
-                <option value="worship">Place of worship (internal)</option>
-                <option value="recreation_passive">Passive recreation</option>
-                <option value="recreation_active">Active recreation</option>
-                <option value="commercial">Commercial</option>
-                <option value="industrial">Industrial</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:600;">Receiver 3</label>
-              <select id="nswRecType3" class="nsw-recv-type-sel" onchange="render()">
-                <option value="residential">Residential</option>
-                <option value="hotel">Hotel / motel</option>
-                <option value="school">School (internal)</option>
-                <option value="hospital_internal">Hospital (internal)</option>
-                <option value="hospital_external">Hospital (external)</option>
-                <option value="worship">Place of worship (internal)</option>
-                <option value="recreation_passive">Passive recreation</option>
-                <option value="recreation_active">Active recreation</option>
-                <option value="commercial">Commercial</option>
-                <option value="industrial">Industrial</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:600;">Receiver 4</label>
-              <select id="nswRecType4" class="nsw-recv-type-sel" onchange="render()">
-                <option value="residential">Residential</option>
-                <option value="hotel">Hotel / motel</option>
-                <option value="school">School (internal)</option>
-                <option value="hospital_internal">Hospital (internal)</option>
-                <option value="hospital_external">Hospital (external)</option>
-                <option value="worship">Place of worship (internal)</option>
-                <option value="recreation_passive">Passive recreation</option>
-                <option value="recreation_active">Active recreation</option>
-                <option value="commercial">Commercial</option>
-                <option value="industrial">Industrial</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- ===== P&D CODE PROVISIONS PANEL (SA only) ===== -->
     <div class="grid2 sa-only" id="pdcProvisionsSection" style="padding-top:0;">
       <div class="card span2">
@@ -1638,11 +1516,8 @@ body.map-fs-active { overflow: hidden; }
   </span>
 </span>
 
-          <span class="sa-only" style="display:inline-flex;gap:10px;margin-left:8px;vertical-align:middle;font-size:12px;">
-            Emergency equipment:
-            <label style="cursor:pointer;"><input type="checkbox" id="saEmergFire" onchange="toggleEmergEquip()"> Fire pump</label>
-            <label style="cursor:pointer;"><input type="checkbox" id="saEmergGen" onchange="toggleEmergEquip()"> Standby generator</label>
-          </span>
+          <input type="checkbox" id="saEmergFire" style="display:none;" onchange="toggleEmergEquip()">
+          <input type="checkbox" id="saEmergGen" style="display:none;" onchange="toggleEmergEquip()">
 
         </div>
         </div>
@@ -1650,6 +1525,157 @@ body.map-fs-active { overflow: hidden; }
       <div id="vicRuralCritTable" class="vic-only" style="display:none;overflow-x:auto;margin-top:14px;padding:0 2px;"></div>
       </div>
 
+    </div>
+
+    <!-- VIC-only: Area type, Background classification, Distance to zone boundary -->
+    <div class="grid2 vic-only vic-settings-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>VIC assessment parameters</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <label class="h2" style="font-size:12px;">Area type</label>
+            <div style="display:flex;gap:8px;margin-top:4px;">
+              <button type="button" class="penalty-btn active" id="vicAreaUrban" onclick="setVicAreaTypeManual('urban');document.getElementById('vicAreaUrban').classList.add('active');document.getElementById('vicAreaRural').classList.remove('active');">Major urban (&gt;7,000)</button>
+              <button type="button" class="penalty-btn" id="vicAreaRural" onclick="setVicAreaTypeManual('rural');document.getElementById('vicAreaRural').classList.add('active');document.getElementById('vicAreaUrban').classList.remove('active');">Rural</button>
+            </div>
+          </div>
+          <div class="vic-rural-only">
+            <label class="h2" style="font-size:12px;" for="vicDistToZoneBoundary">Distance: receiver to zone boundary (m)</label>
+            <input type="number" id="vicDistToZoneBoundary" min="0" max="10000" step="1" placeholder="0" style="width:120px;margin-top:4px;" oninput="renderDebounced()" onchange="render()">
+            <div class="small" style="margin-top:4px;">Applies −1 dB per 100 m (rounded down, max 9 dB) when source zone ≠ receiver zone.</div>
+          </div>
+          <div class="vic-urban-only">
+            <label class="h2" style="font-size:12px;" for="vicIF">Influencing Factor (IF)</label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+              <input type="number" id="vicIF" min="0" max="1" step="0.01" placeholder="auto" style="width:120px;" oninput="handleIFInput()" onchange="handleIFInput()">
+              <a href="#" id="vicIFReset" style="font-size:10px;display:none;color:#2563eb;" onclick="event.preventDefault();document.getElementById('vicIF').value='';handleIFInput();">Reset to auto</a>
+            </div>
+            <div class="small" style="margin-top:4px;">0 = fully Type 1 (residential), 1 = fully Type 3 (industrial). Per Figure 1 of Pub 1826.5, IF is derived from zones within 140 m / 400 m circles around each <b>noise sensitive area</b> (NSA). Leave blank to auto-derive per NSA, or enter a value to override all.</div>
+          </div>
+        </div>
+        <div id="vicDetectedZones" style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;display:none;"></div>
+        <!-- Background levels are now per-NSA in the detected zones panel above -->
+        <div style="margin-top:12px;" class="vic-rural-only">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+            <input type="checkbox" id="vicIsUtility" onchange="if(this.checked){document.getElementById('vicIsEarthResources').checked=false;}render()"> Source is a utility (FZ/RAZ/GWZ → fixed 45/39/34)
+          </label>
+          <br>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:6px;">
+            <input type="checkbox" id="vicIsEarthResources" onchange="if(this.checked){document.getElementById('vicIsUtility').checked=false;}render()"> Source is earth resources (Clauses 33–36)
+          </label>
+          <br>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:6px;">
+            <input type="checkbox" id="vicIsIntensiveFarming" onchange="render()"> Intensive farming activity (Clause 139 — +3 dB to zone levels when FZ is generating zone)
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- NSW NPI 2017: Assessment parameters -->
+    <div class="grid2 nsw-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>NSW assessment parameters</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <label class="h2" style="font-size:12px;">Noise amenity area (Table 2.3)</label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+              <select id="nswAmenityArea" class="nsw-amenity-area-sel" onchange="render()">
+                <option value="rural">Rural</option>
+                <option value="suburban" selected>Suburban</option>
+                <option value="urban">Urban</option>
+              </select>
+            </div>
+            <div class="small" style="margin-top:4px;">Auto-detected from planning zone code. Override if needed.</div>
+            <div id="nswDetectedZone" style="display:none;margin-top:6px;font-size:11px;color:#1e3a5f;font-weight:600;"></div>
+          </div>
+          <div>
+            <label class="h2" style="font-size:12px;">Rating Background Level — RBL, dB(A)</label>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;max-width:300px;">
+              <div>
+                <label style="font-size:11px;font-weight:600;">Day</label>
+                <input type="number" id="nswRblDay" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="35" oninput="updateNSWIntrusiveness();renderDebounced()" onchange="updateNSWIntrusiveness();render()">
+                <div class="nsw-intrusiveness-display" id="nswIntDay">Intrusiveness: 40</div>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Evening</label>
+                <input type="number" id="nswRblEve" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();renderDebounced()" onchange="updateNSWIntrusiveness();render()">
+                <div class="nsw-intrusiveness-display" id="nswIntEve">Intrusiveness: 35</div>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;">Night</label>
+                <input type="number" id="nswRblNight" class="nsw-rbl-input" min="20" max="80" step="1" placeholder="30" oninput="updateNSWIntrusiveness();renderDebounced()" onchange="updateNSWIntrusiveness();render()">
+                <div class="nsw-intrusiveness-display" id="nswIntNight">Intrusiveness: 35</div>
+              </div>
+            </div>
+            <div class="small" style="margin-top:4px;">Minimums: Day 35, Evening 30, Night 30. Intrusiveness = RBL + 5 dB (Table 2.1) — residential receivers only.</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label class="h2" style="font-size:12px;">Receiver type</label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px;">
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 1</label>
+              <select id="nswRecType1" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship (internal)</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 2</label>
+              <select id="nswRecType2" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship (internal)</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 3</label>
+              <select id="nswRecType3" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship (internal)</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;">Receiver 4</label>
+              <select id="nswRecType4" class="nsw-recv-type-sel" onchange="render()">
+                <option value="residential">Residential</option>
+                <option value="hotel">Hotel / motel</option>
+                <option value="school">School (internal)</option>
+                <option value="hospital_internal">Hospital (internal)</option>
+                <option value="hospital_external">Hospital (external)</option>
+                <option value="worship">Place of worship (internal)</option>
+                <option value="recreation_passive">Passive recreation</option>
+                <option value="recreation_active">Active recreation</option>
+                <option value="commercial">Commercial</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- SA: Derivation of noise emission criteria -->
@@ -1676,6 +1702,26 @@ body.map-fs-active { overflow: hidden; }
       </div>
     </div>
 
+    <!-- NSW: Derivation of noise emission criteria -->
+    <div class="grid2 nsw-only" style="padding-top:0;">
+      <div class="card span2">
+        <h2>Derivation of noise emission criteria</h2>
+        <div class="table-scroll" id="nswDerivTableWrap">
+          <table id="nswDerivTable">
+            <thead>
+              <tr>
+                <th style="width:30%;">Description</th>
+                <th class="num" style="width:11.6%;">Day</th>
+                <th class="num" style="width:11.6%;">Evening</th>
+                <th class="num" style="width:11.6%;">Night</th>
+              </tr>
+            </thead>
+            <tbody id="nswDerivBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- SA: Emergency equipment criteria -->
     <div class="grid2 sa-only" id="emergEquipSection" style="padding-top:0;display:none;">
       <div class="card span2">
@@ -1685,6 +1731,85 @@ body.map-fs-active { overflow: hidden; }
           <table class="crit-table" style="margin-top:8px;" id="emergEquipTable">
             <thead id="emergEquipHead"></thead>
             <tbody id="emergEquipBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Music noise criteria panel (shown when Music source category is checked) -->
+    <div class="grid2" id="musicCriteriaSection" style="padding-top:0;display:none;">
+      <div class="card span2">
+        <h2>Music noise criteria</h2>
+        <div class="p">Music noise is assessed under <strong>DTS/DPF 4.6</strong> of the Planning and Design Code. Music from the development must not cause noise levels at <span class="pdc-sr" title="Sensitive receiver means: any use for residential purposes or land zoned primarily for residential purposes, childcare facility, educational facility, hospital, supported accommodation, or tourist accommodation.">sensitive receivers</span> to exceed the background noise level.</div>
+        <div class="p" style="margin-top:6px;">Enter the lowest background noise level measured for each octave band (A-weighted).</div>
+        <div class="p" style="margin-top:6px;">The music noise criteria is L<sub>A10</sub> less than 8 dB above the level of background noise (L<sub>90,15min</sub>) in any octave band of the sound spectrum (L<sub>OCT10,15</sub> &lt; L<sub>OCT90,15</sub> + 8 dB)</div>
+        <div class="table-scroll" style="margin-top:12px;">
+          <table class="crit-table" id="musicBgTable">
+            <thead>
+              <tr>
+                <th rowspan="3" style="width:220px;vertical-align:middle;"></th>
+                <th colspan="7" class="center">Noise level, dB</th>
+              </tr>
+              <tr>
+                <th colspan="7" class="center" style="background:#f0f0f0;color:#1a1a2e;">Octave band centre frequency, Hz</th>
+              </tr>
+              <tr>
+                <th class="num" style="background:#fff;">63</th>
+                <th class="num" style="background:#fff;">125</th>
+                <th class="num" style="background:#fff;">250</th>
+                <th class="num" style="background:#fff;">500</th>
+                <th class="num" style="background:#fff;">1000</th>
+                <th class="num" style="background:#fff;">2000</th>
+                <th class="num" style="background:#fff;">4000</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Lowest background noise level L<sub>A90</sub></td>
+                <td class="num"><input type="number" id="musicBg63"   style="width:60px;text-align:right;" placeholder="—" oninput="_updateMusicCriteria()"></td>
+                <td class="num"><input type="number" id="musicBg125"  style="width:60px;text-align:right;" placeholder="—" oninput="_updateMusicCriteria()"></td>
+                <td class="num"><input type="number" id="musicBg250"  style="width:60px;text-align:right;" placeholder="—" oninput="_updateMusicCriteria()"></td>
+                <td class="num"><input type="number" id="musicBg500"  style="width:60px;text-align:right;" placeholder="—" oninput="_updateMusicCriteria()"></td>
+                <td class="num"><input type="number" id="musicBg1000" style="width:60px;text-align:right;" placeholder="—" oninput="_updateMusicCriteria()"></td>
+                <td class="num"><input type="number" id="musicBg2000" style="width:60px;text-align:right;" placeholder="—" oninput="_updateMusicCriteria()"></td>
+                <td class="num"><input type="number" id="musicBg4000" style="width:60px;text-align:right;" placeholder="—" oninput="_updateMusicCriteria()"></td>
+              </tr>
+              <tr>
+                <td>Music noise criteria L<sub>A10</sub></td>
+                <td class="num" id="musicCrit63"><span  style="color:var(--muted);font-style:italic;">=L<sub>A90</sub>+8</span></td>
+                <td class="num" id="musicCrit125"><span style="color:var(--muted);font-style:italic;">=L<sub>A90</sub>+8</span></td>
+                <td class="num" id="musicCrit250"><span style="color:var(--muted);font-style:italic;">=L<sub>A90</sub>+8</span></td>
+                <td class="num" id="musicCrit500"><span style="color:var(--muted);font-style:italic;">=L<sub>A90</sub>+8</span></td>
+                <td class="num" id="musicCrit1000"><span style="color:var(--muted);font-style:italic;">=L<sub>A90</sub>+8</span></td>
+                <td class="num" id="musicCrit2000"><span style="color:var(--muted);font-style:italic;">=L<sub>A90</sub>+8</span></td>
+                <td class="num" id="musicCrit4000"><span style="color:var(--muted);font-style:italic;">=L<sub>A90</sub>+8</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Childcare / student noise criteria panel (shown when Childcare source category is checked) -->
+    <div class="grid2" id="childcareCriteriaSection" style="padding-top:0;display:none;">
+      <div class="card span2">
+        <h2>Childcare / student noise criteria</h2>
+        <div class="p">Development incorporating childcare facilities or educational uses may require assessment against specific noise criteria. The World Health Organization (WHO) Guidelines for Community Noise (1999) recommend an outdoor L<sub>Aeq,16h</sub> level not exceeding <strong>50 dB(A)</strong> to protect the majority of people from being moderately annoyed during the daytime.</div>
+        <div class="p" style="margin-top:8px;padding-left:10px;border-left:3px solid var(--border);font-style:italic;color:var(--muted);">Note: The Environment Protection (Commercial &amp; Industrial) Noise Policy 2023 specifically excludes 'noise from activities carried on in the ordinary course of the operation of a school, kindergarten, child-care centre or place of worship'. Noise from external sources (e.g. mechanical plant, road traffic, neighbouring activity) should be assessed against the relevant receiver criteria.</div>
+        <div style="margin-top:12px;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:8px 16px 8px 10px;">Location</th>
+                <th class="num" style="padding:8px 14px;">L<sub>Aeq</sub> dB</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding:8px 16px 8px 10px;">All sensitive receivers</td>
+                <td class="num" style="padding:8px 14px;">50</td>
+              </tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -1745,26 +1870,6 @@ body.map-fs-active { overflow: hidden; }
           </div>
         </div>
         </div><!-- end mbs010Body -->
-      </div>
-    </div>
-
-    <!-- NSW: Derivation of noise emission criteria -->
-    <div class="grid2 nsw-only" style="padding-top:0;">
-      <div class="card span2">
-        <h2>Derivation of noise emission criteria</h2>
-        <div class="table-scroll" id="nswDerivTableWrap">
-          <table id="nswDerivTable">
-            <thead>
-              <tr>
-                <th style="width:30%;">Description</th>
-                <th class="num" style="width:11.6%;">Day</th>
-                <th class="num" style="width:11.6%;">Evening</th>
-                <th class="num" style="width:11.6%;">Night</th>
-              </tr>
-            </thead>
-            <tbody id="nswDerivBody"></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -2064,6 +2169,7 @@ body.map-fs-active { overflow: hidden; }
         </table>
       </div>
     </div>
+
 
     <div class="grid2">
       <div class="card span2">
@@ -5875,7 +5981,7 @@ function switchToState(state) {
     badge.className = 'state-badge state-badge-sa';
     badge.style.display = '';
     var mbs010Sec = document.getElementById('mbs010Section');
-    if (mbs010Sec) mbs010Sec.style.display = '';
+    if (mbs010Sec) { var _resNo = document.getElementById('residentialNo'); mbs010Sec.style.display = (_resNo && _resNo.checked) ? 'none' : ''; }
     expandCardByTitle('MBS 010');
   } else if (state === 'NSW') {
     body.classList.add('state-nsw');
@@ -6309,13 +6415,15 @@ function _pdcAutoDetectRelevance() {
   });
   if (hasAnySource && hasResidential) results[3] = 'Noise sources identified \u2014 assessed under Noise Policy';
 
-  // PO 4.5 — outdoor licensed areas
+  // PO 4.5 — outdoor licensed areas (also triggered by Music category + outdoor/patron keywords)
   var kw45 = [/beer[\s-]?garden/i, /outdoor[\s-]?dining/i, /\balfresco\b/i, /\bterrace\b/i, /\bcourtyard\b/i, /\bpatron/i, /\blicensed\b/i, /\bpub\b/i, /\bbar\b/i, /\bhotel\b/i, /\brestaurant\b/i, /\bcafe\b/i, /\bvenue\b/i, /\bfunction\b/i];
-  if (_pdcAnyMatch(kw45)) results[4] = 'Outdoor dining areas associated with licensed premises';
+  var _musicCatOn = !!(document.getElementById('srcCatMusic') && document.getElementById('srcCatMusic').checked);
+  var kw45outdoor = [/outdoor/i, /\bpatron/i, /\balfresco\b/i, /dining/i, /\bterrace\b/i];
+  if (_pdcAnyMatch(kw45) || (_musicCatOn && _pdcAnyMatch(kw45outdoor))) results[4] = 'Outdoor dining areas associated with licensed premises';
 
-  // PO 4.6 — music
+  // PO 4.6 — music (also auto-triggered when Music source category is checked)
   var kw46 = [/\bmusic\b/i, /\bDJ\b/i, /live[\s-]?music/i, /\bband\b/i, /\bamplified\b/i, /\bentertainment\b/i, /\bnightclub\b/i, /function[\s-]?room/i, /\bkaraoke\b/i];
-  if (_pdcAnyMatch(kw46)) results[5] = 'Amplified music above background';
+  if (_musicCatOn || _pdcAnyMatch(kw46)) results[5] = 'Amplified music above background';
 
   return results;
 }
@@ -6329,6 +6437,90 @@ function updatePDCProvisions() {
     }
   }
   _renderPDCTable();
+}
+
+/* ── Development information panel — event handlers ────────────────────── */
+
+/** Residential toggle: show/hide MBS 010 (SA only) */
+function _onResidentialChange() {
+  var resNo = document.getElementById('residentialNo');
+  var isNo = resNo && resNo.checked;
+  var isSA = document.body && document.body.classList.contains('state-sa');
+  var sec = document.getElementById('mbs010Section');
+  if (sec && isSA) {
+    sec.style.display = isNo ? 'none' : '';
+  }
+}
+
+/** Source category checkbox change: show/hide related panels and sync emergency */
+function _onSourceCatChange() {
+  var musicOn   = !!(document.getElementById('srcCatMusic')    && document.getElementById('srcCatMusic').checked);
+  var childOn   = !!(document.getElementById('srcCatChildcare') && document.getElementById('srcCatChildcare').checked);
+  var emergOn   = !!(document.getElementById('srcCatEmergency') && document.getElementById('srcCatEmergency').checked);
+
+  // Emergency sub-checkboxes: show and auto-check both when Emergency is ticked
+  var subSpan = document.getElementById('emergSubChecks');
+  if (subSpan) subSpan.style.display = emergOn ? '' : 'none';
+  if (emergOn) {
+    var fireEl = document.getElementById('srcEmergFire');
+    var genEl  = document.getElementById('srcEmergGen');
+    if (fireEl && !fireEl.checked) fireEl.checked = true;
+    if (genEl  && !genEl.checked)  genEl.checked  = true;
+  }
+  _syncEmergToLegacy();
+
+  // Music criteria panel: show/hide with auto-expand on first show
+  var musicSec = document.getElementById('musicCriteriaSection');
+  if (musicSec) {
+    var wasHidden = musicSec.style.display === 'none';
+    musicSec.style.display = musicOn ? '' : 'none';
+    if (musicOn && wasHidden) {
+      var mBody = musicSec.querySelector('.card-body');
+      var mBtn  = musicSec.querySelector('.collapse-btn');
+      if (mBody) mBody.classList.remove('collapsed');
+      if (mBtn)  mBtn.innerHTML = '&#x25B2;';
+    }
+  }
+
+  // Childcare criteria panel: show/hide
+  var childcareSec = document.getElementById('childcareCriteriaSection');
+  if (childcareSec) childcareSec.style.display = childOn ? '' : 'none';
+
+  // Update P&D Code provisions relevance (SA only)
+  if (typeof updatePDCProvisions === 'function') updatePDCProvisions();
+}
+
+/** Emergency sub-checkbox change */
+function _onEmergSubChange() {
+  _syncEmergToLegacy();
+}
+
+/** Sync dev panel emergency sub-checks to the hidden legacy saEmergFire/saEmergGen */
+function _syncEmergToLegacy() {
+  var emergOn     = !!(document.getElementById('srcCatEmergency') && document.getElementById('srcCatEmergency').checked);
+  var fireChecked = emergOn && !!(document.getElementById('srcEmergFire') && document.getElementById('srcEmergFire').checked);
+  var genChecked  = emergOn && !!(document.getElementById('srcEmergGen')  && document.getElementById('srcEmergGen').checked);
+  var oldFire = document.getElementById('saEmergFire');
+  var oldGen  = document.getElementById('saEmergGen');
+  if (oldFire) oldFire.checked = fireChecked;
+  if (oldGen)  oldGen.checked  = genChecked;
+  if (typeof toggleEmergEquip === 'function') toggleEmergEquip();
+}
+
+/** Recalculate Music noise criteria row (LA10 = LA90 + 8 for each band) */
+function _updateMusicCriteria() {
+  var bands = [63, 125, 250, 500, 1000, 2000, 4000];
+  bands.forEach(function(b) {
+    var inp  = document.getElementById('musicBg'   + b);
+    var crit = document.getElementById('musicCrit' + b);
+    if (!inp || !crit) return;
+    var val = parseFloat(inp.value);
+    if (isNaN(val)) {
+      crit.innerHTML = '<span style="color:var(--muted);font-style:italic;">=L<sub>A90</sub>+8</span>';
+    } else {
+      crit.textContent = String(val + 8);
+    }
+  });
 }
 
 var _PDC_SR_TIP = 'Sensitive receiver means: any use for residential purposes or land zoned primarily for residential purposes, childcare facility, educational facility, hospital, supported accommodation, or tourist accommodation.';
@@ -13401,9 +13593,9 @@ function renderEmergencyEquipCriteria() {
   var eqWidth = colCount === 3 ? '35%' : '70%';
   var hdr = '<tr><th style="width:30%;">Receiver</th>';
   hdr += '<th class="num" colspan="' + (colCount - 1) + '">Criteria, L<sub>Aeq</sub> dB</th></tr>';
-  hdr += '<tr><th style="background:#D9D9D9;"></th>';
-  if (fireOn) hdr += '<th class="num" style="background:#D9D9D9;width:' + eqWidth + ';">Fire pump</th>';
-  if (genOn) hdr += '<th class="num" style="background:#D9D9D9;width:' + eqWidth + ';">Standby generator</th>';
+  hdr += '<tr><th style="background:#f0f0f0;color:#1a1a2e;"></th>';
+  if (fireOn) hdr += '<th class="num" style="background:#f0f0f0;color:#1a1a2e;width:' + eqWidth + ';">Fire pump</th>';
+  if (genOn) hdr += '<th class="num" style="background:#f0f0f0;color:#1a1a2e;width:' + eqWidth + ';">Standby generator</th>';
   hdr += '</tr>';
   thead.innerHTML = hdr;
 
@@ -13688,6 +13880,21 @@ initCollapse();
           var cb = document.getElementById(id);
           if (cb) data.other[id] = cb.checked;
         });
+
+        // Development information panel
+        data.isResidential = !document.getElementById('residentialNo') || !document.getElementById('residentialNo').checked;
+        data.sourceCategories = {
+          general:   true,
+          music:     !!(document.getElementById('srcCatMusic')     && document.getElementById('srcCatMusic').checked),
+          childcare: !!(document.getElementById('srcCatChildcare')  && document.getElementById('srcCatChildcare').checked),
+          emergency: !!(document.getElementById('srcCatEmergency')  && document.getElementById('srcCatEmergency').checked),
+          firePump:  !!(document.getElementById('srcEmergFire')     && document.getElementById('srcEmergFire').checked),
+          generator: !!(document.getElementById('srcEmergGen')      && document.getElementById('srcEmergGen').checked)
+        };
+        var _musicBgBands = [63, 125, 250, 500, 1000, 2000, 4000];
+        var _musicBg = {};
+        _musicBgBands.forEach(function(b) { var el = document.getElementById('musicBg' + b); if (el && el.value !== '') _musicBg[b] = parseFloat(el.value); });
+        if (Object.keys(_musicBg).length > 0) data.musicBackground = _musicBg;
 
         // Custom sources (include so assessment file is self-contained)
         if (_customSources.length > 0) {
@@ -15050,6 +15257,47 @@ initCollapse();
         _pdcProvisions.forEach(function(p) { p.relevance = ''; p.manual = false; });
       }
 
+      // Restore development information panel
+      if (data.isResidential !== undefined) {
+        var resYes = document.getElementById('residentialYes');
+        var resNo  = document.getElementById('residentialNo');
+        if (resYes) resYes.checked = data.isResidential !== false;
+        if (resNo)  resNo.checked  = data.isResidential === false;
+      }
+      if (data.sourceCategories) {
+        var sc = data.sourceCategories;
+        var _setChk = function(id, val) { var el = document.getElementById(id); if (el) el.checked = !!val; };
+        _setChk('srcCatMusic',    sc.music);
+        _setChk('srcCatChildcare', sc.childcare);
+        _setChk('srcCatEmergency', sc.emergency);
+        _setChk('srcEmergFire',   sc.firePump);
+        _setChk('srcEmergGen',    sc.generator);
+        // Apply panel visibility without triggering auto-check logic
+        var musicSec     = document.getElementById('musicCriteriaSection');
+        var childcareSec = document.getElementById('childcareCriteriaSection');
+        var subSpan      = document.getElementById('emergSubChecks');
+        if (musicSec)     musicSec.style.display     = sc.music     ? '' : 'none';
+        if (childcareSec) childcareSec.style.display = sc.childcare ? '' : 'none';
+        if (subSpan)      subSpan.style.display      = sc.emergency ? '' : 'none';
+        // Sync to legacy hidden checkboxes and update emergency section
+        var oldFire = document.getElementById('saEmergFire');
+        var oldGen  = document.getElementById('saEmergGen');
+        if (oldFire) oldFire.checked = !!sc.firePump;
+        if (oldGen)  oldGen.checked  = !!sc.generator;
+        if (typeof toggleEmergEquip === 'function') toggleEmergEquip();
+      }
+      if (data.musicBackground) {
+        var _mbBands = [63, 125, 250, 500, 1000, 2000, 4000];
+        _mbBands.forEach(function(b) {
+          var el = document.getElementById('musicBg' + b);
+          if (el) {
+            var v = data.musicBackground[b] !== undefined ? data.musicBackground[b] : (data.musicBackground[String(b)] !== undefined ? data.musicBackground[String(b)] : '');
+            el.value = (v !== '' && v !== null && v !== undefined) ? v : '';
+          }
+        });
+        if (typeof _updateMusicCriteria === 'function') _updateMusicCriteria();
+      }
+
       // 16. Re-render detected zones panel for VIC, then push undo snapshot
       setTimeout(function() {
         if (typeof renderDetectedZones === 'function') renderDetectedZones();
@@ -15304,6 +15552,19 @@ initCollapse();
           return { relevance: p.relevance, manual: p.manual };
         });
       }
+
+      // Development information panel
+      var _sResNo = document.getElementById('residentialNo');
+      data.isResidential = !(_sResNo && _sResNo.checked);
+      var _sSc = {};
+      ['srcCatMusic','srcCatChildcare','srcCatEmergency','srcEmergFire','srcEmergGen'].forEach(function(id) {
+        var el = document.getElementById(id); _sSc[id] = !!(el && el.checked);
+      });
+      data.sourceCategories = { general: true, music: _sSc.srcCatMusic, childcare: _sSc.srcCatChildcare, emergency: _sSc.srcCatEmergency, firePump: _sSc.srcEmergFire, generator: _sSc.srcEmergGen };
+      var _sMbBands = [63, 125, 250, 500, 1000, 2000, 4000];
+      var _sMusicBg = {};
+      _sMbBands.forEach(function(b) { var el = document.getElementById('musicBg' + b); if (el && el.value !== '') _sMusicBg[b] = parseFloat(el.value); });
+      if (Object.keys(_sMusicBg).length > 0) data.musicBackground = _sMusicBg;
 
       return JSON.stringify(data);
     } catch(e) {
@@ -28146,6 +28407,21 @@ if (window.pdfjsLib) {
 
     var subjectSiteName = (document.getElementById('subjectSiteName') || {}).value || 'Subject site';
 
+    // Music background noise: collect band values and criteria
+    var musicOn = !!(document.getElementById('srcCatMusic') && document.getElementById('srcCatMusic').checked);
+    var musicBands = [63, 125, 250, 500, 1000, 2000, 4000];
+    var musicBgVals = {};
+    var musicCritVals = {};
+    var hasMusicBg = false;
+    if (musicOn) {
+      musicBands.forEach(function(b) {
+        var inp = document.getElementById('musicBg' + b);
+        var v = inp ? parseFloat(inp.value) : NaN;
+        if (!isNaN(v)) { musicBgVals[b] = v; musicCritVals[b] = v + 8; hasMusicBg = true; }
+        else { musicBgVals[b] = null; musicCritVals[b] = null; }
+      });
+    }
+
     return {
       projectNumber:   pnNum,
       projectName:     pnNam,
@@ -28153,7 +28429,12 @@ if (window.pdfjsLib) {
       receivers:       receivers,
       sources:         sources,
       predDay:         readPredRows('rowsDay'),
-      predNight:       readPredRows('rowsNight')
+      predNight:       readPredRows('rowsNight'),
+      musicOn:         musicOn,
+      musicBands:      musicBands,
+      musicBgVals:     musicBgVals,
+      musicCritVals:   musicCritVals,
+      hasMusicBg:      hasMusicBg
     };
   }
 
@@ -28373,6 +28654,18 @@ if (window.pdfjsLib) {
             })
           : [['\u2014', '\u2014', '\u2014']];
         xml = replaceTableDataRows(xml, 'Predicted noise levels', nightRows, 2);
+
+        // 7. Music noise criteria table (SA only, when Music category selected)
+        if (data.musicOn && data.hasMusicBg) {
+          var musicHeaderRow = ['', '63 Hz', '125 Hz', '250 Hz', '500 Hz', '1000 Hz', '2000 Hz', '4000 Hz'];
+          var musicBgRow = ['Lowest background L\u209090 (dB)'].concat(data.musicBands.map(function(b) {
+            return data.musicBgVals[b] !== null ? String(data.musicBgVals[b]) : '\u2014';
+          }));
+          var musicCritRow = ['Music noise criteria L\u209010 (dB)'].concat(data.musicBands.map(function(b) {
+            return data.musicCritVals[b] !== null ? String(data.musicCritVals[b]) : '\u2014';
+          }));
+          xml = replaceTableDataRows(xml, 'Music noise criteria', [musicHeaderRow, musicBgRow, musicCritRow], 1);
+        }
 
         // Write back modified XML
         zip.file('word/document.xml', xml);
