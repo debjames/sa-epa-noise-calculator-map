@@ -5527,6 +5527,7 @@ var _globalPeriod = 'day'; // 'day' | 'eve' | 'night'
 
 var assessmentCases = window.assessmentCases = [];
 window._caseManualOverrides = {};
+var casePredictions = window.casePredictions = {};
 
 /** sourcePins[] — each entry is one discrete noise source.
  *  spectrum.day/eve/night: A-weighted per-band Lw [63,125,250,500,1k,2k,4k,8k] or null.
@@ -6524,6 +6525,7 @@ function _updateMusicCriteria() {
       crit.textContent = String(val + 8);
     }
   });
+  _triggerCasePredictions();
 }
 
 // ── Assessment Cases ──────────────────────────────────────────────────────
@@ -6738,6 +6740,61 @@ function _acRenderCase(c) {
       });
       h += '</div>';
     }
+
+    // Prediction results section
+    var pred = casePredictions[c.id];
+    if (pred) {
+      h += '<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;">';
+      h += '<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;">Predictions</div>';
+      var anyPred = false;
+      for (var ri = 1; ri <= 4; ri++) {
+        var rk = 'r' + ri;
+        var recvLL2 = window.getReceiverLatLng ? window.getReceiverLatLng(rk) : null;
+        if (!recvLL2) continue;
+        var rp = pred[rk];
+        if (!rp) continue;
+        anyPred = true;
+        var recvNameEl = document.getElementById('recvName' + ri);
+        var recvName = recvNameEl ? (recvNameEl.value || ('R' + ri)) : ('R' + ri);
+
+        if (c.criteriaType === 'dts_dpf_4.6' && rp && rp.bands) {
+          h += '<div style="font-size:12px;font-weight:600;margin-bottom:2px;">' + _acEscH(recvName) + '</div>';
+          h += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:4px;">';
+          h += '<tr><th style="text-align:left;padding:2px 4px;color:var(--muted);">Hz</th>';
+          h += '<th style="text-align:right;padding:2px 4px;color:var(--muted);">Pred</th>';
+          h += '<th style="text-align:right;padding:2px 4px;color:var(--muted);">Crit</th>';
+          h += '<th style="text-align:right;padding:2px 4px;color:var(--muted);">&Delta;</th></tr>';
+          rp.bands.forEach(function(b) {
+            var comply = b.complies === true ? '\u2713' : (b.complies === false ? '\u2717' : '\u2014');
+            var color  = b.complies === true ? '#166534' : (b.complies === false ? '#b91c1c' : '#6b7280');
+            h += '<tr><td style="padding:2px 4px;">' + b.freq + '</td>';
+            h += '<td style="text-align:right;padding:2px 4px;">' + (b.predicted != null ? b.predicted.toFixed(1) : '\u2014') + '</td>';
+            h += '<td style="text-align:right;padding:2px 4px;">' + (b.criteria  != null ? b.criteria.toFixed(1)  : '\u2014') + '</td>';
+            h += '<td style="text-align:right;padding:2px 4px;color:' + color + ';font-weight:600;">' +
+                 comply + (b.delta != null ? ' (' + b.delta.toFixed(1) + ')' : '') + '</td></tr>';
+          });
+          h += '</table>';
+        } else if (rp && typeof rp.predicted !== 'undefined') {
+          var compliesStr   = rp.complies === true ? '\u2713' : (rp.complies === false ? '\u2717' : '\u2014');
+          var compliesColor = rp.complies === true ? '#166534' : (rp.complies === false ? '#b91c1c' : '#6b7280');
+          var predStr  = rp.predicted != null ? Math.round(rp.predicted) + ' dB(A)' : '\u2014';
+          var critStr  = rp.criteria  != null ? rp.criteria + '' : '\u2014';
+          var deltaStr = rp.delta     != null ? (rp.delta > 0 ? '+' : '') + rp.delta.toFixed(1) : '';
+          h += '<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0;">';
+          h += '<span style="flex:1;">' + _acEscH(recvName) + '</span>';
+          h += '<span>' + predStr + '</span>';
+          h += '<span style="color:var(--muted);">/ ' + critStr + '</span>';
+          if (deltaStr) h += '<span style="font-size:11px;color:var(--muted);">(' + deltaStr + ')</span>';
+          h += '<span style="font-weight:600;color:' + compliesColor + ';">' + compliesStr + '</span>';
+          h += '</div>';
+        }
+      }
+      if (!anyPred) {
+        h += '<div style="font-size:12px;color:var(--muted);font-style:italic;">No receivers placed</div>';
+      }
+      h += '</div>';
+    }
+
     h += '</div>';
   }
   h += '</div>';
@@ -6745,7 +6802,7 @@ function _acRenderCase(c) {
 }
 
 function _acToggle(id) { var c=assessmentCases.find(function(c){return c.id===id;}); if(c){c._collapsed=!c._collapsed;renderAssessmentCases();} }
-function _onCaseToggle(id, on) { if(on) _acEnableCase(id); else _acDisableCase(id); renderAssessmentCases(); if(typeof window._undoPushState==='function') window._undoPushState('assessment cases'); }
+function _onCaseToggle(id, on) { if(on) _acEnableCase(id); else _acDisableCase(id); renderAssessmentCases(); _triggerCasePredictions(); if(typeof window._undoPushState==='function') window._undoPushState('assessment cases'); }
 function _acRename(id, name) { var c=assessmentCases.find(function(c){return c.id===id;}); if(c&&name) c.name=name; }
 function _acPeriod(id, period) { var c=assessmentCases.find(function(c){return c.id===id;}); if(c) c.period=period; }
 function _acSourceToggle(id, sid, on) {
@@ -6753,14 +6810,354 @@ function _acSourceToggle(id, sid, on) {
   if(on){ if(c.activeSources.indexOf(sid)<0) c.activeSources.push(sid); if(window._caseManualOverrides[id]) delete window._caseManualOverrides[id][sid]; }
   else { c.activeSources=c.activeSources.filter(function(s){return s!==sid;}); if(!window._caseManualOverrides[id]) window._caseManualOverrides[id]={}; window._caseManualOverrides[id][sid]='unchecked'; }
   renderAssessmentCases();
+  _triggerCasePredictions();
 }
 function _acOpPct(cid, sid, base, val) {
   var c=assessmentCases.find(function(c){return c.id===cid;}); if(!c) return;
   var v=parseFloat(val); if(isNaN(v)) return;
   if(Math.abs(v-base)<0.001) delete c.operatingPctOverrides[sid]; else c.operatingPctOverrides[sid]=v;
   renderAssessmentCases();
+  _triggerCasePredictions();
 }
-function _acResetOp(cid, sid) { var c=assessmentCases.find(function(c){return c.id===cid;}); if(c){ delete c.operatingPctOverrides[sid]; renderAssessmentCases(); } }
+function _acResetOp(cid, sid) { var c=assessmentCases.find(function(c){return c.id===cid;}); if(c){ delete c.operatingPctOverrides[sid]; renderAssessmentCases(); _triggerCasePredictions(); } }
+
+// ── Assessment Case Prediction Engine ────────────────────────────────────────
+
+/** Look up a source object across all source arrays by its ID.
+ *  Returns {arr, idx, src} or null. */
+function _acGetSourceById(id) {
+  var arrays = [];
+  if (typeof sourcePins      !== 'undefined') arrays.push(sourcePins);
+  if (typeof lineSources     !== 'undefined') arrays.push(lineSources);
+  if (typeof areaSources     !== 'undefined') arrays.push(areaSources);
+  if (typeof buildingSources !== 'undefined') arrays.push(buildingSources);
+  for (var ai = 0; ai < arrays.length; ai++) {
+    for (var si = 0; si < arrays[ai].length; si++) {
+      if (arrays[ai][si].id === id) return { arr: arrays[ai], idx: si, src: arrays[ai][si] };
+    }
+  }
+  return null;
+}
+
+/** Get criteria for this case type and receiver (0-based receiverIdx).
+ *  Returns {day, eve, night, lmax} or {bands:{freq:val,...}} for music. */
+function _acGetCriteria(c, receiverIdx) {
+  var rid = 'r' + (receiverIdx + 1);
+  switch (c.criteriaType) {
+    case 'noise_policy': {
+      var dayEl   = document.getElementById(rid + '_daycrit');
+      var eveEl   = document.getElementById(rid + '_evecrit');
+      var nightEl = document.getElementById(rid + '_nightcrit');
+      var lmaxEl  = document.getElementById(rid + '_lmaxcrit');
+      var parseCell = function(el) {
+        if (!el) return NaN;
+        // may contain an <input> (OTHER state)
+        var inp = el.querySelector('input.manual-crit-input');
+        var txt = inp ? inp.value : el.textContent;
+        return parseFloat(txt);
+      };
+      return {
+        day:   parseCell(dayEl),
+        eve:   parseCell(eveEl),
+        night: parseCell(nightEl),
+        lmax:  parseCell(lmaxEl)
+      };
+    }
+    case 'who':
+      return { day: 50, eve: 50, night: 50, lmax: NaN };
+    case 'emergency': {
+      var dayEl2   = document.getElementById(rid + '_daycrit');
+      var nightEl2 = document.getElementById(rid + '_nightcrit');
+      var parseCell2 = function(el) {
+        if (!el) return NaN;
+        var inp = el.querySelector('input.manual-crit-input');
+        var txt = inp ? inp.value : el.textContent;
+        return parseFloat(txt);
+      };
+      var dayINL   = parseCell2(dayEl2);
+      var nightINL = parseCell2(nightEl2);
+      // emergency_fire: INL + 10 (day); emergency_generator: INL + 7 (night)
+      return {
+        day:   (c.type === 'emergency_fire'      && isFinite(dayINL))   ? dayINL   + 10 : NaN,
+        night: (c.type === 'emergency_generator' && isFinite(nightINL)) ? nightINL + 7  : NaN,
+        lmax:  NaN
+      };
+    }
+    case 'dts_dpf_4.6': {
+      var bands = [63, 125, 250, 500, 1000, 2000, 4000];
+      var result = {};
+      bands.forEach(function(b) {
+        var bgEl = document.getElementById('musicBg' + b);
+        var bgVal = bgEl ? parseFloat(bgEl.value) : NaN;
+        result[b] = isFinite(bgVal) ? bgVal + 8 : NaN;
+      });
+      return { bands: result };
+    }
+    default:
+      return { day: NaN, eve: NaN, night: NaN, lmax: NaN };
+  }
+}
+
+/** Calculate energy-summed prediction for a subset of sources at one receiver for one period.
+ *  Temporarily swaps operatingPct on source objects for overrides since all calc functions
+ *  read opPct internally.
+ *  Returns LAeq dB or NaN if no valid sources. */
+function _acCalcCasePrediction(caseSourceItems, opPctOverrides, period, receiverIdx) {
+  var recvKey = 'r' + (receiverIdx + 1);
+  var recvLL = window.getReceiverLatLng ? window.getReceiverLatLng(recvKey) : null;
+  if (!recvLL) return NaN;
+
+  var totalLin = 0;
+  var anySrc = false;
+
+  caseSourceItems.forEach(function(item) {
+    var src = item.src;
+    var si  = item.idx;
+
+    // Check if this source has an operating % override for the case
+    var hasOverride = opPctOverrides && opPctOverrides[src.id] !== undefined;
+    var overrideVal = hasOverride ? opPctOverrides[src.id] : null;
+
+    var lp = NaN;
+
+    if (item.arr === sourcePins) {
+      // Point source — uses calcISO9613forSourcePin which reads pin.operatingPct internally
+      if (src.lat === null || src.lat === undefined) return;
+      // Prefer pre-computed distance cache; fall back to direct Leaflet calculation
+      var d = getDistanceForSourceReceiver(si, receiverIdx);
+      if (!Number.isFinite(d) || d <= 0) {
+        d = (window.L && L.latLng && recvLL)
+          ? L.latLng(src.lat, src.lng).distanceTo(L.latLng(recvLL))
+          : NaN;
+      }
+      if (!Number.isFinite(d) || d <= 0) return;
+
+      if (hasOverride) {
+        // Temporarily swap operatingPct to apply the override.
+        // calcISO9613forSourcePin reads pin.operatingPct[period] internally.
+        var _savedEntireOpPct = src.operatingPct;
+        var _opWasObject = src.operatingPct && typeof src.operatingPct === 'object';
+        if (!_opWasObject) {
+          // Expand scalar or undefined to object form so we can patch one period
+          var _opScalar = (typeof src.operatingPct === 'number') ? src.operatingPct : 100;
+          src.operatingPct = { day: _opScalar, eve: _opScalar, night: _opScalar };
+        }
+        var _savedPeriodPct = src.operatingPct[period];
+        src.operatingPct[period] = overrideVal;
+        lp = calcISO9613forSourcePin(si, period, d, receiverIdx);
+        // Restore exactly
+        src.operatingPct[period] = _savedPeriodPct;
+        if (!_opWasObject) src.operatingPct = _savedEntireOpPct; // restore scalar/undefined
+      } else {
+        lp = calcISO9613forSourcePin(si, period, d, receiverIdx);
+      }
+
+    } else if (typeof lineSources !== 'undefined' && item.arr === lineSources) {
+      // Line source — operatingPct lives in movements[period].operatingPct
+      if (hasOverride && src.movements && src.movements[period]) {
+        var savedLsOpPct = src.movements[period].operatingPct;
+        src.movements[period].operatingPct = overrideVal;
+        lp = calcLineSourceAtReceiver(src, period, receiverIdx);
+        src.movements[period].operatingPct = savedLsOpPct;
+      } else {
+        lp = calcLineSourceAtReceiver(src, period, receiverIdx);
+      }
+
+    } else if (typeof areaSources !== 'undefined' && item.arr === areaSources) {
+      // Area source — operatingPct in as.operatingPct[period]
+      if (hasOverride) {
+        var savedAsOpPct;
+        if (!src.operatingPct || typeof src.operatingPct !== 'object') {
+          var asScalar = (typeof src.operatingPct === 'number') ? src.operatingPct : 100;
+          src.operatingPct = { day: asScalar, eve: asScalar, night: asScalar };
+        }
+        savedAsOpPct = src.operatingPct[period];
+        src.operatingPct[period] = overrideVal;
+        lp = calcAreaSourceAtReceiver(src, period, receiverIdx);
+        src.operatingPct[period] = savedAsOpPct;
+      } else {
+        lp = calcAreaSourceAtReceiver(src, period, receiverIdx);
+      }
+
+    } else if (typeof buildingSources !== 'undefined' && item.arr === buildingSources && window._calcBuildingSourceAtReceiver) {
+      // Building source — operatingPct in bs.operatingPct[period]
+      if (hasOverride) {
+        var savedBsOpPct;
+        if (!src.operatingPct || typeof src.operatingPct !== 'object') {
+          var bsScalar = (typeof src.operatingPct === 'number') ? src.operatingPct : 100;
+          src.operatingPct = { day: bsScalar, eve: bsScalar, night: bsScalar };
+        }
+        savedBsOpPct = src.operatingPct[period];
+        src.operatingPct[period] = overrideVal;
+        lp = window._calcBuildingSourceAtReceiver(src, period, receiverIdx);
+        src.operatingPct[period] = savedBsOpPct;
+      } else {
+        lp = window._calcBuildingSourceAtReceiver(src, period, receiverIdx);
+      }
+    }
+
+    if (Number.isFinite(lp)) {
+      totalLin += Math.pow(10, lp / 10);
+      anySrc = true;
+    }
+  });
+
+  if (!anySrc) return NaN;
+  return 10 * Math.log10(totalLin);
+}
+
+/** Calculate music (DTS/DPF 4.6) per-band predictions for one receiver.
+ *  Uses each source's spectrum to get per-band Lp, compares against L90+8.
+ *  Returns {bands:[{freq, predicted, criteria, delta, complies}], overallComplies}. */
+function _acCalcMusicCase(caseSourceItems, opPctOverrides, receiverIdx, critBands) {
+  var recvKey = 'r' + (receiverIdx + 1);
+  var recvLL = window.getReceiverLatLng ? window.getReceiverLatLng(recvKey) : null;
+  if (!recvLL) return null;
+
+  var freqs = [63, 125, 250, 500, 1000, 2000, 4000];
+  // Energy sum per band (linear)
+  var bandLin = {};
+  freqs.forEach(function(f) { bandLin[f] = 0; });
+  var anyBandSrc = false;
+
+  caseSourceItems.forEach(function(item) {
+    var src = item.src;
+    var si  = item.idx;
+
+    // Music period maps to 'day' prefix for propagation
+    var period = 'day';
+
+    if (item.arr !== sourcePins) return; // Music sources should be point sources; skip other types
+    if (src.lat === null || src.lat === undefined) return;
+
+    var d = getDistanceForSourceReceiver(si, receiverIdx);
+    if (!Number.isFinite(d) || d <= 0) return;
+
+    // Get source spectrum for this period
+    var spectrumA = src.spectrum ? src.spectrum[period] : null;
+    var hasSpectrum = spectrumA && Array.isArray(spectrumA) &&
+      spectrumA.some(function(v) { return v !== null && Number.isFinite(v) && v !== 0; });
+
+    if (!hasSpectrum) return; // no per-band data, skip
+
+    var lwVal = src.lw ? src.lw[period] : null;
+    if (!Number.isFinite(lwVal)) return;
+
+    // Get effective opPct for this source
+    var hasOverride = opPctOverrides && opPctOverrides[src.id] !== undefined;
+    var effectiveOpPct = hasOverride ? opPctOverrides[src.id] : _getPinOpPct(src, period);
+    var opAdj = 10 * Math.log10(effectiveOpPct > 0 ? effectiveOpPct / 100 : 1e-10);
+
+    // Normalise spectrum relative to entered broadband Lw
+    var specEnergyLin = 0;
+    for (var b = 0; b < spectrumA.length; b++) {
+      if (Number.isFinite(spectrumA[b])) specEnergyLin += Math.pow(10, spectrumA[b] / 10);
+    }
+    var specAdj = (specEnergyLin > 0) ? (lwVal - 10 * Math.log10(specEnergyLin)) : 0;
+
+    // Use calcISO9613forSourcePin with temporary opPct override for total
+    // For per-band: calculate IL at each band using SharedCalc if available
+    var bandFreqs = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+    spectrumA.forEach(function(lwBand, bIdx) {
+      if (!Number.isFinite(lwBand)) return;
+      if (bIdx >= freqs.length) return; // 8kHz band not in music criteria
+      var freq = freqs[bIdx];
+      var lwBandAdj = lwBand + specAdj + opAdj; // normalised + opPct
+      // Simple IL: geometric spreading only (hemispherical) — attenuatePoint equivalent per band
+      // For accuracy use SharedCalc.attenuatePoint if available, else fallback
+      var lpBand;
+      if (window.SharedCalc && typeof SharedCalc.attenuatePoint === 'function') {
+        lpBand = SharedCalc.attenuatePoint(lwBandAdj, d);
+      } else {
+        // geometric: Lp = Lw - 20log10(d) - 11 (hemispherical, no ISO)
+        lpBand = lwBandAdj - 20 * Math.log10(d) - 11;
+      }
+      if (Number.isFinite(lpBand)) {
+        bandLin[freq] += Math.pow(10, lpBand / 10);
+        anyBandSrc = true;
+      }
+    });
+  });
+
+  var bands = freqs.map(function(freq) {
+    var predicted = (bandLin[freq] > 0) ? 10 * Math.log10(bandLin[freq]) : null;
+    var criteria  = (critBands && isFinite(critBands[freq])) ? critBands[freq] : null;
+    var delta     = (predicted != null && criteria != null) ? predicted - criteria : null;
+    var complies  = (delta != null) ? delta <= 0 : null;
+    return { freq: freq, predicted: predicted, criteria: criteria, delta: delta, complies: complies };
+  });
+
+  var overallComplies = bands.every(function(b) { return b.complies === true || b.complies === null; }) && anyBandSrc;
+  return { bands: bands, overallComplies: anyBandSrc ? overallComplies : null };
+}
+
+/** Main orchestration: recalculate all enabled assessment cases. */
+function runCasePredictions() {
+  var newPredictions = {};
+
+  assessmentCases.forEach(function(c) {
+    if (!c.enabled) return;
+    var casePred = {};
+
+    // Resolve source objects for this case
+    var caseSourceItems = c.activeSources
+      .map(function(id) { return _acGetSourceById(id); })
+      .filter(function(item) { return item !== null; });
+
+    // Calculate for each placed receiver
+    for (var ri = 0; ri < 4; ri++) {
+      var recvKey = 'r' + (ri + 1);
+      var recvLL = window.getReceiverLatLng ? window.getReceiverLatLng(recvKey) : null;
+      if (!recvLL) continue;
+
+      var crit = _acGetCriteria(c, ri);
+
+      if (c.criteriaType === 'dts_dpf_4.6') {
+        casePred[recvKey] = _acCalcMusicCase(caseSourceItems, c.operatingPctOverrides, ri, crit.bands);
+      } else {
+        // Map case period to the prefix used by propagation functions
+        var periodMap = { day:'day', eve:'eve', night:'night', lmax:'night', who_16h:'day', music_trading:'day' };
+        var prefix = periodMap[c.period] || 'day';
+
+        var predicted = _acCalcCasePrediction(caseSourceItems, c.operatingPctOverrides, prefix, ri);
+
+        // Get applicable criteria value for this period
+        var criteriaVal = NaN;
+        if (c.criteriaType === 'noise_policy') {
+          var ncMap = { day: crit.day, eve: isFinite(crit.eve) ? crit.eve : crit.day, night: crit.night, lmax: crit.lmax, who_16h: crit.day, music_trading: crit.day };
+          criteriaVal = ncMap[c.period];
+          if (criteriaVal === undefined) criteriaVal = NaN;
+        } else if (c.criteriaType === 'who') {
+          criteriaVal = 50;
+        } else if (c.criteriaType === 'emergency') {
+          criteriaVal = (c.type === 'emergency_fire') ? crit.day : crit.night;
+        }
+
+        var delta = (isFinite(predicted) && isFinite(criteriaVal))
+          ? predicted - criteriaVal : NaN;
+        casePred[recvKey] = {
+          predicted:    isFinite(predicted)    ? predicted    : null,
+          predictedRaw: predicted,
+          criteria:     isFinite(criteriaVal)  ? criteriaVal  : null,
+          delta:        isFinite(delta)         ? delta        : null,
+          complies:     isFinite(delta)         ? delta <= 0   : null
+        };
+      }
+    }
+
+    newPredictions[c.id] = casePred;
+  });
+
+  casePredictions = window.casePredictions = newPredictions;
+  if (typeof renderAssessmentCases === 'function') renderAssessmentCases();
+}
+
+/** Debounced trigger for case predictions (500 ms). */
+var _casePredDebounce = null;
+function _triggerCasePredictions() {
+  if (_casePredDebounce) clearTimeout(_casePredDebounce);
+  _casePredDebounce = setTimeout(runCasePredictions, 500);
+}
 
 var _PDC_SR_TIP = 'Sensitive receiver means: any use for residential purposes or land zoned primarily for residential purposes, childcare facility, educational facility, hospital, supported accommodation, or tourist accommodation.';
 function _pdcHighlightSR(escapedHtml) {
@@ -11869,6 +12266,7 @@ function render() {
   if (typeof renderScenariosTable === 'function') renderScenariosTable();
   if (typeof renderContributions === 'function') renderContributions();
   if (typeof renderAssessmentCases === 'function') renderAssessmentCases();
+  if (typeof _triggerCasePredictions === 'function') _triggerCasePredictions();
 
   // Update recommended treatments panel
   if (typeof renderRecommendations === 'function') renderRecommendations();
