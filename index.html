@@ -1213,6 +1213,22 @@ body.map-fs-active { overflow: hidden; }
                     <button class="mp-btn" data-nmperiod="night" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">Night</button>
                     <button class="mp-btn" data-nmperiod="lmax" style="flex:1;padding:3px 2px;font-size:10px;justify-content:center;">L<sub>Amax</sub></button>
                   </div>
+                  <div id="nmCaseRow" style="display:none;padding:2px 4px;">
+                    <select id="nmCaseSelect" style="width:100%;font-size:11px;padding:2px 3px;background:#374151;color:#f3f4f6;border:1px solid #4b5563;border-radius:3px;">
+                      <optgroup label="── Periods ──" style="color:#9ca3af;">
+                        <option value="__period_day">Day</option>
+                        <option value="__period_eve">Evening</option>
+                        <option value="__period_night">Night</option>
+                        <option value="__period_lmax">LAmax</option>
+                      </optgroup>
+                      <optgroup id="nmCaseOptGroup" label="── Assessment cases ──" style="color:#9ca3af;">
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div id="nmCalcAllRow" style="display:none;padding:2px 4px;flex-direction:column;gap:2px;">
+                    <button id="nmCalcAllBtn" class="mp-btn" style="width:100%;font-size:11px;padding:3px 6px;justify-content:center;">Calculate all cases</button>
+                    <span id="nmCalcAllProgress" style="font-size:10px;color:#93c5fd;padding:0 2px;display:none;"></span>
+                  </div>
                   <div class="mp-sub-row"><span>Height:</span><input type="number" id="noiseMapHeight" value="1.5" min="0.1" max="50" step="0.5" style="width:44px;" title="Contour map receiver height (m)"><span>m</span></div>
                   <div class="mp-sub-row"><span>Grid:</span><select id="noiseMapGridSel" style="flex:1;" title="Grid spacing for noise map calculation"><option value="auto">Auto</option><option value="1">1 m</option><option value="2">2 m</option><option value="5">5 m</option><option value="10">10 m</option><option value="20">20 m</option><option value="50">50 m</option><option value="100">100 m</option></select><span id="noiseMapGridLabel" style="font-size:9px;"></span></div>
                   <div class="mp-sub-row"><span>Range:</span><input type="number" id="legendMin" value="25" min="0" max="119" step="1" style="width:40px;" title="Legend minimum dB"><span>&#8211;</span><input type="number" id="legendMax" value="70" min="1" max="120" step="1" style="width:40px;" title="Legend maximum dB"><span>dB</span></div>
@@ -6906,6 +6922,7 @@ function renderAssessmentCases() {
   }
 
   container.innerHTML = summaryHtml + h;
+  if (typeof window._nmUpdateCaseDropdown === 'function') window._nmUpdateCaseDropdown();
 }
 
 function _acRenderCase(c) {
@@ -7378,6 +7395,7 @@ function runCasePredictions() {
 /** Debounced trigger for case predictions (500 ms). */
 var _casePredDebounce = null;
 function _triggerCasePredictions() {
+  if (typeof window._nmInvalidateAllCache === 'function') window._nmInvalidateAllCache();
   if (_casePredDebounce) clearTimeout(_casePredDebounce);
   _casePredDebounce = setTimeout(runCasePredictions, 500);
 }
@@ -12500,6 +12518,7 @@ function render() {
   // Update P&D Code provisions (SA only)
   if (typeof updatePDCProvisions === 'function') updatePDCProvisions();
 
+  if (typeof window._nmInvalidateAllCache === 'function') window._nmInvalidateAllCache();
 }
 
 
@@ -26049,6 +26068,9 @@ if (window.pdfjsLib) {
     var _terrainWarningBanner = null;
     var _noiseMapPeriod = 'day';
     var _lmaxMethod = 'simple'; // 'simple' | 'iso9613_g0' | 'iso9613_g_sel'
+    var _nmSelectedCase = null;   // null = period mode; string caseId = case mode
+    var _nmCaseCache = {};        // { caseId: { msg, ts } }
+    var _nmOnCaseComplete = null; // callback for sequential "calc all" flow
     var _noiseMapHeight = 1.5;
     var _noiseMapGridSize = 'auto'; // 'auto' or fixed metres as number string
     var _noiseRecomputeTimer = null;
@@ -26365,6 +26387,75 @@ if (window.pdfjsLib) {
       return result;
     }
 
+    /** Build worker sources for a specific assessment case. */
+    function buildWorkerSourcesForCase(c) {
+      if (!c || !c.activeSources) return [];
+      var activeSet = c.activeSources;
+      var periodMap = { day:'day', eve:'eve', night:'night', lmax:'lmax', who_16h:'day', music_trading:'day' };
+      var mapPeriod = periodMap[c.period] || 'day';
+
+      var patches = [];
+      function patchSources(arr) {
+        if (!Array.isArray(arr)) return;
+        arr.forEach(function(src) {
+          if (activeSet.indexOf(src.id) < 0) {
+            if (!src.activeInPeriod) src.activeInPeriod = {};
+            var orig = src.activeInPeriod[mapPeriod];
+            src.activeInPeriod[mapPeriod] = false;
+            patches.push({ src: src, period: mapPeriod, orig: orig });
+          }
+        });
+      }
+      if (typeof sourcePins !== 'undefined') patchSources(sourcePins);
+      if (typeof lineSources !== 'undefined') patchSources(lineSources);
+      if (typeof areaSources !== 'undefined') patchSources(areaSources);
+      if (typeof buildingSources !== 'undefined') patchSources(buildingSources);
+
+      var opPatches = [];
+      if (c.operatingPctOverrides) {
+        Object.keys(c.operatingPctOverrides).forEach(function(sid) {
+          var item = typeof _acGetSourceById === 'function' ? _acGetSourceById(sid) : null;
+          if (!item) return;
+          var src = item.src;
+          var ov = c.operatingPctOverrides[sid];
+          var isLine = typeof lineSources !== 'undefined' && item.arr === lineSources;
+          if (!isLine) {
+            if (!src.operatingPct || typeof src.operatingPct !== 'object') {
+              var scalar = (typeof src.operatingPct === 'number') ? src.operatingPct : 100;
+              src.operatingPct = { day: scalar, eve: scalar, night: scalar };
+            }
+            var origPct = src.operatingPct[mapPeriod];
+            src.operatingPct[mapPeriod] = ov;
+            opPatches.push({ src: src, period: mapPeriod, orig: origPct, field: 'operatingPct' });
+          } else {
+            if (src.movements && src.movements[mapPeriod]) {
+              var origLsPct = src.movements[mapPeriod].operatingPct;
+              src.movements[mapPeriod].operatingPct = ov;
+              opPatches.push({ src: src, period: mapPeriod, orig: origLsPct, field: 'movements' });
+            }
+          }
+        });
+      }
+
+      var result = buildWorkerSources(mapPeriod);
+
+      patches.forEach(function(p) {
+        if (p.orig === undefined) delete p.src.activeInPeriod[p.period];
+        else p.src.activeInPeriod[p.period] = p.orig;
+      });
+      opPatches.forEach(function(p) {
+        if (p.field === 'operatingPct') p.src.operatingPct[p.period] = p.orig;
+        else if (p.field === 'movements' && p.src.movements && p.src.movements[p.period])
+          p.src.movements[p.period].operatingPct = p.orig;
+      });
+
+      return result;
+    }
+
+    function _nmInvalidateCaseCache(caseId) { delete _nmCaseCache[caseId]; }
+    function _nmInvalidateAllCache() { _nmCaseCache = {}; }
+    window._nmInvalidateAllCache = function() { _nmCaseCache = {}; };
+
     /** Chaikin corner-cutting smoothing */
     function chaikinSmooth(points, iterations) {
       iterations = iterations || 4;
@@ -26577,8 +26668,14 @@ if (window.pdfjsLib) {
         // Using #fff here makes the export match the on-screen appearance exactly
         // (the live view was rgba(255,255,255,0.92) — visually indistinguishable).
         div.style.cssText = 'background:#fff;padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
-        var periodLabel = PERIOD_LABELS[_noiseMapPeriod] || 'Day L<sub>Aeq</sub>';
-        var s = '<b>' + periodLabel + ' dB</b><br>';
+        var legendTitle;
+        if (_nmSelectedCase) {
+          var _nmLegCase = (typeof assessmentCases !== 'undefined') ? assessmentCases.find(function(c){ return c.id === _nmSelectedCase; }) : null;
+          legendTitle = (_nmLegCase ? _nmLegCase.name : _nmSelectedCase) + ' \u2014 L<sub>Aeq</sub> dB';
+        } else {
+          legendTitle = (PERIOD_LABELS[_noiseMapPeriod] || 'Day L<sub>Aeq</sub>') + ' dB';
+        }
+        var s = '<b>' + legendTitle + '</b><br>';
         s += '<span style="color:#888;font-size:10px;">' + _noiseMapHeight.toFixed(1) + 'm height</span><br>';
         // Build legend from NOISE_COLOURS (skip transparent first entry).
         // Pre-composite each swatch colour against white so the swatches are fully
@@ -26776,7 +26873,13 @@ if (window.pdfjsLib) {
       _complianceLegend.onAdd = function() {
         var div = L.DomUtil.create('div', 'noise-legend');
         div.style.cssText = 'background:#fff;padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
-        var pLabel = { day: 'Day L<sub>Aeq</sub>', eve: 'Eve L<sub>Aeq</sub>', night: 'Night L<sub>Aeq</sub>', lmax: 'Night L<sub>Amax</sub>' }[period] || 'Day L<sub>Aeq</sub>';
+        var pLabel;
+        if (_nmSelectedCase) {
+          var _nmCompCase = (typeof assessmentCases !== 'undefined') ? assessmentCases.find(function(c){ return c.id === _nmSelectedCase; }) : null;
+          pLabel = _nmCompCase ? _nmCompCase.name : _nmSelectedCase;
+        } else {
+          pLabel = { day: 'Day L<sub>Aeq</sub>', eve: 'Eve L<sub>Aeq</sub>', night: 'Night L<sub>Aeq</sub>', lmax: 'Night L<sub>Amax</sub>' }[period] || 'Day L<sub>Aeq</sub>';
+        }
         var s = '<b>Compliance \u0394 dB(A)</b><br>';
         s += '<span style="color:#888;font-size:10px;">' + pLabel + ' vs ' + criterion + ' dB(A)</span><br>';
         var labels = ['\u2264\u221210','\u221210 to \u22125','\u22125 to \u22123','\u22123 to \u22121',
@@ -26863,7 +26966,146 @@ if (window.pdfjsLib) {
       }
     }
 
+    function _nmComputeCase(caseId) {
+      var c = (typeof assessmentCases !== 'undefined')
+        ? assessmentCases.find(function(ac){ return ac.id === caseId; }) : null;
+      if (!c || !c.enabled) { _nmSelectedCase = null; computeNoiseMap(); return; }
+
+      if (_nmCaseCache[caseId]) {
+        var cached = _nmCaseCache[caseId].msg;
+        _lastNoiseData = cached;
+        var _nvRowC = document.getElementById('noiseViewRow');
+        if (_nvRowC) _nvRowC.style.display = 'flex';
+        if (_complianceMode) {
+          renderNoiseCanvas(cached); showNoiseLegend();
+          if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); }
+          if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); }
+          hideNoiseLegend(); renderComplianceMap();
+        } else { renderNoiseCanvas(cached); showNoiseLegend(); }
+        var cb0 = _nmOnCaseComplete; _nmOnCaseComplete = null; if (cb0) cb0();
+        return;
+      }
+
+      var workerSources = buildWorkerSourcesForCase(c);
+      if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
+      if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); _noiseCanvasLayer = null; }
+      if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); _noiseContourLayer = null; }
+
+      if (workerSources.length === 0) {
+        var noiseMapBtnC0 = document.getElementById('noiseMapBtn');
+        var _svgC0 = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg>';
+        if (noiseMapBtnC0) noiseMapBtnC0.innerHTML = _svgC0 + ' Noise Map';
+        var cb1 = _nmOnCaseComplete; _nmOnCaseComplete = null; if (cb1) cb1();
+        return;
+      }
+
+      var mapBounds = map.getBounds();
+      var zoom = map.getZoom();
+      var gridRes = (_noiseMapGridSize !== 'auto') ? parseInt(_noiseMapGridSize, 10)
+        : (zoom >= 18 ? 5 : zoom >= 16 ? 10 : zoom >= 14 ? 25 : 50);
+      var noiseMapBtnC = document.getElementById('noiseMapBtn');
+      var _svgC = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg>';
+      function _nmResetC() { if (noiseMapBtnC) noiseMapBtnC.innerHTML = _svgC + ' Noise Map'; _noiseWorker = null; }
+
+      var screenable = (typeof getScreenableBuildings === 'function') ? getScreenableBuildings() : [];
+      var periodMap2 = { day:'day', eve:'eve', night:'night', lmax:'lmax', who_16h:'day', music_trading:'day' };
+      var casePeriod = periodMap2[c.period] || 'day';
+
+      var demSpacing = gridRes >= 25 ? 0.002 : gridRes >= 5 ? 0.001 : 0.0005;
+      var demPromise;
+      if (_terrainEnabled && window.DEMCache) {
+        if (noiseMapBtnC) noiseMapBtnC.textContent = 'Fetching terrain...';
+        demPromise = DEMCache.getTileForBounds(
+          mapBounds.getNorth(), mapBounds.getSouth(), mapBounds.getEast(), mapBounds.getWest(), demSpacing,
+          function(d, t) { if (noiseMapBtnC) noiseMapBtnC.textContent = 'Fetching terrain... (' + d + '/' + t + ')'; }
+        ).then(function(tile) {
+          if (!tile) return null;
+          var entries = [], total = 0;
+          for (var _r = 0; _r < tile.lats.length; _r++)
+            for (var _cc = 0; _cc < tile.lngs.length; _cc++) {
+              total++;
+              var _e = tile.elevations[_r][_cc];
+              if (_e !== null && _e !== undefined && isFinite(_e)) entries.push({ lat: tile.lats[_r], lng: tile.lngs[_cc], elev: _e });
+            }
+          return { entries: entries, total: total, source: tile.source };
+        }).catch(function() { return { entries: [], total: 0 }; });
+      } else { demPromise = Promise.resolve(null); }
+
+      demPromise.then(function(demResult) {
+        var demEntries = (demResult && demResult.entries) ? demResult.entries : [];
+        var demTotal = (demResult && demResult.total) ? demResult.total : 0;
+        if (_terrainEnabled && demTotal > 0 && (demEntries.length / demTotal) < 0.2) demEntries = [];
+
+        try {
+          if (noiseMapBtnC) noiseMapBtnC.textContent = 'Computing case... 0%';
+          var propagationMethod = 'simple';
+          var propMethodSel = document.querySelector('[name="propMethod"]:checked');
+          if (propMethodSel) propagationMethod = propMethodSel.value;
+          var isoGfEl = document.getElementById('isoGroundFactor');
+          var isoTEl  = document.getElementById('isoTemperature');
+          var isoHEl  = document.getElementById('isoHumidity');
+          var iso_groundFactor = isoGfEl ? (parseFloat(isoGfEl.value) || 0) : 0;
+          var iso_temperature  = isoTEl  ? (parseFloat(isoTEl.value)  || 10) : 10;
+          var iso_humidity     = isoHEl  ? (parseFloat(isoHEl.value)  || 70) : 70;
+
+          _noiseWorker = new Worker('noise-worker.js');
+          _noiseWorker.onmessage = function(e) {
+            var msg = e.data;
+            if (msg.type === 'progress') {
+              if (noiseMapBtnC) noiseMapBtnC.textContent = 'Computing... ' + msg.percent + '%';
+            } else if (msg.type === 'complete') {
+              if (noiseMapBtnC) noiseMapBtnC.innerHTML = _svgC + ' Noise Map';
+              _lastNoiseData = msg;
+              _nmCaseCache[caseId] = { msg: msg, ts: Date.now() };
+              var _nvRowC2 = document.getElementById('noiseViewRow');
+              if (_nvRowC2) _nvRowC2.style.display = 'flex';
+              if (_complianceMode) {
+                renderNoiseCanvas(msg); showNoiseLegend();
+                if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); }
+                if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); }
+                hideNoiseLegend(); renderComplianceMap();
+              } else { renderNoiseCanvas(msg); showNoiseLegend(); }
+              _noiseWorker = null;
+              var cb2 = _nmOnCaseComplete; _nmOnCaseComplete = null; if (cb2) cb2();
+            } else if (msg.type === 'error') {
+              console.warn('Noise map case error:', msg.message); _nmResetC();
+              var cb3 = _nmOnCaseComplete; _nmOnCaseComplete = null; if (cb3) cb3();
+            }
+          };
+          _noiseWorker.onerror = function(e) {
+            console.error('Noise map case worker error:', e); _nmResetC();
+            var cb4 = _nmOnCaseComplete; _nmOnCaseComplete = null; if (cb4) cb4();
+          };
+
+          var _buildingsC = screenable.map(function(b) {
+            var poly = (b.polygon || []).map(function(v) {
+              if (Array.isArray(v)) return [v[0], v[1]];
+              return [v.lat !== undefined ? v.lat : v[0], v.lng !== undefined ? v.lng : v[1]];
+            });
+            return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null };
+          });
+
+          _noiseWorker.postMessage({
+            bounds: { north: mapBounds.getNorth(), south: mapBounds.getSouth(), east: mapBounds.getEast(), west: mapBounds.getWest() },
+            gridResolutionM: gridRes, sources: workerSources, buildings: _buildingsC,
+            propagationMethod: propagationMethod,
+            isoParams: { receiverHeight: _noiseMapHeight || 1.5, groundFactor: iso_groundFactor, temperature: iso_temperature, humidity: iso_humidity },
+            demCache: demEntries, demSpacing: demSpacing, terrainEnabled: _terrainEnabled, debugTerrain: false,
+            period: casePeriod, lmaxMethod: _lmaxMethod || 'simple', reflectionsEnabled: !!_reflectionsOn,
+            groundZones: (window._getGroundZones ? window._getGroundZones() : []).map(function(gz) {
+              var verts = (gz.vertices || []).map(function(v) { return Array.isArray(v) ? [v[0],v[1]] : [v.lat,v.lng]; });
+              return { g: gz.g, vertices: verts };
+            })
+          });
+        } catch(workerErr) {
+          console.error('Noise map case: failed to start worker —', workerErr); _nmResetC();
+          var cb5 = _nmOnCaseComplete; _nmOnCaseComplete = null; if (cb5) cb5();
+        }
+      });
+    }
+
     function computeNoiseMap() {
+      if (_nmSelectedCase) { _nmComputeCase(_nmSelectedCase); return; }
       if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
       if (_noiseCanvasLayer) { map.removeLayer(_noiseCanvasLayer); _noiseCanvasLayer = null; }
       if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); _noiseContourLayer = null; }
@@ -27066,6 +27308,7 @@ if (window.pdfjsLib) {
     }
 
     function debouncedRecompute() {
+      _nmInvalidateAllCache();
       if (_noiseRecomputeTimer) clearTimeout(_noiseRecomputeTimer);
       _noiseRecomputeTimer = setTimeout(function() {
         if (_noiseMapOn) computeNoiseMap();
@@ -27075,6 +27318,132 @@ if (window.pdfjsLib) {
     // Toggle button
     var noiseMapBtn = document.getElementById('noiseMapBtn');
     var noiseMapControls = document.getElementById('noiseMapControls');
+
+    var _nmPeriodPillsRow = null;
+    (function() { var _pp = document.querySelectorAll('[data-nmperiod]'); if (_pp.length) _nmPeriodPillsRow = _pp[0].parentElement; })();
+
+    function _nmUpdateCaseDropdown() {
+      var activeCases = (typeof assessmentCases !== 'undefined') ? assessmentCases.filter(function(c){ return c.enabled; }) : [];
+      var caseRow = document.getElementById('nmCaseRow');
+      var calcAllRow = document.getElementById('nmCalcAllRow');
+      var optGroup = document.getElementById('nmCaseOptGroup');
+      var sel = document.getElementById('nmCaseSelect');
+      if (!activeCases.length) {
+        if (_nmPeriodPillsRow) _nmPeriodPillsRow.style.display = 'flex';
+        if (caseRow) caseRow.style.display = 'none';
+        if (calcAllRow) calcAllRow.style.display = 'none';
+        if (_nmSelectedCase) _nmSelectedCase = null;
+        return;
+      }
+      if (_nmPeriodPillsRow) _nmPeriodPillsRow.style.display = 'none';
+      if (caseRow) caseRow.style.display = '';
+      if (calcAllRow) calcAllRow.style.display = 'flex';
+      if (optGroup) {
+        optGroup.innerHTML = '';
+        activeCases.forEach(function(c) {
+          var opt = document.createElement('option');
+          opt.value = c.id; opt.textContent = c.name;
+          optGroup.appendChild(opt);
+        });
+      }
+      if (sel) {
+        var currentVal = _nmSelectedCase ? _nmSelectedCase : ('__period_' + (_noiseMapPeriod || 'day'));
+        var valid = Array.from(sel.options).some(function(o){ return o.value === currentVal; });
+        sel.value = valid ? currentVal : activeCases[0].id;
+        _nmSelectedCase = sel.value.startsWith('__period_') ? null : sel.value;
+      }
+    }
+    window._nmUpdateCaseDropdown = _nmUpdateCaseDropdown;
+
+    var nmCaseSelectEl = document.getElementById('nmCaseSelect');
+    if (nmCaseSelectEl) {
+      nmCaseSelectEl.addEventListener('change', function() {
+        var val = this.value;
+        if (val.startsWith('__period_')) {
+          _nmSelectedCase = null;
+          var p = val.replace('__period_', '');
+          _noiseMapPeriod = p;
+          document.querySelectorAll('[data-nmperiod]').forEach(function(b){ b.classList.toggle('active', b.dataset.nmperiod === p); });
+          if (p === 'day' || p === 'eve' || p === 'night') { _globalPeriod = p; if (typeof render === 'function') render(); }
+          var _lmxRow = document.getElementById('noiseMapLmaxMethodRow');
+          if (_lmxRow) _lmxRow.style.display = (p === 'lmax') ? 'flex' : 'none';
+          if (_complianceMode) {
+            var _cpa = getLowestReceiverCriterion(p === 'lmax' ? 'night' : p) || 45;
+            _complianceCriterion = _cpa;
+            var _cpi = document.getElementById('complianceCriterion');
+            if (_cpi) _cpi.value = Math.round(_cpa);
+          }
+        } else {
+          _nmSelectedCase = val;
+          _nmAutoComplianceCriterion();
+        }
+        if (_noiseMapOn) computeNoiseMap();
+      });
+    }
+
+    var nmCalcAllBtnEl = document.getElementById('nmCalcAllBtn');
+    var nmCalcAllProgressEl = document.getElementById('nmCalcAllProgress');
+    if (nmCalcAllBtnEl) {
+      nmCalcAllBtnEl.addEventListener('click', function() {
+        var activeCases = (typeof assessmentCases !== 'undefined') ? assessmentCases.filter(function(c){ return c.enabled; }) : [];
+        if (!activeCases.length) return;
+        if (!_noiseMapOn) {
+          _noiseMapOn = true;
+          var _nmBtnEl = document.getElementById('noiseMapBtn');
+          if (_nmBtnEl) _nmBtnEl.classList.add('active');
+          if (noiseMapControls) noiseMapControls.style.display = 'flex';
+        }
+        nmCalcAllBtnEl.disabled = true;
+        if (nmCalcAllProgressEl) nmCalcAllProgressEl.style.display = '';
+        var idx = 0;
+        function calcNext() {
+          if (idx >= activeCases.length) {
+            nmCalcAllBtnEl.disabled = false;
+            if (nmCalcAllProgressEl) { nmCalcAllProgressEl.textContent = 'All ' + activeCases.length + ' cases calculated \u2713'; setTimeout(function(){ if (nmCalcAllProgressEl) nmCalcAllProgressEl.style.display = 'none'; }, 3000); }
+            return;
+          }
+          var c = activeCases[idx];
+          if (nmCalcAllProgressEl) nmCalcAllProgressEl.textContent = 'Calculating ' + (idx+1) + ' of ' + activeCases.length + '...';
+          idx++;
+          _nmSelectedCase = c.id;
+          var _selEl = document.getElementById('nmCaseSelect');
+          if (_selEl) _selEl.value = c.id;
+          delete _nmCaseCache[c.id];
+          _nmOnCaseComplete = calcNext;
+          computeNoiseMap();
+        }
+        calcNext();
+      });
+    }
+
+    function _nmAutoComplianceCriterion() {
+      if (!_complianceMode || !_nmSelectedCase) return;
+      var c = (typeof assessmentCases !== 'undefined') ? assessmentCases.find(function(ac){ return ac.id === _nmSelectedCase; }) : null;
+      if (!c) return;
+      var critInputEl = document.getElementById('complianceCriterion');
+      var noteEl = document.getElementById('nmMusicComplianceNote');
+      var compCritRowEl = document.getElementById('complianceCritRow');
+      if (c.criteriaType === 'dts_dpf_4.6') {
+        if (critInputEl) critInputEl.style.display = 'none';
+        if (!noteEl && compCritRowEl) {
+          var noteSpan = document.createElement('span');
+          noteSpan.id = 'nmMusicComplianceNote';
+          noteSpan.style.cssText = 'font-size:10px;color:#93c5fd;font-style:italic;';
+          noteSpan.textContent = 'Compliance map not applicable for music cases (per-band assessment)';
+          compCritRowEl.appendChild(noteSpan);
+        }
+        _complianceCriterion = null;
+        return;
+      }
+      if (critInputEl) critInputEl.style.display = '';
+      if (noteEl && noteEl.parentNode) noteEl.parentNode.removeChild(noteEl);
+      var periodMap3 = { day:'day', eve:'eve', night:'night', lmax:'night', who_16h:'day', music_trading:'day' };
+      var mappedPeriod = periodMap3[c.period] || 'day';
+      var crit = (c.criteriaType === 'who') ? 50 : (getLowestReceiverCriterion(mappedPeriod) || 45);
+      _complianceCriterion = crit;
+      if (critInputEl) critInputEl.value = Math.round(crit);
+      if (_lastNoiseData) renderComplianceMap();
+    }
 
     function showNoiseControls(show) {
       if (noiseMapControls) noiseMapControls.style.display = show ? 'flex' : 'none';
@@ -27347,6 +27716,29 @@ if (window.pdfjsLib) {
       if (!el) return;
       var html = '';
 
+      function _acBadgesForSource(srcId) {
+        if (typeof assessmentCases === 'undefined' || !Array.isArray(assessmentCases)) return '';
+        var BADGE_STYLES = {
+          general_day:         { label:'D',    bg:'#dbeafe', color:'#1d4ed8' },
+          general_eve:         { label:'E',    bg:'#ede9fe', color:'#6d28d9' },
+          general_night:       { label:'N',    bg:'#e0e7ff', color:'#3730a3' },
+          general_lmax:        { label:'Lm',   bg:'#f1f5f9', color:'#475569' },
+          music:               { label:'Mus',  bg:'#fce7f3', color:'#9d174d' },
+          children:            { label:'Ch',   bg:'#d1fae5', color:'#065f46' },
+          emergency_generator: { label:'Gen',  bg:'#fef3c7', color:'#92400e' },
+          emergency_fire:      { label:'Fire', bg:'#fee2e2', color:'#991b1b' }
+        };
+        var bHtml = '';
+        assessmentCases.forEach(function(c) {
+          if (!c.enabled) return;
+          if (c.activeSources && c.activeSources.indexOf(srcId) >= 0) {
+            var bs = BADGE_STYLES[c.type] || { label: c.type, bg:'#f3f4f6', color:'#374151' };
+            bHtml += '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 4px;border-radius:3px;background:' + bs.bg + ';color:' + bs.color + ';margin-left:3px;white-space:nowrap;">' + bs.label + '</span>';
+          }
+        });
+        return bHtml;
+      }
+
       // Sources group
       var hasSrc = sourcePins.length > 0 || lineSources.length > 0 || (typeof buildingSources !== 'undefined' && buildingSources.length > 0);
       html += '<div style="margin-bottom:10px;">';
@@ -27382,7 +27774,7 @@ if (window.pdfjsLib) {
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">S' + (i + 1) + '</span>';
           if (placed) {
             html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
-              '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+              '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + _acBadgesForSource(pin.id) + '</div>' +
               '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(detail) + '</div>' +
               '</span>';
             html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'source\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
@@ -27414,7 +27806,7 @@ if (window.pdfjsLib) {
           html += '<span style="width:14px;height:3px;background:#d32f2f;border-radius:1px;display:inline-block;flex-shrink:0;"></span>';
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">L' + (i + 1) + '</span>';
           html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
-            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + _acBadgesForSource(ls.id) + '</div>' +
             '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(lsDetail) + '</div>' +
             '</span>';
           if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'linesource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
@@ -27441,7 +27833,7 @@ if (window.pdfjsLib) {
           html += '<span style="width:11px;height:11px;border:2px solid #d97706;background:rgba(255,160,50,0.25);border-radius:2px;display:inline-block;flex-shrink:0;"></span>';
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">A' + (i + 1) + '</span>';
           html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
-            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + _acBadgesForSource(as.id) + '</div>' +
             '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(asDetail) + '</div>' +
             '</span>';
           if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'areasource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
@@ -27464,7 +27856,7 @@ if (window.pdfjsLib) {
             html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(124,58,237,0.18)" stroke="#7c3aed" stroke-width="2" style="flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#7c3aed" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#7c3aed" stroke-width="1.5"/></svg>';
             html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:22px;">BS' + (i + 1) + '</span>';
             html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
-              '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+              '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + _acBadgesForSource(bs.id) + '</div>' +
               '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(bsDetail) + '</div>' +
               '</span>';
             if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'buildingsource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
