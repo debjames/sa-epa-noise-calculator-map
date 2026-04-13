@@ -477,6 +477,8 @@ body.state-sa #pdcProvisionsSection { display: grid; }
 .pdc-row-relevant td.pdc-rel-cell { border-left:3px solid #4CAF50; padding-left:6px; }
 .pdc-row-muted td { color:#9ca3af; }
 .pdc-manual-badge { font-size:9px; color:#6b7280; font-style:italic; }
+.pdc-sr { text-decoration:underline dotted; text-decoration-color:#6366f1; color:inherit; cursor:help; }
+.pdc-defn-note { margin-top:8px; padding:5px 8px; font-size:11.5px; color:#4b5563; border-left:2px solid #6366f1; line-height:1.5; }
 
 /* VIC penalty checkboxes */
 .vic-penalty-section label { display:block; font-size:12px; margin:3px 0; cursor:pointer; }
@@ -1434,6 +1436,7 @@ body.map-fs-active { overflow: hidden; }
               </tbody>
             </table>
           </div>
+          <div class="pdc-defn-note"><span class="pdc-sr">Sensitive receiver</span> means: any use for residential purposes or land zoned primarily for residential purposes, childcare facility, educational facility, hospital, supported accommodation, or tourist accommodation.</div>
         </div>
       </div>
     </div>
@@ -6328,6 +6331,13 @@ function updatePDCProvisions() {
   _renderPDCTable();
 }
 
+var _PDC_SR_TIP = 'Sensitive receiver means: any use for residential purposes or land zoned primarily for residential purposes, childcare facility, educational facility, hospital, supported accommodation, or tourist accommodation.';
+function _pdcHighlightSR(escapedHtml) {
+  return escapedHtml.replace(/sensitive receivers?/gi, function(m) {
+    return '<span class="pdc-sr" title="' + _PDC_SR_TIP + '">' + m + '</span>';
+  });
+}
+
 function _renderPDCTable() {
   var tbody = document.getElementById('pdcTableBody');
   if (!tbody) return;
@@ -6348,8 +6358,8 @@ function _renderPDCTable() {
     var poRef = parts[0] || '';
     var dtsRef = parts[1] || '';
     html += '<tr class="' + rowCls + '" id="pdcRow' + i + '">';
-    html += '<td class="pdc-po-col"><span class="pdc-ref-label">' + escapeHTML(poRef) + '</span>' + escapeHTML(prov.po) + '</td>';
-    html += '<td class="pdc-dts-col"><span class="pdc-ref-label">' + escapeHTML(dtsRef) + '</span>' + escapeHTML(prov.dts) + '</td>';
+    html += '<td class="pdc-po-col"><span class="pdc-ref-label">' + escapeHTML(poRef) + '</span>' + _pdcHighlightSR(escapeHTML(prov.po)) + '</td>';
+    html += '<td class="pdc-dts-col"><span class="pdc-ref-label">' + escapeHTML(dtsRef) + '</span>' + _pdcHighlightSR(escapeHTML(prov.dts)) + '</td>';
     html += '<td class="' + relCls + '"><div contenteditable="true" id="pdcRelCell' + i + '" oninput="window._pdcOnEdit(' + i + ',this.textContent)"' + tbcClass + ' style="outline:none;min-height:1.3em;">' + displayRelHtml + '</div>' + badge + '</td>';
     html += '</tr>';
   }
