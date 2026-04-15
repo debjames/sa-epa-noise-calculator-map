@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { calcISOatPoint, calcISOatPointDetailed, calcAgrPerBand, calcAlphaAtm, calcBarrierAttenuation, calcBarrierWithEndDiffraction, OCT_FREQ } from './calc.js';
+import { calcISOatPoint, calcISOatPointDetailed, calcAgrPerBand, calcAgrBarrier, calcAlphaAtm, calcBarrierAttenuation, calcBarrierWithEndDiffraction, OCT_FREQ } from './calc.js';
 
 // A-weighting corrections per octave band [63, 125, 250, 500, 1000, 2000, 4000, 8000]
 const A_WEIGHT = [-26.2, -16.1, -8.6, -3.2, 0, 1.2, 1.0, -1.1];
@@ -48,11 +48,19 @@ function computePerBandLA(spectrum, srcH, recH, dist, G, tempC, humPct) {
 
 /**
  * Compute per-band LA with barrier screening.
- * Uses the combined barrier+ground formula per ISO/TR 17534-3 §5.5.
+ * Implements the ISO 9613-2 §7.4 ground-barrier interaction:
+ *   - When barrierInfo (d1, d2, hBar) is supplied, Agr is recomputed for
+ *     source→barrier and barrier→receiver sub-paths via calcAgrBarrier.
+ *   - Otherwise the unobstructed-path Agr is used (legacy fallback).
+ *   - AgrBar = max(Dz, Agr_subpath); no clamp because Dz>0 already
+ *     dominates any negative Agr contribution.
  */
-function computePerBandLA_barrier(spectrum, srcH, recH, dist, G, tempC, humPct, z_top, z_left, z_right) {
+function computePerBandLA_barrier(spectrum, srcH, recH, dist, G, tempC, humPct, z_top, z_left, z_right, barrierInfo) {
   var alpha = calcAlphaAtm(tempC, humPct);
   var Agr = calcAgrPerBand(srcH, recH, dist, G);
+  var Agr_bar = (barrierInfo && barrierInfo.d1 > 0 && barrierInfo.d2 > 0)
+    ? calcAgrBarrier(srcH, recH, dist, G, barrierInfo)
+    : null;
   var Adiv_val = 20 * Math.log10(dist) + 11;
   var Abar = calcBarrierWithEndDiffraction(z_top || 0, z_left || 0, z_right || 0, OCT_FREQ);
   var hasBarrier = (z_top || 0) > 0 || (z_left || 0) > 0 || (z_right || 0) > 0;
@@ -61,8 +69,8 @@ function computePerBandLA_barrier(spectrum, srcH, recH, dist, G, tempC, humPct, 
     var Aatm = alpha[i] * dist;
     var AgrBar;
     if (hasBarrier && Abar[i] > 0) {
-      var AgrClamped = Math.max(Agr[i], 0); // §5.5 guard
-      AgrBar = Math.max(Abar[i], AgrClamped); // barrier replaces ground
+      var AgrForBar = Agr_bar ? Agr_bar[i] : Agr[i];
+      AgrBar = Math.max(Abar[i], AgrForBar); // §7.4 insertion-loss form
     } else {
       AgrBar = Agr[i];
     }
@@ -236,6 +244,12 @@ describe('ISO/TR 17534-3 T08: Long barrier, varying ground', () => {
   const z_left = 267.53;
   const z_right = 362.85;
 
+  // §7.4 sub-path geometry for ground attenuation
+  // S=(10,10), R=(200,50), O=(176.58,45.07), barrier top hBar=6
+  // d1 = horiz(S→O) = √((176.58−10)² + (45.07−10)²) ≈ 170.24
+  // d2 = horiz(O→R) = √((200−176.58)² + (50−45.07)²) ≈ 23.93
+  const barrierInfoT08 = { d1: 170.24, d2: 23.93, hBar: 6 };
+
   const expectedTotal = 32.48;
 
   // Reference Dz per band (Table 21)
@@ -263,18 +277,19 @@ describe('ISO/TR 17534-3 T08: Long barrier, varying ground', () => {
     }
   });
 
-  it('total LAeq within ±1.0 dB of reference (barrier geometry approximation)', () => {
-    // NOTE: ±1.0 dB tolerance because:
-    // 1. Ground factors are approximated (not region-extent weighted)
-    // 2. Barrier z uses Fresnel approximation rather than exact ISO formula
-    // 3. Barrier interaction with ground Agr follows simplified §5.5 guard
-    var perBand = computePerBandLA_barrier(LW_UNWEIGHTED, hS, hR, dp, Gobj, tempC, humPct, z_top, z_left, z_right);
+  it('total LAeq within ±0.6 dB of reference', () => {
+    // T08 has very large lateral z values, so Abar > Agr_bar in every band:
+    // max(Abar, Agr_bar) = Abar, and the §7.4 sub-path Agr fix has no
+    // numerical effect on this case. The residual ~0.5 dB error is from the
+    // Fresnel z approximation and region-extent G averaging, not from the
+    // ground-barrier interaction.
+    var perBand = computePerBandLA_barrier(LW_UNWEIGHTED, hS, hR, dp, Gobj, tempC, humPct, z_top, z_left, z_right, barrierInfoT08);
     var sumLin = 0;
     for (var i = 0; i < 8; i++) {
       sumLin += Math.pow(10, perBand[i] / 10);
     }
     var total = 10 * Math.log10(sumLin);
-    expect(Math.abs(total - expectedTotal)).toBeLessThan(1.0);
+    expect(Math.abs(total - expectedTotal)).toBeLessThan(0.6);
   });
 });
 
@@ -296,6 +311,12 @@ describe('ISO/TR 17534-3 T09: Short barrier, varying ground', () => {
   const z_left = 0.615; // from back-calculation
   const z_right = 6.03;  // from back-calculation
 
+  // §7.4 sub-path geometry: same intersection point as T08 (geometry coincides)
+  // S=(10,10), R=(200,50), O≈(176.83,45.12), hBar=6
+  // d1 ≈ √(166.83² + 35.12²) ≈ 170.49
+  // d2 ≈ √(23.17²  +  4.88²) ≈ 23.68
+  const barrierInfoT09 = { d1: 170.49, d2: 23.68, hBar: 6 };
+
   const expectedTotal = 32.93;
 
   it('Abar is lower than T08 at same bands (short barrier, more lateral leakage)', () => {
@@ -307,14 +328,18 @@ describe('ISO/TR 17534-3 T09: Short barrier, varying ground', () => {
     expect(z_left).toBeLessThan(267); // T09 left delta < T08 left delta
   });
 
-  it('total LAeq within ±1.0 dB of reference', () => {
-    var perBand = computePerBandLA_barrier(LW_UNWEIGHTED, hS, hR, dp, Gobj, tempC, humPct, z_top, z_left, z_right);
+  it('total LAeq within ±0.25 dB of reference (sub-path Agr per §7.4)', () => {
+    // Tightened from ±1.0 dB after implementing ISO 9613-2 §7.4 sub-path Agr.
+    // T09 benefits because barrier IL is small enough that the sub-path
+    // ground attenuation dominates in some bands, so max(Abar, Agr_bar)
+    // differs from max(Abar, Agr_unobstructed).
+    var perBand = computePerBandLA_barrier(LW_UNWEIGHTED, hS, hR, dp, Gobj, tempC, humPct, z_top, z_left, z_right, barrierInfoT09);
     var sumLin = 0;
     for (var i = 0; i < 8; i++) {
       sumLin += Math.pow(10, perBand[i] / 10);
     }
     var total = 10 * Math.log10(sumLin);
-    expect(Math.abs(total - expectedTotal)).toBeLessThan(1.0);
+    expect(Math.abs(total - expectedTotal)).toBeLessThan(0.25);
   });
 });
 
@@ -387,6 +412,13 @@ describe('ISO/TR 17534-3 T11: Cubic building, double diffraction', () => {
     var Agr = calcAgrPerBand(hS_t11, hR_t11, dp_t11, G_t11);
     var Adiv_val = 20 * Math.log10(dp_t11) + 11;
 
+    // §7.4 sub-path Agr: source at (50,10,1), receiver at (70,10,4),
+    // building front face at x=55 (5m from source), back face at x=65 (5m from receiver).
+    // Treat the building top centreline (x=60, y=10, z=10) as the diffraction point.
+    // d1 = horiz(S → top centre) ≈ 10, d2 = horiz(top centre → R) ≈ 10
+    var barrInfoT11 = { d1: 10, d2: 10, hBar: 10 };
+    var Agr_bar = calcAgrBarrier(hS_t11, hR_t11, dp_t11, G_t11, barrInfoT11);
+
     // Top path: double diffraction with C3 and 25 dB cap
     var Abar_top = calcBarrierAttenuation(z_top, OCT_FREQ, true, e);
     // Lateral paths: also double diffraction (building has thickness), uncapped
@@ -400,14 +432,13 @@ describe('ISO/TR 17534-3 T11: Cubic building, double diffraction', () => {
       Abar_total.push(Math.max(0, effIL));
     }
 
-    // Compute per-band LA with barrier
+    // Compute per-band LA with barrier (§7.4 insertion-loss form, no clamp)
     var sumLin = 0;
     for (var i = 0; i < 8; i++) {
       var Aatm = alpha[i] * dp_t11;
       var AgrBar;
       if (Abar_total[i] > 0) {
-        var AgrClamped = Math.max(Agr[i], 0);
-        AgrBar = Math.max(Abar_total[i], AgrClamped);
+        AgrBar = Math.max(Abar_total[i], Agr_bar[i]);
       } else {
         AgrBar = Agr[i];
       }
@@ -417,6 +448,10 @@ describe('ISO/TR 17534-3 T11: Cubic building, double diffraction', () => {
       sumLin += Math.pow(10, LA / 10);
     }
     var total = 10 * Math.log10(sumLin);
+    // T11 has a 10 m thick building → very high Abar (capped at 25 dB) which
+    // dominates Agr_bar in every band, so the §7.4 sub-path fix has no
+    // numerical effect here. Residual ~1 dB error is from the C₃/Fresnel
+    // approximation and the lateral-path energy-summation model.
     expect(Math.abs(total - expectedTotal)).toBeLessThan(1.0);
   });
 });

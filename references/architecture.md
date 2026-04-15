@@ -1,5 +1,553 @@
 # Architecture
 
+## CoRTN Road Traffic Sources (`cortnRoads[]`) — Phases 1–5
+
+Dedicated source type for UK CoRTN (Calculation of Road Traffic Noise) with Australian adjustments. Completely independent of `lineSources[]` — different inputs (AADT/speed/%CV/gradient) and different calculation method.
+
+- **Phase 1**: data structure + UI panel + map drawing + save/load. *(Complete.)*
+- **Phase 2**: free-field calculation engine (LA10 + LAeq, all Chart corrections, dual carriageway, NSW 3-source-height). *(Complete — see [calculations.md](./calculations.md#cortn-road-traffic-noise).)*
+- **Phase 3**: barrier diffraction (Charts 9/9a) with Shadow/Illuminated polynomial zones + ground correction interaction. *(Complete — see [calculations.md](./calculations.md#barrier-diffraction--cortn-charts-9--9a-phase-3).)*
+- **Phase 4**: receiver integration + Predicted Levels pipeline. Per-receiver distance + angle-of-view geometry, energy summation into `calcTotalISO9613`, per-receiver detail block in the Predicted Levels panel. *(Complete.)*
+- **Phase 5**: dedicated CoRTN road noise map worker + UI. Broadband LA10/LAeq grid, day/night periods, metric toggle, compliance view. Independent from the ISO 9613-2 grid worker. *(Complete — see [calculations.md](./calculations.md#cortn-grid-computation-phase-5).)*
+
+### Phase 5 CoRTN noise map grid
+
+New worker file [`cortn-worker.js`](../cortn-worker.js) runs alongside the existing [`noise-worker.js`](../noise-worker.js). Both workers can run concurrently (dual map layers overlaid on Leaflet). The CoRTN worker imports `shared-calc.js` via `importScripts` and uses the `SharedCortn` namespace.
+
+#### Worker message contract
+
+Receives:
+
+```js
+{
+  bounds: { north, south, east, west },
+  gridResolutionM: number,
+  receiverHeight: number,
+  period: 'day' | 'night',
+  roads: [  // serialised copies of cortnRoads[] with UI-only fields stripped
+    { id, vertices, aadt, speed_kmh, gradient_pct,
+      cv_pct_day, cv_pct_night, distFromKerb_m, roadHeight_m,
+      surfaceCorrection, surfaceType, carriageway, trafficSplit, laneOffset_m,
+      periodConfig, aadtPctDay, aadtPctNight, dayHours, nightHours,
+      austAdjDay, austAdjNight, threeSourceHeight,
+      groundAbsorption, meanPropHeight_m, reflectionAngle_deg,
+      barrier: { enabled, height_m, baseRL_m, distToBarrier_m } }
+  ]
+}
+```
+
+Posts:
+
+```js
+{ type: 'progress', percent }                                        // every ~5% of rows
+{ type: 'complete',
+  gridLaeq: Float32Array, gridLa10: Float32Array,                   // row-major, length = rows*cols
+  rows, cols, bounds, dLat, dLng, startLat, startLng, period }
+{ type: 'error', message }
+```
+
+`Float32Array` cells are `NaN` when no road contributes to the cell (e.g. `perpDist ≤ 0`) — the main-thread renderer treats `NaN` as "no colour / transparent".
+
+#### Main-thread state
+
+New top-level variables in `index.html` next to the existing ISO map state block:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `_cortnMapOn` | `false` | Toggle for the dropdown controls + worker |
+| `_cortnMapPeriod` | `'day'` | `'day'` \| `'night'` — recompute on change |
+| `_cortnMapMetric` | `'laeq'` | `'laeq'` \| `'la10'` — re-render only, no recompute |
+| `_cortnMapHeight` | `1.5` | Receiver height used for every cell |
+| `_cortnMapGridSize` | `'auto'` | `'auto'` \| `'5'`\|`'10'`\|`'20'`\|`'50'`\|`'100'` |
+| `_cortnWorker` | `null` | Active worker instance (terminated on toggle-off) |
+| `_cortnCanvasLayer` / `_cortnContourLayer` / `_cortnLegend` | `null` | Leaflet layers + legend control |
+| `_lastCortnData` | `null` | Last completion message (used for metric/legend re-render) |
+| `_cortnRecomputeTimer` | `null` | Debounce handle (1000 ms) |
+| `_cortnLegendMin` / `_cortnLegendMax` / `_cortnLegendInterval` | `35` / `75` / `5` | User-configurable scale |
+| `_cortnComplianceMode` / `_cortnComplianceCriterion` | `false` / `null` | Compliance view state |
+| `_cortnComplianceCanvasLayer` / `_cortnComplianceContourLayer` / `_cortnComplianceLegend` | `null` | Compliance layers |
+
+#### Main-thread functions (index.html)
+
+| Function | Purpose |
+|---|---|
+| `computeCortnMap()` | Serialises `cortnRoads[]` → worker message, fires the worker, wires up `onmessage` / `onerror` handlers |
+| `renderCortnCanvas(data)` | Rasterises one of `data.gridLaeq` / `data.gridLa10` (selected by `_cortnMapMetric`) to an image overlay, reusing the shared `NOISE_COLOURS` scale, then calls `generateCortnContourLines` |
+| `generateCortnContourLines(data)` | Marching-squares contour tracing over the selected grid, using `_cortnLegendMin / Max / Interval` as thresholds. Shares `chaikinSmooth` and the chaining logic with the ISO map contour generator |
+| `showCortnLegend()` | Bottom-right Leaflet control; title `CoRTN Day LAeq dB(A)` etc. |
+| `renderCortnComplianceMap()` | Compliance Δ = Predicted − Criterion, using the shared `getComplianceColour` / `COMPLIANCE_COLOURS` / `COMPLIANCE_THRESHOLDS` |
+| `removeCortnMap()` | Tears down worker + all layers + both legends |
+| `debouncedRecomputeCortn()` | 1000 ms debounce wrapper around `computeCortnMap` |
+
+#### Public setters/getters (save/load)
+
+- `window._getCortnMapOn()` → boolean
+- `window._getCortnMapSettings()` → `{ period, metric, height, gridSize, legendMin, legendMax, legendInterval, complianceCriterion }`
+- `window._setCortnMapSettings(obj)` — restores all fields, resets grid to `'auto'`, never auto-enables the map
+- `window._recomputeCortnMap()` — debounced recompute entry point for CoRTN road edits
+
+#### UI layout
+
+Inside `#noiseMapControls`' parent `<div>`, the CoRTN map block is appended directly after the existing `#noiseMapGridWarning` (line ~2188). The structure mirrors `#noiseMapControls` but with:
+
+- **No Eve / LAmax pills** — CoRTN only defines day and night periods.
+- **Metric toggle** LAeq (default) / LA10 — instant re-render.
+- **Grid selector** has no 1 m / 2 m options — CoRTN's broadband output does not benefit from finer spacing; 5 m is the minimum.
+- **Default range** 35–75 dB (road noise is typically higher than industrial).
+- **Compliance view** matches the ISO map's Levels/Compliance split but seeds the criterion from whatever the user last entered (or 60 dB(A) if unset).
+
+#### CoRTN road edit → map recompute hook
+
+`window._recomputeCortnMap()` is invoked from three places in `index.html`:
+
+1. `recalcAndRefresh()` inside `attachCortnPanelListeners` — fires on every field change in the CoRTN panel.
+2. The `draw:created` handler for the CoRTN polyline tool — fires when a new road is drawn.
+3. Both delete paths (panel delete button + context-menu delete) — fires when a road is removed.
+4. `window._setCortnRoads` — fires after a load restores `cortnRoads[]` (the map stays off until the user clicks, but the pending recompute is scheduled so it's ready).
+
+Each trigger goes through `debouncedRecomputeCortn` (1000 ms) so bulk edits collapse into a single recompute.
+
+#### Phase 5 simplifications (acknowledged)
+
+- Barrier geometry is per-road (no absolute barrier position). `distToBarrier_m` stays at its UI-configured value for every cell. Cells closer to the road than `distToBarrier_m` correctly fall back to "no screening" via the helper's `applied:false` return.
+- No terrain profile screening.
+- Reflections forced to zero in grid mode.
+- Distance convention: `clone.distFromKerb_m = perpDist − 3.5` (clamped to ≥ 0.5 m) so `d_horiz = perpDist`. Differs from Phase 4's `clone.distFromKerb_m = perpDist` convention by ~1–1.5 dB for short distances; tracked in [uat-tests.md](./uat-tests.md).
+
+### Phase 4 receiver integration
+
+When a CoRTN road is present and a receiver is placed, a new set of helpers compute a per-receiver CoRTN contribution and cache it on the road for display in the Predicted Levels panel:
+
+- `_cortnFlatDistM(lat1, lng1, lat2, lng2)` — flat-earth metres, falls back to `SharedCalc.flatDistM`.
+- `_cortnDistanceToPolyline(recvLat, recvLng, verts)` — perpendicular distance from the receiver to each polyline segment using a local flat-earth ENU projection anchored at the receiver. Accurate to <1 m for distances up to a few km.
+- `_cortnAngleOfViewFromReceiver(recvLat, recvLng, verts)` — angle (degrees) between the rays from the receiver to the polyline's first and last vertices. Exact for straight roads.
+- `cortnBroadbandToSpectrum(laeq)` — converts broadband A-weighted LAeq to an 8-band octave spectrum using the MBS 010 road-traffic shape `[18, 14, 10, 7, 4, 6, 11, 11]` (dB relative, 63..8k Hz) shifted so the per-band energy sum exactly reproduces the input LAeq.
+- `calcCortnRoadAtReceiver(road, prefix, receiverIdx)` — the wrapper. Resolves the receiver via `getReceiverLatLng('r' + (idx+1))`, reads `getReceiverHeight(idx)`, computes `perpDist` + `angle`, clones the road with `distFromKerb_m = perpDist` / `angleOfView_deg = angle` / `receiverHeight_m = recvH`, runs `calcCortnRoadPeriod(clone, period)`, and caches the result in `road.receiverResults[rk][period] = {la10, laeq, perpDist, angle}`. Returns the broadband LAeq for energy summing in `calcTotalISO9613`. Only day / night periods produce contributions — eve and lmax return `null`.
+- `_cortnClearAllReceiverResults()` — clears stale caches at the top of `render()`.
+- `_cortnUpdateAllReceiverResults()` — iterates placed receivers × roads and calls `calcCortnRoadAtReceiver`. Called from `render()` just before `_renderCortnPredDetail()` so the detail panel is always in sync regardless of whether the upstream `calcTotalISO9613` path actually fired.
+
+#### New `receiverResults` cache on each road
+
+```js
+cr.receiverResults = {
+  r1: { day: {la10, laeq, perpDist, angle}, night: {la10, laeq, perpDist, angle} },
+  r2: { day: ..., night: ... },
+  r3: { ... },
+  r4: { ... }
+}
+```
+
+Not serialised to save JSON — always rebuilt from scratch on load via `render()`.
+
+#### `calcTotalISO9613` integration
+
+Inside the existing per-receiver aggregator at [index.html:7767](../index.html:7767), a new `cortnRoads.forEach` loop appended after the building-sources loop:
+
+```js
+if (typeof cortnRoads !== 'undefined' && typeof calcCortnRoadAtReceiver === 'function'
+    && (prefix === 'day' || prefix === 'night')) {
+  cortnRoads.forEach(function(cr) {
+    var crLaeq = calcCortnRoadAtReceiver(cr, prefix, receiverIdx);
+    if (Number.isFinite(crLaeq)) {
+      totalLin += Math.pow(10, crLaeq / 10);
+      anySrc = true;
+    }
+  });
+}
+```
+
+Criteria panels (SA/VIC/NSW) that compare predicted levels against thresholds automatically see CoRTN contributions without any changes — they read from the same `calcTotalISO9613` return value.
+
+#### Predicted Levels panel DOM
+
+New `<div id="cortnPredDetail">` inserted at [index.html:3178](../index.html:3178) after the `vicRuralDistFootnote` badge row. `_renderCortnPredDetail()` builds one block per road with a 7-column per-receiver table:
+
+| Receiver | Dist (m) | Angle (°) | Day LA10 | Day LAeq | Night LA10 | Night LAeq |
+
+- Hidden entirely when `cortnRoads.length === 0`
+- Shows "Place receivers on the map to see per-receiver levels." when roads exist but no receivers are placed
+- Shows "Enter AADT in the road panel to see contributions." for rows with `aadt == null`
+
+### State
+
+Declared alongside `lineSources[]` in [index.html:6011](../index.html:6011):
+
+```js
+var cortnRoads = [];
+var _cortnIdCtr = 0;
+var _cortnPanel = null;
+var _cortnPanelId = null;
+```
+
+Helpers:
+- `_cortnDefaultRoad(verts)` — returns a fresh road object with spec defaults.
+- `_cortnApplyPeriodDefaults(road, preset)` — flips `aadtPctDay/Night + dayHours/nightHours` when `periodConfig` changes between `la10_18h` / `laeq_15h_9h` / `laeq_16h_8h`.
+
+### Data structure
+
+Each entry in `cortnRoads[]`:
+
+| Field | Default | Notes |
+|---|---|---|
+| `id` | `'cortn_' + idCtr` | Unique per session |
+| `name` | `'Road ' + idCtr` | User-editable |
+| `vertices` | `[[lat,lng], ...]` | Polyline |
+| `aadt` | `null` | Annual Average Daily Traffic (veh/day) |
+| `speed_kmh` | `60` | Posted speed |
+| `gradient_pct` | `0` | Road gradient |
+| `cv_pct_day` / `cv_pct_night` | `5` / `5` | % commercial vehicles |
+| `distFromKerb_m` | `4` | Receiver → nearest kerb |
+| `roadHeight_m` | `0` | Road elevation (0 = at grade) |
+| `surfaceCorrection` / `surfaceType` | `0` / `'DGA'` | See surface presets below |
+| `carriageway` | `'dual'` | `'dual'` or `'one-way'` |
+| `trafficSplit` | `0.5` | Near-lane fraction (0–1) |
+| `periodConfig` | `'la10_18h'` | One of three presets |
+| `aadtPctDay` / `aadtPctNight` | `0.94` / `0.06` | Auto-set by `periodConfig` |
+| `dayHours` / `nightHours` | `18` / `6` | Auto-set by `periodConfig` |
+| `austAdjDay` / `austAdjNight` | `-1.7` / `+0.5` | dB |
+| `threeSourceHeight` | `false` | NSW 3-source-height model |
+| `groundAbsorption` | `0` | 0 (hard) → 1 (soft) |
+| `meanPropHeight_m` | `1` | Mean propagation height |
+| `angleOfView_deg` | `180` | Full view default |
+| `reflectionAngle_deg` | `0` | No reflection default |
+| `receiverHeight_m` | `null` | `null` = use global default |
+| `laneOffset_m` | `7` | Near → far lane centre distance (dual carriageway only). **New in Phase 2.** |
+| `results.day / results.night` | `{la10, laeq, _breakdown}` | Phase 2 engine populates via `recalcCortnRoad()` |
+
+### Period presets
+
+Applied by `_cortnApplyPeriodDefaults(road, preset)`:
+
+| Preset | `aadtPctDay` | `dayHours` | `nightHours` |
+|---|---|---|---|
+| `la10_18h` | 0.94 | 18 | 6 |
+| `laeq_15h_9h` | 0.90 | 15 | 9 |
+| `laeq_16h_8h` | 0.94 | 16 | 8 |
+
+`aadtPctNight` is always `1 - aadtPctDay`.
+
+### Surface presets
+
+Surface type dropdown maps to `surfaceCorrection` (dB):
+
+| Label | Correction |
+|---|---|
+| DGA | 0 |
+| Concrete | +3 |
+| OGA | −2 |
+| SMA | −1 |
+| 14mm Chip Seal | +4 |
+| 7mm Chip Seal | +2 |
+| Custom | user-entered |
+
+### Map layer
+
+Declared next to `lineSourceLayer` at [index.html:27091](../index.html:27091):
+
+```js
+var cortnRoadLayer = L.layerGroup().addTo(map);
+var CORTN_STYLE = { color: '#1565C0', weight: 4, opacity: 0.85, dashArray: '8,6' };
+```
+
+**Dashed dark blue** to distinguish from the solid-red line sources.
+
+`renderCortnRoadLayer()` clears + re-adds all polylines on every call (same pattern as `renderLineSourceLayer`). Each road gets:
+- Polyline with `CORTN_STYLE`
+- Tooltip: `R{idx+1} — {name} | L = {len} m | AADT: {aadt} | {speed} km/h`
+- Left-click → `openCortnPanel(cr.id)`
+- Right-click → context menu (Edit / Duplicate / Delete)
+- Midpoint label: `R1`, `R2`, … in `#1565C0` (mirrors the `L1/L2` pattern for line sources)
+
+### Tools menu button
+
+Inserted after the line source button at [index.html:2116](../index.html:2116):
+
+```html
+<button class="mp-btn" id="drawCortnRoadBtn"
+        title="Draw a CoRTN road traffic source (UK CoRTN method with Australian adjustments)"
+        style="border-left:3px solid #1565C0;">
+  <svg>...road stripe icon...</svg> Road (CoRTN)
+</button>
+```
+
+### Draw handler
+
+`drawCortnRoadBtn` click → cancels other active draw modes (line source, barriers) → enables `L.Draw.Polyline` with `CORTN_STYLE`. A dedicated `map.on(L.Draw.Event.CREATED)` listener checks `_cortnDrawHandler` and bails out otherwise — this coexists with the line source CREATED listener, each does nothing unless its own handler is active.
+
+On completion:
+1. Extract vertices
+2. `newCr = _cortnDefaultRoad(verts)` → push into `cortnRoads`
+3. `renderCortnRoadLayer()`
+4. `window._undoPushState('Add CoRTN road')`
+5. `openCortnPanel(newCr.id)`
+
+### Floating panel `#cortnFloatPanel`
+
+~380px wide, viewport-centred on open (the ONLY panel that centres — src/area/line/building panels still use click-relative positioning per the earlier user revert). Sections from top to bottom: Name + midpoint/length display, Traffic, Commercial vehicles, Time periods, Corrections, Propagation, NSW 3-source-height checkbox, Results placeholder, action buttons (Delete, Close).
+
+- `buildCortnPanelHTML(cr)` generates the markup
+- `openCortnPanel(crId)` creates the div, appends to body, positions it centred, calls `attachCortnPanelListeners(cr)`
+- `closeCortnPanel()` removes the div and clears refs
+- `attachCortnPanelListeners(cr)` wires:
+  - Draggable `#cortnPanelHeader`
+  - `bindInput(id, prop, cast)` helper for every text/number input
+  - Period config dropdown → `_cortnApplyPeriodDefaults` + UI refresh
+  - Surface dropdown → auto-map correction + show/hide custom input
+  - Carriageway radios → enable/disable traffic-split inputs
+  - %AADT day/night inputs mirror each other (one changes → other auto-flips to 100 - near)
+  - 3-source-height checkbox
+  - Close + Delete buttons
+
+### Save / Load
+
+**Save** — both save code paths ([index.html:16967](../index.html:16967) and [18509](../index.html:18509)) serialise `cortnRoads` with every field from the data structure. Results (`results.day/night`) are NOT saved — they'll be recomputed by Phase 2 on load.
+
+**Load** — at [index.html:18218](../index.html:18218):
+
+```js
+if (window._setCortnRoads) {
+  window._setCortnRoads(data.cortnRoads || []);
+}
+```
+
+`window._setCortnRoads(arr)`:
+1. Clears `cortnRoadLayer` and empties `cortnRoads.length = 0`
+2. For each saved row, runs it through `_cortnDefaultRoad(vertices)` (so any missing field picks up a default) then overlays the saved values
+3. Rebuilds `_cortnIdCtr` from the max numeric id in the saved data so new roads don't collide
+
+### Coexistence with line sources
+
+`lineSources[]` and `cortnRoads[]` are fully independent:
+- Separate state arrays
+- Separate Leaflet layers (`lineSourceLayer` vs `cortnRoadLayer`)
+- Separate draw buttons (`drawLineSourceBtn` vs `drawCortnRoadBtn`)
+- Separate CREATED listeners (each checks its own `_lsDrawHandler` / `_cortnDrawHandler`)
+- Separate panels (`#lsFloatPanel` vs `#cortnFloatPanel`)
+- Separate save/load entries (`data.lineSources` vs `data.cortnRoads`)
+- No shared helpers beyond the generic utilities (`escapeHTML`, `_showMapCtxMenu`, `window._undoPushState`)
+
+Line sources continue to work exactly as before; CoRTN roads layer on top without touching anything.
+
+## UI Layout — Fixed collapsible LHS side panel + top-right atom buttons
+
+The map area (inside `#map-column`) is flanked by two panels:
+
+- **Left**: `#side-panel` — a fixed 300px-wide column containing Search + Mapping/Tools/Modelling accordions + the drawer toggle. Collapsible via a right-edge button; state persists in `localStorage`. On mobile (<768px) it's an overlay with a backdrop. Injected at runtime by `_resonateSidePanelBoot()` in the inline script at [index.html:1721](../index.html:1721).
+- **Right**: `#drawer-panel` — the pre-existing 520px drawer containing the 14 domain panels (Objects, Receivers, Criteria, Noise sources, Predicted levels, Methodology, etc.). Unchanged by this refactor.
+
+```
+┌─ #side-panel 300px ──┬─ #map-column (reflowed) ──┬─ #drawer-panel 520px ─┐
+│ [«]                  │                           │ (14 panels)           │
+│ [?][💡][↶][↷][📷]   │                           │                       │
+│ [Search__________]   │                           │                       │
+│ ▶ Mapping            │   Leaflet map             │                       │
+│ ▶ Tools              │   (clean — only Leaflet   │                       │
+│ ▶ Modelling          │    zoom & scale bar)      │                       │
+│                      │                           │                       │
+│ [Panels] (drawer-tgl)│                           │                       │
+└──────────────────────┴───────────────────────────┴───────────────────────┘
+```
+
+The 5 atom buttons (?, 💡, ↶, ↷, 📷 = Save JPG) live in `#side-panel-toolbar`
+at the top of `#side-panel-inner`, above the search bar. The map area no
+longer carries any floating Resonate UI — only the native Leaflet zoom
+controls, scale bar, marker status rows, and the empty `map-guide-overlay`.
+
+### DOM structure (post-boot)
+
+```
+#app-layout (position: relative; display: block; overflow: hidden)
+├── #side-panel (position: absolute; top:0 left:0 bottom:0; width: 300px; box-sizing: border-box)
+│   ├── #side-panel-toggle (position: absolute; right: -14px; the « / » chevron)
+│   └── #side-panel-inner (flex column; padding 12px 14px; box-sizing: border-box; gap 4px)
+│       ├── #side-panel-toolbar (horizontal flex row of 5 icon buttons, 6px gap)
+│       │   ├── #mp-help         — ? Quick Reference (moved from #mapPanelContainer)
+│       │   ├── #mp-suggest      — 💡 Suggested Sources
+│       │   ├── #mp-undo         — ↶ Undo
+│       │   ├── #mp-redo         — ↷ Redo
+│       │   └── #mp-save-jpg     — 📷 Save JPG (label span hidden inside toolbar)
+│       ├── #mapSearchWrapper (moved here from #mapPanelContainer)
+│       ├── #mp-mapping (.mp accordion, moved here)
+│       ├── #mp-tools (.mp accordion, moved here)
+│       ├── #mp-modelling (.mp accordion, moved here)
+│       └── #side-panel-footer (margin-top: auto; border-top)
+│           └── #mp-toggle-drawer (the Expand/Panels button, moved here)
+├── #side-panel-backdrop (display: none; shown only on mobile)
+├── #map-column (position: absolute; top:0 right:0 bottom:0; left: 300px)
+│   ├── #mapInnerWrapper
+│   │   ├── #mapPanelContainer (display: none !important — empty after boot)
+│   │   ├── #mapFullscreenSidebar
+│   │   ├── #noise-map (Leaflet — only app overlay on the map canvas)
+│   │   └── #map-guide-overlay (hidden once sources exist)
+│   └── #map-status-row (bottom: 24px; left: 10px)
+└── #drawer-panel (position: absolute; top:0 right:0 bottom:0; width: 520px; unchanged)
+```
+
+### CSS variables & classes
+
+| Variable / Class | Effect |
+|---|---|
+| `--side-panel-width: 300px` | Declared on `:root`. Used by the `@media (max-width: 767px)` rule so the collapsed mobile panel retains its width for the `transform: translateX(-100%)` slide, and by `#side-panel-inner.min-width` so content stays laid out during collapse. |
+| `#side-panel.collapsed` | `width: 0; border-right: none; box-shadow: none`. Added/removed by `setCollapsed()` in the boot IIFE. |
+| `#app-layout.side-panel-collapsed` | Flips `#map-column.left` from `300px` → `0` via `#app-layout.side-panel-collapsed #map-column { left: 0 }` so the map reflows. |
+| `#drawer-panel.drawer-closed` | Pre-existing. New atom-button rule `#drawer-panel.drawer-closed ~ #map-column #mapPanelContainer { right: 10px }` moves the atom buttons flush right when the drawer is manually closed. |
+
+### Collapse / expand state machine
+
+`_resonateSidePanelBoot()` in the inline script block in `#mapInnerWrapper`:
+
+1. Creates `#side-panel`, its toggle button (`#side-panel-toggle`), an inner flex column (`#side-panel-inner`), a footer (`#side-panel-footer`), and a sibling `#side-panel-backdrop`.
+2. Moves 5 elements out of `#mapPanelContainer`: `#mapSearchWrapper`, `#mp-mapping`, `#mp-tools`, `#mp-modelling`, `#mp-toggle-drawer` (the last goes into the footer).
+3. Inserts `#side-panel` and `#side-panel-backdrop` as the first children of `#app-layout` (before `#map-column`).
+4. Defines `setCollapsed(collapsed)` which:
+   - Toggles `.side-panel-collapsed` on `#app-layout` (drives `#map-column.left`)
+   - Toggles `.collapsed` on `#side-panel` (drives `#side-panel.width`)
+   - Flips the toggle button text between `«` and `»`
+   - Writes `localStorage['sidePanelCollapsed']` = `'true'` / `'false'`
+   - Calls `window._map.invalidateSize()` so Leaflet reflows
+5. Initial state: on mobile (`matchMedia('(max-width: 767px)').matches`), force-collapse regardless of localStorage; otherwise honour the stored value. A `matchMedia('change')` listener re-collapses if the viewport crosses into mobile later.
+6. Clicking `#side-panel-backdrop` calls `setCollapsed(true)` (mobile-only — the backdrop is hidden on desktop).
+
+### Accordion mode (`.mp` + `.mp-body` inside `#side-panel`)
+
+The pre-existing `.mp` markup with its `.mp-hdr` click handler + `.mp-body` content is reused. A scoped CSS override inside `#side-panel` changes how `.mp-body` renders:
+
+| Property | Floating (inside `#mapPanelContainer`) | Accordion (inside `#side-panel`) |
+|---|---|---|
+| `position` | `absolute` | `static` |
+| Layout | Floats out from button edge | Flows inline below `.mp-hdr` |
+| `max-height` | Capped, scrollable | Unlimited — `max-height: none !important` |
+| Background | Dark card (same as `.mp`) | Translucent white tint to separate from panel |
+| Visibility | `display: none` until `.mp-open` | Same (unchanged) |
+
+The `toggleMapPanel(id)` function at [index.html:1820](../index.html:1820) detects `target.closest('#side-panel')` and, when true, simply toggles `.mp-open` on the target without closing sibling accordions (independent accordion behaviour) and without running the max-height measurement logic (which is irrelevant for inline-flowing bodies).
+
+The outside-click handler at [index.html:1857](../index.html:1857) early-returns when the click happens inside `#side-panel` — so clicking the map leaves accordion sections open.
+
+### Atom buttons — top-of-panel toolbar
+
+Five icon buttons (`#mp-help`, `#mp-suggest`, `#mp-undo`, `#mp-redo`, `#mp-save-jpg`) live inside `#side-panel-toolbar` — a horizontal flex row that's the FIRST child of `#side-panel-inner`, above the search bar. Each renders as a 36×36 (38×38 with 1px border) icon-only pill via the scoped rule at [index.html:1180ish](../index.html). The underlying DOM elements keep their original `.mp > .mp-hdr` structure so the existing click handlers (`helpToggleBtn`, `suggestToggleBtn`, `undoBtn`, `redoBtn`, `saveJpgPanelBtn`) are unchanged — only the parent container changed. `_resonateSidePanelBoot()` creates the toolbar and `appendChild`s each button into it before inserting the search wrapper and the three accordions.
+
+The `#mapPanelContainer` element is now empty (all 5 atom buttons moved out) and is set to `display: none !important`, so the map viewport has no floating Resonate UI — only Leaflet's zoom controls, scale bar, and the marker status rows that were already there.
+
+The Save JPG button was the only atom with a text label (`<span>Save JPG</span>`); inside the toolbar the span is hidden via `#side-panel-toolbar #mp-save-jpg .mp-hdr > span { display: none }` so all five buttons read as icon-only.
+
+### Mobile overlay (`@media (max-width: 767px)`)
+
+- `#side-panel` becomes `position: absolute; z-index: 1000` (above everything in the map area)
+- `#side-panel.collapsed` uses `transform: translateX(-100%); width: var(--side-panel-width)` — slide out, preserve dimensions so the slide-in feels natural
+- `#side-panel-backdrop` gains `display: block` when `#side-panel:not(.collapsed) ~ #side-panel-backdrop` matches — click it to dismiss
+- `#map-column.left` is locked to `0` regardless of `.side-panel-collapsed` — the panel overlays, never pushes
+- Atom buttons live inside the side panel now, so nothing needs to shift on mobile
+
+## Supabase-backed noise source + Rw library
+
+### Loading pipeline
+
+Four hard-coded libraries in [index.html](../index.html) are the *offline snapshot*:
+
+| Variable | Where | Record count | Shape (per record) |
+|---|---|---|---|
+| `SOURCE_LIBRARY_GROUPED` | ~line 5210 | 98 (grouped by category) | `{name, lw, spectrum[8], height}` |
+| `LINE_SOURCE_LIBRARY` | ~line 5692 | 10 | `{name, category, spectrum_unweighted{63..8000}, lw_m_dba, height_m}` |
+| `AREA_SOURCE_LIBRARY` | ~line 5790 | 5 | same shape as line sources but `lw_m2_dba` |
+| `BUILDING_LP_LIBRARY` | ~line 6646 | 12 (grouped by category) | `{name, category, lp_dba, spectrum{63..8000}}` — interior Lp inside a building, not Lw |
+| `CONSTRUCTION_LIBRARY` | ~line 5747 | 13 (walls/roof/openings) | `{name, rw, octaveR{63..8000}}` nested under 3 kind keys |
+
+On DOMContentLoaded the boot IIFE in index.html calls `window.ResonateLib.load()`, which is defined in [library-loader.js](../library-loader.js). The loader:
+
+1. Reads `window.SUPABASE_CONFIG` from [supabase-config.js](../supabase-config.js) (gitignored; template in [supabase-config.example.js](../supabase-config.example.js)). Missing / placeholder values → no-op, badge stays grey.
+2. Issues three `fetch()` calls **in parallel** with `Promise.allSettled` so a missing `reference_constructions` table (pre-migration) doesn't kill the point/line/area path:
+   - `GET /rest/v1/reference_noise_sources?select=*`
+   - `GET /rest/v1/reference_noise_source_categories?select=id,name`
+   - `GET /rest/v1/reference_constructions?select=*`
+3. 4-second AbortController timeout on each fetch.
+4. Partitions `reference_noise_sources` rows by `source_kind` ∈ {`point`, `line`, `area`, `building`} and maps each row into the app's in-memory shape. Overall `lw`/`lw_m_dba`/`lw_m2_dba`/`lp_dba` is computed client-side via A-weighted octave sum (weights `[-26.2,-16.1,-8.6,-3.2,0,1.2,1.0,-1.1]`). The `building` rows store interior Lp (not Lw); the math is identical for the broadband sum so the same `overallLwA()` helper is reused via `mapBuildingLpRow()`.
+5. Sanity check: if all three source buckets are empty, throws "empty libraries" and the catch branch keeps the offline snapshot.
+6. On success, overwrites the four `window.*` libraries in place and calls `window.rebuildAllLibraries()`.
+
+The boot IIFE then re-points the outer-scope identifiers back at the window copies (belt-and-braces for scopes where unqualified lookups might have cached the old objects) and runs `normalizeSourceLibraryNames()` on the Supabase data so the in-app "Lw XX dB(A)" name-suffix rule is still enforced.
+
+### rebuildAllLibraries()
+
+Defined in index.html immediately after the four library declarations. Calls, in order:
+
+1. `rebuildSourceLibraries()` — the pre-existing helper that merges `_customSources` from localStorage, recomputes `SOURCE_LIBRARY_ALL`, `SOURCE_LIBRARY` (non-Lmax), `SOURCE_LIBRARY_LMAX`, and the grouped non-Lmax / Lmax variants.
+2. `rebuildLineSourceGrouped()` — rebuilds `LINE_SOURCE_LIBRARY_GROUPED` from `window.LINE_SOURCE_LIBRARY`.
+3. `rebuildAreaSourceGrouped()` — same for area.
+4. `rebuildBuildingLpGrouped()` — rebuilds `BUILDING_LP_LIBRARY_GROUPED` from `window.BUILDING_LP_LIBRARY`. Used by the `#bs-lib-combo` searchable dropdown in the building source floating panel.
+5. `rebuildConstructionGrouped()` — rebuilds the `{Walls, Roof, Openings}` display-grouped shape for `window.CONSTRUCTION_LIBRARY`.
+6. `refreshAllSourceDropdowns()` if defined — the existing helper that re-populates visible source-type dropdowns without disturbing user selections.
+
+All four rebuild functions use `try/catch` wrappers so an exception in one doesn't prevent the others from running.
+
+### Status badge
+
+`#resonateLibBadge` is a clickable pill added to the `.h1` element in [index.html:1576](../index.html:1576). `library-loader.js` exposes `_updateBadge()` which colours the pill by state:
+
+| State | Colour | Text |
+|---|---|---|
+| `idle` / no config | grey | `Library: offline snapshot` |
+| `loading` | amber | `Library: loading…` |
+| `live` (Supabase hot-swap succeeded) | green | `Library: Supabase (live)` |
+| `error` (fetch failed / empty DB / timeout) | red | `Library: offline (error)` |
+
+Clicking the badge opens the admin modal.
+
+### Supabase schema extensions
+
+Run [supabase/migration.sql](../supabase/migration.sql) in Supabase Studio → SQL Editor. The file is idempotent (every `CREATE`/`ALTER`/`CREATE POLICY` is guarded via `IF NOT EXISTS` or a `DO $$ … EXCEPTION WHEN duplicate_object` block).
+
+**Extensions to `reference_noise_sources`** (an existing shared table; the extensions are additive and non-destructive for other consumers):
+- `source_kind text NOT NULL CHECK (source_kind IN ('point','line','area','building'))` — the `building` value stores interior Lp presets used by the building source panel's library dropdown
+- `height_m numeric` — source Z offset above ground (null for `building` rows)
+- `display_group text` — dropdown group label used by the UI (falls back to a pretty-printed category name when null)
+- `UNIQUE (name, source_kind)` — lets the same physical source (e.g. "Small truck driving slowly") exist as both a point preset and a line preset with different spectra
+
+**New table `reference_constructions`** — `(id uuid PK, kind text CHECK walls|roof|openings, name text, rw numeric, octave_r jsonb, notes text, UNIQUE(kind,name))` with an `updated_at` trigger.
+
+**New table `app_admins`** — `(email text PK, notes text, added_at timestamptz)`. This is the allowlist RLS checks against for writes.
+
+**RLS policies** — every library table has:
+- `anon_read` — `FOR SELECT USING (true)` — public reads via the publishable key
+- `admin_write` — `FOR ALL USING/WITH CHECK ( exists(select 1 from app_admins where email = auth.jwt() ->> 'email') )`
+
+### Seeded data
+
+The migration inserts (idempotent via `ON CONFLICT (name,source_kind) DO NOTHING`):
+- **34 Mechanical units point sources** (exhaust fans, condensers, Braemar evaporative coolers, Carrier/Daikin chillers, cooling tower, Cummins gensets, firepump) — none existed in the DB before.
+- **2 Forklift point sources** — Gas forklift & Diesel forklift "typical activity". The Electric variant already existed in the DB.
+- **1 Car wash (manual)** — already had the auto variant.
+- **10 Line sources** — Small/Medium/Large truck driving slowly + exhaust (`lw_m_dba` per metre), Car < 30 km/h, Electric/Gas/Diesel forklift driving.
+- **5 Area sources** — Light vehicle movements, Car park with trolley collection, Restaurant/cafe outdoor area, General loading/unloading, General construction.
+- **12 Building Lp presets** (`source_kind='building'`) — interior Lp spectra for Gymnasium (general/amplified), Restaurant/café, Bar/pub (live music), Nightclub, Workshop (light/heavy), Warehouse forklift, Childcare indoor play, Church amplified service, Office open plan, Supermarket. Used by the `BUILDING_LP_LIBRARY` dropdown in the building source panel.
+- **13 Rw records in `reference_constructions`** — 5 walls, 3 roof, 5 openings (values sourced from the pre-existing `CONSTRUCTION_LIBRARY` literal).
+
+Also: fixes the pre-existing `Gynmasium` → `Gymnasium` typo in `reference_noise_sources` and backfills `display_group` for all 81 pre-existing rows based on their current `category_id` so they group cleanly in the app's dropdown.
+
+### Admin UI (magic-link)
+
+[supabase-admin.js](../supabase-admin.js) wires a click handler onto `#resonateLibBadge`. Flow:
+
+1. **No token** → modal shows an email input + "Send magic link" button. `POST /auth/v1/otp` with `{email, create_user:false, email_redirect_to: location}` sends the OTP.
+2. **Magic link click** → user lands back on the app with `#access_token=...&expires_in=...&type=magiclink&...`. `consumeHashTokens()` parses the fragment, decodes the JWT payload for `email`, stores `{token, email, expiresAt}` in `sessionStorage` under key `resonate_admin_session`, then `history.replaceState` clears the hash so a refresh doesn't re-consume it.
+3. **Signed in** → the modal auto-opens (one-shot flag `resonate_admin_opened_after_login`) and shows a 5-tab browser (Point / Line / Area / **Building Lp** / Construction). Each tab is driven by a `LIB_SPECS` entry declaring the REST table, filter, list columns, form fields, field defaults, and which octave keys to use. The Building Lp tab filters `reference_noise_sources` by `source_kind=eq.building` and exposes name, dropdown group, source citation, plus the same 8 octave-band inputs as point sources (representing interior Lp instead of Lw).
+4. **CRUD operations** use plain `fetch()` against PostgREST with `Authorization: Bearer ${access_token}`. Writes that RLS rejects (email not in `app_admins`) surface as `HTTP 403` in the form's error box. After any successful write, the loader re-fetches and `rebuildAllLibraries()` re-populates live dropdowns.
+5. **Sign out** clears both the in-memory `authState` and `sessionStorage`.
+
+The session key is stored in `sessionStorage` (not `localStorage`) so closing the tab forces re-authentication. No refresh-token flow — when the hour-ish access token expires, the next write fails with 401 and the user re-logs-in.
+
+### Files
+
+| File | Purpose |
+|---|---|
+| [supabase-config.js](../supabase-config.js) | Local project URL + publishable key (gitignored) |
+| [supabase-config.example.js](../supabase-config.example.js) | Committed template with placeholder values |
+| [library-loader.js](../library-loader.js) | Fetch + map + hot-swap + badge |
+| [supabase-admin.js](../supabase-admin.js) | Magic-link auth + CRUD modal |
+| [supabase/migration.sql](../supabase/migration.sql) | One-shot schema + RLS + seed SQL to paste into Supabase Studio |
+| [.gitignore](../.gitignore) | Excludes `supabase-config.js` from commits |
+
 ## UI Layout — Empty states, initial collapse, and map guide overlay
 
 ### Initial collapse state
@@ -133,17 +681,18 @@ body.insertBefore(appLayout, pdfArea);
 
 ### Methodology access
 
-The Methodology panel is a `<div class="card" id="methodologyCard">` containing ~24 sections of acoustic methodology reference (propagation, barrier diffraction, terrain screening, conformity, data sources, etc.). It's default-collapsed by `initCollapse()` (which adds a `.card-body.collapsed` wrapper on init based on the `DEFAULT_COLLAPSED` heading list).
+The Methodology panel is a `<div class="card" id="methodologyCard">` containing ~24 sections of acoustic methodology reference (propagation, barrier diffraction, terrain screening, conformity, data sources, etc.). The card is still appended to `#drawer-content` (so PDF export and the modal clone path can read it) but is set to `style="display:none"` immediately after being moved there — it is no longer visible when scrolling the RHS drawer, and there is no longer a `Methodology` tab in the jump nav (the `groups` array in `initJumpNav` only contains Setup / Criteria / Sources / Results, and `_insertAllGroupAnchors` no longer inserts `#group-methodology`).
 
-Two access paths:
+Access is via `#side-panel-methodology-btn` in `#side-panel-footer` (LHS side panel, directly under the Show/Hide-assessment-panel drawer toggle). The button is created in `_resonateSidePanelBoot` and on click calls `showMethodologyModal()`, which:
 
-1. **Header button** `#headerMethodologyBtn` — on click:
-   - Opens the drawer via `window._setDrawerOpen(true)` if closed
-   - Waits 350 ms for the drawer slide-in
-   - Removes the `collapsed` class from the card body and flips the `.collapse-btn` glyph to ▲ (so the card expands)
-   - Calls `window._scrollDrawerTo('group-methodology')` to smooth-scroll the drawer to the card
+1. Removes any existing `#methodologyModal` in the DOM (idempotent).
+2. Reads `#methodologyCard.innerHTML` (the card stays in place; this is a clone via `insertAdjacentHTML`, not a move).
+3. Builds a full-viewport fixed backdrop at `z-index:10000` containing a centred white 800 px-max box with `max-height:85vh`, `overflow-y:auto`, and a sticky top-right `×` close button.
+4. Wires close on × click, backdrop click, and `Escape` key (the keydown handler is registered once and self-removes after firing).
 
-2. **Jump nav 6th button** "Methodology" — just calls `window._scrollDrawerTo('group-methodology')` via the standard scroll-to-anchor handler. Does NOT auto-expand — the jump nav is for navigation, not content expansion. The scroll spy highlights this button when the drawer scrolls to the methodology section.
+The function is exposed on `window.showMethodologyModal` so any future caller can reuse it. Because the card's HTML is only cloned (not moved), the original `#methodologyCard` in the hidden drawer position remains intact — `initCollapse()` has already wrapped its sections before the modal ever opens, so the cloned DOM displays with the same collapsed-by-default section state.
+
+`#side-panel.collapsed #side-panel-methodology-btn { display: none }` hides the button while the side panel is in its collapsed state (matching the other footer controls).
 
 ### Pre-existing Phase 1 drawer bug — GIS Export + Methodology stranded
 
@@ -171,10 +720,13 @@ if (pdfArea) {
   });
 }
 var methCardEl = document.getElementById('methodologyCard');
-if (methCardEl) drawerContent.appendChild(methCardEl);
+if (methCardEl) {
+  drawerContent.appendChild(methCardEl);
+  methCardEl.style.display = 'none';
+}
 ```
 
-GIS Export lands in the Export group (after pdfBtn / recommendationsCard). Methodology is appended LAST so it sits as the final drawer panel, anchored by `#group-methodology` for the 6th jump-nav button and the header Methodology button.
+GIS Export lands in the Export group (after pdfBtn / recommendationsCard). Methodology is appended to `#drawer-content` but immediately hidden — it has no jump-nav entry and no anchor. The card stays in the drawer DOM only so `showMethodologyModal()` can clone its innerHTML and PDF export can still read it; it is accessed exclusively via `#side-panel-methodology-btn` in the LHS side panel footer (see *Methodology access* above).
 
 ## UI Layout — Map toolbar row consolidation
 
@@ -211,7 +763,7 @@ Set in the Phase 1 IIFE by calling `mapPanelContainer.appendChild(el)` in this o
 7. `#mp-redo` — Redo button
 8. `#mp-modelling` — Noise map controls dropdown
 9. `#mp-save-jpg` — Save JPG button
-10. `#mp-toggle-drawer` (`#drawerPanelBtn`) — Expand/Panels drawer toggle. Wraps the old `#mapMaximiseBtn` SVG icon + `#mapMaximiseBtnLabel` span in a `.mp > .mp-hdr` shell. Click handler calls `window.toggleMapFullscreen()` which in turn calls `window._setDrawerOpen(!isOpen)`. `setDrawerOpen()` writes the label text (`Expand` when drawer open, `Panels` when closed).
+10. `#mp-toggle-drawer` (`#drawerPanelBtn`) — Show/Hide assessment panel drawer toggle. Wraps the old `#mapMaximiseBtn` SVG icon + `#mapMaximiseBtnLabel` span in a `.mp > .mp-hdr` shell. Click handler calls `window.toggleMapFullscreen()` which in turn calls `window._setDrawerOpen(!isOpen)`. `setDrawerOpen()` writes the label text (`Hide assessment panel` when drawer open, `Show assessment panel` when closed). Drawer defaults to collapsed on fresh page load.
 
 ### Search bar inside the toolbar
 
@@ -291,9 +843,9 @@ The three biggest menus (Tools with ~23 items, Mapping, Modelling) scroll intern
 
 Moved to the bottom-left of the map so it doesn't clip toolbar dropdowns. The Leaflet attribution strip sits at bottom-right and no `L.control.scale` is configured, so bottom-left is clear.
 
-### Expand/Panels button in toolbar
+### Show/Hide assessment panel button in toolbar
 
-The Phase 4 `#drawerPanelBtn` / `#mp-toggle-drawer` wrapper remains in the toolbar as the LAST item (after Save JPG). It reuses the SVG icon and label span that originally belonged to the hidden `#mapCard`'s `#mapMaximiseBtn`. Click handler calls `window.toggleMapFullscreen()` which delegates to `window._setDrawerOpen(!isOpen)`. `setDrawerOpen()` syncs the label: "Expand" when the drawer is open (click to close), "Panels" when closed (click to re-open). Both this button and the drawer's own edge triangle (`#drawer-toggle`) work — they're kept as parallel discovery surfaces.
+The Phase 4 `#drawerPanelBtn` / `#mp-toggle-drawer` wrapper remains in the toolbar as the LAST item (after Save JPG). It reuses the SVG icon and label span that originally belonged to the hidden `#mapCard`'s `#mapMaximiseBtn`. Click handler calls `window.toggleMapFullscreen()` which delegates to `window._setDrawerOpen(!isOpen)`. `setDrawerOpen()` syncs the label: "Hide assessment panel" when the drawer is open (click to close), "Show assessment panel" when closed (click to re-open). The drawer defaults to collapsed on fresh page load so the map is unobstructed until the user opts in. Both this button and the drawer's own edge triangle (`#drawer-toggle`) work — they're kept as parallel discovery surfaces.
 
 ## UI Layout — Phase 4: Expand button cleanup + Esc priority + responsive fallback
 
@@ -302,7 +854,7 @@ The Phase 4 `#drawerPanelBtn` / `#mp-toggle-drawer` wrapper remains in the toolb
 - `#mapMaximiseBtn` (the old "Expand" button) was originally in `#mapCard`'s card header, which is hidden in Phase 1. During the Phase 1 IIFE it is now physically moved into `#mapPanelContainer` (the top-right map toolbar) and wrapped in a new `.mp#mp-toggle-drawer > .mp-hdr#drawerPanelBtn` structure so it visually matches Save JPG, Mapping, Tools, and Modelling.
 - Inline `onclick="toggleMapFullscreen()"` is removed; a click listener is attached to the new `.mp-hdr` wrapper calling `window.toggleMapFullscreen()`.
 - `window.toggleMapFullscreen()` is rewritten: it now calls `window._setDrawerOpen(!drawer.classList.contains('drawer-open'))`. The old `_enter()` / `_exit()` helpers and the `.map-fullscreen` CSS remain in the file as dead code (no call sites) to minimise risk — they can be removed in a later cleanup pass.
-- Button label syncs with drawer state inside `setDrawerOpen()`: `#mapMaximiseBtnLabel` shows `Expand` when the drawer is open and `Panels` when it's closed.
+- Button label syncs with drawer state inside `setDrawerOpen()`: `#mapMaximiseBtnLabel` shows `Hide assessment panel` when the drawer is open and `Show assessment panel` when it's closed. The drawer initialises collapsed on fresh page load (opens only if `resonate_drawer_open === 'true'` in localStorage).
 - The `E` keyboard shortcut continues to call `toggleMapFullscreen()` — it now toggles the drawer.
 
 ### Esc key priority chain
@@ -468,12 +1020,58 @@ The page loads with the original HTML structure intact, then an inline `<script>
 
 | Key | Values | Purpose |
 |-----|--------|---------|
-| `resonate_drawer_open` | `"true"` / `"false"` | Persists drawer open/closed state (default: open) |
+| `resonate_drawer_open` | `"true"` / `"false"` | Persists drawer open/closed state (default: collapsed — only opens if value is exactly `"true"`) |
 | `resonate_disclaimer_accepted` | `"true"` | Hides disclaimer banner on subsequent visits |
 
 ### Keyboard shortcut
 
 - `]` — Toggles drawer open/closed (ignored when focus is in input/select/textarea)
+
+## Hotkey reference
+
+The global keyboard shortcut switch lives at [`index.html:34233`](../index.html:34233). All cases are gated by an early return when `e.target.tagName` is `INPUT`/`TEXTAREA`/`SELECT` or when the element is `contentEditable`, and by a second early return when any of `ctrlKey`/`metaKey`/`altKey` is down (so that `Ctrl+Z` / `Ctrl+Y` continue to be handled by the undo manager at [`index.html:19455`](../index.html:19455)).
+
+### Full hotkey table
+
+| Key | Action | Target element / handler | Notes |
+|-----|--------|--------------------------|-------|
+| `P` | Place point source | `mapMode-addSource` | |
+| `L` | Draw line source | `drawLineSourceBtn` | |
+| `A` | Draw area source | `drawAreaSourceBtn` | |
+| `K` | Draw building source | `drawBuildingSourceBtn` | |
+| `1` / `2` / `3` / `4` | Place Receiver 1–4 | `mapMode-r1` … `mapMode-r4` | |
+| `B` | Draw barrier | `drawBarrierBtn` | |
+| `N` | Draw new building | `drawBuildingBtn` | |
+| `G` | Draw ground absorption zone | `drawGroundZoneBtn` | |
+| `T` | Toggle terrain | `terrainToggleBtn` | |
+| `C` | Toggle terrain contours | `terrainContourBtn` | requires Terrain ON |
+| `O` | Toggle OSM buildings layer | `buildingsToggleBtn` | |
+| `F` | Toggle reflections | `reflectionsBtn` | ISO 9613-2 §7.5 |
+| `R` | Ruler (distance measure) | `rulerBtn` | |
+| `W` | Toggle CoRTN road-draw mode | `drawCortnRoadBtn` | UK CoRTN method with Australian adjustments; `W` = "Way" |
+| `M` | Toggle noise map | `noiseMapBtn` | |
+| `H` | Show/hide all modelling objects | `pinsToggleBtn` | |
+| `Z` | Toggle zoning overlay | `zoneToggleBtn` | |
+| `S` | Focus map search input | `mapSearchInput` | focuses + selects |
+| `E` | Maximise/restore map | `toggleMapFullscreen()` | also toggles the drawer |
+| `?` | Open keyboard/help panel | `helpToggleBtn` | |
+| `]` | Toggle assessment drawer open/closed | `drawerPanel` | capture-phase handler at [`index.html:3848`](../index.html:3848) |
+| `Esc` | Exit fullscreen / close drawer / close source panel / hide context menu / cancel area-source edit / cancel line-source edit | multiple | multiple listeners; drawer Esc at [`index.html:3859`](../index.html:3859) runs in capture phase so it fires first |
+| `Delete` | Delete the currently-selected barrier | `_selectedBarrier` | only when a barrier popup is open and `_drawingActive` is false |
+| `Enter` | Submit search / confirm receiver-height input | `mapSearchInput`, per-receiver height `<input>`s | |
+| `Ctrl+Z` / `Cmd+Z` | Undo | undo manager at [`index.html:19455`](../index.html:19455) | |
+| `Ctrl+Shift+Z` / `Cmd+Shift+Z` / `Ctrl+Y` / `Cmd+Y` | Redo | undo manager | |
+
+### Orphan UI hints (button shows a `<span class="mp-kbd">` but no handler is wired)
+
+These are pre-existing reservations in the Mapping panel at [`index.html:2082`](../index.html:2082) that were never wired into the global switch. They are surfaced here so that any future hotkey assignment avoids silent conflicts with the visual promise to users, and so that the hints can be wired up (or relabelled) in a future pass.
+
+| Key | Reserved for | Button |
+|-----|--------------|--------|
+| `D` | Cadastral layer | `cadastreToggleBtn` |
+| `I` | Aerial imagery layer | `aerialToggleBtn` |
+| `U` | Urban area boundary | `urbanBoundaryToggleBtn` |
+| `X` | MBS 010 screening overlay | `mbs010ToggleBtn` |
 
 ### Map invalidation
 

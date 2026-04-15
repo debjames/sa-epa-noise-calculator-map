@@ -146,6 +146,56 @@ var SharedCalc = (function() {
     return Agr;
   }
 
+  /**
+   * ISO 9613-2 §7.4 ground attenuation for the barrier case.
+   * When a barrier is present, Agr is recomputed along two sub-paths:
+   *   source → barrier top, and barrier top → receiver.
+   * The barrier top acts as a pseudo-receiver / pseudo-source at height hBar.
+   * Agr_bar = As_subpath1 + Ar_subpath2 (summed per band).
+   *
+   * @param {number} hS - source height (m)
+   * @param {number} hR - receiver height (m)
+   * @param {number} dp - total (unobstructed) propagation distance (m); unused when sub-paths are provided but retained for fallback
+   * @param {number|object} G - ground factor (scalar or {Gs, Gr, Gm})
+   * @param {object} barrierInfo - { d1, d2, hBar } horizontal sub-path distances and barrier top height above ground
+   * @returns {number[]} 8-band Agr_bar for the barrier-modified path
+   */
+  function calcAgrBarrier(hS, hR, dp, G, barrierInfo) {
+    if (!barrierInfo || !(barrierInfo.d1 > 0) || !(barrierInfo.d2 > 0)) {
+      // No usable sub-path geometry — fall back to unobstructed Agr
+      return calcAgrPerBand(hS, hR, dp, G);
+    }
+
+    var Gs, Gr, Gm;
+    if (typeof G === 'object' && G !== null) {
+      Gs = (G.Gs != null) ? G.Gs : 0.5;
+      Gr = (G.Gr != null) ? G.Gr : 0.5;
+      Gm = (G.Gm != null) ? G.Gm : 0.5;
+    } else {
+      Gs = Gr = Gm = (G != null) ? G : 0.5;
+    }
+
+    var d1 = barrierInfo.d1;
+    var d2 = barrierInfo.d2;
+    var hBar = Math.max(barrierInfo.hBar || 0, 0.01);
+
+    // Source-side sub-path: source at hS, "receiver" at barrier top (hBar),
+    // distance d1. Source region uses Gs; the remote end of this sub-path
+    // is the barrier itself — use Gm for the pseudo-receiver region since
+    // the ground near the barrier is part of the middle region.
+    var Agr_src = calcAgrPerBand(hS, hBar, d1, { Gs: Gs, Gr: Gm, Gm: Gm });
+
+    // Receiver-side sub-path: "source" at barrier top (hBar), receiver at hR,
+    // distance d2. Pseudo-source region uses Gm; real receiver region uses Gr.
+    var Agr_rec = calcAgrPerBand(hBar, hR, d2, { Gs: Gm, Gr: Gr, Gm: Gm });
+
+    var Agr_bar = [];
+    for (var i = 0; i < 8; i++) {
+      Agr_bar.push(Agr_src[i] + Agr_rec[i]);
+    }
+    return Agr_bar;
+  }
+
   /** ISO 9613-1 atmospheric absorption coefficients (dB/km) per octave band. */
   function calcAlphaAtm(tempC, humPct) {
     // No shortcut — always compute from formula for accuracy
@@ -476,6 +526,8 @@ var SharedCalc = (function() {
       intersection: best.intersection,
       barrierHeightM: barrierH,
       baseHeightM: baseH,
+      d1: d1,
+      d2: d2,
       pathLengthDiff: delta,
       gapPathLengthDiff: gapDelta,
       rayInGap: rayInGap,
@@ -539,8 +591,16 @@ var SharedCalc = (function() {
    * @param {number} barrierDelta - over-top path length difference (m)
    * @param {number} [endDeltaLeft=0] - horizontal δ around left end (m)
    * @param {number} [endDeltaRight=0] - horizontal δ around right end (m)
+   * @param {object} [barrierInfo] - { d1, d2, hBar } for ISO 9613-2 §7.4 sub-path ground effect.
+   *   When provided, Agr is recomputed for source→barrier and barrier→receiver sub-paths
+   *   instead of the full unobstructed path.
+   * @param {number[]} [terrainILPerBand] - 8-element array of per-band terrain diffraction
+   *   IL (dB) from the Deygout multi-edge method. When provided, terrain IL is combined
+   *   with the building/barrier screen per-band via max(Abar, Aterr) and then combined
+   *   with Agr the same way Abar is — so terrain screening participates in ISO 9613-2
+   *   Formula (12) without double-counting ground effect.
    */
-  function calcISOatPoint(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight) {
+  function calcISOatPoint(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand) {
     if (!spectrum || distM <= 0) return NaN;
     var d = Math.max(distM, 1);
     var hS = Math.max(srcHeight, 0.01);
@@ -548,7 +608,8 @@ var SharedCalc = (function() {
     var params = isoParams || {};
     var alpha = calcAlphaAtm(params.temperature || 10, params.humidity || 70);
     var Adiv = 20 * Math.log10(d) + 11;
-    var Agr = calcAgrPerBand(hS, hR, d, params.groundFactor != null ? params.groundFactor : 0.5);
+    var gFactor = (params.groundFactor != null) ? params.groundFactor : 0.5;
+    var Agr = calcAgrPerBand(hS, hR, d, gFactor);
 
     // Use combined barrier attenuation (over-top + end diffraction) if end deltas provided
     var Abar;
@@ -558,12 +619,17 @@ var SharedCalc = (function() {
       Abar = calcBarrierAttenuation(barrierDelta || 0, OCT_FREQ);
     }
 
-    // Per ISO 9613-2 Formula (12) and ISO/TR 17534-3 §5.5:
-    // When barrier is present, Abar replaces Agr (not added to it).
-    // Total attenuation = Adiv + Aatm + max(Abar, Agr).
-    // When Agr < 0 (reflecting ground) and barrier is present, clamp Agr to 0
-    // to prevent spurious gain from removing ground reflection bonus.
+    // ISO 9613-2 §7.4: Abar is an insertion loss, Abar = max(Dz - Agr, 0).
+    // Combined AgrBar = Agr + Abar = max(Dz, Agr) per-band.
+    // When barrierInfo supplies sub-path geometry, Agr is recomputed along
+    // source→barrier and barrier→receiver sub-paths (Agr_bar). Otherwise we
+    // fall back to the unobstructed-path Agr (conservative approximation).
     var hasBarrier = (barrierDelta || 0) > 0 || (endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0;
+    var hasTerrain = !!(terrainILPerBand && terrainILPerBand.length === 8);
+    var Agr_bar = null;
+    if (hasBarrier && barrierInfo && barrierInfo.d1 > 0 && barrierInfo.d2 > 0) {
+      Agr_bar = calcAgrBarrier(hS, hR, d, gFactor, barrierInfo);
+    }
 
     var sumLin = 0;
     var anyBand = false;
@@ -571,12 +637,19 @@ var SharedCalc = (function() {
       var Lw_f = spectrum[i];
       if (Lw_f === null || Lw_f === undefined || !isFinite(Lw_f)) continue;
       var Aatm_f = alpha[i] * d; // alpha is in dB/m, d is in metres
+      // Per-band screen = max(barrier IL, terrain IL). Terrain and buildings
+      // are parallel diffraction paths — the dominant one determines the
+      // effective insertion loss.
+      var Aterr_f = hasTerrain ? (terrainILPerBand[i] > 0 ? terrainILPerBand[i] : 0) : 0;
+      var Abar_f = hasBarrier ? Abar[i] : 0;
+      var Ascreen_f = Abar_f > Aterr_f ? Abar_f : Aterr_f;
       var AgrBar_f;
-      if (hasBarrier && Abar[i] > 0) {
-        // ISO 9613-2 Formula (12): Abar replaces Agr when barrier is dominant
-        // Per §5.5: clamp Agr to 0 when negative (reflecting ground)
-        var AgrClamped = Math.max(Agr[i], 0);
-        AgrBar_f = Math.max(Abar[i], AgrClamped);
+      if (Ascreen_f > 0) {
+        // §7.4 insertion loss form: combined AgrBar = max(Dz, Agr_subpath)
+        // When Dz > 0 the max() already prevents Agr<0 from yielding spurious
+        // gain — no explicit clamp is needed.
+        var AgrForBar = Agr_bar ? Agr_bar[i] : Agr[i];
+        AgrBar_f = Math.max(Ascreen_f, AgrForBar);
       } else {
         AgrBar_f = Agr[i];
       }
@@ -593,7 +666,7 @@ var SharedCalc = (function() {
    * Same calculation as calcISOatPoint but returns full breakdown for §5.2.2 compliance.
    * @returns {object} { total, bands: [{ freq, Lw, Adiv, Aatm, Agr, Abar, AgrBar, Lp, LA }] }
    */
-  function calcISOatPointDetailed(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight) {
+  function calcISOatPointDetailed(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand) {
     if (!spectrum || distM <= 0) return null;
     var d = Math.max(distM, 1);
     var hS = Math.max(srcHeight, 0.01);
@@ -601,7 +674,8 @@ var SharedCalc = (function() {
     var params = isoParams || {};
     var alpha = calcAlphaAtm(params.temperature || 10, params.humidity || 70);
     var Adiv = 20 * Math.log10(d) + 11;
-    var Agr = calcAgrPerBand(hS, hR, d, params.groundFactor != null ? params.groundFactor : 0.5);
+    var gFactor = (params.groundFactor != null) ? params.groundFactor : 0.5;
+    var Agr = calcAgrPerBand(hS, hR, d, gFactor);
 
     var Abar;
     if ((endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0) {
@@ -611,20 +685,31 @@ var SharedCalc = (function() {
     }
 
     var hasBarrier = (barrierDelta || 0) > 0 || (endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0;
+    var hasTerrain = !!(terrainILPerBand && terrainILPerBand.length === 8);
+    var Agr_bar = null;
+    if (hasBarrier && barrierInfo && barrierInfo.d1 > 0 && barrierInfo.d2 > 0) {
+      Agr_bar = calcAgrBarrier(hS, hR, d, gFactor, barrierInfo);
+    }
     var bands = [];
     var sumLin = 0;
 
     for (var i = 0; i < 8; i++) {
       var Lw_f = spectrum[i];
+      var Aterr_f_d = hasTerrain ? (terrainILPerBand[i] > 0 ? terrainILPerBand[i] : 0) : 0;
       if (Lw_f === null || Lw_f === undefined || !isFinite(Lw_f)) {
-        bands.push({ freq: OCT_FREQ[i], Lw: NaN, Adiv: Adiv, Aatm: 0, Agr: Agr[i], Abar: Abar[i], AgrBar: 0, Lp: NaN });
+        bands.push({ freq: OCT_FREQ[i], Lw: NaN, Adiv: Adiv, Aatm: 0, Agr: Agr[i], Abar: Abar[i], Aterr: Aterr_f_d, AgrBar: 0, Lp: NaN });
         continue;
       }
       var Aatm_f = alpha[i] * d;
+      // Per-band screen = max(barrier IL, terrain IL).
+      var Abar_f_d = hasBarrier ? Abar[i] : 0;
+      var Ascreen_f_d = Abar_f_d > Aterr_f_d ? Abar_f_d : Aterr_f_d;
       var AgrBar_f;
-      if (hasBarrier && Abar[i] > 0) {
-        var AgrClamped = Math.max(Agr[i], 0);
-        AgrBar_f = Math.max(Abar[i], AgrClamped);
+      if (Ascreen_f_d > 0) {
+        // ISO 9613-2 §7.4: AgrBar = max(Dz, Agr_subpath); clamp not needed
+        // because Dz > 0 already dominates any negative Agr contribution.
+        var AgrForBar = Agr_bar ? Agr_bar[i] : Agr[i];
+        AgrBar_f = Math.max(Ascreen_f_d, AgrForBar);
       } else {
         AgrBar_f = Agr[i];
       }
@@ -636,8 +721,9 @@ var SharedCalc = (function() {
         Lw: Lw_f + (adjDB || 0),
         Adiv: Adiv,
         Aatm: Aatm_f,
-        Agr: Agr[i],
+        Agr: Agr_bar ? Agr_bar[i] : Agr[i],
         Abar: Abar[i],
+        Aterr: Aterr_f_d,
         AgrBar: AgrBar_f,
         Lp: Lp_f
       });
@@ -783,6 +869,7 @@ var SharedCalc = (function() {
     OCT_FREQ: OCT_FREQ,
     ALPHA_DEFAULT: ALPHA_DEFAULT,
     calcAgrPerBand: calcAgrPerBand,
+    calcAgrBarrier: calcAgrBarrier,
     calcAlphaAtm: calcAlphaAtm,
     calcBarrierAttenuation: calcBarrierAttenuation,
     calcISOatPoint: calcISOatPoint,
@@ -800,7 +887,369 @@ var SharedCalc = (function() {
   };
 })();
 
+/* ═════════════════════════════════════════════════════════════════════════════
+ * SharedCortn — CoRTN Road Traffic Noise (UK DoT 1988) with Australian
+ * adjustments.  Pure, state-free implementation shared between the main thread
+ * (index.html) and the cortn-worker.js grid worker added in Phase 5.
+ *
+ * The formulas MUST stay identical to the reference implementation documented
+ * in references/calculations.md §CoRTN.  Do not simplify or rearrange any
+ * correction step.  The main-thread wrappers in index.html delegate to this
+ * namespace so there is only ONE copy of the math.
+ * ═════════════════════════════════════════════════════════════════════════════ */
+var SharedCortn = (function() {
+
+  /* ── CoRTN Charts 9 + 9a — polynomial barrier diffraction ───────────────── */
+  function cortnCalculateBarrier(road, recv_h) {
+    var b = road && road.barrier;
+    if (!b || !b.enabled) return { applied: false };
+
+    var sourceRL   = (road.roadHeight_m || 0) + 0.5;        // standard 0.5 m source height per spec
+    var barrierRL  = (b.baseRL_m || 0) + (b.height_m || 0);
+    var receiverRL = recv_h;
+    var srcToBarrier = (road.distFromKerb_m || 0) + 3.5 - (b.distToBarrier_m || 0);
+    if (!(srcToBarrier > 0) || !isFinite(srcToBarrier)) {
+      return { applied: false, error: 'Receiver-to-barrier distance is ≥ source line (barrier behind source).' };
+    }
+
+    var rToB = b.distToBarrier_m || 0;
+    var term_rb = Math.sqrt(rToB * rToB + Math.pow(barrierRL - receiverRL, 2));
+    var term_sb = Math.sqrt(srcToBarrier * srcToBarrier + Math.pow(barrierRL - sourceRL, 2));
+    var term_sr = Math.sqrt(Math.pow(rToB + srcToBarrier, 2) + Math.pow(receiverRL - sourceRL, 2));
+    var delta = term_rb + term_sb - term_sr;
+    if (!isFinite(delta) || delta <= 0) {
+      return { applied: false, error: 'Path difference is zero or invalid — no barrier screening.' };
+    }
+
+    var losHeightAtBarrier = (receiverRL - sourceRL) * srcToBarrier / (rToB + srcToBarrier) + sourceRL;
+    var zone = (barrierRL >= losHeightAtBarrier) ? 'Shadow' : 'Illuminated';
+
+    var x = Math.log10(delta);
+    var atten;
+    if (zone === 'Shadow') {
+      if (x < -3)       atten = -5;
+      else if (x > 1.2) atten = -30;
+      else {
+        atten = -15.4
+              + (-8.26) * x
+              + (-2.787) * Math.pow(x, 2)
+              + (-0.831) * Math.pow(x, 3)
+              + (-0.198) * Math.pow(x, 4)
+              +  0.1539  * Math.pow(x, 5)
+              +  0.12248 * Math.pow(x, 6)
+              +  0.02175 * Math.pow(x, 7);
+      }
+    } else {
+      atten = 0
+            +  0.109  * x
+            + (-0.815) * Math.pow(x, 2)
+            +  0.479  * Math.pow(x, 3)
+            +  0.3284 * Math.pow(x, 4)
+            +  0.04385 * Math.pow(x, 5);
+    }
+    atten = Math.round(atten * 10) / 10;
+
+    var corr_ground_barrier = (zone === 'Shadow') ? 0 : null;
+
+    return {
+      applied: true,
+      atten: atten,
+      delta: delta,
+      x: x,
+      zone: zone,
+      srcToBarrier: srcToBarrier,
+      sourceRL: sourceRL,
+      barrierRL: barrierRL,
+      receiverRL: receiverRL,
+      corr_ground_barrier: corr_ground_barrier
+    };
+  }
+
+  /* ── CoRTN free-field correction chain (Chart 2 → LA10/LAeq) ────────────── */
+  function calcCortnFreeField(road, period, overrides) {
+    overrides = overrides || {};
+    var aadt = Number(road.aadt);
+    if (!isFinite(aadt) || aadt <= 0) {
+      return { la10: null, laeq: null, breakdown: { error: 'AADT is 0 or missing' } };
+    }
+
+    // A. Traffic flow for period
+    var aadtPct       = (period === 'day') ? road.aadtPctDay  : (road.aadtPctNight != null ? road.aadtPctNight : (1 - road.aadtPctDay));
+    var hoursInPeriod = (period === 'day') ? road.dayHours    : road.nightHours;
+    var rawCvPct      = (period === 'day') ? road.cv_pct_day  : road.cv_pct_night;
+
+    var flowFrac  = (overrides.flowFrac != null) ? overrides.flowFrac : 1;
+    var totalFlow = aadt * aadtPct * flowFrac;
+    if (hoursInPeriod <= 0) {
+      return { la10: null, laeq: null, breakdown: { error: 'Invalid hours in period' } };
+    }
+    var hourlyFlow = totalFlow / hoursInPeriod;
+    if (hourlyFlow <= 0) {
+      return { la10: null, laeq: null, breakdown: { error: 'Hourly flow <= 0' } };
+    }
+
+    var cvPct = (overrides.cvPctSpeedCorr != null) ? overrides.cvPctSpeedCorr : rawCvPct;
+
+    // B. Basic noise level
+    var L_basic = 42.2 + 10 * Math.log10(hourlyFlow);
+
+    // C. Speed correction
+    var gradientTerm = (0.73 + (2.3 - 1.15 * cvPct / 100) * cvPct / 100) * road.gradient_pct;
+    var V_adj = road.speed_kmh - Math.round(gradientTerm * 10) / 10;
+    if (V_adj < 1) V_adj = 1;
+
+    var corr_speed = 33 * Math.log10(V_adj + 40 + 500 / V_adj)
+                   + 10 * Math.log10(1 + 5 * cvPct / V_adj)
+                   - 68.8;
+
+    // D. Gradient correction
+    var corr_gradient = 0.3 * road.gradient_pct;
+
+    // E. Distance correction
+    var sourceH = (overrides.sourceHeight_m != null) ? overrides.sourceHeight_m : 0.5;
+    var distOffset = overrides.distOffset || 0;
+    var recv_h = (road.receiverHeight_m != null) ? road.receiverHeight_m : 1.5;
+    var d_horiz = road.distFromKerb_m + distOffset + 3.5;
+    var dz = recv_h - sourceH - (road.roadHeight_m || 0);
+    var d_slant = Math.sqrt(d_horiz * d_horiz + dz * dz);
+    if (d_slant < 0.1) d_slant = 0.1;
+    var corr_distance = -10 * Math.log10(d_slant / 13.5);
+
+    // F. Ground absorption correction
+    var abs = road.groundAbsorption || 0;
+    var G;
+    if (abs < 0.1)      G = 0;
+    else if (abs < 0.4) G = 0.25;
+    else if (abs < 0.6) G = 0.5;
+    else if (abs < 0.9) G = 0.75;
+    else                G = 1;
+
+    var H = road.meanPropHeight_m;
+    var d_ground = d_horiz;
+    var corr_ground;
+    if (H >= (d_ground + 5) / 6) {
+      corr_ground = 0;
+    } else if (H < 0.75) {
+      corr_ground = 5.2 * G * Math.log10(3 / d_ground);
+    } else {
+      corr_ground = 5.2 * G * Math.log10((6 * H - 1.5) / d_ground);
+    }
+
+    // G. Angle of view correction
+    var angleOfView = road.angleOfView_deg > 0 ? road.angleOfView_deg : 180;
+    var corr_angle = 10 * Math.log10(angleOfView / 180);
+
+    // H. Reflection correction
+    var corr_reflection = 1.5 * (road.reflectionAngle_deg || 0) / angleOfView;
+
+    // I. Road surface correction
+    var applySurface = overrides.applySurface !== false;
+    var corr_surface = applySurface ? (road.surfaceCorrection || 0) : 0;
+
+    // J. Low volume correction (LA10 only)
+    var d_prime = Math.sqrt(d_horiz * d_horiz + Math.pow(recv_h - sourceH, 2));
+    if (d_prime < 0.1) d_prime = 0.1;
+    var D = 30 / d_prime;
+    var C = hourlyFlow / 200;
+    var corr_lowVol = 0;
+    var lowVolWarning = false;
+    if (D <= 1 || C >= 1) {
+      corr_lowVol = 0;
+    } else if (D <= 4 || C >= 0.25) {
+      corr_lowVol = -16.6 * Math.log10(D) * Math.pow(Math.log10(C), 2);
+    } else {
+      corr_lowVol = 0;
+      lowVolWarning = true;
+    }
+
+    // K. Australian adjustment
+    var corr_aust = (period === 'day')
+        ? (road.austAdjDay != null ? road.austAdjDay : -1.7)
+        : (road.austAdjNight != null ? road.austAdjNight : 0.5);
+
+    // Additional correction (3-source-height sub-sources only)
+    var corr_additional = overrides.additionalCorrection || 0;
+
+    // N. CoRTN barrier diffraction (Charts 9/9a)
+    var corr_ground_final = corr_ground;
+    var corr_barrier = 0;
+    var barrierInfo = null;
+    if (road && road.barrier && road.barrier.enabled) {
+      var barr = cortnCalculateBarrier(road, recv_h);
+      barrierInfo = barr;
+      if (barr.applied) {
+        if (barr.corr_ground_barrier !== null && barr.corr_ground_barrier !== undefined) {
+          corr_ground_final = barr.corr_ground_barrier;
+        }
+        corr_barrier = barr.atten;
+      }
+    }
+
+    // L. LA10 assembly
+    var la10 = L_basic + corr_speed + corr_gradient + corr_distance
+             + corr_ground_final + corr_angle + corr_lowVol + corr_reflection
+             + corr_surface + corr_aust + corr_additional + corr_barrier;
+
+    // M. LAeq assembly (excludes low-vol, −3 conversion)
+    var laeq = L_basic + corr_speed + corr_gradient + corr_distance
+             + corr_ground_final + corr_angle + corr_reflection
+             + corr_surface + corr_aust + corr_additional + corr_barrier - 3;
+
+    return {
+      la10: la10,
+      laeq: laeq,
+      breakdown: {
+        totalFlow:       totalFlow,
+        hourlyFlow:      hourlyFlow,
+        cvPct:           cvPct,
+        L_basic:         L_basic,
+        V_adj:           V_adj,
+        corr_speed:      corr_speed,
+        corr_gradient:   corr_gradient,
+        d_horiz:         d_horiz,
+        d_slant:         d_slant,
+        corr_distance:   corr_distance,
+        G_factor:        G,
+        corr_ground:     corr_ground,
+        corr_ground_final: corr_ground_final,
+        corr_angle:      corr_angle,
+        corr_reflection: corr_reflection,
+        corr_surface:    corr_surface,
+        corr_lowVol:     corr_lowVol,
+        lowVolWarning:   lowVolWarning,
+        corr_aust:       corr_aust,
+        corr_additional: corr_additional,
+        corr_barrier:    corr_barrier,
+        barrier:         barrierInfo
+      }
+    };
+  }
+
+  /* ── Dual-carriageway + 3-source-height wrapper ──────────────────────────── */
+  function calcCortnRoadPeriod(road, period) {
+    var aadt = Number(road.aadt);
+    if (!isFinite(aadt) || aadt <= 0) {
+      return { la10: null, laeq: null, contributions: [] };
+    }
+
+    var lanes;
+    if (road.carriageway === 'dual') {
+      var split = (road.trafficSplit != null) ? road.trafficSplit : 0.5;
+      var offset = (road.laneOffset_m != null) ? road.laneOffset_m : 7;
+      lanes = [
+        { flowFrac: split,       distOffset: 0,      label: 'Near lane' },
+        { flowFrac: 1 - split,   distOffset: offset, label: 'Far lane'  }
+      ];
+    } else {
+      lanes = [{ flowFrac: 1, distOffset: 0, label: 'One-way' }];
+    }
+
+    var rawCvPct = (period === 'day') ? road.cv_pct_day : road.cv_pct_night;
+    var contributions = [];
+
+    lanes.forEach(function(lane) {
+      if (road.threeSourceHeight) {
+        var subs = [
+          { name: 'Cars',        flowMul: 1 - rawCvPct / 100, cvPctSpeedCorr: 0,   sourceHeight: 0.5,        applySurface: true,  addCorr: 0     },
+          { name: 'CV tyres',    flowMul: rawCvPct / 100,     cvPctSpeedCorr: 100, sourceHeight: 0.5,        applySurface: true,  addCorr: -3    },
+          { name: 'CV engines',  flowMul: rawCvPct / 100,     cvPctSpeedCorr: 100, sourceHeight: 0.5 + 1.0,  applySurface: false, addCorr: -3.6  },
+          { name: 'CV exhausts', flowMul: rawCvPct / 100,     cvPctSpeedCorr: 100, sourceHeight: 0.5 + 3.1,  applySurface: false, addCorr: -11.6 }
+        ];
+        subs.forEach(function(src) {
+          if (src.flowMul <= 0) return;
+          var result = calcCortnFreeField(road, period, {
+            flowFrac:             lane.flowFrac * src.flowMul,
+            distOffset:           lane.distOffset,
+            sourceHeight_m:       src.sourceHeight,
+            applySurface:         src.applySurface,
+            additionalCorrection: src.addCorr,
+            cvPctSpeedCorr:       src.cvPctSpeedCorr
+          });
+          if (result.la10 != null) {
+            result.label = lane.label + ' — ' + src.name;
+            contributions.push(result);
+          }
+        });
+      } else {
+        var result = calcCortnFreeField(road, period, {
+          flowFrac:   lane.flowFrac,
+          distOffset: lane.distOffset
+        });
+        if (result.la10 != null) {
+          result.label = lane.label;
+          contributions.push(result);
+        }
+      }
+    });
+
+    if (contributions.length === 0) {
+      return { la10: null, laeq: null, contributions: [] };
+    }
+
+    var la10_sum = contributions.reduce(function(s, c) { return s + Math.pow(10, c.la10 / 10); }, 0);
+    var laeq_sum = contributions.reduce(function(s, c) { return s + Math.pow(10, c.laeq / 10); }, 0);
+    var la10 = 10 * Math.log10(la10_sum);
+    var laeq = 10 * Math.log10(laeq_sum);
+
+    return { la10: la10, laeq: laeq, contributions: contributions };
+  }
+
+  /* ── Perpendicular distance from a receiver point to a polyline (metres) ── */
+  function cortnDistanceToPolyline(recvLat, recvLng, verts) {
+    if (!verts || verts.length < 2) return Infinity;
+    var cosPhi = Math.cos(recvLat * Math.PI / 180);
+    function toXY(lat, lng) {
+      return { x: (lng - recvLng) * cosPhi * 111320, y: (lat - recvLat) * 111320 };
+    }
+    var P = { x: 0, y: 0 };
+    var minDist = Infinity;
+    for (var i = 0; i < verts.length - 1; i++) {
+      var A = toXY(verts[i][0], verts[i][1]);
+      var B = toXY(verts[i + 1][0], verts[i + 1][1]);
+      var ABx = B.x - A.x, ABy = B.y - A.y;
+      var lenSq = ABx * ABx + ABy * ABy;
+      var t = lenSq > 0 ? ((P.x - A.x) * ABx + (P.y - A.y) * ABy) / lenSq : 0;
+      if (t < 0) t = 0;
+      if (t > 1) t = 1;
+      var Qx = A.x + t * ABx, Qy = A.y + t * ABy;
+      var dx = Qx - P.x, dy = Qy - P.y;
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  }
+
+  /* ── Angle of view subtended at a receiver by a polyline (degrees) ──────── */
+  function cortnAngleOfViewFromReceiver(recvLat, recvLng, verts) {
+    if (!verts || verts.length < 2) return 0;
+    var first = verts[0];
+    var last  = verts[verts.length - 1];
+    var cosPhi = Math.cos(recvLat * Math.PI / 180);
+    var v1x = (first[1] - recvLng) * cosPhi;
+    var v1y =  first[0] - recvLat;
+    var v2x = (last[1]  - recvLng) * cosPhi;
+    var v2y =  last[0]  - recvLat;
+    var dot = v1x * v2x + v1y * v2y;
+    var m1 = Math.sqrt(v1x * v1x + v1y * v1y);
+    var m2 = Math.sqrt(v2x * v2x + v2y * v2y);
+    if (m1 === 0 || m2 === 0) return 0;
+    var cosTheta = dot / (m1 * m2);
+    if (cosTheta > 1) cosTheta = 1;
+    if (cosTheta < -1) cosTheta = -1;
+    return Math.acos(cosTheta) * 180 / Math.PI;
+  }
+
+  return {
+    calcCortnFreeField:             calcCortnFreeField,
+    calcCortnRoadPeriod:            calcCortnRoadPeriod,
+    cortnCalculateBarrier:          cortnCalculateBarrier,
+    cortnDistanceToPolyline:        cortnDistanceToPolyline,
+    cortnAngleOfViewFromReceiver:   cortnAngleOfViewFromReceiver
+  };
+})();
+
 // Support Node.js require() for testing
 if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
   module.exports = SharedCalc;
+  module.exports.SharedCortn = SharedCortn;
 }

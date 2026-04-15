@@ -246,60 +246,188 @@ self.onmessage = function(e) {
       return e_s * (1 - tLat) + e_n * tLat;
     }
 
-    /* ── Terrain diffraction IL for a single source→receiver ray ──
-     * Samples 20 points along the ray, finds maximum protrusion above the
-     * line-of-sight, computes Fresnel δ and per-band Maekawa IL.
-     * Returns broadband IL in dB (≥ 0), or 0 if no obstruction or no data.
-     * Always returns a number (never null) so callers can safely write to
-     * the terrain IL pre-pass grid without special-casing missing data.
+    /* ── Terrain diffraction IL — Deygout 3-edge method ──
+     *
+     * Implements the Deygout principal-edge algorithm from ISO 9613-2 as used
+     * by SoundPLAN / CadnaA. The terrain profile is sampled adaptively (~1
+     * sample per 5 m of path, capped at 100 samples). All local maxima above
+     * the source→receiver line-of-sight are identified; the edge with the
+     * highest Fresnel number is selected as the principal edge. Secondary
+     * edges are then searched on the source-side sub-path (source → principal
+     * tip) and the receiver-side sub-path (principal tip → receiver).
+     *
+     * Per-band Maekawa IL is computed for each selected edge via the shared
+     * calcBarrierAttenuation() and summed across edges, capped at 25 dB per
+     * band (ISO 9613-2 practical terrain limit).
+     *
+     * Returns an 8-element array of octave-band IL values (63 Hz … 8 kHz),
+     * all zero when no obstruction is present or DEM data is missing. Callers
+     * that need a broadband value use band index 4 (1 kHz) as the
+     * representative value, matching the earlier single-ridge behaviour.
      */
-    function terrainILBroadband(srcLL, srcH, recLL, recH) {
-      if (!demCache || demCache.length === 0) return 0;
+    function _emptyBands() { return [0, 0, 0, 0, 0, 0, 0, 0]; }
+
+    /** Find every local maximum above the source→receiver LOS. */
+    function findTerrainEdges(srcLL, srcTip, recLL, recTip, totalDist) {
+      var N = Math.max(20, Math.min(100, Math.round(totalDist / 5)));
+      var profile = [];
+      for (var i = 1; i < N; i++) {
+        var t = i / N;
+        var lat = srcLL.lat + t * (recLL.lat - srcLL.lat);
+        var lng = srcLL.lng + t * (recLL.lng - srcLL.lng);
+        var elev = lookupElev(lat, lng);
+        if (elev === null) continue;
+        var losElev = srcTip + t * (recTip - srcTip);
+        profile.push({
+          t: t,
+          dist: t * totalDist,
+          elev: elev,
+          protrusion: elev - losElev
+        });
+      }
+
+      var edges = [];
+      for (var j = 0; j < profile.length; j++) {
+        var p = profile[j];
+        if (p.protrusion <= 0) continue;
+        var prevProt = (j > 0) ? profile[j - 1].protrusion : 0;
+        var nextProt = (j < profile.length - 1) ? profile[j + 1].protrusion : 0;
+        // Local maximum above LOS (ties included so plateaus still register)
+        if (p.protrusion >= prevProt && p.protrusion >= nextProt) {
+          edges.push({
+            t: p.t,
+            dist: p.dist,
+            elev: p.elev,
+            protrusion: p.protrusion,
+            d1: p.dist,
+            d2: totalDist - p.dist
+          });
+        }
+      }
+      return edges;
+    }
+
+    /** Deygout selection: principal edge + up to one edge on each sub-path. */
+    function deygoutSelectEdges(edges, srcTip, recTip, totalDist) {
+      if (edges.length === 0) return [];
+      if (edges.length === 1) return edges.slice();
+
+      // Principal edge: highest Fresnel number proxy.
+      // ν ∝ h × √(2 / (λ · d1·d2/(d1+d2))) — for ranking across edges at the
+      // same wavelength we can drop λ and rank by h² × (d1+d2)/(d1·d2).
+      var bestIdx = 0, bestScore = -Infinity;
+      for (var i = 0; i < edges.length; i++) {
+        var e = edges[i];
+        var score = e.protrusion * e.protrusion * (e.d1 + e.d2) / (e.d1 * e.d2);
+        if (score > bestScore) {
+          bestScore = score;
+          bestIdx = i;
+        }
+      }
+      var principal = edges[bestIdx];
+      var result = [principal];
+
+      // Source-side sub-path: source tip → principal edge tip.
+      var bestSrc = null, bestSrcScore = -Infinity;
+      for (var s = 0; s < edges.length; s++) {
+        var se = edges[s];
+        if (se.dist >= principal.dist - 1) continue;
+        var tRel = se.dist / principal.dist;
+        var losAtSe = srcTip + tRel * (principal.elev - srcTip);
+        var subProt = se.elev - losAtSe;
+        if (subProt <= 0) continue;
+        var sd1 = se.dist;
+        var sd2 = principal.dist - se.dist;
+        if (sd1 <= 0 || sd2 <= 0) continue;
+        var sScore = subProt * subProt * (sd1 + sd2) / (sd1 * sd2);
+        if (sScore > bestSrcScore) {
+          bestSrcScore = sScore;
+          bestSrc = {
+            t: se.t, dist: se.dist, elev: se.elev,
+            protrusion: subProt, d1: sd1, d2: sd2
+          };
+        }
+      }
+      if (bestSrc) result.unshift(bestSrc);
+
+      // Receiver-side sub-path: principal edge tip → receiver tip.
+      var bestRec = null, bestRecScore = -Infinity;
+      for (var r2 = 0; r2 < edges.length; r2++) {
+        var re = edges[r2];
+        if (re.dist <= principal.dist + 1) continue;
+        var tRel2 = (re.dist - principal.dist) / (totalDist - principal.dist);
+        var losAtRe = principal.elev + tRel2 * (recTip - principal.elev);
+        var subProt2 = re.elev - losAtRe;
+        if (subProt2 <= 0) continue;
+        var rd1 = re.dist - principal.dist;
+        var rd2 = totalDist - re.dist;
+        if (rd1 <= 0 || rd2 <= 0) continue;
+        var rScore = subProt2 * subProt2 * (rd1 + rd2) / (rd1 * rd2);
+        if (rScore > bestRecScore) {
+          bestRecScore = rScore;
+          bestRec = {
+            t: re.t, dist: re.dist, elev: re.elev,
+            protrusion: subProt2, d1: rd1, d2: rd2
+          };
+        }
+      }
+      if (bestRec) result.push(bestRec);
+
+      return result; // 1-3 edges, ordered source → receiver
+    }
+
+    /** Per-band terrain IL for a single source→receiver ray. Returns an
+     *  8-element array (one value per octave band, 63 Hz … 8 kHz) in dB. */
+    function terrainILPerBand(srcLL, srcH, recLL, recH) {
+      if (!demCache || demCache.length === 0) return _emptyBands();
 
       var srcElev = lookupElev(srcLL.lat, srcLL.lng);
       var recElev = lookupElev(recLL.lat, recLL.lng);
       // If elevation is unavailable, treat as flat — 0 dB terrain IL, render normally
-      if (srcElev === null || recElev === null) return 0;
+      if (srcElev === null || recElev === null) return _emptyBands();
 
       var srcTip = srcElev + srcH;
       var recTip = recElev + recH;
       var totalDist = flatDistM(srcLL, recLL);
-      if (totalDist < 1) return 0;
+      if (totalDist < 1) return _emptyBands();
 
-      var bestProtrusion = 0;
-      var bestD1 = 0, bestD2 = 0;
-      var N_SAMPLES = 20;
-      for (var _si2 = 1; _si2 < N_SAMPLES; _si2++) {
-        var t = _si2 / N_SAMPLES;
-        var sLat = srcLL.lat + t * (recLL.lat - srcLL.lat);
-        var sLng = srcLL.lng + t * (recLL.lng - srcLL.lng);
-        var elev = lookupElev(sLat, sLng);
-        if (elev === null) continue;
-        var losElev = srcTip + t * (recTip - srcTip);
-        var protrusion = elev - losElev;
-        if (protrusion > bestProtrusion) {
-          bestProtrusion = protrusion;
-          bestD1 = t * totalDist;
-          bestD2 = (1 - t) * totalDist;
+      var allEdges = findTerrainEdges(srcLL, srcTip, recLL, recTip, totalDist);
+      if (allEdges.length === 0) return _emptyBands();
+
+      var selected = deygoutSelectEdges(allEdges, srcTip, recTip, totalDist);
+      if (selected.length === 0) return _emptyBands();
+
+      var total = _emptyBands();
+      for (var e = 0; e < selected.length; e++) {
+        var edge = selected[e];
+        var d1 = edge.d1;
+        var d2 = edge.d2;
+        var prot = edge.protrusion;
+        // Fresnel path-length difference (same approximation as the earlier
+        // single-ridge code — retained so single-edge cases match exactly).
+        var d1_3d = Math.sqrt(d1 * d1 + prot * prot);
+        var d2_3d = Math.sqrt(d2 * d2 + prot * prot);
+        var delta = (d1_3d + d2_3d > 0) ? 2 * prot * prot / (d1_3d + d2_3d) : 0;
+        if (delta <= 0) continue;
+
+        // Per-band Maekawa IL via the shared (unchanged) formula.
+        var perBand = calcBarrierAttenuation(delta, ISO_FREQS, true);
+        for (var b = 0; b < 8; b++) {
+          var v = perBand[b];
+          if (v > 0) total[b] += v;
         }
       }
 
-      if (bestProtrusion <= 0) return 0;
-
-      // Fresnel path-length difference
-      var d1_3d = Math.sqrt(bestD1 * bestD1 + bestProtrusion * bestProtrusion);
-      var d2_3d = Math.sqrt(bestD2 * bestD2 + bestProtrusion * bestProtrusion);
-      var delta = (d1_3d + d2_3d > 0) ? 2 * bestProtrusion * bestProtrusion / (d1_3d + d2_3d) : 0;
-      if (delta <= 0) return 0;
-
-      // Per-band Maekawa IL; return broadband at 1 kHz
-      var perBand = calcBarrierAttenuation(delta, ISO_FREQS, true);
-      var broadband = Math.max(0, perBand[4]); // [4] = 1 kHz
-      if (debugTerrain && broadband > 0) {
-        console.log('[noise-worker] Terrain obstruction: protrusion=' + bestProtrusion.toFixed(1) +
-          'm, delta=' + delta.toFixed(3) + 'm, IL@1kHz=' + broadband.toFixed(1) + 'dB');
+      // Cap total terrain IL at 25 dB per band (ISO 9613-2 practical limit).
+      for (var b2 = 0; b2 < 8; b2++) {
+        if (total[b2] > 25) total[b2] = 25;
       }
-      return broadband;
+
+      if (debugTerrain && selected.length > 0 && total[4] > 0) {
+        console.log('[noise-worker] Terrain Deygout: ' + selected.length +
+          ' edge(s), IL@1kHz=' + total[4].toFixed(1) + 'dB');
+      }
+      return total;
     }
 
     /* ── Grid geometry ── */
@@ -369,7 +497,12 @@ self.onmessage = function(e) {
      * Only the terrain IL contribution is smoothed — the base propagation
      * levels (distance attenuation, barriers) are computed exactly per cell.
      */
-    var terrainSmoothed = null; // terrainSmoothed[si] = Float32Array(rows * cols), 0-based
+    // Per-band terrain IL pre-pass: stride-8 Float32Array per source.
+    // Index into terrainSmoothed[si]: (r * cols + c) * 8 + bandIdx, where
+    // bandIdx 0..7 corresponds to octave bands 63, 125, 250, 500, 1000,
+    // 2000, 4000, 8000 Hz. Zero everywhere when terrain is disabled or no
+    // DEM data is available.
+    var terrainSmoothed = null;
 
     if (terrainEnabled && demCache && demCache.length > 0) {
       // Build separable Gaussian kernel: radius=2, σ=1.0, kernel size=5
@@ -385,48 +518,73 @@ self.onmessage = function(e) {
 
       terrainSmoothed = [];
 
+      // Reusable per-band scratch buffers (one set, reused across sources/bands)
+      var _bandRaw = new Float32Array(rows * cols);
+      var _bandTemp = new Float32Array(rows * cols);
+      var _bandSmooth = new Float32Array(rows * cols);
+
       for (var _psi = 0; _psi < srcData.length; _psi++) {
         var _psrc = srcData[_psi];
         var _psrcLL = { lat: _psrc.lat, lng: _psrc.lng };
 
-        // Step 1: raw terrain IL for every grid cell (0 where no data or no obstruction)
-        var _ilRaw = new Float32Array(rows * cols);
+        // Step 1: raw per-band terrain IL for every grid cell. 0 where no
+        // obstruction or no DEM data. Packed as stride-8 so the main loop
+        // can read an 8-element block per cell with a simple offset.
+        var _ilRaw8 = new Float32Array(rows * cols * 8);
         for (var _pr = 0; _pr < rows; _pr++) {
           var _plat = startLat + _pr * dLat;
           for (var _pc = 0; _pc < cols; _pc++) {
             var _plng = startLng + _pc * dLng;
             var _ppt = { lat: _plat, lng: _plng };
-            _ilRaw[_pr * cols + _pc] = terrainILBroadband(_psrcLL, _psrc.heightM, _ppt, recvHeight);
+            var _bands = terrainILPerBand(_psrcLL, _psrc.heightM, _ppt, recvHeight);
+            var _off = (_pr * cols + _pc) * 8;
+            for (var _bb = 0; _bb < 8; _bb++) _ilRaw8[_off + _bb] = _bands[_bb];
           }
         }
 
-        // Step 2: separable Gaussian smooth — horizontal pass into temp
-        var _temp = new Float32Array(rows * cols);
-        for (var _hr = 0; _hr < rows; _hr++) {
-          for (var _hc = 0; _hc < cols; _hc++) {
-            var _hval = 0;
-            for (var _hki = 0; _hki < _KS; _hki++) {
-              var _hcc = Math.max(0, Math.min(cols - 1, _hc + _hki - _KR));
-              _hval += _ilRaw[_hr * cols + _hcc] * _kernel[_hki];
+        // Step 2: Gaussian smooth each octave band independently. The kernel
+        // is applied separably (horizontal pass → temp → vertical pass) to
+        // the rows*cols slice for each band, then written back into the
+        // stride-8 output array.
+        var _ilSmooth8 = new Float32Array(rows * cols * 8);
+        for (var _sb = 0; _sb < 8; _sb++) {
+          // Extract this band from stride-8 raw into the flat scratch buffer.
+          for (var _er = 0; _er < rows; _er++) {
+            for (var _ec = 0; _ec < cols; _ec++) {
+              _bandRaw[_er * cols + _ec] = _ilRaw8[(_er * cols + _ec) * 8 + _sb];
             }
-            _temp[_hr * cols + _hc] = _hval;
           }
-        }
-
-        // Step 3: vertical pass from temp into smoothed output
-        var _ilSmooth = new Float32Array(rows * cols);
-        for (var _vr = 0; _vr < rows; _vr++) {
-          for (var _vc = 0; _vc < cols; _vc++) {
-            var _vval = 0;
-            for (var _vki = 0; _vki < _KS; _vki++) {
-              var _vrr = Math.max(0, Math.min(rows - 1, _vr + _vki - _KR));
-              _vval += _temp[_vrr * cols + _vc] * _kernel[_vki];
+          // Horizontal Gaussian pass → _bandTemp.
+          for (var _hr = 0; _hr < rows; _hr++) {
+            for (var _hc = 0; _hc < cols; _hc++) {
+              var _hval = 0;
+              for (var _hki = 0; _hki < _KS; _hki++) {
+                var _hcc = Math.max(0, Math.min(cols - 1, _hc + _hki - _KR));
+                _hval += _bandRaw[_hr * cols + _hcc] * _kernel[_hki];
+              }
+              _bandTemp[_hr * cols + _hc] = _hval;
             }
-            _ilSmooth[_vr * cols + _vc] = _vval;
+          }
+          // Vertical Gaussian pass → _bandSmooth.
+          for (var _vr = 0; _vr < rows; _vr++) {
+            for (var _vc = 0; _vc < cols; _vc++) {
+              var _vval = 0;
+              for (var _vki = 0; _vki < _KS; _vki++) {
+                var _vrr = Math.max(0, Math.min(rows - 1, _vr + _vki - _KR));
+                _vval += _bandTemp[_vrr * cols + _vc] * _kernel[_vki];
+              }
+              _bandSmooth[_vr * cols + _vc] = _vval;
+            }
+          }
+          // Write the smoothed band back into the stride-8 output.
+          for (var _wr = 0; _wr < rows; _wr++) {
+            for (var _wc = 0; _wc < cols; _wc++) {
+              _ilSmooth8[(_wr * cols + _wc) * 8 + _sb] = _bandSmooth[_wr * cols + _wc];
+            }
           }
         }
 
-        terrainSmoothed.push(_ilSmooth);
+        terrainSmoothed.push(_ilSmooth8);
       }
     }
 
@@ -487,6 +645,22 @@ self.onmessage = function(e) {
               endDeltaRight = _barrierW.endDeltaRight || 0;
             }
           }
+          // ISO 9613-2 §7.4 sub-path ground info — passed to calcISOatPoint
+          // so Agr is recomputed along source→barrier and barrier→receiver legs.
+          var _barrInfoW = null;
+          if (_barrierW && (_barrierW.pathLengthDiff > 0 || _barrierW.gapPathLengthDiff > 0)) {
+            var _d1W = (typeof _barrierW.d1 === 'number')
+              ? _barrierW.d1
+              : flatDistM(srcLL, _barrierW.intersection || pt);
+            var _d2W = (typeof _barrierW.d2 === 'number')
+              ? _barrierW.d2
+              : flatDistM(_barrierW.intersection || srcLL, pt);
+            _barrInfoW = {
+              d1: _d1W,
+              d2: _d2W,
+              hBar: (_barrierW.baseHeightM || 0) + (_barrierW.barrierHeightM || 0)
+            };
+          }
 
           var buildingIL_broadband = 0;
           if (_barrierW) {
@@ -513,8 +687,28 @@ self.onmessage = function(e) {
             }
           }
 
-          // Smoothed terrain IL from pre-computed grid — applied for all periods including simple Lmax
-          var terrIL = terrainSmoothed ? (terrainSmoothed[si][r * cols + c] || 0) : 0;
+          // Per-band terrain IL from the Deygout pre-pass (stride-8 array).
+          // ISO paths pass terrBands through to calcISOatPoint for per-band
+          // max(Abar, Aterr) combination. Simple/broadband paths use the
+          // 1 kHz band value (index 4) as the representative broadband IL,
+          // matching the earlier single-ridge behaviour.
+          var terrBands = null;
+          var terrIL = 0;
+          if (terrainSmoothed) {
+            var _tsArr = terrainSmoothed[si];
+            var _tsOff = (r * cols + c) * 8;
+            terrBands = [
+              _tsArr[_tsOff]     || 0,
+              _tsArr[_tsOff + 1] || 0,
+              _tsArr[_tsOff + 2] || 0,
+              _tsArr[_tsOff + 3] || 0,
+              _tsArr[_tsOff + 4] || 0,
+              _tsArr[_tsOff + 5] || 0,
+              _tsArr[_tsOff + 6] || 0,
+              _tsArr[_tsOff + 7] || 0
+            ];
+            terrIL = terrBands[4]; // 1 kHz representative
+          }
 
           var lp;
           if (isLmaxSimple) {
@@ -533,24 +727,22 @@ self.onmessage = function(e) {
             var _bGapWL  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
             if (_bBaseWL > 0 && _bGapWL > 0 && !(_barrierW && _barrierW.rayInGap)) {
               var lp_tL = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                barrierDelta, recvHeight, isoParamsLmax, endDeltaLeft, endDeltaRight);
+                barrierDelta, recvHeight, isoParamsLmax, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
               var lp_gL = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                _bGapWL, recvHeight, isoParamsLmax, 0, 0);
+                _bGapWL, recvHeight, isoParamsLmax, 0, 0, _barrInfoW, terrBands);
               lp = (!isFinite(lp_tL)) ? lp_gL : (!isFinite(lp_gL)) ? lp_tL
                  : 10 * Math.log10(Math.pow(10, lp_tL / 10) + Math.pow(10, lp_gL / 10));
             } else {
               lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                barrierDelta, recvHeight, isoParamsLmax, endDeltaLeft, endDeltaRight);
+                barrierDelta, recvHeight, isoParamsLmax, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
             }
-            if (terrIL > buildingIL_broadband && isFinite(lp)) {
-              lp -= (terrIL - buildingIL_broadband);
-            }
+            // Terrain IL is now inside calcISOatPoint — no post-subtract.
           } else if (period === 'lmax') {
             // Lmax ISO but no spectrum: simple propagation + any computed barriers/terrain
             var effectiveIL_lmax = Math.max(buildingIL_broadband, terrIL);
             lp = attenuatePoint(src.combinedLw, dist) - effectiveIL_lmax;
           } else if (method === 'iso9613' && src.spectrum) {
-            // ISO: compute propagation level, then apply terrain excess over building IL
+            // ISO with spectrum — per-band terrain/barrier screening inside calcISOatPoint.
             // Compute per-region ground G from custom zones for this src→gridpoint path
             var _pathGW = _wkPathG(src.lat, src.lng, lat, lng, src.heightM, recvHeight, dist);
             var isoParamsSrc = (_pathGW === (isoParams.groundFactor || 0.5))
@@ -561,18 +753,14 @@ self.onmessage = function(e) {
             var _bGapWI  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
             if (_bBaseWI > 0 && _bGapWI > 0 && !(_barrierW && _barrierW.rayInGap)) {
               var lp_tI = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                barrierDelta, recvHeight, isoParamsSrc, endDeltaLeft, endDeltaRight);
+                barrierDelta, recvHeight, isoParamsSrc, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
               var lp_gI = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                _bGapWI, recvHeight, isoParamsSrc, 0, 0);
+                _bGapWI, recvHeight, isoParamsSrc, 0, 0, _barrInfoW, terrBands);
               lp = (!isFinite(lp_tI)) ? lp_gI : (!isFinite(lp_gI)) ? lp_tI
                  : 10 * Math.log10(Math.pow(10, lp_tI / 10) + Math.pow(10, lp_gI / 10));
             } else {
               lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                barrierDelta, recvHeight, isoParamsSrc, endDeltaLeft, endDeltaRight);
-            }
-            // Apply smoothed terrain IL where it exceeds the already-applied building IL
-            if (terrIL > buildingIL_broadband && isFinite(lp)) {
-              lp -= (terrIL - buildingIL_broadband);
+                barrierDelta, recvHeight, isoParamsSrc, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
             }
           } else if (method === 'iso9613' && groundZones.length > 0) {
             // ISO without spectrum but with ground zones: use flat spectrum so G is applied
@@ -585,20 +773,17 @@ self.onmessage = function(e) {
             var _bGapWS  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
             if (_bBaseWS > 0 && _bGapWS > 0 && !(_barrierW && _barrierW.rayInGap)) {
               var lp_tS = calcISOatPoint(flatWk, src.heightM, dist, 0,
-                barrierDelta, recvHeight, isoParamsFlatWk, endDeltaLeft, endDeltaRight);
+                barrierDelta, recvHeight, isoParamsFlatWk, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
               var lp_gS = calcISOatPoint(flatWk, src.heightM, dist, 0,
-                _bGapWS, recvHeight, isoParamsFlatWk, 0, 0);
+                _bGapWS, recvHeight, isoParamsFlatWk, 0, 0, _barrInfoW, terrBands);
               lp = (!isFinite(lp_tS)) ? lp_gS : (!isFinite(lp_gS)) ? lp_tS
                  : 10 * Math.log10(Math.pow(10, lp_tS / 10) + Math.pow(10, lp_gS / 10));
             } else {
               lp = calcISOatPoint(flatWk, src.heightM, dist, 0,
-                barrierDelta, recvHeight, isoParamsFlatWk, endDeltaLeft, endDeltaRight);
-            }
-            if (terrIL > buildingIL_broadband && isFinite(lp)) {
-              lp -= (terrIL - buildingIL_broadband);
+                barrierDelta, recvHeight, isoParamsFlatWk, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
             }
           } else {
-            // Simple: max of building IL and terrain IL
+            // Simple: max of building IL and terrain IL (1 kHz representative)
             var effectiveIL = Math.max(buildingIL_broadband, terrIL);
             lp = attenuatePoint(src.combinedLw, dist) - effectiveIL;
           }

@@ -1,5 +1,420 @@
 # UAT Tests
 
+## Site plan overlay — aspect ratio preservation
+
+Prerequisite: a fresh assessment with no site plan overlays loaded. Use the Tools panel **Site plan overlay** button to import each test image.
+
+### Initial placement respects image proportions
+
+- [ ] **Landscape PDF** — Import an A3 landscape site plan PDF (or any PDF whose first page is wider than tall). The overlay appears with visibly landscape proportions — width noticeably greater than height. It must NOT appear as a near-square box.
+- [ ] **Portrait PNG** — Import a portrait PNG (e.g. 1000×1600 px). The overlay appears with visibly portrait proportions — height noticeably greater than width. It must NOT appear stretched to a square.
+- [ ] **Square image** — Import a square image (e.g. 1000×1000 px). The overlay appears square.
+- [ ] **Centre** — In every case the overlay is centred in the current map view.
+- [ ] **No overflow** — The overlay fits within the visible map area (roughly ~50% of the shorter view dimension).
+- [ ] **Latitude compensation** — Test on a map view near the equator (e.g. Darwin, ~12°S) and again near Adelaide (~35°S). The on-screen proportions should still match the image's native aspect ratio in both cases (i.e. the `cos(lat)` correction is doing its job).
+
+### Corner-drag aspect-ratio lock (default) and Shift unlock
+
+- [ ] **Drag corner WITHOUT Shift** — After importing any image, grab a corner handle and drag. The overlay resizes but the image does NOT distort — aspect ratio stays locked at the image's natural ratio.
+- [ ] **Drag corner WITH Shift held** — Hold Shift before dragging a corner handle. Free (unconstrained) resize is allowed — aspect ratio can change.
+- [ ] **Release and re-drag** — After a Shift-release, the overlay keeps whatever aspect ratio Shift-drag left it at; a subsequent non-Shift drag locks to that current ratio (because `_imgW`/`_imgH` still reflect the image's natural dims, the non-Shift drag actually snaps back to natural aspect — document this as expected behaviour if observed).
+
+### Save / load round-trip
+
+- [ ] **Save with overlay** — Place a site plan, corner-drag it to some non-default proportions, optionally rotate it, lock it, then **Save Assessment**.
+- [ ] **Load it back** — In a fresh session / refresh, **Load Assessment**. The overlay must appear at EXACTLY the saved bounds — no aspect-ratio recalculation, no resize snap, no drift. Verify by zooming to it and comparing with the saved state (or by comparing coordinates in the saved JSON vs runtime `ovr.bounds`).
+
+### Adjacent functionality (no regressions)
+
+- [ ] **Move via centre handle** — Centre-drag still moves the overlay without resizing.
+- [ ] **Rotate via rotation handle** — Rotation still works; corner handles follow the rotated visual corners.
+- [ ] **Lock / unlock** — Toggling locked state still hides/shows the handles as before.
+- [ ] **Compress-dialog path (>5 MB image)** — Import an oversized image that triggers the compression dialog. After compression proceeds, the resulting overlay still has correct aspect ratio on placement.
+- [ ] **Multiple overlays** — Import two different-aspect images one after the other. Each gets its own correct proportions independently.
+- [ ] **No console errors** — DevTools console is clean through all the above.
+
+## −6. CoRTN Road Traffic — Phase 5 (noise map grid worker)
+
+Prerequisite: have at least one CoRTN road drawn with a valid AADT (e.g. AADT 20000, 60 km/h, 5% CV, DGA surface, one-way). Open the Modelling panel on the side panel so the **CoRTN road noise map** button is visible beneath the existing Noise map controls.
+
+### UI placement and defaults
+
+- [ ] **Button visible** — "CoRTN road noise map" button with road-trend icon, immediately below `#noiseMapGridWarning`.
+- [ ] **Click once** — the dropdown shows Day/Night pills (Day active), LAeq/LA10 pills (LAeq active), Height 1.5 m, Grid Auto, Range 35–75 dB, Interval 5 dB. The Noise map button's own controls remain unaffected.
+- [ ] **Grid selector** has exactly Auto / 5 m / 10 m / 20 m / 50 m / 100 m — **no 1 m / 2 m** options.
+
+### Day LAeq grid — smoke test
+
+- [ ] Click the CoRTN button → button label cycles through "Computing… N%" then returns to the default icon + label.
+- [ ] A coloured contour overlay appears around the road with contour lines at 35, 40, 45, …, 75 dB.
+- [ ] A **CoRTN Day LAeq dB(A)** legend appears bottom-right. (The ISO noise map legend, if active, appears as a separate control — both coexist.)
+- [ ] No console errors.
+
+### LAeq ↔ LA10 toggle
+
+- [ ] Click **LA10** pill → contours redraw **instantly without the "Computing…" progress** (re-render only). Levels are ~3 dB higher than LAeq. Legend title updates to "CoRTN Day LA10 dB(A)".
+- [ ] Click **LAeq** pill → instant re-render back to LAeq levels.
+
+### Day ↔ Night toggle
+
+- [ ] Click **Night** pill → the button shows "Computing…" progress again (this IS a recompute because the traffic volumes / CV percentages / Australian adjustment all change). Night LAeq is typically 3–7 dB below Day LAeq.
+- [ ] Legend title reflects the new period.
+
+### Height + Grid + Range/Interval
+
+- [ ] Change **Height** to 4 m → after ~1 s debounce, recompute fires. For low meanPropHeight values the absorption correction changes slightly.
+- [ ] Change **Grid** to 5 m → recompute fires, contours become visibly smoother. "Computing… N%" progresses slower.
+- [ ] Change **Grid** back to Auto → contours resolve to 5/10/25/50 m based on zoom level.
+- [ ] Change **Range** to 45–85 dB → contours re-render (no recompute). Low-level contours disappear; high-level contours become visible close to the road.
+- [ ] Change **Interval** to 3 dB → denser contour lines.
+
+### Dual carriageway + 3-source-height
+
+- [ ] Open the CoRTN road panel, switch to dual carriageway → CoRTN map auto-recomputes (via `window._recomputeCortnMap` hooked into `recalcAndRefresh`).
+- [ ] Enable 3-source-height → auto-recompute. Levels should shift by < 1 dB for typical traffic mixes.
+
+### Receiver-point vs grid spot check
+
+- [ ] Place an R1 receiver near the road → Predicted Levels panel shows a CoRTN LAeq value for Day.
+- [ ] Read off the CoRTN grid value at the same location by hovering a contour line.
+- [ ] **Expected discrepancy**: the grid value reads ~1–1.5 dB LOUDER than the receiver-point value at short distances (< 30 m). This is the known Phase 4 / Phase 5 distance-convention divergence — Phase 4 uses `distFromKerb_m = perpDist` (→ `d_horiz = perpDist + 3.5`) while Phase 5 uses `distFromKerb_m = perpDist − 3.5` (→ `d_horiz = perpDist`). At 100 m the discrepancy shrinks to ~0.3 dB.
+- [ ] At distances > ~50 m the discrepancy should be < 1 dB.
+
+### Compliance view
+
+- [ ] Click **Compliance** → criterion input appears. Enter 60 dB(A).
+- [ ] Contour overlay switches to red/green Δ = Predicted − Criterion, with a thick 0 dB boundary line and fainter ±1/3/5/10 dB contours.
+- [ ] CoRTN compliance legend replaces the CoRTN levels legend.
+- [ ] Click **Levels** → levels view restored.
+
+### Simultaneous ISO + CoRTN maps
+
+- [ ] Enable the existing **Noise map** (ISO 9613-2) as well as the CoRTN map.
+- [ ] Both canvases draw. The layer order can make one appear on top of the other, but neither crashes.
+- [ ] Switching the ISO map period does NOT affect the CoRTN map and vice versa.
+- [ ] Disable the ISO map → CoRTN map stays visible. Disable the CoRTN map → ISO map stays visible.
+
+### Save / load round-trip
+
+- [ ] With the CoRTN map active, change metric to LA10, height to 4 m, range to 40–80, interval to 3 dB, grid to 10 m.
+- [ ] Click Save Assessment → download the JSON.
+- [ ] Refresh the page and Load the saved JSON.
+- [ ] The CoRTN map button is NOT auto-activated (matches ISO map policy). The dropdown controls **are** pre-populated with period=Day, metric=LA10, height=4, range=40–80, interval=3, grid=Auto (always resets from whatever was saved).
+- [ ] Click the CoRTN map button → recomputes with the restored settings.
+
+### Delete road while map is active
+
+- [ ] Delete the CoRTN road via the panel or context menu while the map is displayed.
+- [ ] After the 1 s debounce, the CoRTN map recomputes. If no valid roads remain it shows "Add CoRTN roads to generate the grid." and clears the layers.
+
+### Map pan/zoom
+
+- [ ] Pan the map → CoRTN map recomputes (debounced 1 s) for the new bounds.
+- [ ] Zoom in 2 steps → Auto grid drops from 50/25 m to 10/5 m; recompute shows the new grid resolution.
+
+### No regressions
+
+- [ ] Existing ISO 9613-2 noise map still computes identically (spot-check a known-good case).
+- [ ] Existing CoRTN receiver-point calculations in the Predicted Levels panel are unchanged (spot-check day LAeq at R1 against a pre-Phase-5 saved value within 0.1 dB — they must be byte-for-byte identical).
+- [ ] All other source types (point/line/area/building) still render and contribute to the ISO map as before.
+
+## −5. Building source — Interior Lp library dropdown
+
+Prerequisite: open the live tool, ensure the library badge is either green (Supabase) or grey (offline snapshot — both should expose the same 12 building Lp presets).
+
+1. **Library globals exist** — In the console run `JSON.stringify({n: window.BUILDING_LP_LIBRARY.length, cats: Object.keys(window.BUILDING_LP_LIBRARY_GROUPED)})`. Must return 12 entries across 6 categories (Recreation, Hospitality, Industrial, Childcare, Community, Commercial).
+
+2. **Panel renders the combo** — Draw a building source on the map, click it to open `#bsFloatPanel`. The combo `#bs-lib-combo` must be present above the "Interior Noise Levels" heading with placeholder "Search library…", and `#bs-lib-dropdown` must be a sibling div with `display:none` initially.
+
+3. **Focus opens the dropdown** — Focus the combo. The dropdown must show all 6 category headers (uppercase, grey, non-clickable) and all 12 entry rows beneath them, with `display:block`.
+
+4. **Search filter** — Type "gym" into the combo. The dropdown must collapse to only the "Recreation" category header followed by 2 items: "Gymnasium — general sporting activity" and "Gymnasium — amplified music event". Clear the search and the full list must return.
+
+5. **Selection populates all three periods** — Click "Gymnasium — general sporting activity". The combo must update to that name, the dropdown must close, and **all 24 input fields** (`bs_${period}_lp_${b}` for period ∈ day/eve/night and b ∈ 63/125/250/500/1000/2000/4000/8000) must be populated with `{63:72, 125:75, 250:78, 500:80, 1000:82, 2000:79, 4000:74, 8000:68}`. The internal `bs.interiorLp.day.broadband` must equal 85.
+
+6. **Derived Lw recalculates** — After selecting the Gymnasium entry, the `#bsDerivedLw` panel must show per-wall and roof radiated Lw values plus a "Total radiated" row in dB(A). For a 4-sided 100 m × 100 m default-construction (Colorbond Rw 25) box with default 6 m height, expect total ≈ 90–95 dB(A).
+
+7. **Manual override sticks** — After library selection, manually type `99` in `bs_day_lp_1000`. The value must persist (`bs.interiorLp.day.octave[1000] === 99`), the eve and night 1000 Hz bands must remain at the library value (82), and `#bsDerivedLw` must recalculate without any input being reset.
+
+8. **lpLibraryEntry persists** — Confirm `bs.lpLibraryEntry === 'Gymnasium — general sporting activity'` after selection.
+
+9. **Save → load round-trip** — Save the assessment JSON (or directly call `_setBuildingSources([savedJson])` with the in-memory snapshot). Reopen the panel — the combo must be pre-filled with the stored library name, the day 1000 Hz band must show 99 (the manual override), the other periods must show the library value (82), and `bs.lpSource` must be `'octave'`.
+
+10. **Library doesn't lock fields** — After library selection, the manual band inputs must remain editable. Selecting a second library entry must overwrite the bands again (no per-field "locked" state to clear).
+
+11. **Supabase live mode** — With `SUPABASE_CONFIG` set and the migration run, the library badge must show `… / 12B / …` and `window.BUILDING_LP_LIBRARY` must be the Supabase rows. With Supabase offline, the badge must show `0B` (or the configured count) but `BUILDING_LP_LIBRARY` must still contain the 12 hard-coded snapshot entries.
+
+12. **Admin tab CRUD** — Click the library badge → modal opens → 5 tabs visible (Point sources / Line sources / Area sources / **Building Lp** / Constructions). The Building Lp tab must list the 12 presets (or whatever the DB contains), and a `+ New` form must accept name, dropdown group, source citation, and 8 octave-band Lp values. Saving must call `PATCH`/`POST` on `reference_noise_sources` with `source_kind=building` and re-fetch the loader so the in-app dropdown updates without a page reload.
+
+13. **Existing point source library still works** — Place a point source, open its panel, type "fan" in the point source combo. The point source dropdown must still show the matching mechanical units (separate library, untouched).
+
+14. **No console errors** — Across all of the above, no `TypeError`, `ReferenceError`, or warnings about `BUILDING_LP_LIBRARY` being undefined.
+
+## −4. Terrain screening — Deygout 3-edge method
+
+Prerequisite: open the console on the live tool. These tests drive the
+worker directly with synthetic DEM scenarios so they are independent of
+the chosen map location.
+
+1. **Flat terrain → zero regression** — Run the worker with `terrainEnabled: true` but a DEM of all-zero elevations. The resulting grid's average level must match the same scenario with `terrainEnabled: false` to within 0.01 dB. Verifies the new per-band code path produces no spurious screening on flat ground.
+
+2. **Single ridge → matches legacy behaviour** — Place one 10 m ridge perpendicular to a 300 m source→receiver path. The grid's minimum level with the Deygout method should be within 0.5 dB at 1 kHz of the pre-refactor single-ridge result. In the verified scenario the single ridge produced min 15.9 dB (vs 28.8 dB flat) — a ~13 dB shadow consistent with the old single-ridge Maekawa.
+
+3. **Two ridges → more screening than single ridge** — Add a second 10 m ridge on the same path. The grid's minimum and average levels must both *decrease* relative to the single-ridge case. Verified scenario: min 15.9 → 8.7 dB, avg 28.8 → 22.1 dB.
+
+4. **Three ridges → more screening still, capped at 25 dB** — Add a third ridge. Min and avg must decrease again relative to the two-ridge case, up to the 25 dB per-band cap. Verified scenario: min 8.7 → 6.4 dB, avg 22.1 → 21.7 dB. Further ridges past the Deygout 3-edge limit should produce no additional screening (the algorithm selects at most 3 edges).
+
+5. **Monotonic progression** — Across all four scenarios above (flat, 1, 2, 3 ridges) both the minimum and average grid levels must be monotonically non-increasing in ridge count.
+
+6. **Per-band physical correctness** — Via `SharedCalc.calcISOatPointDetailed(..., terrainILPerBand)`, verify that the `Aterr` field on each band entry reflects the input array. Test inputs `[1,2,3,4,5,6,7,8]` must produce bands with `Aterr = 1, 2, 3, 4, 5, 6, 7, 8`.
+
+7. **No barrier double-counting** — Compute two ISO predictions: barrier only (no terrain), and barrier + a weaker terrain array (e.g. `[1,1,1,1,1,1,1,1]`). If the barrier IL dominates, the two results must be identical to within float epsilon (< 0.01 dB). Verifies `max(Abar, Aterr)` correctly prevents double counting.
+
+8. **Null vs zero-array equivalence** — `calcISOatPoint(..., null)` and `calcISOatPoint(..., [0,0,0,0,0,0,0,0])` must return byte-identical results. This guarantees that cells outside the terrain pre-pass grid (receiving `null`) are treated the same as cells where the pre-pass found no obstruction.
+
+9. **Long-path sampling cap** — For a 2 km source→receiver path, `findTerrainEdges()` must sample exactly 100 points (the upper cap). No performance degradation vs. a 500 m path.
+
+10. **Short-path sampling floor** — For a 40 m path, `findTerrainEdges()` must sample exactly 20 points (the lower floor). Ridge detection must still work on short paths.
+
+11. **Terrain + barrier per band** — Run a scenario with both a building barrier and a terrain ridge. For each band, the effective IL must equal `max(barrier IL, terrain IL)` — never the sum. In the grid cells directly behind the barrier, IL should not exceed the barrier-alone IL.
+
+12. **Save/load round-trip** — Enable terrain, save assessment, clear, load. The noise map must re-render with identical per-cell values after reload.
+
+13. **No console errors** — Across all of the above, no `TypeError`, `RangeError`, or `NaN` cells must appear in the grid output.
+
+14. **ISO/TR 17534-3 barrier validation** — The in-app ISO validator still passes. `calcBarrierAttenuation` was not modified, only called more times, so all existing barrier test cases must continue to pass.
+
+## −4. CoRTN Road Traffic — Phase 4 (receiver integration)
+
+Prerequisites: Phase 2 + 3 already complete. These tests exercise the integration between CoRTN roads, placed receivers, the Predicted Levels panel, and criteria assessment.
+
+1. **Receiver near a CoRTN road** — Draw a CoRTN road. Enter AADT 23 600, Speed 60, CV 5%, one-way carriageway. Place R1 about 20 m perpendicular from the road. Expected: the Predicted Levels panel gains a new "CoRTN Road Traffic — per-receiver breakdown" section at the bottom with an R1 row showing `Dist ≈ 20 m`, `Angle ~80°`, `Day LA10 ~67`, `Day LAeq ~64`, `Night LA10 ~61`, `Night LAeq ~58`. The total Day Leq in the main table above includes the CoRTN contribution.
+
+2. **Move receiver closer** — Drag R1 to ~10 m from the road. Day LAeq in the breakdown rises by ~3 dB; the total Day Leq in the main table rises by the same amount (if CoRTN is the dominant source).
+
+3. **Move receiver farther** — Drag R1 to ~100 m from the road. Day LAeq drops by ~10 dB (expected from `−10·log₁₀(100/20) ≈ 7 dB` plus additional ground / angle-of-view adjustment). Total updates accordingly.
+
+4. **CoRTN + point source energy sum** — Place a point source near R1 with Lw 80 dB. Verify the total Day Leq in the main table is an energy sum of both contributions: e.g. if point-source-only total was 60 and CoRTN-only total was 64, the combined total should read `10·log₁₀(10^6.0 + 10^6.4) ≈ 65.5` → rounds to 66.
+
+5. **CoRTN detail shows LA10 (not just LAeq)** — Day LA10 and Night LA10 columns in the per-receiver breakdown table show non-null values even though LA10 is not used by the main per-receiver total (which uses LAeq). Point / line / area / building sources contribute LAeq only — LA10 is CoRTN-specific.
+
+6. **Delete a CoRTN road** — Right-click the road polyline → Delete. Verify: the per-receiver breakdown section disappears (or, if other roads remain, the deleted road's block disappears). Total Day Leq drops back to whatever it was before the road existed.
+
+7. **Multiple CoRTN roads** — Draw 2 roads (Road A at 20 m with AADT 10 000, Road B at 50 m with AADT 5 000). Place R1. The detail panel shows two table blocks (one per road), each with an R1 row showing its own `Dist`, `Angle`, and LA10/LAeq. The total in the main table energy-sums both contributions.
+
+8. **Multiple receivers + multiple roads** — Add R2 near one of the roads. The detail panel now shows 2 roads × 2 receivers = 4 rows total (2 per road block). Each row shows its own receiver's distance and angle.
+
+9. **Period handling** — Eve and Lmax totals should be unaffected by CoRTN (the loop is gated on day/night only). Switch to a Victoria criteria configuration that shows evening results — CoRTN should not contribute.
+
+10. **Save / Load round-trip** — Save an assessment with CoRTN roads + placed receivers. Load it back. Verify: the CoRTN roads are restored, receivers are restored, and the Predicted Levels detail panel shows identical per-receiver breakdown values (they are re-computed on load, not persisted, but the result is identical because inputs are identical).
+
+11. **Criteria assessment still works** — Place a receiver in an SA residential zone with a CoRTN road contributing ~55 dB LAeq. Verify the SA criteria panel's Δ value for Day Leq takes the CoRTN contribution into account (total − criterion). Criteria logic itself is unchanged — it consumes the same `calcTotalISO9613` return that the new CoRTN loop feeds into.
+
+12. **Existing source types unchanged** — With no CoRTN roads placed, the Predicted Levels panel looks exactly like it did before Phase 4. No detail section visible, no extra rows, no shifted totals.
+
+13. **`cortnBroadbandToSpectrum()` round-trip** — In DevTools console:
+    ```js
+    const s = cortnBroadbandToSpectrum(75);
+    10 * Math.log10(s.reduce((a, v) => a + Math.pow(10, v / 10), 0));
+    // → 75.0
+    ```
+
+14. **No console errors** — Place receivers, move them, create roads, delete roads, toggle 3-source-height, enable barriers — none should emit warnings or errors in DevTools Console.
+
+## −3. CoRTN Road Traffic — Phase 3 (barrier diffraction)
+
+Prerequisite: Phase 2 validation scenario already entered (AADT 23600, Speed 60, CV 5%, 11 day hours / 9 night hours, DGA surface, one-way, day LA10 = 75.7 dB free-field).
+
+1. **Barrier section visible** — Open the CoRTN panel and scroll to the new "Barrier" section below NSW 3-source-height. It should contain an `Enable barrier` checkbox, three hidden inputs, and a derived-values display. When the checkbox is OFF, the inputs are hidden.
+
+2. **Enable barrier** — Tick `Enable barrier`. Three numeric inputs appear: `Barrier height (m)`, `Barrier base RL (m)`, `Receiver→barrier dist (m)`. Directly below them, a blue-boxed readout shows `Source→barrier`, `Path difference (δ)`, `Zone`, and `Attenuation`.
+
+3. **SoundSurfer scenario** — Set `Barrier height = 1.5`, `Barrier base RL = 0`, `Receiver→barrier = 3`. Verify:
+    - `Source→barrier = 4.5 m` (= `distFromKerb_m 4 + 3.5 − distToBarrier_m 3`)
+    - `Path difference (δ) = 0.0434 m` (exact to 4 decimal places)
+    - `Zone = Shadow`
+    - `Attenuation = −8.0 dB`
+    - Day LA10 = **67.7** dB, LAeq = **64.7** dB (free-field 75.7/72.7 minus 8.0)
+    - Night LA10 = **61.3** dB, LAeq = **58.3** dB (free-field 69.3/66.3 minus 8.0)
+
+4. **Toggle barrier off** — Uncheck `Enable barrier`. Day LA10 returns to 75.7, Night to 69.3.
+
+5. **Minimum barrier height (0 m)** — Re-enable, set height = 0. Zone becomes `Illuminated`, attenuation ≈ −0.3 dB, Day LA10 ≈ 75.4.
+
+6. **Tall barrier cap at −30 dB** — Set barrier height to 20 m (keeping other inputs). Zone stays `Shadow`, attenuation clamps to **−30.0 dB**, Day LA10 = 45.7 dB (75.7 − 30).
+
+7. **Barrier behind source** — Set `Receiver→barrier = 10` (> `distFromKerb_m 4 + 3.5 = 7.5`). A red error line appears in the barrier readout: *"Receiver-to-barrier distance is ≥ source line (barrier behind source)."* Day LA10 reverts to the free-field 75.7 (the barrier is silently dropped, not applied).
+
+8. **Illuminated zone** — Set height = 0.3, base RL = 0, dist-to-barrier = 3 (short barrier that doesn't break line of sight at receiver 1.5 m / source 0.5 m over 7.5 m). Zone = `Illuminated`, atten ≈ −0.7 dB.
+
+9. **Barrier with ground absorption** — Set ground absorption to 0.8 (so free-field has a non-zero `corr_ground`). Enable a shadow-zone barrier. The breakdown should show `corr_ground_final = 0.0` (barrier replaces ground correction with 0) while `corr_ground` (free-field value) remains non-zero. LA10 with barrier = free-field LA10 − old `corr_ground` + 0 + `atten`.
+
+10. **Per-contribution barrier in breakdown** — With the SoundSurfer scenario + barrier enabled, click `Show breakdown`. Each contribution block now includes:
+    - `barrier = Shadow  (δ=0.0434, src→barr=4.5m)`
+    - `corr_ground_f = 0.0   (free-field corr_ground was 0.0)`
+    - `corr_barrier  = −8.0`
+    Verify these values appear under "DAY — One-way".
+
+11. **Dual carriageway with barrier** — Switch carriageway to Dual (50/50). Both near and far contributions go through the same barrier geometry (per the simplification documented in calculations.md). Verify LA10 decreases relative to the free-field dual-carriageway result.
+
+12. **3-source-height with barrier** — Enable both 3-source-height AND barrier. Breakdown shows 4 contributions (Cars, CV tyres, CV engines, CV exhausts), each with its own barrier section. All sub-sources use the standard 0.5 m source RL for the barrier geometry (not their own elevated heights, per spec).
+
+13. **Save / Load round-trip** — Set a non-default barrier (e.g. height 2.5, base RL 1.0, dist 2, enabled). Save the assessment. Clear roads via `window._setCortnRoads([])`. Load the assessment back. Verify:
+    - Barrier inputs show the same 2.5 / 1.0 / 2
+    - Enable checkbox is checked
+    - Derived display shows the same δ, zone, attenuation
+    - Day LA10 matches the pre-save value exactly
+
+14. **Existing ISO 9613-2 barriers unaffected** — Draw a `userBarriers` barrier via the regular Draw barrier flow. Place a point source nearby. Verify the ISO 9613-2 barrier attenuation applies to the point source as before, independently of any CoRTN barriers. Neither barrier type affects the other.
+
+15. **No console errors** — Draw a CoRTN road, enable barrier, edit every field, toggle on/off, switch carriageway, enable 3-source-height, save, load, delete — no warnings or errors in DevTools Console.
+
+## −2. CoRTN Road Traffic — Phase 2 (calculation engine)
+
+1. **SoundSurfer validation scenario** — Draw a CoRTN road. Set inputs: AADT 23600, Speed 60, Gradient 0, %CV day 5, %CV night 5, Distance from kerb 4, Mean prop height 1, Ground absorption 0, Surface DGA, Angle 180, Carriageway **one-way**, %AADT day 90 / night 10, Day hours 11, Night hours 9, Aust adj day −1.7 / night +0.5, 3-source OFF. Verify results:
+   - Day LA10 = **75.7 dB** ± 0.1, LAeq = **72.7 dB** ± 0.1
+   - Night LA10 = **69.3 dB** ± 0.1, LAeq = **66.3 dB** ± 0.1
+   Reference (from the UK CoRTN spreadsheet): Day 75.8 / 72.8, Night 69.3 / 66.3. The engine matches within 0.1 dB (rounding drift).
+
+2. **Auto-validation via URL flag** — Load the app with `?cortn_validate=1` in the URL. DevTools console prints `[CoRTN validation] PASS — got day: 75.7 / 72.7 night: 69.3 / 66.3 | expected day: 75.8 / 72.8 night: 69.3 / 66.3`. Tolerance is 0.3 dB per reading.
+
+3. **Speed sensitivity** — From the validation scenario, change speed 60 → 100. Day LA10 increases by ~3.7 dB (to ~79.4). Change back to 60 → returns to 75.7.
+
+4. **Gradient sensitivity** — Set gradient 0 → 5. Day LA10 increases (speed correction falls as `V_adj` drops, but `corr_gradient = 0.3 × 5 = +1.5 dB`). Final result rises by roughly +0.8 to +1.2 dB depending on other settings.
+
+5. **Surface correction** — Switch Road surface from `DGA (0 dB)` to `Concrete (+3 dB)`. Both LA10 and LAeq increase by exactly 3.0 dB. Switch to `OGA (−2 dB)` → both decrease by exactly 2.0 dB from the baseline.
+
+6. **Dual carriageway** — Set Carriageway to `Dual`, 50/50 split, `laneOffset_m = 7`. Keep the validation scenario otherwise. Day LA10 drops from 75.7 (one-way) to ~74.5 dB — the far lane is now 7 m further from the receiver. "Show breakdown" reveals two contributions: "Near lane" and "Far lane".
+
+7. **Dual carriageway uneven split** — Keep dual, change split to 80 / 20. Day LA10 rises slightly (more traffic in the near lane). 20 / 80 → symmetric mirror result (20% near, 80% far).
+
+8. **NSW 3-source-height** — Enable the checkbox. Breakdown now shows 4 contributions per lane: Cars (~74 dB dominates), CV tyres (~67), CV engines (~66), CV exhausts (~58). Energy sum ≈ 75.4 dB (one-way). Disable → back to single "One-way" contribution.
+
+9. **AADT = 0 edge case** — Set AADT to 0. Results display reads `—` for all four values and shows "Enter AADT to compute results." in red. No NaN, no Infinity, no console errors.
+
+10. **Australian adjustment override** — Change Aust. adj. day from −1.7 to 0. Day LA10 increases by exactly 1.7 dB. Change to +2 → increases by 3.7 dB vs the default.
+
+11. **Angle of view + reflection** — Set angle of view to 90° (half the road visible). Day LA10 decreases by 3.0 dB (`10·log₁₀(90/180) = −3.0`). Set reflection angle to 30° at angle 90 → reflection correction adds `1.5·30/90 = 0.5 dB`.
+
+12. **Ground absorption** — Set ground absorption to 1.0 (soft ground). If mean prop height stays at 1 m and distFromKerb_m = 4 m then `d = 7.5`, `H ≥ (7.5+5)/6 = 2.08` is FALSE (H=1 < 2.08), `H < 0.75` is FALSE, so `corr_ground = 5.2 × 1 × log10((6×1 − 1.5)/7.5) = 5.2 × log10(0.6) = −1.15 dB`. Day LA10 drops by ~1.2 dB.
+
+13. **Low-volume correction** — Set AADT to 300 (very low) and day hours to 18 → hourly flow ≈ 14. Verify the breakdown `corr_lowVol` shows a non-zero negative value (e.g. −2 to −5 dB). LAeq ignores this correction.
+
+14. **Show breakdown toggle** — Click "Show breakdown" in the Results section. A monospace dump of every intermediate value appears (L_basic, V_adj, corr_speed, d_slant, corr_distance, G_factor, corr_ground, corr_angle, corr_reflection, corr_surface, corr_lowVol, corr_aust, corr_add). Toggle back to hide.
+
+15. **Live recalculation** — Every input in the panel (text, number, dropdown, radio, checkbox) triggers an immediate recalculation. The Results section updates on every keystroke — no "Calculate" button required.
+
+16. **Save / Load preserves results** — Save an assessment containing CoRTN roads. Load it back. Results are automatically re-computed by `_setCortnRoads` via `recalcCortnRoad`, so the loaded roads show the same LA10/LAeq values they had before save (they are NOT read from the saved JSON — they're always derived).
+
+17. **No console errors** — Draw, edit every field, toggle dual/one-way, enable/disable 3-source-height, save, load, delete — all should run without any warnings or errors in DevTools Console.
+
+## −1. CoRTN Road Traffic Source — Phase 1
+
+1. **Tools menu has the button** — Open the side panel → expand the Tools accordion. Verify a new `Road (CoRTN)` button sits just after the `Line source` button. It has a dark blue (`#1565C0`) left border, a road-stripe SVG icon, and the tooltip "Draw a CoRTN road traffic source (UK CoRTN method with Australian adjustments)".
+
+2. **Draw a new road** — Click `Road (CoRTN)`. The button highlights "active". Click two or more points on the map to draft a polyline (it renders a light dashed blue preview). Double-click to finish. Verify:
+   - A dashed dark blue polyline appears where you drew
+   - A small `R1` label sits at its midpoint in `#1565C0` bold
+   - The floating `#cortnFloatPanel` opens centred on the viewport
+
+3. **Panel layout — desktop** — Inspect the panel. It should contain, top-to-bottom:
+   - Blue-bordered header with "Road 1 — CoRTN" and a `×` close button
+   - **Name** input (with midpoint + length display below)
+   - **Traffic**: AADT, Speed, Gradient, Carriageway radios (Dual / One-way), Traffic split
+   - **Commercial vehicles**: %CV day, %CV night
+   - **Time periods**: Metric dropdown (`LA10,18h` / `LAeq,15h/9h` / `LAeq,16h/8h`), %AADT day, %AADT night, day hours, night hours
+   - **Corrections**: Road surface dropdown, Custom correction (hidden initially), Aust. adj. day, Aust. adj. night
+   - **Propagation**: Dist. from kerb, Road height, Ground absorption, Mean prop height, Angle of view, Reflection angle
+   - **NSW 3-source-height model** checkbox
+   - **Results** placeholder showing "—" for both Day and Night LA10 / LAeq
+   - Delete + Close buttons at the bottom
+
+4. **Default values** — Without changing anything, verify:
+   - Speed = 60, Gradient = 0
+   - %CV day = 5, %CV night = 5
+   - Carriageway = Dual (checked)
+   - Traffic split 50 / 50
+   - Metric = `LA10,18h (6am–midnight)`
+   - %AADT day = 94, %AADT night = 6
+   - Day hours = 18, Night hours = 6
+   - Road surface = DGA
+   - Aust. adj. day = −1.7, Aust. adj. night = 0.5
+   - Dist. from kerb = 4, Road height = 0
+   - Ground absorption = 0, Mean prop height = 1
+   - Angle of view = 180, Reflection angle = 0
+   - 3-source-height unchecked
+
+5. **Edit fields and bind-back** — Change the Name to "Fullarton Road", AADT to 25000, Speed to 50. Close the panel, then click the polyline on the map. Panel re-opens showing all the changes preserved.
+
+6. **Period metric auto-update** — Change Metric to `LAeq,15h / LAeq,9h (7am–10pm / 10pm–7am)`. Verify %AADT day auto-updates to 90, %AADT night to 10, day hours to 15, night hours to 9. Change to `LAeq,16h / LAeq,8h` → day hours 16, night hours 8, %AADT day 94.
+
+7. **Surface correction auto-map** — Switch surface dropdown to `Concrete` → the row is hidden (no custom field). Switch to `OGA` → still hidden. Switch to `Custom` → a new "Custom correction (dB)" input row appears. Enter `5.5` → bound to `surfaceCorrection`.
+
+8. **Carriageway toggle** — Check `One-way` → the traffic split inputs become disabled/greyed. Check `Dual` → enabled again.
+
+9. **Draw a second road** — Close panel, click `Road (CoRTN)` again, draw another polyline. Verify the midpoint label reads `R2` (not `R1`). Both roads remain on the map.
+
+10. **Right-click context menu** — Right-click the first CoRTN road polyline. Verify a context menu appears with Edit / Duplicate / Delete items (plus the icons). Click `Duplicate` → a third road appears slightly offset; label `R3`. Click `Delete` on the duplicate → it disappears from the map and from `cortnRoads`.
+
+11. **Save / Load round-trip** — With 2 roads on the map, click Save Assessment → inspect the exported JSON → verify it contains a `cortnRoads` array with 2 entries, each with all the fields. Delete both roads. Load the saved JSON back → both roads reappear in the correct places with exactly the same names, AADT values, surface types, etc.
+
+12. **Coexistence with line sources** — Add a line source (`L` shortcut) and a CoRTN road in the same session. Verify:
+    - Line source polyline is solid red, label `L1`
+    - CoRTN road polyline is dashed blue, label `R1`
+    - Clicking each opens the correct panel type (`lsFloatPanel` vs `cortnFloatPanel`)
+    - Delete one → the other remains untouched
+    - Save / load round-trips both independently
+
+13. **Results placeholder** — Open a CoRTN panel and scroll to Results. Both Day and Night show `LA10 = —  |  LAeq = —` with an italic note "Phase 2 will populate these via the CoRTN engine." No calculation happens yet — that's correct for Phase 1.
+
+14. **No console errors** — Drawing, editing, saving, loading, deleting — all should execute without any errors in DevTools > Console.
+
+## 0. Fixed LHS Side Panel + Atom Buttons
+
+1. **Fresh load (desktop ≥768px)** — Clear `localStorage`. Reload. Verify `#side-panel` is visible on the left, 300px wide, dark background (`rgba(20, 26, 38, 0.98)`), full height of the map area. The search bar is at the top; Mapping / Tools / Modelling accordion headers are stacked below; the Expand/Panels (drawer) toggle sits at the bottom of the panel. The Leaflet map fills the space between the side panel and the right-side drawer.
+
+2. **Accordion: open Tools** — Click the "Tools" header. It gets a subtle white highlight (`.mp-open` class). The body expands INLINE below the header (not as a floating dropdown) with all tool buttons visible: Terrain toggle, Buildings, Ruler, Site plan overlay, Barrier placement, Source placement, Receiver placement, Show/hide, Clear all.
+
+3. **Multiple sections open independently** — With Tools open, click the "Mapping" header. BOTH Tools and Mapping stay open simultaneously (no mutual-exclusion — Claude-sidebar style). Click Modelling — all three stay open.
+
+4. **Outside click does not close accordions** — With sections open, click on the Leaflet map. None of the open accordions close. They only close when you click their own header.
+
+5. **Collapse panel** — Click the `«` toggle on the panel's right edge. Panel width goes from 300px to 0, the `«` becomes `»`, and the Leaflet map reflows to fill the full width up to the drawer. `localStorage['sidePanelCollapsed']` is `'true'`.
+
+6. **Expand panel** — Click the `»` toggle (now at the left edge, sticking out from the map area). Panel restores to 300px, map shrinks back to accommodate it, chevron flips to `«`, `localStorage` is `'false'`.
+
+7. **Persistence across reload** — Collapse the panel, reload the page. Panel stays collapsed on load. Expand, reload — panel stays expanded.
+
+8. **Leaflet still interactive after toggle** — Toggle panel a few times, then pan/zoom/click the map. Coordinates are correct; no drag offset; click-to-place-source works; measure ruler is accurate. (This verifies `map.invalidateSize()` was called after each toggle.)
+
+9. **Search bar in side panel** — Type an address ("123 Hindley St, Adelaide") into the search input and click Search. Map centers on the result. Autocomplete results dropdown appears below the search input (not clipped by side panel overflow).
+
+10. **All Tools dropdown items still function** — Terrain contour toggle, Buildings fetch, Ruler, Site plan overlay upload, Barrier placement, Source placement (click map to add), Receiver placement, Show/hide groups, Clear all. None of these should have regressed.
+
+11. **All Mapping and Modelling items still function** — Street/aerial switch, cadastral overlay, zone overlay, MBS 010 screening; ISO 9613-2 toggle, noise map grid settings, contour interval.
+
+12. **Atom buttons in top-right** — Save JPG, Help (?), Suggest (💡), Undo, Redo appear as individual dark pill buttons in a horizontal row at the top-right of the visible map area (just to the LEFT of the drawer, 9px gap). Each button hovers/clicks independently. None are hidden behind the drawer. Save JPG exports a 3× JPEG as before.
+
+13. **Drawer toggle at bottom of side panel** — The Expand/Panels button is the last item in the side panel (inside `#side-panel-footer`). Clicking it still opens/closes the right drawer and still triggers `map.invalidateSize()`.
+
+14. **Close right drawer → atom buttons snap right** — Click the drawer's own edge triangle to close it. The map fills the full viewport width (minus the side panel). The atom buttons re-home from `right: 530px` to `right: 10px` so they're flush with the viewport edge.
+
+15. **Mobile @ ≤767px — auto-collapse on load** — Resize to 375×800 and reload. The side panel is collapsed on load (slid off-screen via `transform: translateX(-100%)`). The toggle button (`»`) is visible at the far left edge. The Leaflet map fills the full 375px width.
+
+16. **Mobile — open panel overlays the map** — Tap the `»` toggle. Panel slides in from the left. Map stays at full width (it is NOT pushed right). A semi-transparent dark backdrop appears covering the rest of the map area. `#side-panel-backdrop` has `display: block`.
+
+17. **Mobile — backdrop tap closes the panel** — Tap anywhere on the dark backdrop. Panel slides back out, backdrop disappears. Chevron returns to `»`.
+
+18. **Mobile — atom buttons stay accessible** — With panel closed on mobile, the atom buttons (Save JPG / ? / 💡 / Undo / Redo) are at the top-right edge of the viewport, not behind the drawer. Each still responds to taps.
+
+19. **Save/load round-trip unaffected** — Place 2 point sources + 3 receivers + 1 area source + 1 building source with walls. Save assessment JSON. Reload the page. Load the saved file. Verify every source/receiver/building/library selection restores exactly as before — the side panel refactor touched no Save/Load serialisation paths.
+
+20. **Panels below the map unchanged** — Scroll down to the Objects / Receivers / Propagation method / Noise sources / Assessment cases panels. None of them moved, resized, or broke. They render exactly as before.
+
+21. **ISO/TR 17534-3 validation passes** — Run the in-app Propagation method validation. T01/T02/T03 should match within ±0.05 dB as before. This verifies no propagation code path was touched.
+
+22. **No console errors** — Open DevTools > Console. Reload with a clean session. No errors during load, panel toggle, accordion open/close, search, or any Tools/Mapping/Modelling action.
+
 ## 1. Disclaimer Banner
 
 1. **Fresh visit** — Clear `localStorage` (or use incognito). Banner appears at bottom of viewport with full disclaimer text and "I understand" button. Tool content (intro text, map, panels) is visible immediately without scrolling past the disclaimer.
@@ -205,3 +620,27 @@
 78. **Compliance strip + jump nav still functional** — Place source + receiver, enter Lw, verify strip updates and jump nav scrolls correctly.
 
 79. **No console errors** — No errors attributable to Phase 4 code.
+
+## ISO 9613-2 §7.4 ground-barrier interaction
+
+80. **No-barrier tests unchanged** — Run `iso17534.test.js`. T01 (G=0) → 44.29, T02 (G=0.5) → 41.53, T03 (G=1) → 39.14. All three within ±0.25 dB of reference. The §7.4 fix must NOT touch these paths.
+
+81. **T09 short barrier tightened tolerance** — T09 total LAeq must be within ±0.25 dB of 32.93 dB (was ±1.0 dB before the fix). Expected around 32.80 dB with `barrierInfo = {d1: 170.49, d2: 23.68, hBar: 6}`.
+
+82. **T08 long barrier baseline** — T08 total LAeq within ±0.6 dB of 32.48 dB. The §7.4 fix has no numerical effect here because the large lateral deltas make `Abar > Agr_bar` in every band — verify this by per-band inspection: `Abar[i] - max(Agr[i], Agr_bar[i])` should be positive for all bands.
+
+83. **T11 cubic building baseline** — T11 total LAeq within ±1.0 dB of 41.30 dB. Also unchanged by the §7.4 fix because the 25 dB cap on double diffraction dominates any per-band Agr_bar.
+
+84. **`SharedCalc.calcAgrBarrier` exported** — In the browser console: `typeof SharedCalc.calcAgrBarrier === 'function'` and `SharedCalc.calcISOatPoint.length >= 10`.
+
+85. **`getDominantBarrier` returns `d1`/`d2`** — `SharedCalc.getDominantBarrier(srcLL, recLL, 1, 1.5, [bldg])` on a blocking building returns an object where `d1 > 0 && d2 > 0 && d1 + d2 ≈ flatDist(src, rec)` (within floating-point tolerance).
+
+86. **Hard ground unchanged (G=0 reflecting)** — Place source and receiver either side of a 5 m barrier on flat hard ground (`groundFactor = 0`). Predicted level should be identical before and after the §7.4 fix, because the unobstructed `Agr` ≈ −4.5 dB per band and the sub-path `Agr_bar` is also negative; `max(Dz, Agr_bar) = Dz` either way.
+
+87. **Soft ground + short barrier (where it matters)** — Place source and receiver either side of a 3 m barrier on soft ground (`groundFactor = 1`) at short distance (~30 m). Predicted level at 250–500 Hz bands may differ from before the fix — this is the full observable effect of the §7.4 correction.
+
+88. **Barrier on soft ground — noise map grid** — Generate a noise map over a scene with a ground-mounted barrier on soft ground (G=1). Map must render without NaN cells, no visual artefacts along the barrier shadow line, and no console errors.
+
+89. **Save/load round-trip** — Save an assessment with barrier + ground zones, reload, load — all state preserved, predicted levels byte-identical to before save.
+
+90. **Simple / ISO convergence for G=0** — With `groundFactor = 0`, no barrier, one source / one receiver, the ISO 9613-2 and simple propagation methods must still match within 0.5 dB (the `max(Dz, Agr_bar)` change is a no-op when no barrier is present).
