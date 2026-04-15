@@ -969,6 +969,589 @@ body.map-fs-active { overflow: hidden; }
   box-shadow: 0 0 0 1px rgba(0,0,0,.15);
 }
 
+/* ── App layout: full-viewport map with right-side drawer ──────── */
+body.drawer-layout {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  margin: 0;
+}
+body.drawer-layout .container { max-width: none; margin: 0; padding: 0; }
+body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; padding: 0; }
+
+#app-header {
+  position: relative;
+  z-index: 900;
+  background: var(--bg, #fff);
+  padding: 8px 18px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  display: flex;
+  align-items: center;
+  column-gap: 18px;
+}
+/* Brand block: logo image + title + version */
+#app-header .header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+#app-header .header-brand > a { flex-shrink: 0; display: block; }
+#app-header .logo {
+  height: 46px;
+  margin: 0;
+  display: block;
+}
+#app-header .header-brand-text {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+#app-header .header-title {
+  font-size: 19px;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.15;
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+}
+#app-header .header-title .state-badge { margin-left: 8px; font-size: 12px; vertical-align: middle; }
+#app-header .header-version {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  white-space: nowrap;
+}
+/* Original .h1 element is hidden — we use .header-title instead */
+#app-header .h1 { display: none; }
+/* Description paragraph is hidden — removed for compactness */
+#app-header #policyRefText { display: none; }
+
+/* Action buttons cluster — right-aligned */
+#app-header-actions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+  margin-left: auto;
+  align-items: center;
+}
+#app-header-actions .pdf-btn {
+  font-size: 11px;
+  padding: 5px 11px;
+}
+#app-header .collapse-all-btn { font-size: 11px; padding: 4px 10px; margin: 0; }
+
+/* GIS Export dropdown in the header */
+#app-header .header-dropdown {
+  position: relative;
+  display: inline-block;
+}
+#app-header .header-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 140px;
+  background: #ffffff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 2000;
+  overflow: hidden;
+  padding: 4px 0;
+}
+#app-header .header-dropdown-menu.open { display: block; }
+#app-header .header-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: #1f2937;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+#app-header .header-dropdown-item:hover {
+  background: #f3f4f6;
+}
+
+/* Construction banner — separate slim bar below the header */
+#construction-banner {
+  flex-shrink: 0;
+  padding: 4px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border-bottom: 1px solid #fcd34d;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+#construction-banner::before {
+  content: "⚠";
+  margin-right: 6px;
+}
+
+#app-layout {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#map-column {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+#map-column #mapInnerWrapper {
+  position: absolute !important;
+  inset: 0;
+}
+#map-column #noise-map {
+  width: 100% !important;
+  height: 100% !important;
+  aspect-ratio: unset !important;
+  border-radius: 0 !important;
+  border: none !important;
+}
+/* Consolidated map toolbar row: single horizontal row at top-left of map,
+   to the right of the Leaflet zoom +/- controls. Replaces the old split
+   layout where search was top-left and toolbars were top-right. */
+#map-column #mapPanelContainer {
+  position: absolute;
+  top: 10px;
+  left: 54px;                 /* right of Leaflet zoom (30px wide at left:10px) + 14px gap */
+  right: auto;
+  z-index: 1000;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  max-width: calc(100% - 64px);
+  pointer-events: none;
+}
+#map-column #mapPanelContainer > * { pointer-events: auto; }
+
+/* Search bar as a flex child inside the toolbar row.
+   Restyled to match the dark .mp toolbar buttons for visual consistency. */
+#map-column #mapSearchWrapper {
+  position: relative;          /* so #mapSearchResults can anchor below */
+  top: auto; left: auto; right: auto; bottom: auto;
+  z-index: auto;
+  flex: 1 1 220px;
+  min-width: 140px;
+  max-width: 280px;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  height: 28px;
+  background: rgba(26,32,44,0.9);
+  border-radius: 7px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+}
+#map-column #mapSearchInput {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: #f3f4f6;
+  font-size: 12px;
+  line-height: 14px;
+  outline: none;
+}
+#map-column #mapSearchInput::placeholder { color: rgba(243,244,246,0.55); }
+#map-column #mapSearchBtn {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  background: rgba(255,255,255,0.05);
+  color: #f3f4f6;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#map-column #mapSearchBtn:hover { background: rgba(255,255,255,0.12); }
+#map-column #mapSearchResults {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1100;
+  background: #fff;
+  color: #111827;
+  margin-top: 4px;
+  border-radius: 7px;
+}
+
+/* Dropdown bodies now anchor to LEFT edge of button (previously right-anchored).
+   z-index 1100 so dropdowns render above the toolbar row (1000) AND above any
+   other overlay on the map (status row at 800, drawer toggle at 10, etc.). */
+#map-column #mapPanelContainer .mp-body {
+  right: auto;
+  left: 0;
+  border-radius: 0 4px 7px 7px;
+  z-index: 1100;
+}
+/* Tools dropdown is long — cap height and scroll */
+#map-column #mapPanelContainer #mp-tools .mp-body,
+#map-column #mapPanelContainer #mp-mapping .mp-body,
+#map-column #mapPanelContainer #mp-modelling .mp-body {
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+/* Marker status row: bottom-left of map (moved from under-toolbar position
+   so it doesn't clip the open toolbar dropdown menus). */
+#map-column .map-status-row {
+  position: absolute;
+  bottom: 24px;                /* above Leaflet attribution strip */
+  left: 10px;
+  top: auto !important;        /* override any prior top setting */
+  right: auto !important;
+  z-index: 800;
+  background: rgba(255,255,255,0.92);
+  border-radius: 8px;
+  padding: 4px 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+
+/* Drawer: right-side overlay */
+#drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 520px;
+  z-index: 100;
+  background: var(--bg, #ffffff);
+  border-left: 1px solid var(--border, #e5e7eb);
+  box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#drawer-panel.drawer-closed {
+  transform: translateX(100%);
+  box-shadow: none;
+}
+#drawer-panel.drawer-open {
+  transform: translateX(0);
+}
+
+/* Panel empty-state guidance messages */
+.panel-empty-state {
+  padding: 14px 16px;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  font-style: italic;
+  text-align: center;
+  line-height: 1.5;
+  display: none;
+  border-radius: 6px;
+  background: rgba(107, 114, 128, 0.04);
+  margin: 4px 6px 8px;
+}
+.panel-empty-state.show { display: block; }
+
+/* Map guide overlay: centred prompt when nothing is placed */
+#map-guide-overlay {
+  position: absolute;
+  top: 50%;
+  left: 40%;
+  transform: translate(-50%, -50%);
+  z-index: 500;
+  pointer-events: none;
+  text-align: center;
+  transition: opacity 0.4s ease;
+}
+#map-guide-overlay.guide-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+#map-guide-overlay .map-guide-text {
+  display: inline-block;
+  font-size: 15px;
+  color: #374151;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 16px 28px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #e5e7eb);
+  line-height: 1.6;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* Phase 3: resize handle on left edge of drawer.
+   16px hit area so click-to-toggle has a comfortable target, with the
+   visual highlight confined to the central 6px via background-clip. */
+#drawer-resize-handle {
+  position: absolute;
+  left: -8px;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  cursor: pointer;                  /* click-to-toggle is the primary action */
+  z-index: 10;
+  background: transparent;
+  background-clip: content-box;
+  padding: 0 5px;                   /* shrinks visible area to 6px centre */
+  box-sizing: border-box;
+  transition: background 0.15s;
+}
+#drawer-resize-handle:hover {
+  background: rgba(74, 144, 217, 0.35);
+}
+#drawer-resize-handle.dragging {
+  cursor: col-resize;
+  background: rgba(74, 144, 217, 0.35);
+}
+
+/* Phase 4: Responsive fallback for narrower viewports.
+   This is NOT a mobile-optimised experience — just graceful degradation
+   so the tool remains usable on small laptops / tablet landscape. */
+@media (max-width: 1024px) {
+  #drawer-panel {
+    width: 420px;
+    min-width: 320px;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Very narrow: drawer takes the full viewport width when open. */
+  #drawer-panel {
+    width: 100% !important;
+    min-width: unset;
+    max-width: 100%;
+  }
+  /* Nothing to resize against at full width. */
+  #drawer-resize-handle {
+    display: none;
+  }
+  /* Move toggle button to bottom-left corner so it's reachable when
+     the full-width drawer is open. */
+  #drawer-toggle {
+    left: 8px;
+    top: auto;
+    bottom: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border, #e5e7eb);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+}
+
+#drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 12px 20px;
+  position: relative;   /* Phase 2: required for offsetTop calculations */
+}
+/* Fix panel widths inside drawer */
+#drawer-content .grid2 { display: block; }
+#drawer-content .card.span2,
+#drawer-content .card { margin-bottom: 10px; }
+#drawer-content .grid2.grid-full { padding: 0; }
+#drawer-content .grid2 { padding: 0; }
+
+/* ── Phase 2: Sticky compliance strip + jump nav ────────────────── */
+#drawer-header {
+  flex-shrink: 0;
+  background: var(--bg, #fff);
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  z-index: 2;
+}
+#compliance-strip {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  max-height: 200px;
+  overflow-y: auto;
+}
+#compliance-strip:empty { display: none; }
+#compliance-strip .cs-empty {
+  color: var(--muted, #6b7280);
+  font-style: italic;
+  padding: 4px 0;
+  text-align: center;
+}
+.cs-recv {
+  padding: 4px 6px;
+  margin-bottom: 3px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cs-recv:hover { background: #f3f4f6; }
+.cs-recv:last-child { margin-bottom: 0; }
+.cs-recv-header {
+  font-size: 11px;
+  color: var(--muted, #6b7280);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cs-recv-header .cs-name {
+  font-weight: 700;
+  color: var(--text, #111827);
+}
+.cs-recv-header .cs-sep { color: #d1d5db; margin: 0 4px; }
+.cs-periods {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.cs-cell {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.cs-cell .cs-pk {
+  opacity: 0.75;
+  margin-right: 3px;
+  font-weight: 400;
+}
+.cs-cell.cs-ok  { background: #dcfce7; color: #166534; }
+.cs-cell.cs-bad { background: #fee2e2; color: #991b1b; }
+.cs-cell.cs-na  { background: #f3f4f6; color: #9ca3af; }
+
+#jump-nav {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px 6px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+.jump-btn {
+  font-size: 10px;
+  padding: 3px 10px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 4px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.jump-btn:hover { background: #f3f4f6; }
+.jump-btn.jump-active {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+  font-weight: 600;
+}
+.drawer-group-anchor {
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Toggle button: docked to left edge of drawer */
+#drawer-toggle {
+  position: absolute;
+  left: -32px;
+  top: 8px;
+  width: 32px;
+  height: 48px;
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--muted, #6b7280);
+  box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+  z-index: 10;
+  transition: background 0.15s;
+}
+#drawer-toggle:hover { background: #f3f4f6; }
+
+/* ── Disclaimer banner ─────────────────────────────────────────── */
+#disclaimer-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  border-top: 2px solid #f0c040;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.3);
+  padding: 12px 20px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+#disclaimer-banner.hidden {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.disclaimer-banner-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.disclaimer-banner-content p {
+  flex: 1 1 0;
+  min-width: 280px;
+  margin: 0;
+}
+.disclaimer-banner-content a {
+  color: #f0c040;
+  text-decoration: underline;
+}
+#disclaimer-accept-btn {
+  flex-shrink: 0;
+  padding: 8px 24px;
+  background: #f0c040;
+  color: #1a1a2e;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#disclaimer-accept-btn:hover {
+  background: #f5d060;
+}
+body.disclaimer-visible .container {
+  padding-bottom: 120px;
+}
+@media (max-width: 600px) {
+  .disclaimer-banner-content {
+    flex-direction: column;
+  }
+  #disclaimer-accept-btn {
+    width: 100%;
+  }
+}
+
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" crossorigin="anonymous"/>
@@ -988,11 +1571,6 @@ body.map-fs-active { overflow: hidden; }
 
   <div class="p" id="policyRefText">
     A screening tool to predict noise levels at nearby receivers. Select source and receiver locations on the map, enter noise source data, and the tool will indicate potential compliance. Depending on location, the criteria will be automatically calculated or can be entered manually.
-  </div>
-  <div class="i">
-    Disclaimer: While every reasonable effort has been made to ensure that all the information displayed and provided in this application is correct, Resonate Consultants do not make any guarantees as to the completeness, reliability or accuracy of the information and disclaim any and all liability to any person/s. Any actions you take based on the information you find within this application are strictly at your own discretion and risk. This tool is not designed to provide definitive predictions or confirm compliance. It serves only as a preliminary screening tool to indicate the potential for compliance.
-    For a reliable assessment and formal advice, please contact <a href="https://resonate-consultants.com/acoustic-consulting-australia/" target="_blank" rel="noopener">Resonate Consultants</a>.
-    By using this tool, you consent to this disclaimer and agree to its terms.
   </div>
   </div>
   <button class="collapse-all-btn" id="collapseAllBtn" style="display:none;">Collapse All</button>
@@ -1094,6 +1672,23 @@ body.map-fs-active { overflow: hidden; }
                 if (pid === id) { p.classList.toggle('mp-open'); }
                 else { p.classList.remove('mp-open'); }
               });
+              // Dropdown clip fix: when a panel just opened, measure its
+              // actual top and set max-height to fit the remaining viewport
+              // below. The CSS calc(100vh - 120px) is viewport-based and
+              // doesn't know where the dropdown actually starts (can be
+              // 150-250px down on desktop due to app header + toolbar row).
+              var opened = document.getElementById(id);
+              if (opened && opened.classList.contains('mp-open')) {
+                var body = opened.querySelector('.mp-body');
+                if (body) {
+                  // Force layout so getBoundingClientRect returns the
+                  // newly-visible position, then size to available space.
+                  body.style.maxHeight = '';
+                  var rect = body.getBoundingClientRect();
+                  var avail = window.innerHeight - rect.top - 16;
+                  body.style.maxHeight = Math.max(200, avail) + 'px';
+                }
+              }
             }
             document.addEventListener('click', function(e) {
               if (!e.target.closest('#mapPanelContainer')) {
@@ -2297,7 +2892,7 @@ body.map-fs-active { overflow: hidden; }
 </div>
 
 <!-- Methodology panel -->
-<div class="card" style="margin-top:14px;">
+<div class="card" id="methodologyCard" style="margin-top:14px;">
   <h2>Methodology</h2>
   <div class="h2" style="font-size:13px;">Sound pressure level prediction</div>
   <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Two propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), and ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity). It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
@@ -2386,6 +2981,721 @@ body.map-fs-active { overflow: hidden; }
 </div>
 
 </div>
+
+<!-- ═══ Phase 1: Full-viewport map with drawer panel ═══════════════════ -->
+<!-- This script runs synchronously AFTER all HTML is parsed but BEFORE
+     DOMContentLoaded fires, so the map init (initMap) finds #noise-map
+     in its new position. All selectors in existing code use getElementById
+     or querySelectorAll which work regardless of DOM position. -->
+<script>
+(function() {
+  'use strict';
+
+  /* ── Audit notes ──────────────────────────────────────────────────────
+     a) Map wrapper: #mapCard > #mapInnerWrapper > #noise-map
+        Toolbars (#mapPanelContainer) are inside #mapInnerWrapper.
+     b) Panels: .grid2 sections inside .sheet inside .container inside #pdfArea.
+        Starts with objectsPanelSection after mapCard's grid2 closes.
+     c) Objects sidebar (#mapFullscreenSidebar, #mapFullscreenSidebarTab)
+        is INSIDE #mapInnerWrapper — stays with the map.
+     d) Collapse All: uses document.querySelectorAll('.card-body') — global, safe.
+     e) Expand button: toggleMapFullscreen() on #mapCard — stays in map.
+     f) No event delegation on the panels parent container; all use global selectors.
+     g) Generate Report (Word): findCard() uses document.querySelectorAll('.card') — global.
+     h) Save/Load: all by element ID and global JS variables — safe.
+     i) PDF Export: uses #pdfArea / .container — patched below to work with drawer.
+     ──────────────────────────────────────────────────────────────────── */
+
+  // Bail if critical elements are missing
+  var mapInnerWrapper = document.getElementById('mapInnerWrapper');
+  var noiseMap        = document.getElementById('noise-map');
+  var mapCard         = document.getElementById('mapCard');
+  var container       = document.querySelector('#pdfArea > .container');
+  var sheet           = container ? container.querySelector('.sheet') : null;
+  if (!mapInnerWrapper || !noiseMap || !mapCard || !container || !sheet) return;
+
+  // ── 1. Create #app-header — single compact row ────────────────────
+  var appHeader = document.createElement('div');
+  appHeader.id = 'app-header';
+
+  // Brand block: logo image + "Environmental Noise Screening Tool" title
+  var brandBlock = document.createElement('div');
+  brandBlock.className = 'header-brand';
+
+  // Reuse the existing logo anchor (keeps the link to resonate-consultants.com)
+  var logoImg = container.querySelector('a > img.logo');
+  if (logoImg && logoImg.parentElement) {
+    brandBlock.appendChild(logoImg.parentElement);
+  }
+
+  // Title text + version (no "Resonate" text — the logo image is the wordmark)
+  var brandText = document.createElement('div');
+  brandText.className = 'header-brand-text';
+  var titleSpan = document.createElement('span');
+  titleSpan.className = 'header-title';
+  var existingH1 = container.querySelector('.h1');
+  var stateBadge = existingH1 ? existingH1.querySelector('#stateBadge') : null;
+  titleSpan.appendChild(document.createTextNode('Environmental Noise Screening Tool'));
+  if (stateBadge) {
+    titleSpan.appendChild(document.createTextNode(' '));
+    titleSpan.appendChild(stateBadge);
+  }
+  var versionSpan = document.createElement('span');
+  versionSpan.className = 'header-version';
+  versionSpan.textContent = 'v2.0 — March 2026';
+  brandText.appendChild(titleSpan);
+  brandText.appendChild(versionSpan);
+  brandBlock.appendChild(brandText);
+  appHeader.appendChild(brandBlock);
+
+  // Hide the original .h1 (we render the title span instead)
+  if (existingH1 && existingH1.parentNode) {
+    existingH1.style.display = 'none';
+    appHeader.appendChild(existingH1);
+  }
+
+  // Hidden Collapse All button stays attached but invisible
+  var collapseAllBtn = document.getElementById('collapseAllBtn');
+  if (collapseAllBtn) appHeader.appendChild(collapseAllBtn);
+
+  // Action button row: Save / Load / Report / Share / GIS Export dropdown
+  var actionRow = container.querySelector('div[style*="display:flex"][style*="gap:8px"][style*="margin:10px"]');
+  if (actionRow) {
+    actionRow.id = 'app-header-actions';
+    actionRow.style.margin = '0';
+
+    // Build GIS Export dropdown: button + menu with GeoJSON / KML / CSV items.
+    // Items just click-through to the existing drawer buttons to reuse their
+    // click handlers verbatim — zero risk of divergence.
+    var gisDropdown = document.createElement('div');
+    gisDropdown.className = 'header-dropdown';
+    gisDropdown.id = 'gisExportDropdown';
+
+    var gisBtn = document.createElement('button');
+    gisBtn.type = 'button';
+    gisBtn.className = 'pdf-btn';
+    gisBtn.id = 'gisExportHeaderBtn';
+    gisBtn.textContent = 'GIS Export \u25BE';
+    gisBtn.title = 'Export assessment data for GIS (GeoJSON, KML, CSV)';
+    gisDropdown.appendChild(gisBtn);
+
+    var gisMenu = document.createElement('div');
+    gisMenu.className = 'header-dropdown-menu';
+    gisMenu.id = 'gisExportMenu';
+    var gisItems = [
+      { action: 'geojson', label: 'GeoJSON', targetId: 'exportGeoJsonBtn' },
+      { action: 'kml',     label: 'KML',     targetId: 'exportKmlBtn' },
+      { action: 'csv',     label: 'CSV',     targetId: 'exportCsvBtn' }
+    ];
+    gisItems.forEach(function(it) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'header-dropdown-item';
+      btn.setAttribute('data-action', it.action);
+      btn.setAttribute('data-target', it.targetId);
+      btn.textContent = it.label;
+      gisMenu.appendChild(btn);
+    });
+    gisDropdown.appendChild(gisMenu);
+
+    // Toggle + outside-click logic
+    gisBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      gisMenu.classList.toggle('open');
+    });
+    document.addEventListener('click', function() {
+      gisMenu.classList.remove('open');
+    });
+    // Wire items: click-through to the existing drawer buttons
+    gisMenu.querySelectorAll('.header-dropdown-item').forEach(function(item) {
+      item.addEventListener('click', function() {
+        var targetId = item.getAttribute('data-target');
+        var target = document.getElementById(targetId);
+        if (target) target.click();
+        gisMenu.classList.remove('open');
+      });
+    });
+
+    actionRow.appendChild(gisDropdown);
+    appHeader.appendChild(actionRow);
+  }
+
+  // Remove the intro description paragraph entirely — it duplicates info
+  // obvious from the tool title and took vertical space from the map.
+  // The #policyRefText element is kept in the DOM (hidden) so any existing
+  // code that queries it still works.
+  var sheet1 = container.querySelector('.sheet1');
+  var descP = sheet1 ? sheet1.querySelector('#policyRefText') : null;
+  if (descP) {
+    descP.style.display = 'none';
+    appHeader.appendChild(descP);
+  }
+
+  // Extract the under-construction notice — becomes a standalone banner
+  // element between the header and the layout.
+  var constructionBanner = document.createElement('div');
+  constructionBanner.id = 'construction-banner';
+  constructionBanner.textContent = 'This tool is currently under construction. Features and data may be incomplete or subject to change.';
+
+  // Delete the now-empty sheet1 wrapper
+  if (sheet1 && sheet1.parentNode) sheet1.parentNode.removeChild(sheet1);
+
+  // ── 2. Create #app-layout, #map-column, #drawer-panel ─────────────
+  var appLayout = document.createElement('div');
+  appLayout.id = 'app-layout';
+
+  var mapColumn = document.createElement('div');
+  mapColumn.id = 'map-column';
+
+  // Move mapInnerWrapper into map-column (contains map, toolbars, fullscreen sidebar)
+  mapColumn.appendChild(mapInnerWrapper);
+
+  // Phase 4 / toolbar-row refactor: Repurpose the old #mapMaximiseBtn
+  // (originally inside the hidden #mapCard) as the Expand/Panels toggle
+  // at the end of the toolbar row. Build a .mp/.mp-hdr wrapper so it
+  // visually matches the other toolbar buttons.
+  var mapMaximiseBtn = document.getElementById('mapMaximiseBtn');
+  var mapPanelContainer = mapInnerWrapper.querySelector('#mapPanelContainer');
+  var drawerExpandMp = null;
+  if (mapMaximiseBtn && mapPanelContainer) {
+    mapMaximiseBtn.removeAttribute('onclick');
+    drawerExpandMp = document.createElement('div');
+    drawerExpandMp.className = 'mp';
+    drawerExpandMp.id = 'mp-toggle-drawer';
+    drawerExpandMp.style.pointerEvents = 'all';
+    var drawerExpandHdr = document.createElement('div');
+    drawerExpandHdr.className = 'mp-hdr';
+    drawerExpandHdr.id = 'drawerPanelBtn';
+    drawerExpandHdr.title = 'Toggle side panel (E)';
+    drawerExpandHdr.style.cursor = 'pointer';
+    // Move the existing SVG icon + label span into the new .mp-hdr wrapper
+    var icon = document.getElementById('mapMaximiseBtnIcon');
+    var label = document.getElementById('mapMaximiseBtnLabel');
+    if (icon) drawerExpandHdr.appendChild(icon);
+    if (label) drawerExpandHdr.appendChild(label);
+    drawerExpandMp.appendChild(drawerExpandHdr);
+    drawerExpandHdr.addEventListener('click', function() {
+      if (typeof window.toggleMapFullscreen === 'function') window.toggleMapFullscreen();
+    });
+    // Delete the now-empty original button element
+    if (mapMaximiseBtn.parentNode) mapMaximiseBtn.parentNode.removeChild(mapMaximiseBtn);
+  }
+
+  // Build the search wrapper and insert it into the toolbar row directly
+  // (instead of as a separate left-side overlay).
+  var mapSearchInput = document.getElementById('mapSearchInput');
+  var mapSearchBtn = document.getElementById('mapSearchBtn');
+  var mapSearchResults = document.getElementById('mapSearchResults');
+  var searchWrapper = null;
+  if (mapSearchInput) {
+    searchWrapper = document.createElement('div');
+    searchWrapper.id = 'mapSearchWrapper';
+    var origSearchDiv = mapSearchInput.parentElement;
+    if (origSearchDiv) {
+      searchWrapper.innerHTML = origSearchDiv.innerHTML;
+      origSearchDiv.remove();
+    }
+    if (mapSearchResults) {
+      searchWrapper.appendChild(mapSearchResults);
+    }
+    // Strip inline styles from the input + button — they conflict with
+    // the new dark toolbar theme. Re-query after innerHTML rebuild.
+    var newInput = searchWrapper.querySelector('#mapSearchInput');
+    var newBtn = searchWrapper.querySelector('#mapSearchBtn');
+    if (newInput) newInput.removeAttribute('style');
+    if (newBtn) newBtn.removeAttribute('style');
+  }
+
+  // Toolbar-row refactor: reorder children of #mapPanelContainer into
+  // the single left-aligned row: ?, search, Mapping, Tools, Suggested,
+  // Undo, Redo, Modelling, Save JPG, Expand/Panels.
+  if (mapPanelContainer) {
+    var toolbarOrder = [
+      { id: 'mp-help' },
+      { el: searchWrapper },
+      { id: 'mp-mapping' },
+      { id: 'mp-tools' },
+      { id: 'mp-suggest' },
+      { id: 'mp-undo' },
+      { id: 'mp-redo' },
+      { id: 'mp-modelling' },
+      { id: 'mp-save-jpg' },
+      { el: drawerExpandMp }
+    ];
+    toolbarOrder.forEach(function(item) {
+      var el = item.el || (item.id ? mapPanelContainer.querySelector('#' + item.id) : null);
+      if (el) mapPanelContainer.appendChild(el);  // moves to end → final order
+    });
+  }
+
+  // Move map status row into map-column as overlay
+  var statusRow = mapCard.querySelector('.map-status-row');
+  if (statusRow) mapColumn.appendChild(statusRow);
+
+  // Create drawer
+  var drawerPanel = document.createElement('div');
+  drawerPanel.id = 'drawer-panel';
+  drawerPanel.className = 'drawer-open';
+
+  // Phase 3: resize handle (must be first child of drawerPanel)
+  var drawerResize = document.createElement('div');
+  drawerResize.id = 'drawer-resize-handle';
+  drawerResize.setAttribute('role', 'separator');
+  drawerResize.setAttribute('aria-orientation', 'vertical');
+  drawerResize.setAttribute('aria-label', 'Resize panel width');
+
+  var drawerToggle = document.createElement('button');
+  drawerToggle.id = 'drawer-toggle';
+  drawerToggle.setAttribute('aria-label', 'Toggle panel');
+  drawerToggle.setAttribute('aria-expanded', 'true');
+  drawerToggle.innerHTML = '<span id="drawer-toggle-icon">&#9654;</span>';
+
+  var drawerContent = document.createElement('div');
+  drawerContent.id = 'drawer-content';
+
+  // Phase 2: sticky drawer header containing compliance strip + jump nav
+  var drawerHeader = document.createElement('div');
+  drawerHeader.id = 'drawer-header';
+  drawerHeader.innerHTML =
+    '<div id="compliance-strip"><div class="cs-empty">Place source and receivers to see compliance</div></div>' +
+    '<div id="jump-nav"></div>';
+
+  drawerPanel.appendChild(drawerResize);
+  drawerPanel.appendChild(drawerToggle);
+  drawerPanel.appendChild(drawerHeader);
+  drawerPanel.appendChild(drawerContent);
+
+  // ── 3. Move panels into drawer ─────────────────────────────────────
+  // Collect everything that goes in the drawer:
+  // - Project number/name row (first child of the first .grid2 inside .sheet)
+  // - devInfoCard (inside the first .grid2)
+  // - All .grid2 sections after the map's .grid2
+  // - Everything after .sheet closes (pdf buttons, recommendations, GIS, Methodology)
+
+  // First, move the contents of the first grid2 (project row + devInfoCard) but NOT mapCard
+  var firstGrid2 = sheet.querySelector('.grid2');
+  if (firstGrid2) {
+    // Get project row and devInfoCard — everything that isn't mapCard
+    var grid2Children = Array.from(firstGrid2.children);
+    grid2Children.forEach(function(child) {
+      if (child !== mapCard) {
+        drawerContent.appendChild(child);
+      }
+    });
+  }
+
+  // Now collect all grid2 sections after the first one (which held mapCard)
+  var allGrid2s = Array.from(sheet.querySelectorAll(':scope > .grid2'));
+  for (var i = 1; i < allGrid2s.length; i++) {
+    drawerContent.appendChild(allGrid2s[i]);
+  }
+
+  // Move content that's inside .container but outside .sheet
+  // (pdf buttons, importJsonFile input, recommendations card)
+  var pdfBtn = document.getElementById('pdfBtn');
+  var pdfCriteriaBtn = document.getElementById('pdfCriteriaBtn');
+  var importJsonFile = document.getElementById('importJsonFile');
+  var recommendationsCard = document.getElementById('recommendationsCard');
+  if (pdfBtn) drawerContent.appendChild(pdfBtn);
+  if (pdfCriteriaBtn) drawerContent.appendChild(pdfCriteriaBtn);
+  if (importJsonFile) drawerContent.appendChild(importJsonFile);
+  if (recommendationsCard) drawerContent.appendChild(recommendationsCard);
+
+  // Move GIS Export and Methodology into the drawer.
+  // Previously this walked SIBLINGS of #pdfArea expecting the cards to be
+  // outside #pdfArea. In the actual HTML they're DESCENDANTS (inside
+  // #pdfArea > .container), so the sibling walk never picked them up and
+  // the two panels were stranded invisible in the hidden #pdfArea since
+  // Phase 1. Fix: find them by id / content-match inside pdfArea itself.
+  // Note: GIS Export is hidden visually (display:none) because the header
+  // "GIS Export ▾" dropdown delegates to its buttons via .click(). The
+  // card still needs to be in the drawer's DOM so those button references
+  // remain valid.
+  var pdfArea = document.getElementById('pdfArea');
+  if (pdfArea) {
+    var pdfCards = pdfArea.querySelectorAll('.card');
+    Array.prototype.forEach.call(pdfCards, function(card) {
+      if (card.closest('#drawer-content')) return;       // already moved
+      if (card.id === 'recommendationsCard') return;     // handled above
+      if (card.id === 'methodologyCard') return;         // handled separately
+      var h2 = card.querySelector('h2');
+      if (h2 && h2.textContent.trim().indexOf('GIS Export') === 0) {
+        card.id = card.id || 'gisExportCard';
+        card.style.display = 'none';  // hidden — header dropdown is the UI
+        drawerContent.appendChild(card);
+      }
+    });
+  }
+  // Methodology appended last so it's at the very end of the drawer
+  var methCardEl = document.getElementById('methodologyCard');
+  if (methCardEl) drawerContent.appendChild(methCardEl);
+
+  // Insert empty-state guidance messages inside key panels. Each message
+  // appears (via .show class toggled by updateEmptyStates in render()) when
+  // the associated panel has no data yet. The tables stay in the DOM so
+  // Save/Load and Generate Report keep working.
+  // Note: drawerContent is currently detached from the document (it's in
+  // the not-yet-attached appLayout), so document.getElementById won't find
+  // its descendants. Query via drawerContent.querySelector instead.
+  function _insertEmptyState(id, beforeEl, msg) {
+    if (!beforeEl || !beforeEl.parentNode) return;
+    var div = document.createElement('div');
+    div.className = 'panel-empty-state';
+    div.id = id;
+    div.textContent = msg;
+    beforeEl.parentNode.insertBefore(div, beforeEl);
+  }
+  // Receivers & criteria
+  var critBodyEl = drawerContent.querySelector('#critBody');
+  if (critBodyEl) _insertEmptyState('critEmpty', critBodyEl.firstElementChild || critBodyEl.firstChild,
+    'Place receivers on the map to derive criteria');
+  // Day situation (noise source tables)
+  var daySrcTable = drawerContent.querySelector('#daySrcTable');
+  if (daySrcTable) _insertEmptyState('daySourceEmpty', daySrcTable,
+    'Place a source on the map, then add noise data here');
+  // Predicted noise levels
+  var predTableDay = drawerContent.querySelector('#predTableDay');
+  if (predTableDay) _insertEmptyState('predEmpty', predTableDay,
+    'Enter source data and place receivers to see predictions');
+
+  // Map guide overlay — centred prompt when nothing is placed
+  var mapGuide = document.createElement('div');
+  mapGuide.id = 'map-guide-overlay';
+  mapGuide.innerHTML = '<div class="map-guide-text">Search for an address or<br>click the map to place a noise source</div>';
+  var mapInnerWrapperForGuide = mapColumn.querySelector('#mapInnerWrapper');
+  if (mapInnerWrapperForGuide) mapInnerWrapperForGuide.appendChild(mapGuide);
+
+  // Expose hideMapGuide for load-assessment and placement hooks
+  window._hideMapGuide = function() {
+    var el = document.getElementById('map-guide-overlay');
+    if (el) el.classList.add('guide-hidden');
+  };
+  window._showMapGuide = function() {
+    var el = document.getElementById('map-guide-overlay');
+    if (el) el.classList.remove('guide-hidden');
+  };
+
+  // Phase 2: insert group anchors just before the nearest .grid2 ancestor of
+  // the target element. Works whether the grid2 is a direct child of
+  // drawer-content or nested inside an outer wrapper grid2.
+  // #drawer-content has position:relative, so anchor.offsetTop resolves
+  // against drawer-content regardless of nesting depth.
+  function _insertGroupAnchor(anchorId, targetEl) {
+    if (!targetEl) return;
+    var grid = targetEl.closest ? targetEl.closest('.grid2') : null;
+    var insertBefore, parent;
+    if (grid) {
+      insertBefore = grid;
+      parent = grid.parentNode;
+    } else {
+      // Fallback: target isn't inside any grid2 (e.g. pdfBtn direct child)
+      insertBefore = targetEl;
+      parent = targetEl.parentNode;
+    }
+    if (!parent) return;
+    // Remove any existing anchor with this ID
+    var existing = document.getElementById(anchorId);
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    var a = document.createElement('div');
+    a.id = anchorId;
+    a.className = 'drawer-group-anchor';
+    parent.insertBefore(a, insertBefore);
+  }
+  function _insertAllGroupAnchors() {
+    _insertGroupAnchor('group-setup',    document.getElementById('devInfoCard'));
+    _insertGroupAnchor('group-criteria', document.getElementById('critBody'));
+    // Note: #sourcePanel is normally display:none — use Custom sources panel
+    // (#customSrcBody) which is always visible and sits in the same section.
+    _insertGroupAnchor('group-sources',  document.getElementById('customSrcBody'));
+    _insertGroupAnchor('group-results',  document.getElementById('predTableDay'));
+    _insertGroupAnchor('group-export',   document.getElementById('pdfBtn'));
+    _insertGroupAnchor('group-methodology', document.getElementById('methodologyCard'));
+  }
+  // Note: _insertAllGroupAnchors() is called below AFTER appLayout is attached
+  // to the body, so document.getElementById() can find the moved panels.
+
+  // ── 4. Assemble the layout ─────────────────────────────────────────
+  appLayout.appendChild(mapColumn);
+  appLayout.appendChild(drawerPanel);
+
+  // Insert into the DOM: place header and layout before #pdfArea
+  var body = document.body;
+  body.insertBefore(appHeader, pdfArea);
+  body.insertBefore(constructionBanner, pdfArea);
+  body.insertBefore(appLayout, pdfArea);
+
+  // Phase 2: insert group anchors now that moved panels are back in the document
+  _insertAllGroupAnchors();
+
+  // Hide the now-empty original containers (keep for PDF export compatibility)
+  if (pdfArea) pdfArea.style.display = 'none';
+
+  // Activate layout mode
+  body.classList.add('drawer-layout');
+
+  // Hide the now-empty mapCard shell (map description, attribution text)
+  if (mapCard) mapCard.style.display = 'none';
+
+  // ── 5. Drawer toggle ───────────────────────────────────────────────
+  var DRAWER_KEY = 'resonate_drawer_open';
+
+  function setDrawerOpen(open) {
+    drawerPanel.classList.toggle('drawer-open', open);
+    drawerPanel.classList.toggle('drawer-closed', !open);
+    var icon = document.getElementById('drawer-toggle-icon');
+    if (icon) icon.innerHTML = open ? '&#9654;' : '&#9664;';
+    drawerToggle.setAttribute('aria-expanded', String(open));
+    // Sync the Expand/Panels label in the map toolbar: open→"Expand", closed→"Panels"
+    var mapToggleLabel = document.getElementById('mapMaximiseBtnLabel');
+    if (mapToggleLabel) mapToggleLabel.textContent = open ? 'Expand' : 'Panels';
+    try { localStorage.setItem(DRAWER_KEY, open ? 'true' : 'false'); } catch(e) {}
+  }
+  window._setDrawerOpen = setDrawerOpen;  // Phase 2: expose for auto-scroll
+
+  drawerToggle.addEventListener('click', function() {
+    setDrawerOpen(drawerPanel.classList.contains('drawer-closed'));
+  });
+
+  // Restore saved state (default: open)
+  try {
+    var saved = localStorage.getItem(DRAWER_KEY);
+    setDrawerOpen(saved !== 'false');
+  } catch(e) {
+    setDrawerOpen(true);
+  }
+
+  // Keyboard shortcut: ] to toggle drawer
+  document.addEventListener('keydown', function(e) {
+    if (e.target && e.target.matches && e.target.matches('input, select, textarea')) return;
+    if (e.key === ']') {
+      e.preventDefault();
+      setDrawerOpen(drawerPanel.classList.contains('drawer-closed'));
+    }
+  });
+
+  // Phase 4: Esc closes drawer first (capture phase so it runs before
+  // other Esc handlers like exit-draw-mode, close-modal, etc.).
+  // Only acts when the drawer is open — otherwise lets other handlers fire.
+  window.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    // Don't interfere when user is typing
+    if (e.target && e.target.matches && e.target.matches('input, select, textarea')) return;
+    if (!drawerPanel.classList.contains('drawer-open')) return;
+    setDrawerOpen(false);
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+  }, true);  // capture = true: fire before bubble-phase listeners
+
+  // ── 6. Invalidate Leaflet map size after layout settles ────────────
+  // initMap runs on DOMContentLoaded; we schedule a resize after it
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+      if (window._map && typeof window._map.invalidateSize === 'function') {
+        window._map.invalidateSize();
+      }
+    }, 200);
+  });
+
+  // Also invalidate on drawer toggle (map area changes)
+  drawerToggle.addEventListener('click', function() {
+    setTimeout(function() {
+      if (window._map && typeof window._map.invalidateSize === 'function') {
+        window._map.invalidateSize();
+      }
+    }, 350); // after transition completes
+  });
+
+  // ── 7. Patch PDF export to work with new layout ────────────────────
+  // The PDF export uses #pdfArea which is now empty/hidden.
+  // We'll intercept and temporarily rebuild the layout for capture.
+  window._drawerLayoutActive = true;
+  window._restoreForPdfExport = function() {
+    // Temporarily show original containers and move content back
+    if (pdfArea) pdfArea.style.display = '';
+    body.classList.remove('drawer-layout');
+    // Move drawer content back into .container > .sheet
+    var drawerChildren = Array.from(drawerContent.children);
+    drawerChildren.forEach(function(child) { sheet.appendChild(child); });
+    if (mapCard) { mapCard.style.display = ''; }
+    container.style.width = '1180px';
+  };
+  window._restoreDrawerLayout = function() {
+    // Move content back to drawer
+    var sheetChildren = Array.from(sheet.querySelectorAll(':scope > .grid2'));
+    sheetChildren.forEach(function(child) {
+      if (!child.querySelector('#mapCard') && child !== firstGrid2) {
+        drawerContent.appendChild(child);
+      }
+    });
+    // Move non-grid2 items back
+    if (pdfBtn && pdfBtn.parentElement === container) drawerContent.appendChild(pdfBtn);
+    if (pdfCriteriaBtn && pdfCriteriaBtn.parentElement === container) drawerContent.appendChild(pdfCriteriaBtn);
+    if (importJsonFile && importJsonFile.parentElement === container) drawerContent.appendChild(importJsonFile);
+    if (recommendationsCard && recommendationsCard.parentElement !== drawerContent) drawerContent.appendChild(recommendationsCard);
+    container.style.width = '';
+    if (mapCard) mapCard.style.display = 'none';
+    if (pdfArea) pdfArea.style.display = 'none';
+    body.classList.add('drawer-layout');
+    // Phase 2: re-insert group anchors (removed/reordered by PDF export)
+    _insertAllGroupAnchors();
+    // Rebuild compliance strip now that data is back in place
+    if (typeof updateComplianceStrip === 'function') updateComplianceStrip();
+  };
+
+  // ── 8. Phase 2: Jump nav + scroll spy ──────────────────────────────
+  (function initJumpNav() {
+    var nav = document.getElementById('jump-nav');
+    if (!nav) return;
+    var groups = [
+      { id: 'group-setup',       label: 'Setup' },
+      { id: 'group-criteria',    label: 'Criteria' },
+      { id: 'group-sources',     label: 'Sources' },
+      { id: 'group-results',     label: 'Results' },
+      { id: 'group-methodology', label: 'Methodology' }
+    ];
+    var dc = document.getElementById('drawer-content');
+
+    function scrollToAnchor(anchorId) {
+      var el = document.getElementById(anchorId);
+      if (!el || !dc) return;
+      var headerEl = document.getElementById('drawer-header');
+      var hH = headerEl ? headerEl.getBoundingClientRect().height : 0;
+      dc.scrollTo({ top: Math.max(0, el.offsetTop - hH - 4), behavior: 'smooth' });
+    }
+
+    groups.forEach(function(g) {
+      var btn = document.createElement('button');
+      btn.className = 'jump-btn';
+      btn.type = 'button';
+      btn.textContent = g.label;
+      btn.setAttribute('data-target', g.id);
+      btn.addEventListener('click', function() { scrollToAnchor(g.id); });
+      nav.appendChild(btn);
+    });
+
+    // Scroll spy
+    if (dc) {
+      var spyTick = null;
+      dc.addEventListener('scroll', function() {
+        if (spyTick) return;
+        spyTick = requestAnimationFrame(function() {
+          spyTick = null;
+          var headerEl = document.getElementById('drawer-header');
+          var hH = headerEl ? headerEl.getBoundingClientRect().height : 0;
+          var scrollTop = dc.scrollTop + hH + 10;
+          var active = null;
+          groups.forEach(function(g) {
+            var el = document.getElementById(g.id);
+            if (el && el.offsetTop <= scrollTop) active = g.id;
+          });
+          nav.querySelectorAll('.jump-btn').forEach(function(b) {
+            b.classList.toggle('jump-active', b.getAttribute('data-target') === active);
+          });
+        });
+      }, { passive: true });
+    }
+
+    // Expose for auto-scroll on receiver placement
+    window._scrollDrawerTo = scrollToAnchor;
+  })();
+
+  // ── 9. Phase 3: Drawer resize handle ───────────────────────────────
+  function initDrawerResize() {
+    var drawer = document.getElementById('drawer-panel');
+    var handle = document.getElementById('drawer-resize-handle');
+    if (!drawer || !handle) return;
+
+    var isDragging = false;
+    var didDrag = false;           // true only once pointer moves >5px
+    var startX = 0;
+    var startWidth = 0;
+    var CLICK_THRESHOLD_PX = 5;
+    var DRAWER_WIDTH_KEY = 'resonate_drawer_width';
+
+    function clampWidth(px) {
+      var vw = window.innerWidth;
+      return Math.max(360, Math.min(Math.round(vw * 0.85), px));
+    }
+
+    handle.addEventListener('pointerdown', function(e) {
+      isDragging = true;
+      didDrag = false;             // reset — this may still turn out to be a click
+      startX = e.clientX;
+      startWidth = drawer.getBoundingClientRect().width;
+      try { handle.setPointerCapture(e.pointerId); } catch(err) {}
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+
+    document.addEventListener('pointermove', function(e) {
+      if (!isDragging) return;
+      var dx = startX - e.clientX;
+      if (!didDrag && Math.abs(dx) > CLICK_THRESHOLD_PX) {
+        // Pointer has moved far enough to qualify as a drag
+        didDrag = true;
+        handle.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+      }
+      if (didDrag) {
+        var newWidth = startWidth + dx;
+        drawer.style.width = clampWidth(newWidth) + 'px';
+      }
+    });
+
+    function endDrag() {
+      if (!isDragging) return;
+      isDragging = false;
+      handle.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      if (didDrag) {
+        // Real drag — save new width and resize map
+        try { localStorage.setItem(DRAWER_WIDTH_KEY, drawer.style.width); } catch(err) {}
+        if (window._map && typeof window._map.invalidateSize === 'function') {
+          window._map.invalidateSize();
+        }
+      } else {
+        // No drag occurred — treat as a click on the left edge and toggle
+        if (typeof window._setDrawerOpen === 'function') {
+          var isOpen = drawer.classList.contains('drawer-open');
+          window._setDrawerOpen(!isOpen);
+        }
+      }
+    }
+    document.addEventListener('pointerup', endDrag);
+    document.addEventListener('pointercancel', endDrag);
+
+    // Restore saved width with clamp
+    try {
+      var saved = localStorage.getItem(DRAWER_WIDTH_KEY);
+      if (saved) {
+        var px = parseInt(saved, 10);
+        if (px && !isNaN(px)) {
+          drawer.style.width = clampWidth(px) + 'px';
+        }
+      }
+    } catch(err) {}
+
+    // Re-clamp on window resize
+    window.addEventListener('resize', function() {
+      if (!drawer.style.width) return;
+      var px = parseInt(drawer.style.width, 10);
+      if (!px || isNaN(px)) return;
+      var clamped = clampWidth(px);
+      if (clamped !== px) {
+        drawer.style.width = clamped + 'px';
+        if (window._map && typeof window._map.invalidateSize === 'function') {
+          window._map.invalidateSize();
+        }
+      }
+    });
+  }
+  initDrawerResize();
+
+  // Note: header Methodology button removed — methodology is accessible
+  // via the drawer jump nav's "Methodology" tab.
+})();
+</script>
 
 <!-- Load shared calculation and geometry functions (single canonical source) -->
 <script src="shared-calc.js?v=2"></script>
@@ -12170,6 +13480,14 @@ function _buildVicRuralCritTableHTML(recs, ids) {
   return h;
 }
 
+// Period availability — extracted to module scope (Phase 2) so
+// updateComplianceStrip() can call it. Only references global sourcePins.
+function hasLwForPeriod(period) {
+  return sourcePins.some(function(p) {
+    return p.lat !== null && p.lw && Number.isFinite(p.lw[period]) && p.lw[period] > 0;
+  });
+}
+
 // Debounced render — use renderDebounced() for input events to avoid
 // multiple full table rebuilds per keystroke. Direct render() is still
 // used for immediate updates (button clicks, pin placement).
@@ -12293,12 +13611,7 @@ function render() {
   // Update SA derivation table
   if (typeof renderSADerivTable === 'function') renderSADerivTable();
 
-  // ── Period data availability ──────────────────────────────────────────────
-  function hasLwForPeriod(period) {
-    return sourcePins.some(function(p) {
-      return p.lat !== null && p.lw && Number.isFinite(p.lw[period]) && p.lw[period] > 0;
-    });
-  }
+  // ── Period data availability (hasLwForPeriod now in module scope) ────────
   var hasDay   = hasLwForPeriod('day');
   var hasEve   = hasLwForPeriod('eve');
   var hasNight = hasLwForPeriod('night');
@@ -12353,20 +13666,24 @@ function render() {
     const nameInput = document.getElementById(`recvName${i+1}`);
     const recvLabel = escapeHTML(nameInput && nameInput.value.trim() ? nameInput.value.trim() : `Receiver ${i+1}`);
     let dayCrit, eveCrit, nightCrit, lmaxCrit;
+    var _recCrit = null;  // Phase 2: captures crit for strip data collection
     if (isOTHER) {
       const rid = ids[i];
       dayCrit  = getManualCrit(rid + '_daycrit');
       eveCrit  = getManualCrit(rid + '_evecrit');
       nightCrit = getManualCrit(rid + '_nightcrit');
       lmaxCrit  = getManualCrit(rid + '_lmaxcrit');
+      _recCrit = { day: dayCrit, evening: eveCrit, night: nightCrit, lmax: lmaxCrit, cl54: false, cl6: false };
     } else if (isNSW) {
       const crit = calcCriteriaNSW(i + 1);
+      _recCrit = crit;
       dayCrit  = crit.day;
       eveCrit  = crit.evening;
       nightCrit = crit.night;
       lmaxCrit  = crit.lmax;
     } else {
       const crit = isVIC ? calcCriteriaVICForReceiver(ids[i]) : calcCriteria(src, rec, ids[i]);
+      _recCrit = crit;
       dayCrit  = crit.day;
       eveCrit  = (isVIC && crit.evening !== undefined) ? crit.evening : '';
       nightCrit = crit.night;
@@ -12453,6 +13770,51 @@ function render() {
     if (tbEve)   { var eTr = makeRow(predEvePenalised,   eveCrit,  eve);   addClick(eTr); tbEve.appendChild(eTr);   }
     if (tbNight) { var nTr = makeRow(predNightPenalised, nightCrit, night); addClick(nTr); tbNight.appendChild(nTr); }
     if (tbLmax)  { var xTr = makeRow(predLmaxAdj,        lmaxCrit, lmax);  addClick(xTr); tbLmax.appendChild(xTr);  }
+
+    // ── Phase 2: Collect strip data for the compliance summary ──
+    if (!window._stripData) window._stripData = [null, null, null, null];
+    var _stripRid = ids[i];
+    var _stripZone = '';
+    var _stripBasis = '';
+    var _stripClause = '';
+    var _stripSel = document.getElementById(_stripRid);
+    if (isOTHER) {
+      _stripBasis = 'Manual';
+    } else if (isNSW) {
+      _stripZone = _lastDetectedZoneLabels[_stripRid] || (_stripSel && _stripSel.selectedIndex >= 0 ? _stripSel.options[_stripSel.selectedIndex].text : '');
+      _stripBasis = 'NPI';
+    } else if (isVIC) {
+      _stripZone = _lastDetectedZoneLabels[_stripRid] || (_stripSel && _stripSel.selectedIndex >= 0 ? _stripSel.options[_stripSel.selectedIndex].text : '');
+      _stripBasis = 'EPA 1826.5';
+      _stripClause = (vicAreaType === 'rural') ? 'Rural' : 'Urban';
+    } else {
+      // SA
+      _stripZone = (_stripSel && _stripSel.selectedIndex >= 0) ? _stripSel.options[_stripSel.selectedIndex].text : '';
+      var _typeDisp = document.getElementById(_stripRid + '_recvtype_disp');
+      _stripBasis = _typeDisp ? _typeDisp.textContent.trim() : '';
+      var _cl6e = _cl6Cache[_stripRid];
+      if (_cl6e && _cl6e !== 'pending' && _cl6e.applies === true) {
+        _stripClause = 'Cl 5(6)';
+      } else if (_recCrit && _recCrit.cl54) {
+        _stripClause = 'Cl 5(4)';
+      } else {
+        _stripClause = 'Cl 5(5)';
+      }
+    }
+    var _stripName = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : ('Receiver ' + (i + 1));
+    var _stripPlaced = !!(window.getReceiverLatLng && window.getReceiverLatLng(_stripRid));
+    window._stripData[i] = {
+      id: _stripRid,
+      placed: _stripPlaced,
+      name: _stripName,
+      zone: _stripZone,
+      basis: _stripBasis,
+      clause: _stripClause,
+      day:   { pred: predDayPenalised,   crit: dayCrit },
+      eve:   { pred: predEvePenalised,   crit: eveCrit },
+      night: { pred: predNightPenalised, crit: nightCrit },
+      lmax:  { pred: predLmaxAdj,        crit: lmaxCrit }
+    };
   });
 
   // NSW sleep disturbance screening row (appended to Night table)
@@ -12519,6 +13881,149 @@ function render() {
   if (typeof updatePDCProvisions === 'function') updatePDCProvisions();
 
   if (typeof window._nmInvalidateAllCache === 'function') window._nmInvalidateAllCache();
+
+  // Phase 2: update sticky compliance strip from the data collected above
+  if (typeof updateComplianceStrip === 'function') updateComplianceStrip();
+
+  // Empty-state guidance toggles for key drawer panels
+  if (typeof updateEmptyStates === 'function') updateEmptyStates();
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Empty-state toggler: shows guidance messages in panels with no data,
+// hides them when data exists. Hooked at the end of render().
+// ─────────────────────────────────────────────────────────────────────────────
+function updateEmptyStates() {
+  var hasAnyReceiver = !!(
+    (window.getReceiverLatLng && window.getReceiverLatLng('r1')) ||
+    (window.getReceiverLatLng && window.getReceiverLatLng('r2')) ||
+    (window.getReceiverLatLng && window.getReceiverLatLng('r3')) ||
+    (window.getReceiverLatLng && window.getReceiverLatLng('r4'))
+  );
+  var hasSource = (typeof sourcePins !== 'undefined') && sourcePins.some(function(p) {
+    return p && p.lat !== null && p.lat !== undefined;
+  });
+  var hasSourceData = (typeof hasLwForPeriod === 'function') &&
+    (hasLwForPeriod('day') || hasLwForPeriod('eve') || hasLwForPeriod('night'));
+  var hasPredictions = hasSource && hasAnyReceiver && hasSourceData;
+
+  function toggle(emptyId, tableEl, show) {
+    var emptyEl = document.getElementById(emptyId);
+    if (emptyEl) emptyEl.classList.toggle('show', show);
+    if (tableEl) tableEl.style.visibility = show ? 'hidden' : '';
+    // Use visibility (not display:none) so table dimensions stay readable
+    // if any code queries them during the empty state.
+    if (tableEl) {
+      if (show) {
+        tableEl.style.position = 'absolute';
+        tableEl.style.left = '-9999px';
+      } else {
+        tableEl.style.position = '';
+        tableEl.style.left = '';
+      }
+    }
+  }
+
+  toggle('critEmpty',      document.getElementById('critBody'),     !hasAnyReceiver);
+  toggle('daySourceEmpty', document.getElementById('daySrcTable'),  !hasSource);
+  toggle('predEmpty',      document.getElementById('predTableDay'), !hasPredictions);
+
+  // Map guide: show if nothing placed, hide once anything is placed
+  var guide = document.getElementById('map-guide-overlay');
+  if (guide) {
+    if (hasSource || hasAnyReceiver) guide.classList.add('guide-hidden');
+    else guide.classList.remove('guide-hidden');
+  }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2: Sticky compliance strip renderer
+// Reads window._stripData (populated in render()) and rebuilds the strip HTML.
+// ─────────────────────────────────────────────────────────────────────────────
+function updateComplianceStrip() {
+  var strip = document.getElementById('compliance-strip');
+  if (!strip) return;
+  var data = window._stripData || [];
+  var anyPlaced = data.some(function(d) { return d && d.placed; });
+
+  // Contextual guidance based on what the user has done so far
+  var hasSource = (typeof sourcePins !== 'undefined') && sourcePins.some(function(p) {
+    return p && p.lat !== null && p.lat !== undefined;
+  });
+  var hasSourceData = (typeof hasLwForPeriod === 'function') &&
+    (hasLwForPeriod('day') || hasLwForPeriod('eve') || hasLwForPeriod('night'));
+
+  if (!anyPlaced || !hasSourceData) {
+    var msg;
+    if (!hasSource && !anyPlaced) {
+      msg = 'Click the map to place a noise source and receivers';
+    } else if (hasSource && !anyPlaced) {
+      msg = 'Source placed \u2014 now add receivers at sensitive locations';
+    } else if (!hasSource && anyPlaced) {
+      msg = 'Receivers placed \u2014 now add a noise source';
+    } else {
+      // Both source and receivers placed, but no Lw data entered yet
+      msg = 'Configure noise sources to see predictions';
+    }
+    strip.innerHTML = '<div class="cs-empty">' + msg + '</div>';
+    return;
+  }
+
+  function periodCell(label, pred, crit) {
+    var hasCrit = crit !== '' && crit != null && Number.isFinite(Number(crit));
+    var hasPred = pred !== '' && pred != null && Number.isFinite(Number(pred));
+    if (!hasCrit && !hasPred) return '';  // hide period entirely
+    if (!hasPred) {
+      return '<span class="cs-cell cs-na"><span class="cs-pk">' + label + '</span>\u2014/' + Math.round(Number(crit)) + '</span>';
+    }
+    if (!hasCrit) {
+      return '<span class="cs-cell cs-na"><span class="cs-pk">' + label + '</span>' + Math.round(Number(pred)) + '/\u2014</span>';
+    }
+    var p = Number(pred), c = Number(crit);
+    var delta = Math.round(p - c);
+    var cls = delta <= 0 ? 'cs-ok' : 'cs-bad';
+    var icon = delta <= 0 ? '\u2713' : '\u2717';  // ✓ or ✗
+    var sign = delta < 0 ? '\u2212' : (delta > 0 ? '+' : '');  // U+2212 minus
+    var absD = Math.abs(delta);
+    var deltaStr = delta === 0 ? ' 0' : ' ' + sign + absD;
+    return '<span class="cs-cell ' + cls + '"><span class="cs-pk">' + label +
+      '</span>' + Math.round(p) + '/' + Math.round(c) + ' ' + icon + deltaStr + '</span>';
+  }
+
+  function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  var html = '';
+  data.forEach(function(d, i) {
+    if (!d || !d.placed) return;
+    var header = '<span class="cs-name">R' + (i + 1) + ' ' + esc(d.name) + '</span>';
+    if (d.zone)   header += '<span class="cs-sep">\u00B7</span>' + esc(d.zone);
+    if (d.basis)  header += '<span class="cs-sep">\u00B7</span>' + esc(d.basis);
+    if (d.clause) header += '<span class="cs-sep">\u00B7</span>' + esc(d.clause);
+    var cells =
+      periodCell('D', d.day.pred,   d.day.crit) +
+      periodCell('E', d.eve.pred,   d.eve.crit) +
+      periodCell('N', d.night.pred, d.night.crit) +
+      periodCell('Lmax', d.lmax.pred, d.lmax.crit);
+    if (cells === '') cells = '<span class="cs-cell cs-na">No criteria</span>';
+    html += '<div class="cs-recv" data-recv="' + esc(d.id) + '" title="Click to see full derivation">' +
+      '<div class="cs-recv-header">' + header + '</div>' +
+      '<div class="cs-periods">' + cells + '</div></div>';
+  });
+  strip.innerHTML = html;
+
+  // Click handler: scroll to criteria derivation anchor
+  strip.querySelectorAll('.cs-recv').forEach(function(el) {
+    el.addEventListener('click', function() {
+      if (typeof window._scrollDrawerTo === 'function') {
+        window._scrollDrawerTo('group-criteria');
+      }
+    });
+  });
 }
 
 
@@ -14585,6 +16090,83 @@ renderScenariosTable();
 renderContributions();
 renderCustomSourceList();
 initCollapse();
+
+/* ── Empty-state + initial-collapse helpers ──────────────────────────
+   - setInitialCollapseState() collapses every panel in #drawer-content
+     ONCE on page load. Users then have full manual control for the
+     rest of the session.
+   - expandAllPanels() is called after a successful Load Assessment so
+     restored data is immediately visible.
+   - updateEmptyStates() toggles .panel-empty-state divs and their
+     associated tables based on current source/receiver/Lw state.
+   - hideMapGuide() is called on first source/receiver placement.
+
+   Two collapse mechanisms coexist:
+   1. initCollapse-managed cards: .card-body.collapsed class
+   2. Inline-toggle cards (critBody, pdcBody, mbs010Body, objectsPanelBody):
+      onclick toggles the inner body's style.display
+*/
+var INLINE_TOGGLE_BODIES = [
+  { bodyId: 'critBody',         btnId: 'critToggleBtn'      },
+  { bodyId: 'pdcBody',          btnId: 'pdcToggleBtn'       },
+  { bodyId: 'mbs010Body',       btnId: 'mbs010ToggleColBtn' },
+  { bodyId: 'objectsPanelBody', btnId: 'objectsPanelToggle' }
+];
+
+function setInitialCollapseState() {
+  var dc = document.getElementById('drawer-content');
+  if (!dc) return;
+  // (1) initCollapse-managed panels
+  var bodies = dc.querySelectorAll('.card-body');
+  Array.prototype.forEach.call(bodies, function(body) {
+    body.classList.add('collapsed');
+    var card = body.closest('.card');
+    if (card) {
+      // Only flip the glyph on the button that initCollapse added
+      // (it has no inline onclick). Inline-toggle buttons are handled below.
+      var buttons = card.querySelectorAll('.collapse-btn');
+      Array.prototype.forEach.call(buttons, function(btn) {
+        if (!btn.getAttribute('onclick')) btn.innerHTML = '\u25BC';
+      });
+    }
+  });
+  // (2) Inline-toggle panels
+  INLINE_TOGGLE_BODIES.forEach(function(it) {
+    var body = document.getElementById(it.bodyId);
+    var btn = document.getElementById(it.btnId);
+    if (body) body.style.display = 'none';
+    if (btn) btn.innerHTML = '\u25BC';
+  });
+}
+
+function expandAllPanels() {
+  var dc = document.getElementById('drawer-content');
+  if (!dc) return;
+  var bodies = dc.querySelectorAll('.card-body');
+  Array.prototype.forEach.call(bodies, function(body) {
+    body.classList.remove('collapsed');
+    var card = body.closest('.card');
+    if (card) {
+      var buttons = card.querySelectorAll('.collapse-btn');
+      Array.prototype.forEach.call(buttons, function(btn) {
+        if (!btn.getAttribute('onclick')) btn.innerHTML = '\u25B2';
+      });
+    }
+  });
+  INLINE_TOGGLE_BODIES.forEach(function(it) {
+    var body = document.getElementById(it.bodyId);
+    var btn = document.getElementById(it.btnId);
+    if (body) body.style.display = '';
+    if (btn) btn.innerHTML = '\u25B2';
+  });
+}
+
+window._setInitialCollapseState = setInitialCollapseState;
+window._expandAllPanels = expandAllPanels;
+
+// Collapse every panel on fresh page load. Skip if _loadAssessment will
+// run (which itself triggers expandAllPanels afterwards).
+setInitialCollapseState();
 </script>
 
 <script>
@@ -16196,6 +17778,10 @@ initCollapse();
       setTimeout(function() {
         if (typeof renderDetectedZones === 'function') renderDetectedZones();
         render();
+        // Expand all drawer panels so the restored data is visible
+        if (typeof window._expandAllPanels === 'function') window._expandAllPanels();
+        // Hide the map guide overlay if present
+        if (typeof window._hideMapGuide === 'function') window._hideMapGuide();
         // Push loaded state so undo can restore the pre-load assessment (skip during undo/redo)
         if (typeof window._undoPushState === 'function' && !window._undoRestoring) {
           window._undoPushState('Load assessment');
@@ -19909,11 +21495,24 @@ if (window.pdfjsLib) {
         return;
       }
       _autoOpenRecvPopup = true;  // signal placeMarker to open popup on this user-initiated placement
+      var _wasReceiverPlacement = !isSourceMode(currentMode);
       placeMarker(currentMode, e.latlng);
       _autoOpenRecvPopup = false;
       if (typeof window._undoPushState === 'function') {
         var _placeLabel = currentMode.startsWith('source_') ? ('Place source S' + (parseInt(currentMode.replace('source_',''),10)+1)) : ('Place ' + currentMode.toUpperCase());
         window._undoPushState(_placeLabel);
+      }
+      // Phase 2: auto-scroll drawer to Criteria section on receiver placement
+      if (_wasReceiverPlacement) {
+        var _dp = document.getElementById('drawer-panel');
+        if (_dp && _dp.classList.contains('drawer-closed') && typeof window._setDrawerOpen === 'function') {
+          window._setDrawerOpen(true);
+        }
+        setTimeout(function() {
+          if (typeof window._scrollDrawerTo === 'function') {
+            window._scrollDrawerTo('group-criteria');
+          }
+        }, 350);  // after drawer open transition + zone-detection render
       }
     });
 
@@ -28580,9 +30179,17 @@ if (window.pdfjsLib) {
   var _fsBodyObserver  = null; // watches document.body for new floating panels
   var _fsDetailObserver = null; // watches detailBody for panel removal (close button)
 
-  /* ── Public toggle (called by button onclick) ── */
+  /* ── Public toggle (called by button onclick) ──
+     Phase 4: repurposed to toggle the drawer (the drawer-closed state
+     now gives the user full map access — the old fullscreen mode is
+     obsolete). The old _enter/_exit helpers below are retained as dead
+     code but no longer called from this entry point. */
   window.toggleMapFullscreen = function() {
-    _fsActive ? _exit() : _enter();
+    if (typeof window._setDrawerOpen !== 'function') return;
+    var drawer = document.getElementById('drawer-panel');
+    if (!drawer) return;
+    var isOpen = drawer.classList.contains('drawer-open');
+    window._setDrawerOpen(!isOpen);
   };
 
   /* ── Sidebar minimise/restore (Hide button ↔ Objects tab) ── */
@@ -28917,14 +30524,18 @@ if (window.pdfjsLib) {
           <li><kbd>M</kbd> &nbsp;Noise map</li>
           <li><kbd>H</kbd> &nbsp;Show/hide objects</li>
           <li><kbd>S</kbd> &nbsp;Search bar</li>
-          <li><kbd>E</kbd> &nbsp;Expand/restore map</li>
           <li><kbd>?</kbd> &nbsp;Quick reference</li>
         </ul>
         <div class="help-sub">Editing</div>
         <ul>
           <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> &nbsp;Undo</li>
           <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> &nbsp;Redo</li>
-          <li><kbd>Esc</kbd> &nbsp;Exit maximised mode</li>
+        </ul>
+        <div class="help-sub">Layout</div>
+        <ul>
+          <li><kbd>]</kbd> &nbsp;Toggle side panel</li>
+          <li><kbd>E</kbd> &nbsp;Toggle side panel</li>
+          <li><kbd>Esc</kbd> &nbsp;Close side panel (if open)</li>
         </ul>
         <p style="margin:4px 0 0;font-size:10px;color:#9ca3af;">Keys inactive while typing in any input field.</p>
       </div>
@@ -31055,6 +32666,40 @@ body.readonly-mode #mapFsSidebarDetailBody select {
 })();
 </script>
 
+
+<div id="disclaimer-banner" class="hidden">
+  <div class="disclaimer-banner-content">
+    <p>Disclaimer: While every reasonable effort has been made to ensure that all the information displayed and provided in this application is correct, Resonate Consultants do not make any guarantees as to the completeness, reliability or accuracy of the information and disclaim any and all liability to any person/s. Any actions you take based on the information you find within this application are strictly at your own discretion and risk. This tool is not designed to provide definitive predictions or confirm compliance. It serves only as a preliminary screening tool to indicate the potential for compliance. For a reliable assessment and formal advice, please contact <a href="https://resonate-consultants.com/acoustic-consulting-australia/" target="_blank" rel="noopener">Resonate Consultants</a>.</p>
+    <p>By using this tool, you consent to this disclaimer and agree to its terms.</p>
+    <button id="disclaimer-accept-btn">I understand</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  var DISCLAIMER_KEY = 'resonate_disclaimer_accepted';
+  var banner = document.getElementById('disclaimer-banner');
+  if (!banner) return;
+
+  if (localStorage.getItem(DISCLAIMER_KEY) === 'true') {
+    banner.remove();
+    return;
+  }
+
+  banner.classList.remove('hidden');
+  document.body.classList.add('disclaimer-visible');
+
+  document.getElementById('disclaimer-accept-btn')
+    .addEventListener('click', function() {
+      banner.classList.add('hidden');
+      document.body.classList.remove('disclaimer-visible');
+      localStorage.setItem(DISCLAIMER_KEY, 'true');
+      banner.addEventListener('transitionend', function() {
+        banner.remove();
+      }, { once: true });
+    });
+})();
+</script>
 
 </body>
 </html>
