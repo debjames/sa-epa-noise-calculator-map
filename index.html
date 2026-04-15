@@ -3380,7 +3380,86 @@ body.disclaimer-visible .container {
 </div>
 
 <!-- Methodology modal: opens a centred overlay with the cloned
-     #methodologyCard content. Triggered by #side-panel-methodology-btn. -->
+     #methodologyCard content. Triggered by #side-panel-methodology-btn.
+     Inner styling mirrors the RHS drawer panel — see #drawer-content
+     rules. Scoped to #methodologyModalContent so it doesn't leak into
+     the original drawer or any other consumer of the .card / .h2 /
+     .card-header classes. -->
+<style>
+/* Methodology modal — RHS-drawer-style content */
+#methodologyModalContent {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text, #111827);
+}
+/* Card heading: 12 px uppercase with gold left accent (mirrors
+   #drawer-content .card h2 at line 76). The cloned methodology card
+   wraps its h2 in a .card-header (initCollapse), so we target both
+   .card-header h2 and a bare h2 just in case. */
+#methodologyModalContent .card-header,
+#methodologyModalContent > h2 {
+  margin: 0 0 12px;
+}
+#methodologyModalContent .card-header h2,
+#methodologyModalContent > h2 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text, #111827);
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid rgba(242,203,0,1);
+  line-height: 1.4;
+}
+/* Subsection headings (.h2 class) — mirrors #drawer-content .h2 */
+#methodologyModalContent .h2 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text, #111827);
+  margin: 14px 0 4px;
+}
+#methodologyModalContent .h2:first-child,
+#methodologyModalContent .card-body > .h2:first-child {
+  margin-top: 0;
+}
+/* Body paragraphs — slightly more breathing room than drawer's 12 px */
+#methodologyModalContent .p {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #374151;
+  margin: 0 0 8px;
+}
+/* Tables — mirrors #drawer-content th / td soft styling */
+#methodologyModalContent table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0 10px;
+}
+#methodologyModalContent th {
+  background: #f8f8f6;
+  color: var(--text, #111827);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--border, #e5e7eb);
+  border-bottom: 2px solid rgba(242,203,0,0.45);
+  padding: 6px 8px;
+  text-align: left;
+}
+#methodologyModalContent td {
+  font-size: 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  padding: 6px 8px;
+  vertical-align: top;
+}
+/* Card-body inside the modal — strip any default padding since the
+   modal box already provides padding */
+#methodologyModalContent .card-body {
+  padding: 0;
+}
+</style>
 <script>
 (function() {
   var _methModalEl = null;
@@ -3413,33 +3492,38 @@ body.disclaimer-visible .container {
       'display:flex;align-items:flex-start;justify-content:center;' +
       'padding:40px 20px;overflow-y:auto;';
 
-    /* Centred white box with cloned methodology content */
+    /* Centred white box — flat panel chrome to match the RHS drawer:
+       1px border, soft shadow, 8 px radius (same as drawer cards),
+       slimmer padding so the box reads as a panel slice rather than
+       a heavy modal. */
     var box = document.createElement('div');
     box.style.cssText =
-      'position:relative;background:#ffffff;' +
-      'max-width:800px;width:100%;max-height:85vh;' +
-      'overflow-y:auto;border-radius:10px;' +
-      'box-shadow:0 12px 40px rgba(0,0,0,0.35);' +
-      'padding:28px 32px 32px;';
+      'position:relative;background:var(--bg, #ffffff);' +
+      'max-width:760px;width:100%;max-height:85vh;' +
+      'overflow-y:auto;border-radius:8px;' +
+      'border:1px solid var(--border, #e5e7eb);' +
+      'box-shadow:0 8px 32px rgba(0,0,0,0.18);' +
+      'padding:18px 22px 22px;';
 
-    /* Sticky top-right close button */
+    /* Sticky top-right close button — sized to match drawer-panel
+       aesthetic (smaller, subtler) */
     var closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.setAttribute('aria-label', 'Close methodology');
     closeBtn.innerHTML = '\u00d7';
     closeBtn.style.cssText =
       'position:sticky;top:0;float:right;' +
-      'width:32px;height:32px;padding:0;margin:-8px -12px 0 12px;' +
+      'width:24px;height:24px;padding:0;margin:-4px -8px 0 8px;' +
       'border:none;background:transparent;' +
-      'font-size:26px;line-height:1;color:#6b7280;' +
-      'cursor:pointer;border-radius:6px;' +
+      'font-size:20px;line-height:1;color:#9ca3af;' +
+      'cursor:pointer;border-radius:4px;' +
       'transition:color 0.15s ease, background-color 0.15s ease;';
     closeBtn.addEventListener('mouseover', function() {
-      closeBtn.style.color = '#111827';
+      closeBtn.style.color = '#374151';
       closeBtn.style.background = 'rgba(0,0,0,0.06)';
     });
     closeBtn.addEventListener('mouseout', function() {
-      closeBtn.style.color = '#6b7280';
+      closeBtn.style.color = '#9ca3af';
       closeBtn.style.background = 'transparent';
     });
     closeBtn.addEventListener('click', function(e) {
@@ -3449,8 +3533,11 @@ body.disclaimer-visible .container {
     box.appendChild(closeBtn);
 
     /* Clone the methodology card content (not the card itself — clone
-       innerHTML so PDF export path and the original DOM are untouched) */
+       innerHTML so PDF export path and the original DOM are untouched).
+       Tagged with id="methodologyModalContent" so the scoped style
+       block above can apply the RHS-drawer-style headings, tables, etc. */
     var contentWrap = document.createElement('div');
+    contentWrap.id = 'methodologyModalContent';
     contentWrap.innerHTML = card.innerHTML;
     /* initCollapse() has already wrapped the methodology card in a
        .card-header (h2 + .collapse-btn ▼) + .card-body.collapsed structure.
