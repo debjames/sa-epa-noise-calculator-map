@@ -3379,6 +3379,108 @@ body.disclaimer-visible .container {
   </div>
 </div>
 
+<!-- Methodology modal: opens a centred overlay with the cloned
+     #methodologyCard content. Triggered by #side-panel-methodology-btn. -->
+<script>
+(function() {
+  var _methModalEl = null;
+  var _methEscHandler = null;
+
+  function closeMethodologyModal() {
+    if (_methModalEl && _methModalEl.parentNode) {
+      _methModalEl.parentNode.removeChild(_methModalEl);
+    }
+    _methModalEl = null;
+    if (_methEscHandler) {
+      document.removeEventListener('keydown', _methEscHandler, true);
+      _methEscHandler = null;
+    }
+  }
+
+  function showMethodologyModal() {
+    /* Idempotent — reopening closes any existing modal first */
+    if (_methModalEl) closeMethodologyModal();
+
+    var card = document.getElementById('methodologyCard');
+    if (!card) return;
+
+    /* Backdrop — full viewport, dim background, click-to-close */
+    var backdrop = document.createElement('div');
+    backdrop.id = 'methodologyModalBackdrop';
+    backdrop.style.cssText =
+      'position:fixed;inset:0;z-index:10000;' +
+      'background:rgba(0,0,0,0.5);' +
+      'display:flex;align-items:flex-start;justify-content:center;' +
+      'padding:40px 20px;overflow-y:auto;';
+
+    /* Centred white box with cloned methodology content */
+    var box = document.createElement('div');
+    box.style.cssText =
+      'position:relative;background:#ffffff;' +
+      'max-width:800px;width:100%;max-height:85vh;' +
+      'overflow-y:auto;border-radius:10px;' +
+      'box-shadow:0 12px 40px rgba(0,0,0,0.35);' +
+      'padding:28px 32px 32px;';
+
+    /* Sticky top-right close button */
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.setAttribute('aria-label', 'Close methodology');
+    closeBtn.innerHTML = '\u00d7';
+    closeBtn.style.cssText =
+      'position:sticky;top:0;float:right;' +
+      'width:32px;height:32px;padding:0;margin:-8px -12px 0 12px;' +
+      'border:none;background:transparent;' +
+      'font-size:26px;line-height:1;color:#6b7280;' +
+      'cursor:pointer;border-radius:6px;' +
+      'transition:color 0.15s ease, background-color 0.15s ease;';
+    closeBtn.addEventListener('mouseover', function() {
+      closeBtn.style.color = '#111827';
+      closeBtn.style.background = 'rgba(0,0,0,0.06)';
+    });
+    closeBtn.addEventListener('mouseout', function() {
+      closeBtn.style.color = '#6b7280';
+      closeBtn.style.background = 'transparent';
+    });
+    closeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      closeMethodologyModal();
+    });
+    box.appendChild(closeBtn);
+
+    /* Clone the methodology card content (not the card itself — clone
+       innerHTML so PDF export path and the original DOM are untouched) */
+    var contentWrap = document.createElement('div');
+    contentWrap.innerHTML = card.innerHTML;
+    box.appendChild(contentWrap);
+
+    /* Click on backdrop (outside box) closes the modal */
+    backdrop.addEventListener('click', function(e) {
+      if (e.target === backdrop) closeMethodologyModal();
+    });
+
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    _methModalEl = backdrop;
+
+    /* Escape key closes. Capture phase so it runs before the drawer
+       Esc handler, and we stop propagation so the drawer stays put. */
+    _methEscHandler = function(e) {
+      if (e.key === 'Escape' && _methModalEl) {
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        closeMethodologyModal();
+      }
+    };
+    document.addEventListener('keydown', _methEscHandler, true);
+  }
+
+  /* Expose globally so _resonateSidePanelBoot's button handler can find it */
+  window.showMethodologyModal = showMethodologyModal;
+  window.closeMethodologyModal = closeMethodologyModal;
+})();
+</script>
+
 <!-- Methodology panel -->
 <div class="card" id="methodologyCard" style="margin-top:14px;">
   <h2>Methodology</h2>
