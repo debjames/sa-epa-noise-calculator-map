@@ -3452,6 +3452,13 @@ body.disclaimer-visible .container {
        innerHTML so PDF export path and the original DOM are untouched) */
     var contentWrap = document.createElement('div');
     contentWrap.innerHTML = card.innerHTML;
+    /* initCollapse() has already wrapped the methodology card in a
+       .card-header (h2 + .collapse-btn ▼) + .card-body.collapsed structure.
+       In the modal we don't want the collapse chevron (it would need its
+       click handler re-wired and the user doesn't want it anyway) and we
+       need the body uncollapsed so the content is visible. */
+    contentWrap.querySelectorAll('.collapse-btn').forEach(function(btn) { btn.remove(); });
+    contentWrap.querySelectorAll('.card-body.collapsed').forEach(function(b) { b.classList.remove('collapsed'); });
     box.appendChild(contentWrap);
 
     /* Click on backdrop (outside box) closes the modal */
