@@ -3981,14 +3981,28 @@ body.disclaimer-visible .container {
   // These are position:fixed overlays (Quick Reference and Suggested Noise
   // Sources) that must remain visible when toggled, but the drawer-layout
   // refactor hides #pdfArea with display:none — and display:none on an
-  // ancestor silently hides position:fixed descendants too (CSS render
-  // tree exclusion, not a cascade of the display property). Moving them
-  // to <body> makes their existing toggle JS work again without any
-  // other changes to the panels' HTML, CSS, or click handlers.
-  ['helpFloatPanel', 'suggestFloatPanel'].forEach(function(id) {
-    var p = document.getElementById(id);
-    if (p && p.parentElement !== body) body.appendChild(p);
-  });
+  // ancestor silently hides position:fixed descendants too (render tree
+  // exclusion, not a cascade of the display property). Moving them to
+  // <body> makes their existing toggle JS work again without any other
+  // changes to the panels' HTML, CSS, or click handlers.
+  //
+  // Timing note: this script runs INLINE during HTML parse, well before
+  // #helpFloatPanel / #suggestFloatPanel are parsed (they sit near the
+  // bottom of the file). So we defer the move to DOMContentLoaded when
+  // those elements are guaranteed to exist. The existing Quick Reference
+  // and Suggested Sources IIFEs (further down the file) attach their click
+  // handlers during parse — moving the nodes afterwards preserves listeners.
+  function _rescuePdfAreaFloatingPanels() {
+    ['helpFloatPanel', 'suggestFloatPanel'].forEach(function(id) {
+      var p = document.getElementById(id);
+      if (p && p.parentElement !== body) body.appendChild(p);
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _rescuePdfAreaFloatingPanels);
+  } else {
+    _rescuePdfAreaFloatingPanels();
+  }
 
   // Hide the now-empty original containers (keep for PDF export compatibility)
   if (pdfArea) pdfArea.style.display = 'none';
@@ -35176,4 +35190,237 @@ if (window.pdfjsLib) {
               var musicDataRows = [];
               c.predictions.forEach(function(p) {
                 if (!p.pred || !p.pred.bands || !p.pred.bands.length) return;
-                v
+                var predRow = [p.name + ' \u2014 Predicted'];
+                var critRow = [p.name + ' \u2014 Criterion (L\u209090+8)'];
+                p.pred.bands.forEach(function(b) {
+                  predRow.push(b.predicted !== null ? b.predicted.toFixed(1) : '\u2014');
+                  critRow.push(b.criteria !== null ? String(b.criteria) : '\u2014');
+                });
+                musicDataRows.push(predRow, critRow);
+              });
+              if (musicDataRows.length) {
+                acBlock += makeWordTable(musicHdr, musicDataRows);
+                acBlock += '<w:p/>';
+              }
+            } else {
+              acBlock += makeWordCaption('Predicted noise levels \u2014 ' + c.name + ' (' + c.period + ')');
+              var stdRows = c.predictions.map(function(p) {
+                var rp = p.pred;
+                if (!rp) return [p.name, '\u2014', '\u2014', '\u2014', '\u2014'];
+                var pred = (rp.predicted !== null && rp.predicted !== undefined) ? Math.round(rp.predicted) + ' dB(A)' : '\u2014';
+                var crit = (rp.criteria  !== null && rp.criteria  !== undefined) ? Math.round(rp.criteria)  + ' dB(A)' : '\u2014';
+                var delt = (rp.delta     !== null && rp.delta     !== undefined) ? ((rp.delta > 0 ? '+' : '') + rp.delta.toFixed(1) + ' dB') : '\u2014';
+                var out  = (rp.complies  !== null && rp.complies  !== undefined) ? (rp.complies ? 'Complies' : 'Exceeds') : '\u2014';
+                return [p.name, pred, crit, delt, out];
+              });
+              acBlock += makeWordTable(
+                ['Receiver', 'Predicted L\u2090\u1d49\u1d60 dB(A)', 'Criterion dB(A)', '\u0394 dB', 'Outcome'],
+                stdRows
+              );
+              acBlock += '<w:p/>';
+            }
+          });
+
+          xml = appendToWordBody(xml, acBlock);
+        }
+
+        // Write back modified XML
+        zip.file('word/document.xml', xml);
+
+        // Download
+        var pn    = data.projectNumber.replace(/[\\/:*?"<>|]/g, '-');
+        var nm    = data.projectName.replace(/[\\/:*?"<>|]/g, '-');
+        var pfx   = (pn ? pn + ' - ' : '') + (nm ? nm + ' - ' : '');
+        var today = new Date().toISOString().slice(0, 10);
+        var fname = pfx + 'Noise Report - ' + today + '.docx';
+
+        var blob = zip.generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fname;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 1000);
+
+        setBusy(false);
+      })
+      .catch(function(e) {
+        console.error('generateReport:', e);
+        alert('Failed to generate report:\n\n' + e.message);
+        setBusy(false);
+      });
+  }
+
+  // Wire button once DOM is ready
+  document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('generateReportBtn');
+    if (btn) btn.addEventListener('click', generateReport);
+  });
+  // Also wire immediately if DOM already loaded
+  var _grBtn = document.getElementById('generateReportBtn');
+  if (_grBtn) _grBtn.addEventListener('click', generateReport);
+
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     GLOBAL KEYBOARD SHORTCUTS — power-user single-key accelerators
+     Restored after accidental removal in commit afd6913.
+     See references/changelog.md for the original commit 4ea3c90.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+  /* Short-lived toast at bottom-centre of screen */
+  function _kbToast(msg) {
+    var existing = document.getElementById('_kbToastEl');
+    if (existing) existing.remove();
+    var t = document.createElement('div');
+    t.id = '_kbToastEl';
+    t.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);' +
+      'z-index:99999;background:rgba(30,41,59,0.92);color:#f8fafc;' +
+      'padding:6px 16px;font-size:12px;border-radius:20px;' +
+      'box-shadow:0 2px 8px rgba(0,0,0,0.28);pointer-events:none;' +
+      'letter-spacing:0.01em;white-space:nowrap;';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 1500);
+  }
+
+  /* Simulate a button click by ID */
+  function _btn(id) {
+    var el = document.getElementById(id);
+    if (el) el.click();
+    return el;
+  }
+
+  /* Read active state AFTER clicking (for toggles) */
+  function _isActive(id) {
+    var el = document.getElementById(id);
+    return el ? el.classList.contains('active') : false;
+  }
+
+  document.addEventListener('keydown', function(e) {
+    /* Skip when user is typing */
+    var tag = ((e.target && e.target.tagName) || '').toUpperCase();
+    var editable = e.target && e.target.isContentEditable;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
+
+    /* Skip modifier combos — Ctrl+Z etc. handled by undo manager */
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    var key = e.key;
+
+    switch (key) {
+      /* ── Sources ─────────────────────────────────────────────── */
+      case 'p': case 'P':
+        _btn('mapMode-addSource');
+        _kbToast('Point source (P)');
+        e.preventDefault(); break;
+
+      case 'l': case 'L':
+        _btn('drawLineSourceBtn');
+        _kbToast('Line source (L)');
+        e.preventDefault(); break;
+
+      case 'a': case 'A':
+        _btn('drawAreaSourceBtn');
+        _kbToast('Area source (A)');
+        e.preventDefault(); break;
+
+      case 'k': case 'K':
+        _btn('drawBuildingSourceBtn');
+        _kbToast('Building source (K)');
+        e.preventDefault(); break;
+
+      case 'w': case 'W':
+        _btn('drawCortnRoadBtn');
+        _kbToast('Road (CoRTN) (W)');
+        e.preventDefault(); break;
+
+      /* ── Receivers ───────────────────────────────────────────── */
+      case '1': _btn('mapMode-r1'); _kbToast('Receiver 1 (1)'); e.preventDefault(); break;
+      case '2': _btn('mapMode-r2'); _kbToast('Receiver 2 (2)'); e.preventDefault(); break;
+      case '3': _btn('mapMode-r3'); _kbToast('Receiver 3 (3)'); e.preventDefault(); break;
+      case '4': _btn('mapMode-r4'); _kbToast('Receiver 4 (4)'); e.preventDefault(); break;
+
+      /* ── Site elements ───────────────────────────────────────── */
+      case 'b': case 'B':
+        _btn('drawBarrierBtn');
+        _kbToast('Barrier (B)');
+        e.preventDefault(); break;
+
+      case 'n': case 'N':
+        _btn('drawBuildingBtn');
+        _kbToast('New building (N)');
+        e.preventDefault(); break;
+
+      case 'g': case 'G':
+        _btn('drawGroundZoneBtn');
+        _kbToast('Ground absorption (G)');
+        e.preventDefault(); break;
+
+      /* ── Map layers ──────────────────────────────────────────── */
+      case 't': case 'T':
+        _btn('terrainToggleBtn');
+        _kbToast('Terrain ' + (_isActive('terrainToggleBtn') ? 'ON' : 'OFF') + ' (T)');
+        e.preventDefault(); break;
+
+      case 'c': case 'C':
+        _btn('terrainContourBtn');
+        _kbToast('Contours ' + (_isActive('terrainContourBtn') ? 'ON' : 'OFF') + ' (C)');
+        e.preventDefault(); break;
+
+      case 'o': case 'O':
+        _btn('buildingsToggleBtn');
+        _kbToast('Buildings ' + (_isActive('buildingsToggleBtn') ? 'ON' : 'OFF') + ' (O)');
+        e.preventDefault(); break;
+
+      case 'f': case 'F':
+        _btn('reflectionsBtn');
+        _kbToast('Reflections ' + (_isActive('reflectionsBtn') ? 'ON' : 'OFF') + ' (F)');
+        e.preventDefault(); break;
+
+      case 'r': case 'R':
+        _btn('rulerBtn');
+        _kbToast('Ruler (R)');
+        e.preventDefault(); break;
+
+      /* ── Modelling ───────────────────────────────────────────── */
+      case 'm': case 'M':
+        _btn('noiseMapBtn');
+        _kbToast('Noise map ' + (_isActive('noiseMapBtn') ? 'ON' : 'OFF') + ' (M)');
+        e.preventDefault(); break;
+
+      case 'h': case 'H':
+        _btn('pinsToggleBtn');
+        _kbToast('Objects ' + (_isActive('pinsToggleBtn') ? 'shown' : 'hidden') + ' (H)');
+        e.preventDefault(); break;
+
+      case 'z': case 'Z':
+        _btn('zoneToggleBtn');
+        _kbToast('Zones ' + (_isActive('zoneToggleBtn') ? 'ON' : 'OFF') + ' (Z)');
+        e.preventDefault(); break;
+
+      /* ── Navigation ──────────────────────────────────────────── */
+      case 's': case 'S':
+        var _si = document.getElementById('mapSearchInput');
+        if (_si) { _si.focus(); _si.select(); }
+        e.preventDefault(); break;
+
+      case 'e': case 'E':
+        if (typeof toggleMapFullscreen === 'function') toggleMapFullscreen();
+        e.preventDefault(); break;
+
+      case '?':
+        _btn('helpToggleBtn');
+        e.preventDefault(); break;
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
