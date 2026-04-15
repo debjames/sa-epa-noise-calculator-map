@@ -1534,15 +1534,43 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   pointer-events: none;
 }
 #map-guide-overlay .map-guide-text {
+  position: relative;
   display: inline-block;
   font-size: 15px;
   color: #374151;
   background: rgba(255, 255, 255, 0.92);
-  padding: 16px 28px;
+  padding: 16px 36px 16px 28px;
   border-radius: 10px;
   border: 1px solid var(--border, #e5e7eb);
   line-height: 1.6;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+#map-guide-overlay .map-guide-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  pointer-events: auto;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+#map-guide-overlay .map-guide-close:hover {
+  color: #374151;
+  background: rgba(0, 0, 0, 0.06);
+}
+#map-guide-overlay .map-guide-close:focus {
+  outline: none;
+  color: #374151;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 /* Phase 3: resize handle on left edge of drawer.
@@ -3823,12 +3851,29 @@ body.disclaimer-visible .container {
   if (predTableDay) _insertEmptyState('predEmpty', predTableDay,
     'Enter source data and place receivers to see predictions');
 
-  // Map guide overlay — centred prompt when nothing is placed
+  // Map guide overlay — centred prompt when nothing is placed.
+  // Includes a close (×) button so the user can dismiss the hint for the
+  // session once they understand the workflow. Dismissal is not persisted
+  // across reloads and is not saved in the assessment JSON — it's a UI
+  // preference only.
   var mapGuide = document.createElement('div');
   mapGuide.id = 'map-guide-overlay';
-  mapGuide.innerHTML = '<div class="map-guide-text">Search for an address or<br>click the map to place a noise source</div>';
+  mapGuide.innerHTML =
+    '<div class="map-guide-text">' +
+      '<button type="button" class="map-guide-close" aria-label="Dismiss hint" title="Dismiss">\u00d7</button>' +
+      'Search for an address or<br>click the map to place a noise source' +
+    '</div>';
   var mapInnerWrapperForGuide = mapColumn.querySelector('#mapInnerWrapper');
   if (mapInnerWrapperForGuide) mapInnerWrapperForGuide.appendChild(mapGuide);
+  var _mapGuideCloseBtn = mapGuide.querySelector('.map-guide-close');
+  if (_mapGuideCloseBtn) {
+    _mapGuideCloseBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (typeof window._dismissOnboardingHint === 'function') {
+        window._dismissOnboardingHint();
+      }
+    });
+  }
 
   // Expose hideMapGuide for load-assessment and placement hooks.
   // Once _dismissOnboardingHint is called, _onboardingHintDismissed stays true
@@ -3931,6 +3976,19 @@ body.disclaimer-visible .container {
 
   // Phase 2: insert group anchors now that moved panels are back in the document
   _insertAllGroupAnchors();
+
+  // Rescue floating panels that live inside #pdfArea in the source HTML.
+  // These are position:fixed overlays (Quick Reference and Suggested Noise
+  // Sources) that must remain visible when toggled, but the drawer-layout
+  // refactor hides #pdfArea with display:none — and display:none on an
+  // ancestor silently hides position:fixed descendants too (CSS render
+  // tree exclusion, not a cascade of the display property). Moving them
+  // to <body> makes their existing toggle JS work again without any
+  // other changes to the panels' HTML, CSS, or click handlers.
+  ['helpFloatPanel', 'suggestFloatPanel'].forEach(function(id) {
+    var p = document.getElementById(id);
+    if (p && p.parentElement !== body) body.appendChild(p);
+  });
 
   // Hide the now-empty original containers (keep for PDF export compatibility)
   if (pdfArea) pdfArea.style.display = 'none';
