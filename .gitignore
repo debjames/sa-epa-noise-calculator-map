@@ -1,0 +1,30 @@
+# Local Supabase credentials — DO NOT COMMIT
+# Use supabase-config.example.js as the committed template.
+supabase-config.js
+
+# Node
+node_modules/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Claude Code session state
+.claude/
+
+# Large binaries / reference datasets (too big for git; not source)
+*.zip
+*.tif
+*.tiff
+
+# Copyrighted reference documents (licensed to individuals, not repo)
+*.pdf
+*.docx
+*.doc
+
+# Work artifacts (extracted .docx innards, etc.)
+template-extracted/
