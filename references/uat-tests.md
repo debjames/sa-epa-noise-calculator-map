@@ -1,5 +1,49 @@
 # UAT Tests
 
+## Methodology modal — focus management and a11y
+
+Prerequisite: tool loaded, LHS side panel expanded so `#side-panel-methodology-btn` is visible.
+
+### Normal open / close — focus returns to opener
+
+- [ ] **Tab to opener** — Tab through the side panel until `#side-panel-methodology-btn` has focus (outline visible). Press Enter or Space to activate. The Methodology modal opens and focus lands on the close (×) button inside the modal (verify with `document.activeElement` in devtools — should be the `.close methodology` button).
+- [ ] **Esc closes and restores focus** — Press `Escape`. Modal closes and `document.activeElement.id` is `side-panel-methodology-btn` (the original opener). Focus outline is visible on the opener.
+- [ ] **× click closes and restores focus** — Re-open, this time click the × button. Modal closes and focus returns to the opener.
+- [ ] **Backdrop click closes and restores focus** — Re-open, click the dimmed area outside the white box. Modal closes and focus returns to the opener. Clicking *inside* the white box must NOT close the modal.
+
+### Stale opener fallback — opener removed while modal is open
+
+Simulates a drawer rebuild or side panel re-render hot-swapping the opener node while the modal is open. In devtools, open the modal then run:
+
+```js
+var oldBtn = document.getElementById('side-panel-methodology-btn');
+var parent = oldBtn.parentNode, next = oldBtn.nextSibling;
+oldBtn.remove();
+var freshBtn = document.createElement('button');
+freshBtn.id = 'side-panel-methodology-btn';
+freshBtn.type = 'button';
+freshBtn.textContent = 'Methodology';
+parent.insertBefore(freshBtn, next);
+```
+
+- [ ] **Close after stale opener** — Press Escape (or click ×). Modal closes and `document.activeElement` is the *fresh* `#side-panel-methodology-btn` element (not `document.body`, not the detached old button). Verified by `document.activeElement === freshBtn` in devtools.
+- [ ] **Regression — normal path still works** — Reload the page. Re-run the *Normal open / close* cases above. Focus must still restore to the original opener in the normal case (the fallback must only activate when `document.contains(_methPrevFocus)` is false).
+
+### Hotkey suppression while modal is open (M2 regression)
+
+- [ ] **A/P/L/K/B/W hotkeys no-op while modal open** — Open the modal. Press `A`, `P`, `L`, `K`, `B`, `W` (source-placement hotkeys). None should activate their placement mode — no toast pill, no map cursor change, no mode chip on the toolbar. Close the modal. Press `P` — placement mode for point source activates normally.
+
+### Duplicate-id prefix walk (M3 regression)
+
+- [ ] **No duplicate ids while modal open** — Open the modal. In devtools run `document.querySelectorAll('#opTimeNote').length` — must be exactly `1` (the original in the hidden drawer, not the clone). Run `document.querySelectorAll('#meth-modal-opTimeNote').length` — must be exactly `1` (the clone). Close the modal. The `meth-modal-` prefixed node is gone.
+
+### Test suite and ISO validation
+
+- [ ] **Vitest suite** — `npm test` reports **5 files, 233 tests passed**. No duplicate file count, no `.claude/worktrees/` copies.
+- [ ] **ISO/TR 17534-3** — T01 G=0 → 44.29 (ref 44.29, ±0.05 dB). T02 G=0.5 → 41.52 (ref 41.53, ±0.05 dB). T03 G=1 → 39.13 (ref 39.14, ±0.05 dB).
+
+---
+
 ## Site plan overlay — aspect ratio preservation
 
 Prerequisite: a fresh assessment with no site plan overlays loaded. Use the Tools panel **Site plan overlay** button to import each test image.

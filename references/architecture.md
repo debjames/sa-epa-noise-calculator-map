@@ -692,6 +692,8 @@ Access is via `#side-panel-methodology-btn` in `#side-panel-footer` (LHS side pa
 
 The function is exposed on `window.showMethodologyModal` so any future caller can reuse it. Because the card's HTML is only cloned (not moved), the original `#methodologyCard` in the hidden drawer position remains intact — `initCollapse()` has already wrapped its sections before the modal ever opens, so the cloned DOM displays with the same collapsed-by-default section state.
 
+**Focus restoration fallback.** On open, `_methPrevFocus = document.activeElement` captures the opener. On close, the restore block verifies `document.contains(_methPrevFocus)` before calling `.focus()`; if the opener has been removed from the DOM (drawer re-render, `_resonateSidePanelBoot` rebuild, opener hot-swap), focus falls back to `document.getElementById('side-panel-methodology-btn')` on the current DOM. This prevents focus from silently dropping to `document.body` when the opener node is stale. `#side-panel-methodology-btn` is currently the only opener for this modal — if additional openers are added, extend the fallback chain in `closeMethodologyModal` accordingly.
+
 `#side-panel.collapsed #side-panel-methodology-btn { display: none }` hides the button while the side panel is in its collapsed state (matching the other footer controls).
 
 ### Pre-existing Phase 1 drawer bug — GIS Export + Methodology stranded

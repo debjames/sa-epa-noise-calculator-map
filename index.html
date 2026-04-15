@@ -3480,10 +3480,21 @@ body.disclaimer-visible .container {
       document.removeEventListener('focusin', _methFocusHandler, true);
       _methFocusHandler = null;
     }
-    /* Restore focus to whatever was focused before the modal opened
-       (typically the side-panel-methodology-btn) */
-    if (_methPrevFocus && typeof _methPrevFocus.focus === 'function') {
-      try { _methPrevFocus.focus(); } catch (e) {}
+    /* Restore focus to whatever was focused before the modal opened.
+       If that element has since been removed from the DOM (side panel
+       rebuild, drawer re-render, opener hot-swap), fall back to the
+       known opener by id lookup so focus doesn't silently drop to
+       document.body. The side-panel-methodology-btn is currently the
+       only opener for this modal. */
+    var restoreTarget = null;
+    if (_methPrevFocus && typeof _methPrevFocus.focus === 'function'
+        && document.contains(_methPrevFocus)) {
+      restoreTarget = _methPrevFocus;
+    } else {
+      restoreTarget = document.getElementById('side-panel-methodology-btn');
+    }
+    if (restoreTarget && typeof restoreTarget.focus === 'function') {
+      try { restoreTarget.focus(); } catch (e) {}
     }
     _methPrevFocus = null;
   }
