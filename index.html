@@ -3464,6 +3464,8 @@ body.disclaimer-visible .container {
 (function() {
   var _methModalEl = null;
   var _methEscHandler = null;
+  var _methPrevFocus = null;   /* element to restore focus to on close */
+  var _methFocusHandler = null; /* focus-trap handler */
 
   function closeMethodologyModal() {
     if (_methModalEl && _methModalEl.parentNode) {
@@ -3474,6 +3476,16 @@ body.disclaimer-visible .container {
       document.removeEventListener('keydown', _methEscHandler, true);
       _methEscHandler = null;
     }
+    if (_methFocusHandler) {
+      document.removeEventListener('focusin', _methFocusHandler, true);
+      _methFocusHandler = null;
+    }
+    /* Restore focus to whatever was focused before the modal opened
+       (typically the side-panel-methodology-btn) */
+    if (_methPrevFocus && typeof _methPrevFocus.focus === 'function') {
+      try { _methPrevFocus.focus(); } catch (e) {}
+    }
+    _methPrevFocus = null;
   }
 
   function showMethodologyModal() {
@@ -3483,9 +3495,18 @@ body.disclaimer-visible .container {
     var card = document.getElementById('methodologyCard');
     if (!card) return;
 
-    /* Backdrop — full viewport, dim background, click-to-close */
+    /* Remember the currently focused element so we can restore it on close */
+    _methPrevFocus = document.activeElement;
+
+    /* Backdrop — full viewport, dim background, click-to-close.
+       role="dialog" + aria-modal="true" tells assistive tech this is a
+       modal context. aria-labelledby points at the cloned heading whose
+       id we set below after walking the cloned IDs. */
     var backdrop = document.createElement('div');
     backdrop.id = 'methodologyModalBackdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    backdrop.setAttribute('aria-labelledby', 'meth-modal-heading');
     backdrop.style.cssText =
       'position:fixed;inset:0;z-index:10000;' +
       'background:rgba(0,0,0,0.5);' +
@@ -3539,6 +3560,13 @@ body.disclaimer-visible .container {
     var contentWrap = document.createElement('div');
     contentWrap.id = 'methodologyModalContent';
     contentWrap.innerHTML = card.innerHTML;
+    /* Namespace any IDs in the cloned content so they don't collide with
+       the original DOM — the methodology card has e.g. id="opTimeNote"
+       which would otherwise exist twice in the document while the modal
+       is open, breaking getElementById() for that id. */
+    contentWrap.querySelectorAll('[id]').forEach(function(el) {
+      el.id = 'meth-modal-' + el.id;
+    });
     /* initCollapse() has already wrapped the methodology card in a
        .card-header (h2 + .collapse-btn ▼) + .card-body.collapsed structure.
        In the modal we don't want the collapse chevron (it would need its
@@ -3546,6 +3574,12 @@ body.disclaimer-visible .container {
        need the body uncollapsed so the content is visible. */
     contentWrap.querySelectorAll('.collapse-btn').forEach(function(btn) { btn.remove(); });
     contentWrap.querySelectorAll('.card-body.collapsed').forEach(function(b) { b.classList.remove('collapsed'); });
+    /* Tag the heading so aria-labelledby on the backdrop can find it.
+       The methodology card's h2 lives inside the .card-header wrapper
+       added by initCollapse(); fall back to a bare h2 if the structure
+       changes in future. */
+    var modalHeading = contentWrap.querySelector('.card-header h2') || contentWrap.querySelector('h2');
+    if (modalHeading) modalHeading.id = 'meth-modal-heading';
     box.appendChild(contentWrap);
 
     /* Click on backdrop (outside box) closes the modal */
@@ -3567,6 +3601,21 @@ body.disclaimer-visible .container {
       }
     };
     document.addEventListener('keydown', _methEscHandler, true);
+
+    /* Simple focus trap — if focus moves outside the backdrop (e.g. the
+       user tabs past the close button), pull it back to the close button.
+       Capture phase so we beat any other focusin handlers. */
+    _methFocusHandler = function(e) {
+      if (!_methModalEl) return;
+      if (!_methModalEl.contains(e.target)) {
+        e.stopPropagation();
+        try { closeBtn.focus(); } catch (err) {}
+      }
+    };
+    document.addEventListener('focusin', _methFocusHandler, true);
+
+    /* Move focus into the modal so keyboard users start inside it */
+    try { closeBtn.focus(); } catch (e) {}
   }
 
   /* Expose globally so _resonateSidePanelBoot's button handler can find it */
@@ -35506,6 +35555,11 @@ if (window.pdfjsLib) {
 
     /* Skip modifier combos — Ctrl+Z etc. handled by undo manager */
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    /* Skip when a modal overlay is open — keys should not leak through to
+       the map underneath. Currently only the methodology modal uses this
+       pattern; future modals can be added to this check. */
+    if (document.getElementById('methodologyModalBackdrop')) return;
 
     var key = e.key;
 
