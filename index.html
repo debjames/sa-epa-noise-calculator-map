@@ -2211,6 +2211,7 @@ body.disclaimer-visible .container {
                 <!-- Group 1: Map layers & analysis tools -->
                 <button class="mp-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API) (T)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain<span class="mp-kbd">T</span></button>
                 <button class="mp-btn" id="terrainContourBtn" title="Show terrain elevation contour lines on map (requires Terrain ON) (C)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 15 Q8 9 12 12 Q16 15 21 9"/><path d="M3 20 Q8 14 12 17 Q16 20 21 14"/></svg> Contours<span class="mp-kbd">C</span></button>
+                <button class="mp-btn" id="threeDViewBtn" title="Open 3D scene view of terrain, buildings, barriers, and sources (V)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 3L2 8l10 5 10-5-10-5z"/><path d="M2 12l10 5 10-5"/><path d="M12 22V13"/></svg> 3D View<span class="mp-kbd">V</span></button>
                 <button class="mp-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints (O)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings<span class="mp-kbd">O</span></button>
                 <button class="mp-btn" id="reflectionsBtn" title="Apply ISO 9613-2 §7.5 image source facade reflections to receiver predictions and noise map (F)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections<span class="mp-kbd">F</span></button>
                 <span id="reflectionsBuildingWarning" style="display:none;font-size:10px;color:#fbbf24;padding:2px 8px;white-space:normal;line-height:1.4;">&#9888; Enable Buildings layer to apply reflections to noise map</span>
@@ -3635,6 +3636,2274 @@ body.disclaimer-visible .container {
 })();
 </script>
 
+<!-- ============================================================
+     3D Scene Viewer modal — Phase 1 (infrastructure + empty scene)
+     Opens a full-screen modal with a Three.js canvas. Lazy-loads
+     Three.js r128 + OrbitControls from CDN on first open. This
+     phase renders only lighting, orbit controls, and a placeholder
+     flat ground plane; subsequent phases add terrain, buildings,
+     barriers, sources, and receivers. Triggered by #threeDViewBtn.
+     Utility: window.latLngToLocal(lat, lng, cLat, cLng) for
+     lat/lng → local metric XZ conversion.
+     ============================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  /* ----- lat/lng → local metric XZ (equirectangular) ----- */
+  /* Scene Y = elevation in metres. X = east, Z = -north.    */
+  /* Accurate for areas < ~5km which is the typical working  */
+  /* extent for a noise assessment viewport.                 */
+  function latLngToLocal(lat, lng, cLat, cLng) {
+    var R = 6371000;           // Earth radius in metres
+    var D = Math.PI / 180;
+    var x = (lng - cLng) * D * R * Math.cos(cLat * D);
+    var z = -(lat - cLat) * D * R;
+    return { x: x, z: z };
+  }
+  window.latLngToLocal = latLngToLocal;
+
+  /* ----- Three.js r128 + OrbitControls lazy loader ----- */
+  /* r128 is pinned because later releases dropped the UMD */
+  /* examples/js/ path that exposes THREE.OrbitControls as */
+  /* a global. The app has no build step, so UMD is the    */
+  /* only viable distribution.                             */
+  var _threePromise = null;
+  function loadThreeJS() {
+    if (_threePromise) return _threePromise;
+    _threePromise = new Promise(function(resolve, reject) {
+      if (window.THREE && window.THREE.OrbitControls) { resolve(); return; }
+      var s1 = document.createElement('script');
+      s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      s1.crossOrigin = 'anonymous';
+      s1.onload = function() {
+        var s2 = document.createElement('script');
+        s2.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
+        s2.crossOrigin = 'anonymous';
+        s2.onload = function() {
+          if (window.THREE && window.THREE.OrbitControls) resolve();
+          else reject(new Error('OrbitControls did not attach to THREE global'));
+        };
+        s2.onerror = function() { reject(new Error('Failed to load OrbitControls from CDN')); };
+        document.head.appendChild(s2);
+      };
+      s1.onerror = function() { reject(new Error('Failed to load Three.js from CDN')); };
+      document.head.appendChild(s1);
+    });
+    return _threePromise;
+  }
+
+  /* ----- modal state ----- */
+  var _3dModalEl     = null;  // backdrop DOM node
+  var _3dEscHandler  = null;
+  var _3dPrevFocus   = null;
+  var _3dFocusHandler = null;
+  var _3dResizeHandler = null;
+  var _3dRafId       = null;  // requestAnimationFrame id
+  var _3dRenderer    = null;
+  var _3dScene       = null;
+  var _3dCamera      = null;
+  var _3dControls    = null;
+
+  /* ----- Phase 2 terrain mesh state ----- */
+  var _3dTerrainMesh     = null;  // THREE.Mesh or null — real terrain geometry
+  var _3dFallbackPlane   = null;  // flat grey plane when no terrain data
+  var _3dGridHelper      = null;  // grid helper (hidden by default)
+  var _3dAxesHelper      = null;  // axes helper (hidden by default)
+  var _3dBannerEl        = null;  // "no terrain data" banner DOM node
+  var _3dProgressEl      = null;  // progress indicator DOM node
+  var _3dSamplingCancel  = false; // flag to abort chunked sampling on close
+  var _3dSamplingHandle  = null;  // rAF id for the active chunk loop
+  var _3dCanvasWrap      = null;  // ref to the canvas container for banner/progress
+
+  /* ----- Phase 3 buildings state ----- */
+  var _3dOsmBuildingsMesh     = null;  // single merged mesh for OSM
+  var _3dCustomBuildingMeshes = [];    // one mesh per custom building
+  var _3dBuildingSourceMeshes = [];    // one mesh per building source
+
+  /* ----- Phase 4 barriers + ground zones state ----- */
+  var _3dBarrierMeshes    = [];  // one wall mesh per barrier
+  var _3dBarrierCrests    = [];  // one top-edge Line per barrier
+  var _3dGroundZoneMeshes = [];  // one flat polygon mesh per zone
+
+  /* ----- Phase 5 sources + receivers + labels state -----
+     Stored as THREE.Group instances so Phase 6 UI controls can
+     flip .visible on the whole group with one line. Nulled on
+     close; the scene.traverse dispose pass handles GPU resources. */
+  var _3dSourcesGroup   = null;
+  var _3dReceiversGroup = null;
+  var _3dLabelsGroup    = null;
+
+  /* ----- Phase 6 toolbar state -----
+     Populated when the modal opens. The shortcut handler reads
+     these refs to wire W/L/G/A/R/+/- to the same buttons that
+     click would invoke. Cleared on close. */
+  var _3dToolbarControls    = null;
+  var _3dToolbarKeyHandler  = null;
+
+  /* ----- Reference-elevation datum -----
+     Subtracted from every Y value in the scene so the terrain
+     sits near Y=0 rather than at its absolute ASL. Without this,
+     a 45 m-ASL Adelaide CBD site renders as a "floating island"
+     45 m above the OSM buildings and fallback plane (which sit
+     at Y=0). Set to the minimum cached DEM sample during terrain
+     build; 0 for the no-terrain fallback path. Applied inside
+     sampleTerrainAt() so every Phase 3–5 consumer gets
+     normalised values automatically. Point sources and receivers
+     that use stored absolute elevations (groundElevation_m /
+     recvGroundElevations) subtract this explicitly — those values
+     don't flow through sampleTerrainAt. Reset to 0 on modal close
+     so a subsequent open starts with a clean datum. */
+  var _3dReferenceElevation = 0;
+
+  function disposeScene(scene) {
+    if (!scene) return;
+    scene.traverse(function(obj) {
+      if (obj.geometry && typeof obj.geometry.dispose === 'function') {
+        obj.geometry.dispose();
+      }
+      if (obj.material) {
+        var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach(function(m) {
+          if (!m) return;
+          /* SpriteMaterial.map is a CanvasTexture that holds a reference
+             to the backing <canvas> element and its GPU texture — easy
+             leak if not disposed explicitly. The .material.dispose()
+             call doesn't cascade into .map, so do that first. */
+          if (m.map && typeof m.map.dispose === 'function') m.map.dispose();
+          if (typeof m.dispose === 'function') m.dispose();
+        });
+      }
+    });
+  }
+
+  function close3DModal() {
+    /* Cancel any in-flight chunked terrain sampling FIRST so no late
+       callback tries to mutate a disposed scene. Sampling uses
+       setTimeout, not rAF (see buildTerrainMesh for why). */
+    _3dSamplingCancel = true;
+    if (_3dSamplingHandle !== null) {
+      clearTimeout(_3dSamplingHandle);
+      _3dSamplingHandle = null;
+    }
+    /* Stop animation loop so no further render() calls run.
+       Uses clearTimeout because the loop uses setTimeout (see
+       initThreeScene for why). Keeping the variable name _3dRafId
+       to minimise diff noise. */
+    if (_3dRafId !== null) {
+      clearTimeout(_3dRafId);
+      _3dRafId = null;
+    }
+    /* Dispose GPU resources — scene.traverse handles the terrain mesh,
+       fallback plane, grid helper, axes helper, and any marker spheres
+       added via _3dAddMarker. */
+    disposeScene(_3dScene);
+    if (_3dControls && typeof _3dControls.dispose === 'function') {
+      try { _3dControls.dispose(); } catch (e) {}
+    }
+    if (_3dRenderer) {
+      try {
+        if (typeof _3dRenderer.forceContextLoss === 'function') {
+          _3dRenderer.forceContextLoss();
+        }
+        _3dRenderer.dispose();
+      } catch (e) {}
+    }
+    _3dRenderer = null; _3dScene = null; _3dCamera = null; _3dControls = null;
+    _3dTerrainMesh = null; _3dFallbackPlane = null;
+    _3dGridHelper = null; _3dAxesHelper = null;
+    _3dCanvasWrap = null; _3dBannerEl = null; _3dProgressEl = null;
+    /* Phase 3 — scene.traverse dispose already handled the geometry and
+       materials; just null the refs so they don't pin the disposed objects. */
+    _3dOsmBuildingsMesh = null;
+    _3dCustomBuildingMeshes = [];
+    _3dBuildingSourceMeshes = [];
+    /* Phase 4 — Line objects disposed via the same scene.traverse pass
+       (both Mesh and Line have .geometry + .material). */
+    _3dBarrierMeshes = [];
+    _3dBarrierCrests = [];
+    _3dGroundZoneMeshes = [];
+    /* Phase 5 — groups held all sources / receivers / sprite labels.
+       disposeScene() above walked into them via scene.traverse and
+       disposed every CanvasTexture + material + geometry. Just null
+       the refs here so they don't pin the disposed objects. */
+    _3dSourcesGroup = null;
+    _3dReceiversGroup = null;
+    _3dLabelsGroup = null;
+
+    /* Remove resize listener */
+    if (_3dResizeHandler) {
+      window.removeEventListener('resize', _3dResizeHandler);
+      _3dResizeHandler = null;
+    }
+    /* Remove DOM */
+    if (_3dModalEl && _3dModalEl.parentNode) {
+      _3dModalEl.parentNode.removeChild(_3dModalEl);
+    }
+    _3dModalEl = null;
+    /* Remove keydown + focusin handlers */
+    if (_3dEscHandler) {
+      document.removeEventListener('keydown', _3dEscHandler, true);
+      _3dEscHandler = null;
+    }
+    if (_3dFocusHandler) {
+      document.removeEventListener('focusin', _3dFocusHandler, true);
+      _3dFocusHandler = null;
+    }
+    /* Phase 6 — remove the modal-scoped toolbar shortcut listener. */
+    if (_3dToolbarKeyHandler) {
+      document.removeEventListener('keydown', _3dToolbarKeyHandler, true);
+      _3dToolbarKeyHandler = null;
+    }
+    _3dToolbarControls = null;
+    /* Reset the Y datum so a fresh open starts with 0 until the
+       terrain build sets it to the local elevation minimum. */
+    _3dReferenceElevation = 0;
+    /* Restore focus to the button that opened the modal */
+    var restoreTarget = null;
+    if (_3dPrevFocus && typeof _3dPrevFocus.focus === 'function'
+        && document.contains(_3dPrevFocus)) {
+      restoreTarget = _3dPrevFocus;
+    } else {
+      restoreTarget = document.getElementById('threeDViewBtn');
+    }
+    if (restoreTarget && typeof restoreTarget.focus === 'function') {
+      try { restoreTarget.focus(); } catch (e) {}
+    }
+    _3dPrevFocus = null;
+    /* Clear active state on toggle button */
+    var btn = document.getElementById('threeDViewBtn');
+    if (btn) btn.classList.remove('active');
+  }
+  window.close3DModal = close3DModal;
+
+  function initThreeScene(canvas, container, statusEl) {
+    /* Renderer */
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(container.clientWidth, container.clientHeight, false);
+    renderer.setClearColor(0x87ceeb, 1.0);  // sky blue
+
+    /* Scene */
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb);
+
+    /* Camera — Y-up, looking at origin from above-southwest */
+    var aspect = container.clientWidth / Math.max(1, container.clientHeight);
+    var camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 50000);
+    camera.position.set(300, 250, 300);
+    camera.lookAt(0, 0, 0);
+
+    /* Lighting */
+    var ambient = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambient);
+    var sun = new THREE.DirectionalLight(0xffffff, 0.7);
+    sun.position.set(-100, 200, -100);   // north-west-ish
+    scene.add(sun);
+
+    /* Grid + axes helpers — hidden by default. Phase 7 will wire
+       toolbar toggles to flip .visible. Grid is resized to the
+       terrain extent by buildTerrainMesh(); starting size is just
+       a placeholder until we know the bounds.                     */
+    var grid = new THREE.GridHelper(1000, 20, 0x444444, 0x888888);
+    grid.position.y = 0.05;
+    grid.visible = false;
+    scene.add(grid);
+    _3dGridHelper = grid;
+
+    var axes = new THREE.AxesHelper(20);
+    axes.position.y = 0.1;
+    axes.visible = false;
+    scene.add(axes);
+    _3dAxesHelper = axes;
+
+    /* OrbitControls — min/max distance are re-set by
+       frameCameraToTerrain() once the real bounds are known. */
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+    controls.minDistance = 10;
+    controls.maxDistance = 5000;
+    controls.target.set(0, 0, 0);
+
+    /* Stash references for cleanup */
+    _3dRenderer = renderer;
+    _3dScene = scene;
+    _3dCamera = camera;
+    _3dControls = controls;
+    _3dCanvasWrap = container;
+
+    /* Animation loop — uses setTimeout rather than requestAnimationFrame
+       because some embedded preview / iframe / hidden-tab environments
+       throttle rAF to zero which would stall orbit controls damping and
+       leave post-init scene mutations (e.g. the Phase 2 terrain mesh
+       arriving after chunked sampling) permanently invisible. 16 ms
+       ≈ 60 fps; negligible perf cost for the modal's short-lived use. */
+    function animate() {
+      _3dRafId = setTimeout(animate, 16);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    /* Hide loading status on first frame */
+    if (statusEl) statusEl.style.display = 'none';
+
+    /* Kick off terrain build. It runs async over multiple frames. */
+    buildTerrainMesh();
+  }
+
+  /* ============================================================
+     Terrain mesh builder — Phase 2
+     Reads DEMCache tiles, samples a regular grid across the current
+     map bounds in chunks (~5000 pts/frame) to avoid UI lockup,
+     then builds a single indexed BufferGeometry with vertex
+     colours mapped from a normalised elevation ramp. NaN cells
+     (no DEM coverage) produce real gaps rather than cliff
+     artifacts. If no tiles cover the view, falls back to a flat
+     plane + banner.
+     ============================================================ */
+  function buildTerrainMesh() {
+    if (!_3dScene || !window._map || !window.DEMCache) {
+      showNoTerrainFallback('3D engine initialised before map or terrain cache.');
+      return;
+    }
+
+    var mb = window._map.getBounds();
+    var north = mb.getNorth(), south = mb.getSouth();
+    var east  = mb.getEast(),  west  = mb.getWest();
+    var centre = window._map.getCenter();
+
+    /* Filter cached tiles to those overlapping the current view.
+       Mirrors the same pattern as generateTerrainContours(). */
+    var allTiles = window.DEMCache.getAllWCSRasters();
+    var viewTiles = allTiles.filter(function(t) {
+      if (t.source !== 'lidar' && t.source !== 'srtm') return false;
+      var b = t.bounds;
+      return b.north > south && b.south < north && b.east > west && b.west < east;
+    });
+    var lidarTiles = viewTiles.filter(function(t) { return t.source === 'lidar'; });
+    var srtmTiles  = viewTiles.filter(function(t) { return t.source === 'srtm';  });
+
+    if (viewTiles.length === 0) {
+      showNoTerrainFallback('No terrain data available. Enable Terrain for 3D elevation.');
+      return;
+    }
+
+    /* Grid spacing snapped to a "nice" magnitude — same rule as
+       the 2D contour generator. Cap at 250 samples per axis. */
+    var latSpan = north - south, lngSpan = east - west;
+    var rawSpacing = Math.max(latSpan, lngSpan) / 250;
+    var mag = Math.pow(10, Math.floor(Math.log10(rawSpacing)));
+    var gridSpacing = Math.max(Math.ceil(rawSpacing / mag) * mag, 0.00005);
+
+    var lats = [], lngs = [];
+    for (var glat = south; glat <= north + gridSpacing * 0.01; glat += gridSpacing)
+      lats.push(parseFloat(glat.toFixed(7)));
+    for (var glng = west; glng <= east + gridSpacing * 0.01; glng += gridSpacing)
+      lngs.push(parseFloat(glng.toFixed(7)));
+
+    var H = lats.length, W = lngs.length;
+    var N = H * W;
+    if (H < 2 || W < 2) {
+      showNoTerrainFallback('Terrain grid too small — zoom out or move the map.');
+      return;
+    }
+
+    /* Chunked sampling across setTimeout ticks. setTimeout rather
+       than requestAnimationFrame because this is computational work
+       that doesn't need to be synced to the display refresh — and
+       some embedded/preview renderers throttle rAF callbacks for
+       non-visible contexts, which would stall the build. */
+    var elevations = new Float32Array(N);
+    for (var f = 0; f < N; f++) elevations[f] = NaN;
+    var _sampleRaster = window.DEMCache.sampleRaster;
+    var chunkSize = 5000;
+    var idx = 0;
+    _3dSamplingCancel = false;
+
+    showProgress(0);
+
+    function processChunk() {
+      if (_3dSamplingCancel) return;
+      var end = Math.min(idx + chunkSize, N);
+      for (; idx < end; idx++) {
+        var ri = Math.floor(idx / W);
+        var ci = idx - ri * W;
+        var lat = lats[ri], lng = lngs[ci];
+        var e = null;
+        /* LiDAR preferred, most-recent-first */
+        for (var ti = lidarTiles.length - 1; ti >= 0; ti--) {
+          e = _sampleRaster(lidarTiles[ti], lat, lng);
+          if (e !== null) break;
+        }
+        /* SRTM fallback */
+        if (e === null) {
+          for (var ti2 = srtmTiles.length - 1; ti2 >= 0; ti2--) {
+            e = _sampleRaster(srtmTiles[ti2], lat, lng);
+            if (e !== null) break;
+          }
+        }
+        if (e !== null) elevations[idx] = e;
+      }
+      showProgress(Math.round((idx / N) * 100));
+      if (idx < N) {
+        _3dSamplingHandle = setTimeout(processChunk, 0);
+      } else {
+        _3dSamplingHandle = null;
+        hideProgress();
+        finaliseTerrainMesh(lats, lngs, elevations, H, W, centre);
+      }
+    }
+    _3dSamplingHandle = setTimeout(processChunk, 0);
+  }
+
+  /* Build BufferGeometry from the sampled grid, apply the
+     elevation colour ramp, attach material, add to scene, and
+     reposition the camera to frame it. */
+  function finaliseTerrainMesh(lats, lngs, elevations, H, W, centre) {
+    if (_3dSamplingCancel || !_3dScene) return;
+
+    /* Find min/max of valid samples for colour-ramp normalisation */
+    var elevMin = Infinity, elevMax = -Infinity;
+    for (var i = 0; i < elevations.length; i++) {
+      var v = elevations[i];
+      if (isFinite(v)) {
+        if (v < elevMin) elevMin = v;
+        if (v > elevMax) elevMax = v;
+      }
+    }
+    if (!isFinite(elevMin)) {
+      showNoTerrainFallback('Terrain grid had no valid samples — all NaN.');
+      return;
+    }
+    /* Guard degenerate ranges (flat site) — zero range would blow */
+    /* up the normalised t. Use a 1 m floor; the ramp still spans  */
+    /* the green→brown→tan bands so even a perfectly flat site     */
+    /* shows the middle tone cleanly.                              */
+    var elevRange = elevMax - elevMin;
+    if (elevRange < 1e-6) elevRange = 1;
+
+    /* Anchor the scene's Y=0 at the terrain minimum. Every Y value
+       — terrain vertices, buildings, barriers, sources, receivers —
+       is subsequently rendered relative to this datum, so a site
+       that is e.g. 45 m ASL with 3 m of relief renders near Y=0
+       instead of floating 45 m above the OSM buildings which sit
+       on the outside-of-coverage Y=0 plane. sampleTerrainAt()
+       reads this module-level var and subtracts it for all the
+       Phase 3–5 building / barrier / source / receiver builders.  */
+    _3dReferenceElevation = elevMin;
+
+    var N = H * W;
+    var positions = new Float32Array(N * 3);
+    var colours   = new Float32Array(N * 3);
+
+    /* Fill position + colour buffers. Indices skip cells where any
+       corner is NaN (see below) so NaN verts can remain in the
+       position buffer without producing visible triangles. */
+    for (var ri = 0; ri < H; ri++) {
+      for (var ci = 0; ci < W; ci++) {
+        var gi = ri * W + ci;
+        var elev = elevations[gi];
+        var pos = latLngToLocal(lats[ri], lngs[ci], centre.lat, centre.lng);
+        /* Normalised Y: 0 = minimum elevation, positive = above that.
+           NaN verts parked at Y=0 (the minimum); they're index-skipped
+           below so they never actually render. */
+        var y = isFinite(elev) ? (elev - elevMin) : 0;
+        var p3 = gi * 3;
+        positions[p3]     = pos.x;
+        positions[p3 + 1] = y;
+        positions[p3 + 2] = pos.z;
+
+        /* Three-stop colour ramp: green → brown → tan.
+           Still driven by the ORIGINAL (elev - elevMin)/range — i.e.
+           identical output to pre-normalisation since (elev - elevMin)
+           is exactly the Y we just wrote. Keep using the raw
+           elev/elevMin/elevRange values so the colour logic reads
+           symmetrically to the Y computation. */
+        var t = isFinite(elev) ? (elev - elevMin) / elevRange : 0;
+        var rgb = _elevationRamp(t);
+        colours[p3]     = rgb[0];
+        colours[p3 + 1] = rgb[1];
+        colours[p3 + 2] = rgb[2];
+      }
+    }
+
+    /* Index buffer — two triangles per cell, but only if all four
+       corners are finite. Using Uint32Array so 250² = 62,500 verts
+       stays within range.                                         */
+    var maxIndices = (H - 1) * (W - 1) * 6;
+    var indices = new Uint32Array(maxIndices);
+    var idxCount = 0;
+    for (var r2 = 0; r2 < H - 1; r2++) {
+      for (var c2 = 0; c2 < W - 1; c2++) {
+        var a = r2 * W + c2;
+        var b = r2 * W + c2 + 1;
+        var c = (r2 + 1) * W + c2;
+        var d = (r2 + 1) * W + c2 + 1;
+        if (!isFinite(elevations[a]) || !isFinite(elevations[b]) ||
+            !isFinite(elevations[c]) || !isFinite(elevations[d])) {
+          continue;   // skip cells with any NaN corner
+        }
+        /* CCW when viewed from above (+Y) — MeshLambertMaterial     */
+        /* uses DoubleSide so winding doesn't matter visually, but   */
+        /* normals come out right for the default lighting.          */
+        indices[idxCount++] = a;
+        indices[idxCount++] = c;
+        indices[idxCount++] = b;
+        indices[idxCount++] = b;
+        indices[idxCount++] = c;
+        indices[idxCount++] = d;
+      }
+    }
+    var trimmedIndices = indices.subarray(0, idxCount);
+
+    var geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geom.setAttribute('color',    new THREE.BufferAttribute(colours, 3));
+    geom.setIndex(new THREE.BufferAttribute(trimmedIndices, 1));
+    geom.computeVertexNormals();
+    geom.computeBoundingBox();
+
+    var mat = new THREE.MeshLambertMaterial({
+      vertexColors: true,
+      side: THREE.DoubleSide
+    });   // MeshLambertMaterial is smooth-shaded by default; no flatShading needed.
+    var mesh = new THREE.Mesh(geom, mat);
+    mesh.name = 'terrain-mesh';
+    _3dScene.add(mesh);
+    _3dTerrainMesh = mesh;
+
+    /* Re-position grid helper: scale to terrain extent. Terrain is
+       now normalised so the minimum vertex sits at Y=0; parking the
+       grid at Y=-0.1 keeps it just below the lowest terrain vertex
+       so it doesn't slice through the surface.                      */
+    if (_3dGridHelper) {
+      var bbox = geom.boundingBox;
+      var diag = Math.max(bbox.max.x - bbox.min.x, bbox.max.z - bbox.min.z);
+      var gridSize = Math.max(100, diag * 1.2);
+      /* GridHelper doesn't support resize — swap it. */
+      _3dScene.remove(_3dGridHelper);
+      if (_3dGridHelper.geometry && _3dGridHelper.geometry.dispose) _3dGridHelper.geometry.dispose();
+      if (_3dGridHelper.material && _3dGridHelper.material.dispose) _3dGridHelper.material.dispose();
+      var wasVisible = _3dGridHelper.visible;
+      _3dGridHelper = new THREE.GridHelper(gridSize, 20, 0x444444, 0x888888);
+      _3dGridHelper.position.y = -0.1;
+      _3dGridHelper.visible = wasVisible;
+      _3dScene.add(_3dGridHelper);
+    }
+
+    /* Frame the camera on the new mesh */
+    frameCameraToTerrain(geom.boundingBox);
+
+    /* Phase 3 — drop buildings onto the terrain.
+       Called after the mesh is added so centroid terrain sampling
+       pulls from the same cached tiles the mesh was built from. */
+    buildAllBuildings();
+
+    /* Phase 6 — Wireframe button was created with disabled-state
+       reflecting the fact that _3dTerrainMesh was null at modal-open
+       time. Now that the mesh exists, re-wire the button.            */
+    if (_3dToolbarControls && _3dToolbarControls.wire && _3dToolbarControls.wire.el) {
+      var btn = _3dToolbarControls.wire.el;
+      if (btn.disabled) {
+        btn.disabled = false;
+        btn.title = 'Show terrain mesh as wireframe (W)';
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (_3dTerrainMesh && _3dTerrainMesh.material) {
+            _3dTerrainMesh.material.wireframe = !_3dTerrainMesh.material.wireframe;
+          }
+          _3dToolbarControls.wire.paint();
+        });
+        _3dToolbarControls.wire.paint();
+      }
+    }
+  }
+
+  /* Three-stop linear RGB ramp: green (0x4a7c3a) → brown (0x8b6f3a) → tan (0xd4b896).
+     Inputs t∈[0,1]; returns [r, g, b] each in [0,1]. Used on vertex colours so the
+     normalised elevation range always maps across the full palette — even a 2 m
+     fall on a flat industrial site gets visible green→tan variation.         */
+  function _elevationRamp(t) {
+    t = Math.max(0, Math.min(1, t));
+    var stops = [
+      { t: 0.0, r: 0x4a / 255, g: 0x7c / 255, b: 0x3a / 255 },
+      { t: 0.5, r: 0x8b / 255, g: 0x6f / 255, b: 0x3a / 255 },
+      { t: 1.0, r: 0xd4 / 255, g: 0xb8 / 255, b: 0x96 / 255 }
+    ];
+    for (var i = 0; i < stops.length - 1; i++) {
+      var s0 = stops[i], s1 = stops[i + 1];
+      if (t <= s1.t) {
+        var f = (t - s0.t) / (s1.t - s0.t);
+        return [
+          s0.r + (s1.r - s0.r) * f,
+          s0.g + (s1.g - s0.g) * f,
+          s0.b + (s1.b - s0.b) * f
+        ];
+      }
+    }
+    return [stops[2].r, stops[2].g, stops[2].b];
+  }
+
+  /* Flat grey fallback plane + banner for the "no terrain data" case.
+     Does NOT block the rest of Phase 3+ from adding geometry — the fallback
+     sits at Y=0 and later phases place buildings/barriers on top normally. */
+  function showNoTerrainFallback(message) {
+    if (!_3dScene) return;
+    /* Bound box reasonable enough to orbit around. Use a 2 km square; Phase 3+
+       buildings/barriers will extend beyond if relevant and the user can
+       zoom out. */
+    var size = 2000;
+    var geom = new THREE.PlaneGeometry(size, size, 1, 1);
+    var mat = new THREE.MeshLambertMaterial({
+      color: 0x9ca3af, side: THREE.DoubleSide
+    });
+    var plane = new THREE.Mesh(geom, mat);
+    plane.rotation.x = -Math.PI / 2;
+    plane.name = 'fallback-plane';
+    _3dScene.add(plane);
+    _3dFallbackPlane = plane;
+
+    if (_3dGridHelper) _3dGridHelper.position.y = -0.1;
+
+    /* Frame camera on the fallback area */
+    frameCameraToTerrain(new THREE.Box3(
+      new THREE.Vector3(-size / 2, 0, -size / 2),
+      new THREE.Vector3( size / 2, 0,  size / 2)
+    ));
+
+    showBanner(message);
+
+    /* Phase 3 — buildings still render on the flat fallback plane.
+       sampleTerrainAt() will return null for every centroid → baseY=0,
+       which is exactly what we want on a fallback surface. */
+    buildAllBuildings();
+  }
+
+  /* Non-blocking banner at the top of the canvas area. Pointer-events off so it
+     doesn't interfere with orbit controls. */
+  function showBanner(message) {
+    if (!_3dCanvasWrap) return;
+    if (_3dBannerEl && _3dBannerEl.parentNode) _3dBannerEl.parentNode.removeChild(_3dBannerEl);
+    var el = document.createElement('div');
+    el.style.cssText =
+      'position:absolute;left:50%;top:12px;transform:translateX(-50%);' +
+      'background:rgba(234,179,8,0.95);color:#0f0f1e;' +
+      'padding:8px 14px;border-radius:4px;font-size:12px;line-height:1.5;' +
+      'box-shadow:0 2px 8px rgba(0,0,0,0.4);' +
+      'max-width:80%;text-align:center;pointer-events:none;user-select:none;';
+    el.textContent = message;
+    _3dCanvasWrap.appendChild(el);
+    _3dBannerEl = el;
+  }
+
+  /* Centred progress indicator — shown during chunked sampling, hidden on
+     completion or cancellation. */
+  function showProgress(percent) {
+    if (!_3dCanvasWrap) return;
+    if (!_3dProgressEl) {
+      var el = document.createElement('div');
+      el.style.cssText =
+        'position:absolute;inset:0;display:flex;align-items:center;' +
+        'justify-content:center;color:#e5e7eb;font-size:14px;' +
+        'background:rgba(0,0,0,0.25);pointer-events:none;user-select:none;';
+      _3dCanvasWrap.appendChild(el);
+      _3dProgressEl = el;
+    }
+    _3dProgressEl.textContent = 'Building terrain mesh\u2026 ' + percent + '%';
+  }
+  function hideProgress() {
+    if (_3dProgressEl && _3dProgressEl.parentNode) {
+      _3dProgressEl.parentNode.removeChild(_3dProgressEl);
+    }
+    _3dProgressEl = null;
+  }
+
+  /* Camera auto-framing — puts the target at the bbox centre, places the
+     camera at 1.5× the diagonal along a NE-up-45° vector so north reads as
+     "up-left" consistent with Leaflet. Resets orbit clamps to useful ranges. */
+  function frameCameraToTerrain(bbox) {
+    if (!_3dCamera || !_3dControls) return;
+    var cx = (bbox.min.x + bbox.max.x) / 2;
+    var cy = (bbox.min.y + bbox.max.y) / 2;
+    var cz = (bbox.min.z + bbox.max.z) / 2;
+    var dx = bbox.max.x - bbox.min.x;
+    var dy = bbox.max.y - bbox.min.y;
+    var dz = bbox.max.z - bbox.min.z;
+    var diag = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (!isFinite(diag) || diag < 10) diag = 1000;
+
+    var distance = 1.5 * diag;
+    /* 45° elevation, looking from SW (positive X, positive Z) so north is     */
+    /* "up-left" on screen — matches the Leaflet convention the user is used   */
+    /* to.                                                                     */
+    var cos45 = Math.SQRT1_2;
+    _3dCamera.position.set(
+      cx + distance * cos45 * 0.7,
+      cy + distance * 0.7,
+      cz + distance * cos45 * 0.7
+    );
+    _3dCamera.lookAt(cx, cy, cz);
+
+    _3dControls.target.set(cx, cy, cz);
+    _3dControls.minDistance = 10;
+    _3dControls.maxDistance = 5 * diag;
+    _3dControls.update();
+  }
+
+  /* Phase 6 — reset camera to frame the union of all scene geometry
+     (terrain + buildings + barriers + ground zones + sources +
+     receivers). Used both by the Reset View button and the R
+     keyboard shortcut. Labels (sprites) are excluded because their
+     world positions are already included via the source / receiver
+     meshes they sit above. */
+  function resetCameraToScene() {
+    if (!_3dScene) return;
+    var bbox = new THREE.Box3();
+    bbox.makeEmpty();
+    _3dScene.traverse(function(o) {
+      /* Skip helpers, sprite labels (their positions are covered by
+         their parent mesh), and the debug-marker / fallback-plane
+         overlays which would skew the box. */
+      if (o.isSprite) return;
+      if (o.type === 'GridHelper' || o.type === 'AxesHelper') return;
+      if (o.isLight) return;
+      if (!o.isMesh && !o.isLine) return;
+      if (o.name === 'debug-marker' || o.name === 'fallback-plane') return;
+      if (!o.geometry) return;
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      if (!o.geometry.boundingBox) return;
+      var worldBox = o.geometry.boundingBox.clone();
+      worldBox.applyMatrix4(o.matrixWorld);
+      bbox.union(worldBox);
+    });
+    if (bbox.isEmpty()) {
+      /* Fallback: just frame the terrain-or-plane we know about */
+      if (_3dTerrainMesh && _3dTerrainMesh.geometry && _3dTerrainMesh.geometry.boundingBox) {
+        frameCameraToTerrain(_3dTerrainMesh.geometry.boundingBox);
+      } else if (_3dFallbackPlane) {
+        frameCameraToTerrain(new THREE.Box3(
+          new THREE.Vector3(-1000, 0, -1000),
+          new THREE.Vector3( 1000, 0,  1000)
+        ));
+      }
+      return;
+    }
+    frameCameraToTerrain(bbox);
+  }
+
+  /* ============================================================
+     Phase 3 — Buildings
+     Three flavours, identical extrusion logic, different data
+     source + material:
+       - OSM buildings (grey, merged mesh for perf)
+       - Custom user-drawn buildings (blue)
+       - Building sources (orange — same silhouette, distinct
+         styling to flag "this is a source, not just a wall")
+     ============================================================ */
+
+  /* Point-sample DEMCache at a single lat/lng. LiDAR preferred,
+     SRTM fallback, null if no coverage. Mirrors the Phase 2 grid
+     sampler's per-point logic. Used for per-building base-elevation
+     lookup — building bases sit at (terrain at centroid) + baseHeightM. */
+  function sampleTerrainAt(lat, lng) {
+    if (!window.DEMCache) return null;
+    var tiles = window.DEMCache.getAllWCSRasters();
+    /* LiDAR preferred, most-recent-first */
+    for (var i = tiles.length - 1; i >= 0; i--) {
+      if (tiles[i].source !== 'lidar') continue;
+      var e = window.DEMCache.sampleRaster(tiles[i], lat, lng);
+      if (e !== null) return e - _3dReferenceElevation;
+    }
+    /* SRTM fallback */
+    for (var j = tiles.length - 1; j >= 0; j--) {
+      if (tiles[j].source !== 'srtm') continue;
+      var e2 = window.DEMCache.sampleRaster(tiles[j], lat, lng);
+      if (e2 !== null) return e2 - _3dReferenceElevation;
+    }
+    return null;
+  }
+
+  /* Return the effective building roof height at a lat/lng for the 3D
+     viewer, or 0 if the point isn't inside any building footprint.
+     "Building" here means any of: custom buildings (user-drawn),
+     building sources (noise-emitting envelopes), or OSM footprints.
+     Priority custom > building source > OSM — first hit wins. This
+     is independent of the 2D "Buildings layer" toggle because the
+     3D viewer always renders every flavour of building geometry, so
+     an object placed on a building rooftop must always sit on it in
+     3D regardless of whether the 2D layer is currently visible.
+
+     Reuses the top-level `_pointInPolygon(lat, lng, polygon)` from
+     line 10736 (ray-casting PIP, returns true if the point is inside
+     the polygon; polygon vertices are `[lat, lng]` pairs).           */
+  function _3dBuildingHeightAt(lat, lng) {
+    if (!isFinite(lat) || !isFinite(lng)) return 0;
+
+    /* (1) Custom buildings — always include baseHeightM since a
+       raised platform building puts its roof at base + height. */
+    if (typeof window._getCustomBuildings === 'function') {
+      var customs = window._getCustomBuildings();
+      if (Array.isArray(customs)) {
+        for (var i = 0; i < customs.length; i++) {
+          var cb = customs[i];
+          if (!cb || !cb.polygon || cb.polygon.length < 3) continue;
+          if (_pointInPolygon(lat, lng, cb.polygon)) {
+            return (cb.baseHeightM || 0) + (cb.heightM || 3);
+          }
+        }
+      }
+    }
+
+    /* (2) Building sources — note the `height_m` (underscore) field
+       name; building sources use a different casing convention to
+       custom buildings. `vertices` not `polygon` as well. */
+    if (typeof window._getBuildingSources === 'function') {
+      var bsrcs = window._getBuildingSources();
+      if (Array.isArray(bsrcs)) {
+        for (var j = 0; j < bsrcs.length; j++) {
+          var bs = bsrcs[j];
+          if (!bs || !bs.vertices || bs.vertices.length < 3) continue;
+          if (_pointInPolygon(lat, lng, bs.vertices)) {
+            return (bs.baseHeightM || 0) + (bs.height_m || 6);
+          }
+        }
+      }
+    }
+
+    /* (3) OSM — iterate window._buildings, skipping entries flagged
+       isCustom / isBarrier / isBuildingSource (pseudo-entries the 2D
+       screening pipeline injects) and excluded / demolished. Height
+       fallback identical to buildOSMBuildings(): heightM → height →
+       levels*3 → 6 m. No layer-visibility gate — the 3D viewer
+       always shows every building so an object's Y must include it. */
+    var osm = window._buildings || [];
+    for (var k = 0; k < osm.length; k++) {
+      var b = osm[k];
+      if (!b || !b.polygon || b.polygon.length < 3) continue;
+      if (b.isCustom || b.isBarrier || b.isBuildingSource) continue;
+      if (b.excluded || b.demolished) continue;
+      if (_pointInPolygon(lat, lng, b.polygon)) {
+        var h = b.heightM || b.height
+              || (b.levels ? b.levels * 3 : null)
+              || 6;
+        return (b.baseHeightM || 0) + h;
+      }
+    }
+
+    return 0;
+  }
+
+  /* Signed area of an XZ polygon. Positive → CCW-from-above, negative → CW. */
+  function _signedAreaXZ(pts) {
+    var a = 0;
+    for (var i = 0, n = pts.length; i < n; i++) {
+      var p = pts[i], q = pts[(i + 1) % n];
+      a += (p.x * q.z - q.x * p.z);
+    }
+    return a / 2;
+  }
+
+  /* Compute centroid (mean of vertices) for terrain-sampling purposes.
+     Accepts both [{lat,lng},…] and [[lat,lng],…] vertex shapes.
+     Returns {lat, lng} or null for empty input. */
+  function _polygonCentroidLatLng(vertices) {
+    if (!vertices || !vertices.length) return null;
+    var sumLat = 0, sumLng = 0, n = 0;
+    for (var i = 0; i < vertices.length; i++) {
+      var v = vertices[i];
+      var lat, lng;
+      if (Array.isArray(v)) { lat = v[0]; lng = v[1]; }
+      else if (v && typeof v === 'object') { lat = v.lat; lng = v.lng; }
+      else continue;
+      if (!isFinite(lat) || !isFinite(lng)) continue;
+      sumLat += lat; sumLng += lng; n++;
+    }
+    if (n === 0) return null;
+    return { lat: sumLat / n, lng: sumLng / n };
+  }
+
+  /* Shared polygon extrusion — takes a footprint polygon + base/top
+     elevations, returns the raw indexed geometry arrays so the caller
+     can either attach them directly to a BufferGeometry (custom +
+     building-source paths) or concat into a merged accumulator (OSM
+     path, which avoids 500 draw calls).
+
+     Returns { positions: Float32Array, indices: Uint32Array } or null
+     on degenerate input / triangulation failure. Side walls include
+     duplicated vertices with their own per-wall normals so flat
+     shading along the walls doesn't wash out after
+     computeVertexNormals — top and bottom faces share vertices across
+     triangles (smooth shading there is fine since they're flat). */
+  function buildExtrudedFootprint(vertices, baseY, topY, centreLat, centreLng) {
+    if (!vertices || vertices.length < 3) return null;
+
+    /* Normalise to {x, z} in local metres */
+    var pts = [];
+    for (var i = 0; i < vertices.length; i++) {
+      var v = vertices[i];
+      var lat, lng;
+      if (Array.isArray(v)) { lat = v[0]; lng = v[1]; }
+      else if (v && typeof v === 'object') { lat = v.lat; lng = v.lng; }
+      else continue;
+      if (!isFinite(lat) || !isFinite(lng)) continue;
+      var p = latLngToLocal(lat, lng, centreLat, centreLng);
+      pts.push({ x: p.x, z: p.z });
+    }
+    if (pts.length < 3) return null;
+
+    /* Drop duplicate last vertex if the polygon is closed (first==last).
+       THREE.ShapeUtils.triangulateShape expects an open contour. */
+    var last = pts[pts.length - 1], first = pts[0];
+    if (Math.abs(last.x - first.x) < 1e-6 && Math.abs(last.z - first.z) < 1e-6) {
+      pts.pop();
+    }
+    if (pts.length < 3) return null;
+
+    /* Ensure CCW winding when viewed from above (+Y looking down -Y,
+       i.e. from above the XZ plane). triangulateShape expects CCW; the
+       side-wall winding below assumes it too. */
+    if (_signedAreaXZ(pts) < 0) pts.reverse();
+
+    /* Triangulate the top cap using Three.js's earcut. Wrap in
+       try/catch because self-intersecting OSM polygons occasionally
+       throw — we'd rather skip one building than lose the whole scene. */
+    var contour2D = pts.map(function(p) { return new THREE.Vector2(p.x, p.z); });
+    var tri;
+    try {
+      tri = THREE.ShapeUtils.triangulateShape(contour2D, []);
+    } catch (err) {
+      console.warn('[3D] triangulation failed for building footprint', err);
+      return null;
+    }
+    if (!tri || !tri.length) return null;
+
+    var N = pts.length;
+
+    /* Vertex layout:
+         0            .. N-1        : top face (Y=topY)
+         N            .. 2N-1       : bottom face (Y=baseY)
+         2N           .. 2N + 4W-1  : side-wall vertices (4 per edge,
+                                      so each wall has its own normals)
+       where W = N (one quad per edge). */
+    var V = 2 * N + 4 * N;
+    var positions = new Float32Array(V * 3);
+    var indices   = new Uint32Array(tri.length * 3 * 2 + N * 6);
+    var pOff = 0, iOff = 0;
+
+    /* Top face vertices */
+    for (var t = 0; t < N; t++) {
+      positions[pOff++] = pts[t].x;
+      positions[pOff++] = topY;
+      positions[pOff++] = pts[t].z;
+    }
+    /* Bottom face vertices */
+    for (var u = 0; u < N; u++) {
+      positions[pOff++] = pts[u].x;
+      positions[pOff++] = baseY;
+      positions[pOff++] = pts[u].z;
+    }
+    /* Side-wall vertices — 4 per edge (bottom-a, bottom-b, top-b, top-a) */
+    for (var e = 0; e < N; e++) {
+      var a = pts[e], b = pts[(e + 1) % N];
+      /* bottom-a */
+      positions[pOff++] = a.x; positions[pOff++] = baseY; positions[pOff++] = a.z;
+      /* bottom-b */
+      positions[pOff++] = b.x; positions[pOff++] = baseY; positions[pOff++] = b.z;
+      /* top-b */
+      positions[pOff++] = b.x; positions[pOff++] = topY;  positions[pOff++] = b.z;
+      /* top-a */
+      positions[pOff++] = a.x; positions[pOff++] = topY;  positions[pOff++] = a.z;
+    }
+
+    /* Top-cap indices — CCW from above so normals point +Y. */
+    for (var k = 0; k < tri.length; k++) {
+      var t0 = tri[k];
+      indices[iOff++] = t0[0];
+      indices[iOff++] = t0[1];
+      indices[iOff++] = t0[2];
+    }
+    /* Bottom-cap indices — reverse winding so normals point -Y.
+       Vertex offsets are +N (bottom face block). */
+    for (var m = 0; m < tri.length; m++) {
+      var t1 = tri[m];
+      indices[iOff++] = N + t1[0];
+      indices[iOff++] = N + t1[2];
+      indices[iOff++] = N + t1[1];
+    }
+    /* Side-wall indices — two triangles per edge, outward-facing.
+       Vertex block starts at 2N; each edge gets 4 vertices. */
+    for (var w = 0; w < N; w++) {
+      var base = 2 * N + w * 4;
+      /* tri 1: bottom-a, bottom-b, top-b */
+      indices[iOff++] = base + 0;
+      indices[iOff++] = base + 1;
+      indices[iOff++] = base + 2;
+      /* tri 2: bottom-a, top-b, top-a */
+      indices[iOff++] = base + 0;
+      indices[iOff++] = base + 2;
+      indices[iOff++] = base + 3;
+    }
+
+    /* Trim the index buffer to actual size (maxIndices was an upper bound). */
+    var trimmedIndices = indices.subarray(0, iOff);
+    /* subarray is a view, not a copy — force a copy so downstream
+       .set() operations in the merge accumulator behave predictably. */
+    var finalIndices = new Uint32Array(trimmedIndices);
+
+    return { positions: positions, indices: finalIndices };
+  }
+
+  /* Build OSM buildings as a single merged mesh. Dense urban projects can
+     have 500+ footprints — one draw call beats 500. Stored in
+     _3dOsmBuildingsMesh; cleaned up by the scene.traverse dispose pass in
+     close3DModal. */
+  function buildOSMBuildings(centre) {
+    if (!_3dScene) return;
+    var list = (window._buildings && Array.isArray(window._buildings)) ? window._buildings : [];
+    if (list.length === 0) return;
+
+    /* Dedup set — window._buildings in some code paths includes custom
+       buildings and building sources by id (without the pseudo flags).
+       Build an id-exclusion set so those entries are skipped here and
+       get their correct material in the dedicated custom / source
+       passes instead of double-rendering as grey OSM.                 */
+    var excludeIds = {};
+    var customs = (typeof window._getCustomBuildings === 'function') ? window._getCustomBuildings() : [];
+    if (Array.isArray(customs)) customs.forEach(function(cb) { if (cb && cb.id != null) excludeIds[cb.id] = true; });
+    var srcs = (typeof window._getBuildingSources === 'function') ? window._getBuildingSources() : [];
+    if (Array.isArray(srcs)) srcs.forEach(function(bs) { if (bs && bs.id != null) excludeIds[bs.id] = true; });
+
+    /* Accumulators — grow as we go; converted to typed arrays after. */
+    var posChunks = [];   // Array of Float32Array chunks
+    var idxChunks = [];   // Array of Uint32Array chunks (already offset)
+    var vertexRunning = 0;
+    var built = 0, skipped = 0;
+
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i];
+      if (!b || !b.polygon || b.polygon.length < 3) { skipped++; continue; }
+      if (b.excluded || b.demolished) { skipped++; continue; }
+      /* window._buildings is a COMBINED array in some code paths — OSM
+         footprints plus pseudo-entries the 2D screening pipeline
+         injects for custom buildings, barriers, and building sources.
+         Those have their own dedicated passes (buildCustomBuildings,
+         buildBuildingSources, and the Phase 4 barrier pass) so skip
+         them here to avoid double-rendering with the wrong material.
+         Matched by either explicit pseudo-flag OR by id membership. */
+      if (b.isCustom || b.isBarrier || b.isBuildingSource) { skipped++; continue; }
+      if (b.id != null && excludeIds[b.id]) { skipped++; continue; }
+
+      var ctr = _polygonCentroidLatLng(b.polygon);
+      if (!ctr) { skipped++; continue; }
+      var terrainY = sampleTerrainAt(ctr.lat, ctr.lng);
+      var baseY = (terrainY !== null ? terrainY : 0) + (b.baseHeightM || 0);
+
+      /* Height resolution: heightM → height → levels*3 → 6m fallback */
+      var h = b.heightM || b.height
+            || (b.levels ? b.levels * 3 : null)
+            || 6;
+      var topY = baseY + h;
+
+      var ext = buildExtrudedFootprint(b.polygon, baseY, topY, centre.lat, centre.lng);
+      if (!ext) { skipped++; continue; }
+
+      /* Re-offset indices so they point into the merged vertex list */
+      var shifted = new Uint32Array(ext.indices.length);
+      for (var k = 0; k < ext.indices.length; k++) shifted[k] = ext.indices[k] + vertexRunning;
+      idxChunks.push(shifted);
+      posChunks.push(ext.positions);
+      vertexRunning += ext.positions.length / 3;
+      built++;
+    }
+
+    if (built === 0) return;
+
+    /* Concat all chunks into final typed arrays */
+    var totalVerts = vertexRunning;
+    var totalIdx = 0;
+    for (var x = 0; x < idxChunks.length; x++) totalIdx += idxChunks[x].length;
+
+    var positions = new Float32Array(totalVerts * 3);
+    var indices   = new Uint32Array(totalIdx);
+    var pOff = 0, iOff = 0;
+    for (var y = 0; y < posChunks.length; y++) {
+      positions.set(posChunks[y], pOff);
+      pOff += posChunks[y].length;
+    }
+    for (var z = 0; z < idxChunks.length; z++) {
+      indices.set(idxChunks[z], iOff);
+      iOff += idxChunks[z].length;
+    }
+
+    var geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geom.setIndex(new THREE.BufferAttribute(indices, 1));
+    geom.computeVertexNormals();
+
+    var mat = new THREE.MeshLambertMaterial({
+      color: 0x888888, transparent: true, opacity: 0.7, side: THREE.DoubleSide
+    });
+    var mesh = new THREE.Mesh(geom, mat);
+    mesh.name = 'osm-buildings';
+    _3dScene.add(mesh);
+    _3dOsmBuildingsMesh = mesh;
+
+    if (skipped > 0) {
+      console.log('[3D] OSM buildings: built ' + built + ', skipped ' + skipped);
+    }
+  }
+
+  /* Build individual meshes for custom buildings (small count,
+     easier to reason about than a merged blob). */
+  function buildCustomBuildings(centre) {
+    if (!_3dScene) return;
+    var list = (typeof window._getCustomBuildings === 'function') ? window._getCustomBuildings() : [];
+    if (!list || list.length === 0) return;
+
+    for (var i = 0; i < list.length; i++) {
+      var cb = list[i];
+      if (!cb || !cb.polygon || cb.polygon.length < 3) continue;
+
+      var ctr = _polygonCentroidLatLng(cb.polygon);
+      if (!ctr) continue;
+      var terrainY = sampleTerrainAt(ctr.lat, ctr.lng);
+      var baseY = (terrainY !== null ? terrainY : 0) + (cb.baseHeightM || 0);
+      var h = cb.heightM || 3;
+      var topY = baseY + h;
+
+      var ext = buildExtrudedFootprint(cb.polygon, baseY, topY, centre.lat, centre.lng);
+      if (!ext) continue;
+
+      var geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.BufferAttribute(ext.positions, 3));
+      geom.setIndex(new THREE.BufferAttribute(ext.indices, 1));
+      geom.computeVertexNormals();
+
+      var mat = new THREE.MeshLambertMaterial({
+        color: 0x4a90d9, transparent: true, opacity: 0.8, side: THREE.DoubleSide
+      });
+      var mesh = new THREE.Mesh(geom, mat);
+      mesh.name = 'custom-building-' + (cb.id || i);
+      _3dScene.add(mesh);
+      _3dCustomBuildingMeshes.push(mesh);
+    }
+  }
+
+  /* Build individual meshes for building sources — same silhouette
+     logic as custom buildings but orange material so the user can
+     tell at a glance "this one is a source". Note the field naming
+     difference: building sources use `vertices` + `height_m`, while
+     custom buildings use `polygon` + `heightM`. */
+  function buildBuildingSources(centre) {
+    if (!_3dScene) return;
+    var list = (typeof window._getBuildingSources === 'function') ? window._getBuildingSources() : [];
+    if (!list || list.length === 0) return;
+
+    for (var i = 0; i < list.length; i++) {
+      var bs = list[i];
+      if (!bs || !bs.vertices || bs.vertices.length < 3) continue;
+
+      var ctr = _polygonCentroidLatLng(bs.vertices);
+      if (!ctr) continue;
+      var terrainY = sampleTerrainAt(ctr.lat, ctr.lng);
+      var baseY = (terrainY !== null ? terrainY : 0) + (bs.baseHeightM || 0);
+      var h = bs.height_m || 6;
+      var topY = baseY + h;
+
+      var ext = buildExtrudedFootprint(bs.vertices, baseY, topY, centre.lat, centre.lng);
+      if (!ext) continue;
+
+      var geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.BufferAttribute(ext.positions, 3));
+      geom.setIndex(new THREE.BufferAttribute(ext.indices, 1));
+      geom.computeVertexNormals();
+
+      var mat = new THREE.MeshLambertMaterial({
+        color: 0xE67E22, transparent: true, opacity: 0.8, side: THREE.DoubleSide
+      });
+      var mesh = new THREE.Mesh(geom, mat);
+      mesh.name = 'building-source-' + (bs.id || i);
+      _3dScene.add(mesh);
+      _3dBuildingSourceMeshes.push(mesh);
+    }
+  }
+
+  /* Build all three flavours. Called from finaliseTerrainMesh (so
+     terrain exists for centroid sampling) and from showNoTerrainFallback
+     (so buildings still appear when terrain data is absent). */
+  function buildAllBuildings() {
+    if (!_3dScene || !window._map) return;
+    var centre = window._map.getCenter();
+    /* Order matters for transparent layering:
+         1. Buildings + barriers (opaque / mostly-opaque volumes) first
+         2. Ground zones + area sources (flat transparent overlays)
+         3. Point / line sources + receivers + labels last so they sit
+            on top of everything the user wants to see behind them   */
+    buildOSMBuildings(centre);
+    buildCustomBuildings(centre);
+    buildBuildingSources(centre);
+    buildBarriers(centre);
+    buildGroundZones(centre);
+    buildAllSourcesAndReceivers();
+  }
+
+  /* ============================================================
+     Phase 4 — Barriers and ground absorption zones
+
+     Barriers:    segment-based vertical walls. Each segment is a
+                  quad whose bottom edge follows the terrain
+                  (per-endpoint DEM sampling — no flat-bottom
+                  approximation) and top edge sits heightM above
+                  it. A dark-green accent line runs along the
+                  crest for readability against buildings.
+     Ground zones: flat polygons on the terrain surface, offset
+                  +0.2 m to avoid z-fighting, coloured by G
+                  factor. depthWrite:false so the terrain shows
+                  through the semi-transparent fill.
+     ============================================================ */
+
+  /* Interpolate a G-factor in [0,1] through a three-stop ramp:
+       G=0 (hard)  → grey   #9E9E9E
+       G=0.5       → olive  #7A8B4A
+       G=1 (soft)  → green  #4CAF50
+     Returns a THREE.Color. */
+  function _groundZoneColour(g) {
+    var t = Math.max(0, Math.min(1, +g));
+    var stops = [
+      { t: 0.0, r: 0x9E / 255, g: 0x9E / 255, b: 0x9E / 255 },
+      { t: 0.5, r: 0x7A / 255, g: 0x8B / 255, b: 0x4A / 255 },
+      { t: 1.0, r: 0x4C / 255, g: 0xAF / 255, b: 0x50 / 255 }
+    ];
+    for (var i = 0; i < stops.length - 1; i++) {
+      var s0 = stops[i], s1 = stops[i + 1];
+      if (t <= s1.t) {
+        var f = (t - s0.t) / (s1.t - s0.t);
+        return new THREE.Color(
+          s0.r + (s1.r - s0.r) * f,
+          s0.g + (s1.g - s0.g) * f,
+          s0.b + (s1.b - s0.b) * f
+        );
+      }
+    }
+    return new THREE.Color(stops[2].r, stops[2].g, stops[2].b);
+  }
+
+  /* Build one barrier as: (a) a merged wall mesh covering all its
+     segments with per-endpoint terrain sampling, (b) a top-edge
+     accent line. Both get added to the scene. */
+  function _buildOneBarrier(barrier, centre) {
+    if (!barrier || barrier.suppressed) return;
+    var v = barrier.vertices;
+    if (!v || v.length < 2) return;
+
+    /* Normalise vertex shape and reject invalid points up front */
+    var pts = [];
+    for (var vi = 0; vi < v.length; vi++) {
+      var rv = v[vi];
+      var lat, lng;
+      if (Array.isArray(rv)) { lat = rv[0]; lng = rv[1]; }
+      else if (rv && typeof rv === 'object') { lat = rv.lat; lng = rv.lng; }
+      else continue;
+      if (!isFinite(lat) || !isFinite(lng)) continue;
+      var local = latLngToLocal(lat, lng, centre.lat, centre.lng);
+      /* Per-endpoint terrain + building roof + barrier base so the
+         bottom edge follows the ground slope AND rises where the
+         barrier crosses a building footprint. A barrier running from
+         open ground across a rooftop will step up at the vertex
+         where it crosses the building edge — per-vertex transition,
+         acceptable for v1.                                        */
+      var terrainY = sampleTerrainAt(lat, lng);
+      var buildingY = _3dBuildingHeightAt(lat, lng);
+      var baseY = (terrainY !== null ? terrainY : 0)
+                + buildingY
+                + (barrier.baseHeightM || 0);
+      pts.push({ x: local.x, z: local.z, baseY: baseY });
+    }
+    if (pts.length < 2) return;
+
+    var heightM = barrier.heightM || 2;
+    var segments = pts.length - 1;
+
+    /* 4 verts per segment (BL, BR, TR, TL), 6 indices (two tris) */
+    var positions = new Float32Array(segments * 4 * 3);
+    var indices   = new Uint32Array(segments * 6);
+    var pOff = 0, iOff = 0;
+
+    /* Top-edge accent — one vertex per barrier vertex, connected in order */
+    var topPositions = new Float32Array(pts.length * 3);
+    for (var t = 0; t < pts.length; t++) {
+      topPositions[t * 3]     = pts[t].x;
+      topPositions[t * 3 + 1] = pts[t].baseY + heightM;
+      topPositions[t * 3 + 2] = pts[t].z;
+    }
+
+    for (var s = 0; s < segments; s++) {
+      var a = pts[s], b = pts[s + 1];
+      var baseA = a.baseY, topA = a.baseY + heightM;
+      var baseB = b.baseY, topB = b.baseY + heightM;
+      var base = s * 4;
+
+      /* BL */ positions[pOff++] = a.x; positions[pOff++] = baseA; positions[pOff++] = a.z;
+      /* BR */ positions[pOff++] = b.x; positions[pOff++] = baseB; positions[pOff++] = b.z;
+      /* TR */ positions[pOff++] = b.x; positions[pOff++] = topB;  positions[pOff++] = b.z;
+      /* TL */ positions[pOff++] = a.x; positions[pOff++] = topA;  positions[pOff++] = a.z;
+
+      /* Tri 1: BL → BR → TR; Tri 2: BL → TR → TL */
+      indices[iOff++] = base + 0; indices[iOff++] = base + 1; indices[iOff++] = base + 2;
+      indices[iOff++] = base + 0; indices[iOff++] = base + 2; indices[iOff++] = base + 3;
+    }
+
+    var geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geom.setIndex(new THREE.BufferAttribute(indices, 1));
+    geom.computeVertexNormals();
+    var mat = new THREE.MeshLambertMaterial({
+      color: 0x4CAF50,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide
+    });
+    var mesh = new THREE.Mesh(geom, mat);
+    mesh.name = 'barrier-' + (barrier.id || '?');
+    _3dScene.add(mesh);
+    _3dBarrierMeshes.push(mesh);
+
+    /* Top-edge accent line — rendered as a separate THREE.Line.
+       close3DModal's scene.traverse dispose pass handles Line
+       objects identically to Mesh (both have .geometry + .material). */
+    var lineGeom = new THREE.BufferGeometry();
+    lineGeom.setAttribute('position', new THREE.BufferAttribute(topPositions, 3));
+    var lineMat = new THREE.LineBasicMaterial({ color: 0x2E7D32 });
+    var line = new THREE.Line(lineGeom, lineMat);
+    line.name = 'barrier-crest-' + (barrier.id || '?');
+    _3dScene.add(line);
+    _3dBarrierCrests.push(line);
+  }
+
+  function buildBarriers(centre) {
+    if (!_3dScene) return;
+    var list = (typeof window._getUserBarriers === 'function') ? window._getUserBarriers() : [];
+    if (!list || list.length === 0) return;
+    for (var i = 0; i < list.length; i++) _buildOneBarrier(list[i], centre);
+  }
+
+  /* Build one ground zone as a flat triangulated polygon on the
+     terrain surface. Per-vertex Y sampling so it follows the
+     slope; +0.2 m offset to avoid z-fighting with the terrain
+     mesh. depthWrite:false in the material so it doesn't occlude
+     the terrain — the user sees the grass/rock colour through
+     the semi-transparent G-factor tint. */
+  function _buildOneGroundZone(zone, centre) {
+    if (!zone || !zone.vertices || zone.vertices.length < 3) return;
+
+    /* Normalise and drop any NaN / invalid points */
+    var raw = zone.vertices;
+    var pts = [], ys = [];
+    for (var vi = 0; vi < raw.length; vi++) {
+      var rv = raw[vi];
+      var lat, lng;
+      if (Array.isArray(rv)) { lat = rv[0]; lng = rv[1]; }
+      else if (rv && typeof rv === 'object') { lat = rv.lat; lng = rv.lng; }
+      else continue;
+      if (!isFinite(lat) || !isFinite(lng)) continue;
+      var local = latLngToLocal(lat, lng, centre.lat, centre.lng);
+      var terrainY = sampleTerrainAt(lat, lng);
+      var y = (terrainY !== null ? terrainY : 0) + 0.2;
+      pts.push({ x: local.x, z: local.z });
+      ys.push(y);
+    }
+    if (pts.length < 3) return;
+
+    /* Drop duplicate closing vertex if present */
+    var last = pts[pts.length - 1], first = pts[0];
+    if (Math.abs(last.x - first.x) < 1e-6 && Math.abs(last.z - first.z) < 1e-6) {
+      pts.pop(); ys.pop();
+    }
+    if (pts.length < 3) return;
+
+    /* Enforce CCW winding for triangulateShape */
+    var area = 0;
+    for (var k = 0; k < pts.length; k++) {
+      var p = pts[k], q = pts[(k + 1) % pts.length];
+      area += (p.x * q.z - q.x * p.z);
+    }
+    if (area < 0) { pts.reverse(); ys.reverse(); }
+
+    var contour2D = pts.map(function(p) { return new THREE.Vector2(p.x, p.z); });
+    var tri;
+    try {
+      tri = THREE.ShapeUtils.triangulateShape(contour2D, []);
+    } catch (err) {
+      console.warn('[3D] triangulation failed for ground zone', zone.id, err);
+      return;
+    }
+    if (!tri || tri.length === 0) return;
+
+    var N = pts.length;
+    var positions = new Float32Array(N * 3);
+    for (var j = 0; j < N; j++) {
+      positions[j * 3]     = pts[j].x;
+      positions[j * 3 + 1] = ys[j];
+      positions[j * 3 + 2] = pts[j].z;
+    }
+    var indices = new Uint32Array(tri.length * 3);
+    for (var t = 0; t < tri.length; t++) {
+      indices[t * 3]     = tri[t][0];
+      indices[t * 3 + 1] = tri[t][1];
+      indices[t * 3 + 2] = tri[t][2];
+    }
+
+    var geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geom.setIndex(new THREE.BufferAttribute(indices, 1));
+    geom.computeVertexNormals();
+
+    var mat = new THREE.MeshBasicMaterial({
+      color: _groundZoneColour(zone.g),
+      transparent: true,
+      opacity: 0.4,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    var mesh = new THREE.Mesh(geom, mat);
+    mesh.name = 'ground-zone-' + (zone.id || '?');
+    /* Render AFTER the terrain so the depthWrite:false blend shows
+       the terrain colour through. Three.js default is sort by
+       renderOrder asc → draw order. Set to 1 so we beat the
+       default-0 terrain + buildings. */
+    mesh.renderOrder = 1;
+    _3dScene.add(mesh);
+    _3dGroundZoneMeshes.push(mesh);
+  }
+
+  function buildGroundZones(centre) {
+    if (!_3dScene) return;
+    var list = (typeof window._getGroundZones === 'function') ? window._getGroundZones() : [];
+    if (!list || list.length === 0) return;
+    for (var i = 0; i < list.length; i++) _buildOneGroundZone(list[i], centre);
+  }
+
+  /* ============================================================
+     Phase 5 — Sources + receivers + labels
+
+     Sources (point, line, area) and receivers are the acoustic
+     elements — the things being assessed. Visually they need to
+     pop against the terrain / buildings / barriers so the user can
+     confirm spatial relationships at a glance.
+
+     All sources use red (0xE53E3E) to match the 2D map convention;
+     receivers use the per-index colour palette from 2D markers
+     (blue / green / amber / purple). Labels are canvas-rendered
+     sprites that billboard to face the camera and ignore depth so
+     they're readable even behind geometry.
+
+     Building sources were rendered as orange extrusions in Phase 3
+     and are NOT re-rendered here.
+     ============================================================ */
+
+  /* Canvas-sprite label — 256×64 px canvas with bold white text,
+     dark outline for contrast against any background. Returns
+     a THREE.Sprite positioned at origin; caller sets .position. */
+  function _makeLabelSprite(text) {
+    var canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    var ctx = canvas.getContext('2d');
+    /* Transparent bg, bold white text with black outline for legibility */
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillStyle = '#ffffff';
+    var truncated = (text && text.length > 18) ? text.slice(0, 17) + '\u2026' : (text || '');
+    ctx.strokeText(truncated, 128, 32);
+    ctx.fillText(truncated, 128, 32);
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    var mat = new THREE.SpriteMaterial({
+      map: tex,
+      depthTest: false,     // readable behind buildings
+      transparent: true
+    });
+    var sprite = new THREE.Sprite(mat);
+    /* 20×5 world-unit sprite scale — visible at typical site ranges
+       without dominating the scene. */
+    sprite.scale.set(20, 5, 1);
+    /* Render after other geometry so depthTest:false actually wins */
+    sprite.renderOrder = 10;
+    return sprite;
+  }
+
+  /* Add a label above a world-space position. Stored in the
+     labelsGroup for collective show/hide via Phase 6 toggle.
+
+     Anti-collision: when multiple sources are placed close together
+     (e.g. multiple pieces of plant on a rooftop), their labels stack
+     on top of each other and become unreadable. Before placing, check
+     existing labels in the group — if any sits within ~5 m horizontally
+     of this one, offset this label's Y by 4 m per collision. Cheap
+     O(N²) check is fine: a realistic project has <50 labels.       */
+  var _LABEL_XZ_TOLERANCE = 5;   // metres
+  var _LABEL_Y_OFFSET_STEP = 4;  // metres per stack level
+  function _addLabel(text, x, y, z) {
+    if (!_3dLabelsGroup) return;
+    /* Count collisions in the existing label set */
+    var bump = 0;
+    var existing = _3dLabelsGroup.children;
+    for (var i = 0; i < existing.length; i++) {
+      var e = existing[i];
+      if (!e.isSprite) continue;
+      var dx = e.position.x - x, dz = e.position.z - z;
+      if (dx * dx + dz * dz < _LABEL_XZ_TOLERANCE * _LABEL_XZ_TOLERANCE) {
+        bump++;
+      }
+    }
+    var sprite = _makeLabelSprite(text);
+    sprite.position.set(x, y + bump * _LABEL_Y_OFFSET_STEP, z);
+    _3dLabelsGroup.add(sprite);
+  }
+
+  /* Point sources — red spheres with labels. Y prefers the stored
+     groundElevation_m (already fetched for propagation) over a DEM
+     re-sample; falls back to sampleTerrainAt; finally 0. */
+  function buildPointSources(centre) {
+    if (!_3dScene || !_3dSourcesGroup) return;
+    var list = (typeof window._getSourcePins === 'function') ? window._getSourcePins() : [];
+    if (!list || list.length === 0) return;
+
+    /* 0.8 m sphere — same size as the receiver markers. Source vs
+       receiver is distinguished by colour (red vs per-index palette),
+       not by shape. Shared across all sources — one geometry, one
+       material, N Mesh instances. */
+    var geom = new THREE.SphereGeometry(0.8, 12, 8);
+    var mat  = new THREE.MeshLambertMaterial({ color: 0xE53E3E });
+
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (!s || !isFinite(s.lat) || !isFinite(s.lng)) continue;
+      var local = latLngToLocal(s.lat, s.lng, centre.lat, centre.lng);
+      /* groundElevation_m is an absolute-ASL value (pre-fetched for
+         propagation), so we subtract the reference datum here.
+         sampleTerrainAt() already returns normalised values so we
+         don't double-subtract on that branch. */
+      var groundY;
+      if (s.groundElevation_m != null && isFinite(s.groundElevation_m)) {
+        groundY = s.groundElevation_m - _3dReferenceElevation;
+      } else {
+        groundY = sampleTerrainAt(s.lat, s.lng) || 0;
+      }
+      /* Building-aware Y: if this source sits inside a building
+         footprint, its height_m is relative to the ROOF, not the
+         ground. Matches the propagation engine's effective-height
+         calc which uses (height_m + buildingHeight_m). */
+      var buildingY = _3dBuildingHeightAt(s.lat, s.lng);
+      var y = groundY + buildingY + (s.height_m || 0);
+
+      var mesh = new THREE.Mesh(geom, mat);
+      mesh.position.set(local.x, y, local.z);
+      mesh.name = 'source-pin-' + (s.id || i);
+      _3dSourcesGroup.add(mesh);
+
+      /* Label 3 m above the burst centre — clears the ~1.4 m spike tips
+         with ~1.5 m of margin so the text doesn't clip into them. */
+      _addLabel(s.name || ('Source ' + (i + 1)), local.x, y + 3, local.z);
+    }
+  }
+
+  /* Line sources — THREE.TubeGeometry along a CatmullRomCurve3
+     through the per-vertex positions. Radius 0.5 m, 8 radial
+     segments is a good balance of visibility and poly count. */
+  function buildLineSources(centre) {
+    if (!_3dScene || !_3dSourcesGroup) return;
+    var list = (typeof window._getLineSources === 'function') ? window._getLineSources() : [];
+    if (!list || list.length === 0) return;
+
+    var mat = new THREE.MeshLambertMaterial({
+      color: 0xE53E3E, transparent: true, opacity: 0.9
+    });
+
+    for (var i = 0; i < list.length; i++) {
+      var ls = list[i];
+      if (!ls || !ls.vertices || ls.vertices.length < 2) continue;
+
+      /* Build 3D points from per-vertex terrain + source height */
+      var pts3 = [];
+      var midLat = 0, midLng = 0, nPts = 0;
+      for (var v = 0; v < ls.vertices.length; v++) {
+        var rv = ls.vertices[v];
+        var lat, lng;
+        if (Array.isArray(rv)) { lat = rv[0]; lng = rv[1]; }
+        else if (rv && typeof rv === 'object') { lat = rv.lat; lng = rv.lng; }
+        else continue;
+        if (!isFinite(lat) || !isFinite(lng)) continue;
+        var local = latLngToLocal(lat, lng, centre.lat, centre.lng);
+        var gy = sampleTerrainAt(lat, lng);
+        /* Per-vertex building lookup: a line source that crosses a
+           building footprint will rise to roof level where the
+           vertex falls inside the polygon and drop back to ground
+           where it's outside. Per-vertex (not per-segment), so the
+           transition happens at vertices — fine for v1. */
+        var bY = _3dBuildingHeightAt(lat, lng);
+        var y = (gy !== null ? gy : 0) + bY + (ls.height_m || 0);
+        pts3.push(new THREE.Vector3(local.x, y, local.z));
+        midLat += lat; midLng += lng; nPts++;
+      }
+      if (pts3.length < 2) continue;
+
+      var curve = new THREE.CatmullRomCurve3(pts3);
+      /* Tube segments scale with vertex count — 8 per original segment */
+      var tubeSegs = Math.max(16, (pts3.length - 1) * 8);
+      var geom = new THREE.TubeGeometry(curve, tubeSegs, 0.5, 8, false);
+      var tube = new THREE.Mesh(geom, mat);
+      tube.name = 'line-source-' + (ls.id || i);
+      _3dSourcesGroup.add(tube);
+
+      /* Label at polyline midpoint, slight lift. Also apply the
+         building-aware Y so the label sits above the tube at any
+         segment, including ones that cross a rooftop. */
+      if (nPts > 0) {
+        var mLat = midLat / nPts, mLng = midLng / nPts;
+        var mL = latLngToLocal(mLat, mLng, centre.lat, centre.lng);
+        var mYsample = sampleTerrainAt(mLat, mLng);
+        var mBY = _3dBuildingHeightAt(mLat, mLng);
+        var mY = (mYsample !== null ? mYsample : 0) + mBY + (ls.height_m || 0) + 4;
+        _addLabel(ls.name || ('Line source ' + (i + 1)), mL.x, mY, mL.z);
+      }
+    }
+  }
+
+  /* Area sources — semi-transparent red polygons at source height
+     above terrain. Same triangulation + winding guard as Phase 4
+     ground zones, just elevated + redder + depthWrite off. */
+  function _buildOneAreaSource(as, idx, centre) {
+    if (!as || !as.vertices || as.vertices.length < 3) return;
+    var raw = as.vertices;
+    var pts = [], ys = [];
+    var midLat = 0, midLng = 0, nPts = 0;
+    for (var vi = 0; vi < raw.length; vi++) {
+      var rv = raw[vi];
+      var lat, lng;
+      if (Array.isArray(rv)) { lat = rv[0]; lng = rv[1]; }
+      else if (rv && typeof rv === 'object') { lat = rv.lat; lng = rv.lng; }
+      else continue;
+      if (!isFinite(lat) || !isFinite(lng)) continue;
+      var local = latLngToLocal(lat, lng, centre.lat, centre.lng);
+      var gy = sampleTerrainAt(lat, lng);
+      /* Per-vertex building lookup — an area source that partially
+         overlaps a building drapes over the roof on the overlap
+         side and drops to ground on the other. Correct visual. */
+      var bY = _3dBuildingHeightAt(lat, lng);
+      var y = (gy !== null ? gy : 0) + bY + (as.height_m || 0);
+      pts.push({ x: local.x, z: local.z });
+      ys.push(y);
+      midLat += lat; midLng += lng; nPts++;
+    }
+    if (pts.length < 3) return;
+
+    var last = pts[pts.length - 1], first = pts[0];
+    if (Math.abs(last.x - first.x) < 1e-6 && Math.abs(last.z - first.z) < 1e-6) {
+      pts.pop(); ys.pop();
+    }
+    if (pts.length < 3) return;
+
+    /* Enforce CCW winding */
+    var area = 0;
+    for (var k = 0; k < pts.length; k++) {
+      var p = pts[k], q = pts[(k + 1) % pts.length];
+      area += (p.x * q.z - q.x * p.z);
+    }
+    if (area < 0) { pts.reverse(); ys.reverse(); }
+
+    var contour2D = pts.map(function(p) { return new THREE.Vector2(p.x, p.z); });
+    var tri;
+    try {
+      tri = THREE.ShapeUtils.triangulateShape(contour2D, []);
+    } catch (err) {
+      console.warn('[3D] triangulation failed for area source', as.id, err);
+      return;
+    }
+    if (!tri || tri.length === 0) return;
+
+    var N = pts.length;
+    var positions = new Float32Array(N * 3);
+    for (var j = 0; j < N; j++) {
+      positions[j * 3]     = pts[j].x;
+      positions[j * 3 + 1] = ys[j];
+      positions[j * 3 + 2] = pts[j].z;
+    }
+    var indices = new Uint32Array(tri.length * 3);
+    for (var t = 0; t < tri.length; t++) {
+      indices[t * 3]     = tri[t][0];
+      indices[t * 3 + 1] = tri[t][1];
+      indices[t * 3 + 2] = tri[t][2];
+    }
+
+    var geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geom.setIndex(new THREE.BufferAttribute(indices, 1));
+    geom.computeVertexNormals();
+
+    var mat = new THREE.MeshLambertMaterial({
+      color: 0xE53E3E,
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    var mesh = new THREE.Mesh(geom, mat);
+    mesh.name = 'area-source-' + (as.id || idx);
+    mesh.renderOrder = 2;   // above ground zones (renderOrder 1)
+    _3dSourcesGroup.add(mesh);
+
+    /* Centroid label — include any building beneath the centroid so
+       the label sits above the polygon even when it's on a rooftop. */
+    if (nPts > 0) {
+      var cLat = midLat / nPts, cLng = midLng / nPts;
+      var cL = latLngToLocal(cLat, cLng, centre.lat, centre.lng);
+      var cYsample = sampleTerrainAt(cLat, cLng);
+      var cBY = _3dBuildingHeightAt(cLat, cLng);
+      var cY = (cYsample !== null ? cYsample : 0) + cBY + (as.height_m || 0) + 4;
+      _addLabel(as.name || ('Area source ' + (idx + 1)), cL.x, cY, cL.z);
+    }
+  }
+
+  function buildAreaSources(centre) {
+    if (!_3dScene || !_3dSourcesGroup) return;
+    var list = (typeof window._getAreaSources === 'function') ? window._getAreaSources() : [];
+    if (!list || list.length === 0) return;
+    for (var i = 0; i < list.length; i++) _buildOneAreaSource(list[i], i, centre);
+  }
+
+  /* Receivers — coloured cones at the four receiver positions.
+     Colours match the 2D map markers (R1 blue, R2 green, R3 amber,
+     R4 purple). Cone tip points up. Receivers without a placed
+     marker are skipped. */
+  var _3D_RECEIVER_COLOURS = [0x2563EB, 0x16A34A, 0xD97706, 0x7C3AED];
+
+  function buildReceivers(centre) {
+    if (!_3dScene || !_3dReceiversGroup) return;
+    var ll = (typeof window._getAllLatLngs === 'function') ? window._getAllLatLngs() : {};
+
+    /* Small coloured sphere (was a cone in earlier iterations). Paired
+       with the red burst sources of comparable size — same visual
+       weight, different shape so the two categories are distinguishable
+       at a glance. 0.8 m radius, 12×8 tessellation stays smooth at
+       close orbit distances without inflating vert count.           */
+    var recvGeom = new THREE.SphereGeometry(0.8, 12, 8);
+    var term = window._receiverTerm || 'Receiver';
+
+    for (var i = 1; i <= 4; i++) {
+      var key = 'r' + i;
+      var pos = ll[key];
+      if (!pos || !isFinite(pos.lat) || !isFinite(pos.lng)) continue;
+
+      var local = latLngToLocal(pos.lat, pos.lng, centre.lat, centre.lng);
+      /* recvGroundElevations is an absolute-ASL map (populated during
+         terrain screening), so subtract the reference datum. On the
+         sampleTerrainAt() fallback the value is already normalised,
+         so we don't double-subtract there. Null → 0 (receiver sits
+         on the fallback / Y=0 plane). */
+      var storedEl = (typeof window.recvGroundElevations === 'object' && window.recvGroundElevations)
+                   ? window.recvGroundElevations[key] : null;
+      var groundY;
+      if (storedEl != null && isFinite(storedEl)) {
+        groundY = storedEl - _3dReferenceElevation;
+      } else {
+        var sampledEl = sampleTerrainAt(pos.lat, pos.lng);
+        groundY = (sampledEl != null && isFinite(sampledEl)) ? sampledEl : 0;
+      }
+      /* Building-aware Y: a receiver on a balcony / rooftop sits at
+         roof + receiver-height rather than ground + receiver-height.
+         Not perfect for mid-floor balconies (the receiver renders on
+         the roof, not at its actual floor level) but strictly better
+         than clipping through the ground.                          */
+      groundY += _3dBuildingHeightAt(pos.lat, pos.lng);
+      /* getReceiverHeight is a global function; uses 0-indexed idx
+         (per its implementation: key = 'r' + (idx + 1)). */
+      var rHeight = (typeof getReceiverHeight === 'function')
+                  ? getReceiverHeight(i - 1)
+                  : (typeof iso_receiverHeight !== 'undefined' ? iso_receiverHeight : 1.5);
+      var y = groundY + rHeight;
+
+      var mat = new THREE.MeshLambertMaterial({
+        color: _3D_RECEIVER_COLOURS[i - 1]
+      });
+      /* Sphere is positioned at the receiver point — `y` already
+         includes ground + building + receiver height, so placing
+         the sphere's centre at `y` puts the ear roughly there.
+         No orientation needed (sphere is rotationally symmetric
+         so the Math.PI rotation the old cone needed is gone).   */
+      var mesh = new THREE.Mesh(recvGeom, mat);
+      mesh.position.set(local.x, y, local.z);
+      mesh.name = 'receiver-' + key;
+      _3dReceiversGroup.add(mesh);
+
+      /* Label 2.5 m above the sphere centre — clears the 0.8 m
+         radius with ~1.7 m of margin, matches the visual rhythm
+         set by the 3-m-above offset on source bursts. */
+      var nameEl = document.getElementById('recvName' + i);
+      var labelText = (nameEl && nameEl.value) ? nameEl.value : (term.charAt(0) + i);
+      _addLabel(labelText, local.x, y + 2.5, local.z);
+    }
+  }
+
+  function buildAllSourcesAndReceivers() {
+    if (!_3dScene || !window._map) return;
+    var centre = window._map.getCenter();
+
+    /* Create fresh groups each time (cleared on modal close) */
+    _3dSourcesGroup   = new THREE.Group();  _3dSourcesGroup.name   = 'sources';
+    _3dReceiversGroup = new THREE.Group();  _3dReceiversGroup.name = 'receivers';
+    _3dLabelsGroup    = new THREE.Group();  _3dLabelsGroup.name    = 'labels';
+    _3dScene.add(_3dSourcesGroup);
+    _3dScene.add(_3dReceiversGroup);
+    _3dScene.add(_3dLabelsGroup);
+
+    buildPointSources(centre);
+    buildLineSources(centre);
+    buildAreaSources(centre);
+    buildReceivers(centre);
+  }
+
+  /* Debug / dev helper — drops a coloured sphere at the given lat/lng
+     in the live 3D scene. Useful for (a) one-off coordinate-transform
+     sanity checks before Phase 2, and (b) visualising arbitrary
+     geographic points during later-phase development. Returns the
+     mesh (with position inspectable as .position.x/.y/.z) or null if
+     the modal isn't open / Three.js isn't ready / no map. */
+  window._3dAddMarker = function(lat, lng, opts) {
+    if (!_3dScene || !window.THREE || !window._map) return null;
+    opts = opts || {};
+    var centre = window._map.getCenter();
+    var pos = latLngToLocal(lat, lng, centre.lat, centre.lng);
+    var sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(opts.radius || 5, 16, 12),
+      new THREE.MeshBasicMaterial({ color: (opts.color !== undefined) ? opts.color : 0xff3b3b })
+    );
+    sphere.position.set(pos.x, (opts.y !== undefined) ? opts.y : 10, pos.z);
+    sphere.name = opts.name || 'debug-marker';
+    _3dScene.add(sphere);
+    return sphere;
+  };
+
+  function show3DModal() {
+    /* Idempotent — reopening closes any existing modal first */
+    if (_3dModalEl) close3DModal();
+
+    _3dPrevFocus = document.activeElement;
+
+    /* Backdrop */
+    var backdrop = document.createElement('div');
+    backdrop.id = 'threeDModalBackdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    backdrop.setAttribute('aria-labelledby', '3d-modal-title');
+    backdrop.style.cssText =
+      'position:fixed;inset:0;z-index:10000;' +
+      'background:rgba(0,0,0,0.85);';
+
+    /* Inner container — full-viewport minus 12 px inset */
+    var box = document.createElement('div');
+    box.style.cssText =
+      'position:absolute;inset:12px;' +
+      'background:#1a1a2e;border-radius:8px;overflow:hidden;' +
+      'display:flex;flex-direction:column;' +
+      'box-shadow:0 8px 48px rgba(0,0,0,0.6);';
+
+    /* Header bar */
+    var header = document.createElement('div');
+    header.style.cssText =
+      'display:flex;align-items:center;justify-content:space-between;' +
+      'padding:10px 16px;background:#0f0f1e;border-bottom:1px solid #2a2a44;' +
+      'color:#e5e7eb;font-size:13px;font-weight:600;letter-spacing:0.02em;' +
+      'flex:0 0 auto;';
+    var title = document.createElement('span');
+    title.id = '3d-modal-title';
+    title.textContent = '3D Scene View';
+    header.appendChild(title);
+
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.setAttribute('aria-label', 'Close 3D view');
+    closeBtn.innerHTML = '\u00d7';
+    closeBtn.style.cssText =
+      'width:28px;height:28px;padding:0;' +
+      'border:none;background:transparent;' +
+      'font-size:22px;line-height:1;color:#9ca3af;' +
+      'cursor:pointer;border-radius:4px;' +
+      'transition:color 0.15s ease, background-color 0.15s ease;';
+    closeBtn.addEventListener('mouseover', function() {
+      closeBtn.style.color = '#e5e7eb';
+      closeBtn.style.background = 'rgba(255,255,255,0.08)';
+    });
+    closeBtn.addEventListener('mouseout', function() {
+      closeBtn.style.color = '#9ca3af';
+      closeBtn.style.background = 'transparent';
+    });
+    closeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      close3DModal();
+    });
+    header.appendChild(closeBtn);
+    box.appendChild(header);
+
+    /* Canvas container — fills remaining space */
+    var canvasWrap = document.createElement('div');
+    canvasWrap.style.cssText =
+      'position:relative;flex:1 1 auto;overflow:hidden;background:#000;';
+
+    var canvas = document.createElement('canvas');
+    canvas.id = 'threeDCanvas';
+    canvas.style.cssText = 'display:block;width:100%;height:100%;';
+    canvasWrap.appendChild(canvas);
+
+    /* Loading status overlay — shown until Three.js is ready */
+    var status = document.createElement('div');
+    status.style.cssText =
+      'position:absolute;inset:0;display:flex;align-items:center;' +
+      'justify-content:center;color:#e5e7eb;font-size:14px;' +
+      'background:rgba(0,0,0,0.3);pointer-events:none;';
+    status.textContent = 'Loading 3D engine\u2026';
+    canvasWrap.appendChild(status);
+
+    /* Hint footer */
+    var hint = document.createElement('div');
+    hint.style.cssText =
+      'position:absolute;left:12px;bottom:12px;' +
+      'color:#9ca3af;font-size:11px;line-height:1.5;' +
+      'background:rgba(0,0,0,0.45);padding:6px 10px;border-radius:4px;' +
+      'pointer-events:none;user-select:none;';
+    hint.innerHTML = 'Drag: rotate \u00b7 Scroll: zoom \u00b7 Right-drag: pan \u00b7 Esc: close';
+    canvasWrap.appendChild(hint);
+
+    box.appendChild(canvasWrap);
+
+    /* ==========================================================
+       Phase 6 — bottom toolbar with view controls
+       Layout: [vert-exag slider] [divider] [toggles] [divider] [reset]
+       Controls read/write existing Phase 1–5 scene objects. No new
+       GPU resources created here, so cleanup is a simple
+       listener-removal. State is NOT persisted to save JSON.
+       ========================================================== */
+    var toolbar = document.createElement('div');
+    toolbar.style.cssText =
+      'display:flex;align-items:center;gap:14px;' +
+      'padding:8px 14px;background:#0f0f1e;' +
+      'border-top:1px solid #2a2a44;' +
+      'color:#e5e7eb;font-size:12px;flex:0 0 auto;' +
+      'user-select:none;';
+
+    /* Vertical-exaggeration slider */
+    var exagWrap = document.createElement('label');
+    exagWrap.style.cssText = 'display:flex;align-items:center;gap:6px;white-space:nowrap;';
+    exagWrap.title = 'Vertical exaggeration (scales elevation of all geometry)';
+    exagWrap.innerHTML = '<span>Vert.</span>';
+    var exagSlider = document.createElement('input');
+    exagSlider.type = 'range';
+    exagSlider.min = '1';
+    exagSlider.max = '10';
+    exagSlider.step = '0.5';
+    exagSlider.value = '1';
+    exagSlider.style.cssText = 'width:110px;accent-color:#3b82f6;';
+    var exagValue = document.createElement('span');
+    exagValue.style.cssText = 'min-width:32px;color:#9ca3af;font-variant-numeric:tabular-nums;';
+    exagValue.textContent = '1.0\u00d7';
+    function _applyExag(v) {
+      var n = parseFloat(v);
+      if (!isFinite(n)) n = 1;
+      exagSlider.value = String(n);
+      exagValue.textContent = n.toFixed(1) + '\u00d7';
+      if (_3dScene) _3dScene.scale.y = n;
+    }
+    exagSlider.addEventListener('input', function() { _applyExag(exagSlider.value); });
+    exagWrap.appendChild(exagSlider);
+    exagWrap.appendChild(exagValue);
+    toolbar.appendChild(exagWrap);
+
+    /* Visual divider */
+    function _divider() {
+      var d = document.createElement('span');
+      d.style.cssText = 'display:inline-block;width:1px;height:18px;background:#2a2a44;';
+      return d;
+    }
+    toolbar.appendChild(_divider());
+
+    /* Toggle button factory.
+         target: function returning the object whose .property is the flag
+         prop:   boolean property to toggle (e.g. 'wireframe', 'visible')
+         defOn:  initial button-active state */
+    function _makeToggle(label, shortcut, tip, apply, isOn, disabledReason) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.shortcut = shortcut;
+      btn.title = tip + (disabledReason ? ' — ' + disabledReason : '') + ' (' + shortcut + ')';
+      btn.textContent = label;
+      btn.style.cssText =
+        'padding:4px 10px;border-radius:4px;border:1px solid #2a2a44;' +
+        'background:rgba(255,255,255,0.04);color:#e5e7eb;font-size:11px;' +
+        'cursor:pointer;transition:background-color 0.1s ease, border-color 0.1s ease;';
+      function paint() {
+        if (disabledReason) {
+          btn.style.background = 'rgba(255,255,255,0.02)';
+          btn.style.color = '#4b5563';
+          btn.style.cursor = 'not-allowed';
+          return;
+        }
+        if (isOn()) {
+          btn.style.background = 'rgba(59,130,246,0.25)';
+          btn.style.borderColor = 'rgba(59,130,246,0.55)';
+          btn.style.color = '#e5e7eb';
+        } else {
+          btn.style.background = 'rgba(255,255,255,0.04)';
+          btn.style.borderColor = '#2a2a44';
+          btn.style.color = '#e5e7eb';
+        }
+      }
+      if (disabledReason) {
+        btn.disabled = true;
+      } else {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          apply();
+          paint();
+        });
+        btn.addEventListener('mouseenter', function() {
+          if (!isOn()) btn.style.background = 'rgba(255,255,255,0.11)';
+        });
+        btn.addEventListener('mouseleave', paint);
+      }
+      paint();
+      return { el: btn, toggle: function() { apply(); paint(); }, paint: paint };
+    }
+
+    /* Wireframe — only valid if we have a real terrain mesh */
+    var hasTerrain = !!_3dTerrainMesh;
+    var wireBtn = _makeToggle(
+      'Wireframe', 'W',
+      'Show terrain mesh as wireframe',
+      function() {
+        if (_3dTerrainMesh && _3dTerrainMesh.material) {
+          _3dTerrainMesh.material.wireframe = !_3dTerrainMesh.material.wireframe;
+        }
+      },
+      function() { return _3dTerrainMesh && _3dTerrainMesh.material
+                       && _3dTerrainMesh.material.wireframe === true; },
+      hasTerrain ? null : 'No terrain mesh (fallback plane in use)'
+    );
+    toolbar.appendChild(wireBtn.el);
+
+    /* Labels — visible by default */
+    var labelsBtn = _makeToggle(
+      'Labels', 'L',
+      'Show source / receiver labels',
+      function() { if (_3dLabelsGroup) _3dLabelsGroup.visible = !_3dLabelsGroup.visible; },
+      function() { return !_3dLabelsGroup ? false : _3dLabelsGroup.visible; }
+    );
+    toolbar.appendChild(labelsBtn.el);
+
+    /* Grid — off by default */
+    var gridBtn = _makeToggle(
+      'Grid', 'G',
+      'Show ground grid helper',
+      function() { if (_3dGridHelper) _3dGridHelper.visible = !_3dGridHelper.visible; },
+      function() { return !_3dGridHelper ? false : _3dGridHelper.visible; }
+    );
+    toolbar.appendChild(gridBtn.el);
+
+    /* Axes — off by default */
+    var axesBtn = _makeToggle(
+      'Axes', 'A',
+      'Show XYZ axes at scene origin',
+      function() { if (_3dAxesHelper) _3dAxesHelper.visible = !_3dAxesHelper.visible; },
+      function() { return !_3dAxesHelper ? false : _3dAxesHelper.visible; }
+    );
+    toolbar.appendChild(axesBtn.el);
+
+    toolbar.appendChild(_divider());
+
+    /* Reset camera */
+    var resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.textContent = 'Reset view';
+    resetBtn.title = 'Re-frame camera on the whole scene (R)';
+    resetBtn.style.cssText =
+      'padding:4px 10px;border-radius:4px;border:1px solid #2a2a44;' +
+      'background:rgba(255,255,255,0.04);color:#e5e7eb;font-size:11px;' +
+      'cursor:pointer;transition:background-color 0.1s ease;';
+    resetBtn.addEventListener('mouseenter', function() {
+      resetBtn.style.background = 'rgba(255,255,255,0.11)';
+    });
+    resetBtn.addEventListener('mouseleave', function() {
+      resetBtn.style.background = 'rgba(255,255,255,0.04)';
+    });
+    resetBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      resetCameraToScene();
+    });
+    toolbar.appendChild(resetBtn);
+
+    /* Spacer pushes hint text to the right if we ever add one here */
+    var spacer = document.createElement('span');
+    spacer.style.cssText = 'flex:1;';
+    toolbar.appendChild(spacer);
+
+    box.appendChild(toolbar);
+
+    /* Store references for the update-after-build hook +
+       modal-scoped keyboard shortcuts. */
+    _3dToolbarControls = {
+      exagSlider: exagSlider, applyExag: _applyExag,
+      wire: wireBtn, labels: labelsBtn, grid: gridBtn, axes: axesBtn
+    };
+
+    /* Click on backdrop (outside box) closes the modal */
+    backdrop.addEventListener('click', function(e) {
+      if (e.target === backdrop) close3DModal();
+    });
+
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    _3dModalEl = backdrop;
+
+    /* Phase 6 — modal-scoped keyboard shortcuts for the toolbar
+       (W / L / G / A / R / + / -). Capture-phase so we beat the
+       global 2D keyboard handler and stopImmediatePropagation so
+       the 2D handler doesn't ALSO fire (otherwise "R" in the 3D
+       modal would reset the camera AND toggle the 2D ruler).
+       Skipped when the target is an input so typing in future
+       form fields doesn't trigger shortcuts.                    */
+    _3dToolbarKeyHandler = function(e) {
+      if (!_3dModalEl) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var tag = (e.target && e.target.tagName) ? e.target.tagName : '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.target && e.target.isContentEditable) return;
+
+      var handled = true;
+      var controls = _3dToolbarControls;
+      switch (e.key) {
+        case 'w': case 'W':
+          if (controls && controls.wire && !controls.wire.el.disabled) controls.wire.toggle();
+          else handled = false;
+          break;
+        case 'l': case 'L':
+          if (controls && controls.labels) controls.labels.toggle();
+          else handled = false;
+          break;
+        case 'g': case 'G':
+          if (controls && controls.grid) controls.grid.toggle();
+          else handled = false;
+          break;
+        case 'a': case 'A':
+          if (controls && controls.axes) controls.axes.toggle();
+          else handled = false;
+          break;
+        case 'r': case 'R':
+          resetCameraToScene();
+          break;
+        case '+': case '=':
+          if (controls && controls.exagSlider) {
+            var vUp = Math.min(10, parseFloat(controls.exagSlider.value) + 0.5);
+            controls.applyExag(vUp);
+          } else handled = false;
+          break;
+        case '-': case '_':
+          if (controls && controls.exagSlider) {
+            var vDn = Math.max(1, parseFloat(controls.exagSlider.value) - 0.5);
+            controls.applyExag(vDn);
+          } else handled = false;
+          break;
+        default:
+          handled = false;
+      }
+      if (handled) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      }
+    };
+    document.addEventListener('keydown', _3dToolbarKeyHandler, true);
+
+    /* Escape key closes (capture phase, stop propagation so it
+       doesn't leak to the drawer Esc handler) */
+    _3dEscHandler = function(e) {
+      if (e.key === 'Escape' && _3dModalEl) {
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        close3DModal();
+      }
+    };
+    document.addEventListener('keydown', _3dEscHandler, true);
+
+    /* Focus trap */
+    _3dFocusHandler = function(e) {
+      if (!_3dModalEl) return;
+      if (!_3dModalEl.contains(e.target)) {
+        e.stopPropagation();
+        try { closeBtn.focus(); } catch (err) {}
+      }
+    };
+    document.addEventListener('focusin', _3dFocusHandler, true);
+
+    /* Move focus into the modal */
+    try { closeBtn.focus(); } catch (e) {}
+
+    /* Resize handler — update renderer + camera on window resize */
+    _3dResizeHandler = function() {
+      if (!_3dRenderer || !_3dCamera) return;
+      var w = canvasWrap.clientWidth, h = canvasWrap.clientHeight;
+      _3dCamera.aspect = w / Math.max(1, h);
+      _3dCamera.updateProjectionMatrix();
+      _3dRenderer.setSize(w, h, false);
+    };
+    window.addEventListener('resize', _3dResizeHandler);
+
+    /* Mark the toolbar button active while the modal is open */
+    var btn = document.getElementById('threeDViewBtn');
+    if (btn) btn.classList.add('active');
+
+    /* Load Three.js (cached if already loaded), then init the scene */
+    loadThreeJS().then(function() {
+      /* Guard: modal may have been closed before CDN resolved */
+      if (!_3dModalEl) return;
+      try {
+        initThreeScene(canvas, canvasWrap, status);
+      } catch (err) {
+        console.error('3D scene init failed:', err);
+        status.textContent = '3D scene failed to initialise: ' + (err && err.message ? err.message : err);
+        status.style.background = 'rgba(139,0,0,0.5)';
+      }
+    }).catch(function(err) {
+      console.error('Three.js load failed:', err);
+      if (!_3dModalEl) return;
+      status.textContent = 'Failed to load 3D engine. Check your internet connection and try again.';
+      status.style.background = 'rgba(139,0,0,0.5)';
+    });
+  }
+  window.show3DModal = show3DModal;
+
+  /* Wire the toolbar button. It may not exist yet at script-parse
+     time (ordering is early), so defer to DOMContentLoaded. */
+  function _wire3DButton() {
+    var btn = document.getElementById('threeDViewBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (_3dModalEl) close3DModal();
+      else show3DModal();
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _wire3DButton);
+  } else {
+    _wire3DButton();
+  }
+})();
+</script>
+
 <!-- Methodology panel -->
 <div class="card" id="methodologyCard" style="margin-top:14px;">
   <h2>Methodology</h2>
@@ -3740,6 +6009,10 @@ body.disclaimer-visible .container {
   <div class="p">An assessment case is a named, independent configuration of the tool&rsquo;s inputs (source operating states, movements, barriers, receiver penalties) representing a single scenario &mdash; for example &ldquo;existing operations&rdquo;, &ldquo;proposed &mdash; worst case&rdquo;, or &ldquo;with mitigation&rdquo;. Multiple cases can be enabled simultaneously and are compared side-by-side in the Assessment cases panel. For each enabled case the tool runs the full propagation chain and produces a per-receiver predicted level, a per-case compliance outcome, and (optionally) a per-case noise map overlay. The <em>governing case</em> is the one that produces the highest level at each receiver for each period; it drives the overall compliance outcome reported in the summary. Saved assessments serialise the full list of cases (including enabled state) so the comparison is reproducible.</div>
   <div class="h2" style="font-size:13px;">Noise map</div>
   <div class="p">The noise map generates a predicted sound level grid across the map extent using the selected propagation method. Grid resolution is adaptive (5&ndash;50&thinsp;m based on zoom level). Contour lines are interpolated from the grid and represent equal noise level lines in dB(A). The noise map uses the same source inputs, propagation method, and receiver height as the receiver predictions. Contour accuracy degrades at the edges of the grid and at large distances from sources.</div>
+  <div class="h2" style="font-size:13px;">3D Scene Viewer</div>
+  <div class="p">The 3D Scene Viewer is a read-only visualisation of the current assessment, intended for visual verification of spatial relationships &mdash; source heights relative to barriers, screening geometry, building obstruction, and terrain profile &mdash; in a single orbital view. It is not a calculation tool: no propagation, criteria, or noise-map result depends on it, and editing the assessment is done in the 2D map and side panels as before. The viewer is opened from the toolbar (3D View button) or with the <em>V</em> shortcut, and is available regardless of whether terrain is enabled (a flat fallback plane is rendered when no DEM data is cached for the current viewport).</div>
+  <div class="p">Rendering uses Three.js (r128) loaded lazily on first open. The scene uses an equirectangular local projection with a <em>cos(centre&nbsp;latitude)</em> compensation for 1&deg;&nbsp;lng &ne; 1&deg;&nbsp;lat in metres; X is east, Z is &minus;north, and Y is elevation. Elevations are normalised to a local datum (the minimum sampled DEM elevation in the viewport at modal-open time is subtracted from every Y value), so a site at 30&thinsp;m ASL with 22&thinsp;m of relief renders anchored at Y=0 with a visible 22&thinsp;m variation rather than as a floating mesa above the building plane. Objects placed on top of a building footprint render at <em>roof + object_height</em> in 3D rather than <em>ground + object_height</em> &mdash; a rooftop fan with <em>height_m</em>&thinsp;=&thinsp;2 on a 10&thinsp;m custom building lands at Y=12, matching what the propagation engine sees.</div>
+  <div class="p">Objects rendered in the scene: terrain mesh (vertex-coloured green&ndash;brown&ndash;tan ramp by normalised elevation, with cells skipped where DEM coverage is missing); OSM buildings (single merged grey mesh, opacity 0.7); custom buildings (blue, opacity 0.8); building sources (orange, opacity 0.8); barriers (semi-transparent green walls with slope-following bases and a darker crest accent line); ground absorption zones (semi-transparent G-factor colour ramp from grey at G=0 through olive at G=0.5 to green at G=1); point sources (red spheres); line sources (red tubes following per-vertex elevation); area sources (semi-transparent red polygons); receivers (R1&ndash;R4-coloured spheres matching the 2D marker palette); and sprite labels for sources and receivers (drawn through geometry with anti-stacking offsets when multiple labels are placed within 5&thinsp;m of each other).</div>
   <div class="h2" style="font-size:13px;margin-top:18px;">Code quality and validation</div>
   <div class="h2" style="font-size:12px;margin-top:10px;">ISO/TR 17534-3 validation</div>
   <div class="p">The core propagation calculations are validated against the reference test cases defined in ISO/TR 17534-3:2015 &mdash; Acoustics: Software for the calculation of sound outdoors. This technical report defines input geometries and reference output values for testing implementations of ISO 9613-2. The in-app &ldquo;Run validation&rdquo; button (in the Propagation method panel) executes the three ground-attenuation test cases and reports the computed vs reference total for each:</div>
@@ -12807,10 +15080,34 @@ function toggleRecvMapView(recvId) {
   _vicRecvMapVisible[recvId] = !_vicRecvMapVisible[recvId];
   if (typeof updateConcentricCircles === 'function') updateConcentricCircles();
   if (typeof updateRecvMapLegends === 'function') updateRecvMapLegends();
+  _updateMapStatusRowVisibility();
   // Rebuild the panel so button text/style is derived from _vicRecvMapVisible (source of truth).
   // Direct DOM mutation was unreliable because async auto-IF callbacks call renderDetectedZones()
   // + render() which could recreate the button element after the mutation was applied.
   renderDetectedZones();
+}
+
+/** Hide the bottom-left "Sources / R1 / R2 / R3 / R4: placed" status banner
+ *  while any VIC NSA circle is visible on the map — the banner sits at
+ *  bottom:24px left:10px and overlaps the 140 m / 400 m circles. Shown
+ *  whenever zero NSAs are visible OR the current state isn't VIC urban
+ *  (switching to SA / NSW / VIC-non-urban restores the banner regardless
+ *  of prior NSA state). Safe to call at any time — a no-op if the banner
+ *  element isn't in the DOM yet.                                       */
+function _updateMapStatusRowVisibility() {
+  var row = document.querySelector('#map-column .map-status-row');
+  if (!row) return;
+  var anyVisible = false;
+  if (typeof currentState !== 'undefined' && currentState === 'VIC'
+      && typeof vicAreaType !== 'undefined' && vicAreaType === 'urban'
+      && typeof _vicRecvMapVisible === 'object' && _vicRecvMapVisible) {
+    ['r1', 'r2', 'r3', 'r4'].forEach(function(id) {
+      if (_vicRecvMapVisible[id]) anyVisible = true;
+    });
+  }
+  /* Setting display to '' removes the inline style so the .map-status-row
+     CSS (display:flex) takes over; 'none' hides. */
+  row.style.display = anyVisible ? 'none' : '';
 }
 
 /** Render the detected zones into the UI panel — shows per-receiver IF data */
@@ -12841,11 +15138,19 @@ function renderDetectedZones() {
     h += '<div style="padding:6px 8px;background:#f0f0f0;border-radius:4px;">';
     h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">';
     h += '<span style="font-weight:600;font-size:11px;color:var(--heading);">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</span>';
+    /* Static "Show/hide on map" text because the previous
+       show/hide-state text was unreliable — on reload from a saved
+       assessment, _vicRecvMapVisible could restore to true while
+       the actual circles hadn't yet been drawn (or vice versa),
+       leaving the button text out of sync with what the user saw
+       on the map. Static text sidesteps the whole state-tracking
+       question. The coloured-fill vs outlined visual state is still
+       driven by isVis so the user still gets a cue for which NSAs
+       currently have circles on the map.                         */
     h += '<button id="vicRecvToggle_' + id + '" onclick="toggleRecvMapView(\'' + id + '\')" ' +
          'style="font-size:9px;padding:2px 8px;border-radius:4px;cursor:pointer;border:1.5px solid ' + col + ';' +
          'background:' + (isVis ? col : 'transparent') + ';color:' + (isVis ? '#fff' : col) + ';font-weight:600;" ' +
-         'title="Show/hide zones on map">' +
-         (isVis ? 'Hide on map' : 'Show on map') + '</button>';
+         'title="Show/hide NSA zones on map">Show/hide on map</button>';
     h += '</div>';
     h += _buildZoneListHTML(data.zones140, data.fracs140, '140 m circle');
     h += _buildZoneListHTML(data.zones400, data.fracs400, '400 m circle');
@@ -12935,6 +15240,7 @@ function clearAutoIF() {
   _vicRecvMapVisible = {r1: false, r2: false, r3: false, r4: false};
   if (typeof clearVicZonePolygons === 'function') clearVicZonePolygons();
   if (typeof updateRecvMapLegends === 'function') updateRecvMapLegends();
+  _updateMapStatusRowVisibility();
   var el = document.getElementById('vicDetectedZones');
   if (el) { el.innerHTML = ''; el.style.display = 'none'; }
   var ifInput = document.getElementById('vicIF');
@@ -16617,6 +18923,10 @@ function initPropagationMethod() {
         // Show contour toggle button
         var ctBtn2 = document.getElementById('terrainContourBtn');
         if (ctBtn2) ctBtn2.style.display = '';
+        /* 3D View button is always visible — see the no-display:none
+           attribute on #threeDViewBtn. It works in two modes: real
+           terrain mesh (when DEM data is cached) or flat fallback
+           plane (when not). No show/hide tied to terrain state.   */
       } else {
         _terrainIL = [];
         window._terrainIL = _terrainIL;
@@ -16644,6 +18954,11 @@ function initPropagationMethod() {
         _terrainContourOn = false;
         var ctBtn = document.getElementById('terrainContourBtn');
         if (ctBtn) { ctBtn.classList.remove('active'); ctBtn.style.display = 'none'; }
+        /* 3D View button stays visible regardless of terrain state.
+           If the modal is open when terrain is disabled, we leave it
+           open — the snapshot at the time of opening is still valid
+           for visualising relative heights. The user can close + re-
+           open to see the scene rebuilt on the flat fallback plane. */
         if (window._terrainContourLayer) window._terrainContourLayer.clearLayers();
         if (window.DEMCache) window.DEMCache.clearWCSCache();
       }
@@ -19269,9 +21584,15 @@ setInitialCollapseState();
             }
           });
         }
-        if (data.vic.recvMapVisible) {
-          _vicRecvMapVisible = JSON.parse(JSON.stringify(data.vic.recvMapVisible));
-        }
+        /* NSA show/hide state (_vicRecvMapVisible) is intentionally NOT
+           restored from the saved JSON — every fresh load starts with
+           all four NSAs hidden on the map so the panel button styling
+           matches reality (outlined / "off" look for every row). The
+           field is still saved below for backwards compat with older
+           readers, just not read back in here. Previously a session
+           that ended with NSA 1 visible would reopen with the NSA 1
+           button styled as "on" but the circles may or may not have
+           rendered yet, leaving the user staring at a mismatch.   */
         if (data.vic.autoIFPerReceiver) {
           autoIFPerReceiver = JSON.parse(JSON.stringify(data.vic.autoIFPerReceiver));
         }
@@ -19401,6 +21722,7 @@ setInitialCollapseState();
           ctBtn3.style.display = _terrainEnabled ? '' : 'none';
           ctBtn3.classList.toggle('active', _terrainContourOn);
         }
+        /* 3D View button is always visible — no terrain-state gating. */
         // Restore elevations without re-fetching
         if (data.terrain.sourceElevations && typeof sources !== 'undefined') {
           sources.forEach(function(src, si) {
@@ -22593,6 +24915,11 @@ if (window.pdfjsLib) {
       concentricCircles = [];
       vicZonePolygonLayers.forEach(function(l) { map.removeLayer(l); });
       vicZonePolygonLayers = [];
+      // Keep the bottom status banner in sync with whether any NSA
+      // circles are about to be drawn — called at the top of the
+      // function AND after the guards below so state changes
+      // (switching to SA, leaving urban area) also restore the banner.
+      if (typeof _updateMapStatusRowVisibility === 'function') _updateMapStatusRowVisibility();
       // Only show in VIC urban mode
       if (currentState !== 'VIC' || vicAreaType !== 'urban') return;
 
@@ -30342,8 +32669,17 @@ if (window.pdfjsLib) {
       return html;
     };
 
-    // Expose for save/load
+    // Expose for save/load (and 3D viewer geometry build)
     window._getCustomBuildings = function() { return customBuildings; };
+    window._getBuildingSources = function() { return buildingSources; };
+    /* Phase 5 — 3D viewer needs point/line/area source arrays.
+       These are closure-scoped in the IIFE at the top of the script
+       but the arrays themselves are declared at the top-level var
+       level (sourcePins, lineSources, areaSources) so they're
+       reachable from here. */
+    window._getSourcePins  = function() { return (typeof sourcePins  !== 'undefined') ? sourcePins  : []; };
+    window._getLineSources = function() { return (typeof lineSources !== 'undefined') ? lineSources : []; };
+    window._getAreaSources = function() { return (typeof areaSources !== 'undefined') ? areaSources : []; };
     window._setCustomBuildings = function(arr) {
       customBuildings.length = 0;
       arr.forEach(function(cb) { customBuildings.push(cb); });
@@ -33920,73 +36256,140 @@ if (window.pdfjsLib) {
   <div id="helpPanelContent">
 
     <details>
-      <summary><span class="help-arrow">&#9658;</span> Derive criteria (SA / Vic / NSW)</summary>
+      <summary><span class="help-arrow">&#9658;</span> Getting started</summary>
       <div class="help-body">
         <ul>
-          <li>Place one point source at site <span class="help-tag">Tools</span></li>
-          <li>Place up to 4 receiver locations <span class="help-tag">Tools</span></li>
-          <li>Criteria automatically derived based on locations &mdash; shown in panels below the map</li>
-          <li>Refer to <em>Methodology</em> for further information</li>
+          <li>Search for an address or click the map to centre on the site <span class="help-tag">Search</span></li>
+          <li>Select state (SA / VIC / NSW) from the header badge &mdash; drives the criteria framework used</li>
+          <li>Place a source from the library or as a custom source <span class="help-tag">Tools</span></li>
+          <li>Place up to 4 receivers (drag to reposition) <span class="help-tag">Tools</span></li>
+          <li>Criteria are auto-derived from the receiver location and shown in the side panel</li>
+          <li>See <em>Methodology</em> for full details on calculations and policy logic</li>
         </ul>
       </div>
     </details>
 
     <details>
-      <summary><span class="help-arrow">&#9658;</span> Save images <span class="help-tag">Save JPG</span></summary>
+      <summary><span class="help-arrow">&#9658;</span> Sources <span class="help-tag">Tools</span></summary>
       <div class="help-body">
         <ul>
-          <li>Use toolbars to set up the scenario to save</li>
-          <li>Toggle zones &amp; state-relevant areas on/off (MBS 010, Major Urban Areas etc.) <span class="help-tag">Mapping</span></li>
-          <li>Toggle objects on/off to clean the map <span class="help-tag">Tools</span></li>
-          <li>Use for: zones, criteria maps, aerial, street, cadastral, modelling scenarios, noise maps</li>
-          <li>Click <strong>Save JPG</strong> button at top right of map</li>
+          <li><strong>Point sources</strong> &mdash; click on the map or enter coordinates; library presets or custom <em>L<sub>w</sub></em> spectra</li>
+          <li><strong>Line sources</strong> &mdash; click to draw a polyline (conveyors, pipelines, plant lines); enter <em>L<sub>w</sub>&prime;</em> per metre</li>
+          <li><strong>Area sources</strong> &mdash; click to draw a polygon (yards, stockpiles, car parks); enter total <em>L<sub>w</sub></em> or <em>L<sub>w</sub></em>/m&sup2;</li>
+          <li><strong>Building sources</strong> &mdash; draw an emitting building envelope; enter internal <em>L<sub>p</sub></em> + facade/roof construction (R<sub>w</sub>)</li>
+          <li><strong>Road sources (CoRTN)</strong> &mdash; draw a road polyline; enter flow, speed, %HV, gradient, surface; SA DIT speeds auto-fetched where available</li>
+          <li>Set operating <strong>percentage of period</strong>, active periods (day / evening / night), units</li>
+          <li>Source library is searchable; saved custom sources are stored in the assessment</li>
         </ul>
       </div>
     </details>
 
     <details>
-      <summary><span class="help-arrow">&#9658;</span> Modelling <span class="help-tag">Tools</span></summary>
-      <div class="help-body">
-        <div class="help-sub">Existing situation</div>
-        <ul>
-          <li>Terrain / contours &mdash; toggle on/off for modelling</li>
-          <li>Existing buildings &mdash; toggle on/off for modelling (coverage limited, heights assumed)</li>
-          <li>Buildings can be removed from model and predictions</li>
-          <li>Facade reflections (per ISO 9613-2)</li>
-          <li>Ruler &mdash; measure between two locations</li>
-        </ul>
-        <div class="help-sub">New situation</div>
-        <ul>
-          <li>Site plan overlay &mdash; add image, scale, rotate, move</li>
-          <li>New buildings</li>
-          <li>Barriers</li>
-          <li>Ground absorption values (general ground absorption set in Propagation method panel)</li>
-          <li>Point / line / area / building sources</li>
-        </ul>
-      </div>
-    </details>
-
-    <details>
-      <summary><span class="help-arrow">&#9658;</span> Predictions</summary>
+      <summary><span class="help-arrow">&#9658;</span> Receivers &amp; criteria</summary>
       <div class="help-body">
         <ul>
-          <li>Levels predicted and shown vs derived criteria</li>
-          <li>Scenarios for day / evening / night</li>
-          <li>Source contribution breakdown</li>
-          <li>Characteristic penalties per state policy</li>
+          <li>Up to <strong>4 receivers</strong>; drag markers to reposition; rename via the side panel</li>
+          <li>Zone is auto-detected from the state planning portal; criteria derive from the host zone</li>
+        </ul>
+        <div class="help-sub">SA</div>
+        <ul>
+          <li>Indicative Noise Levels (INL) per Noise Policy 2023; clauses 5(4), 5(5), 5(6) handle special cases</li>
+          <li>MBS 010 screening shown where the Noise &amp; Emissions Overlay applies</li>
+        </ul>
+        <div class="help-sub">VIC</div>
+        <ul>
+          <li>Influencing Factor (IF) method per EPA Pub 1826.5; LGA overrides applied where relevant</li>
+          <li>NSA circles can be shown / hidden per receiver from the detected-zones panel</li>
+        </ul>
+        <div class="help-sub">NSW</div>
+        <ul>
+          <li>RBL plus intrusiveness (RBL + 5&thinsp;dB) and amenity per Noise Policy for Industry (2017)</li>
+          <li>Sleep disturbance screened at night against RBL + 15&thinsp;dB</li>
+        </ul>
+        <div class="help-sub">Penalties &amp; modifying factors</div>
+        <ul>
+          <li>Tonal / impulsive / low-frequency / intermittent / modulating penalties added per state policy</li>
         </ul>
       </div>
     </details>
 
     <details>
-      <summary><span class="help-arrow">&#9658;</span> Noise mapping <span class="help-tag">Modelling</span></summary>
+      <summary><span class="help-arrow">&#9658;</span> Map tools <span class="help-tag">Tools</span></summary>
+      <div class="help-body">
+        <div class="help-sub">Existing site</div>
+        <ul>
+          <li><strong>Terrain &amp; contours</strong> &mdash; LiDAR DEM (5&thinsp;m primary, SRTM 30&thinsp;m fallback); contours visualise relief</li>
+          <li><strong>Buildings (OSM)</strong> &mdash; OSM footprints; individual buildings can be excluded from screening</li>
+          <li><strong>Reflections</strong> &mdash; image-source method per ISO 9613-2 &sect;7.5</li>
+          <li><strong>Ruler</strong> &mdash; measure straight-line distance between two points</li>
+          <li><strong>Zones</strong> &mdash; planning zones, MBS 010 overlay, VIC Major Urban Area</li>
+        </ul>
+        <div class="help-sub">New / proposed</div>
+        <ul>
+          <li><strong>Custom buildings</strong> &mdash; user-drawn occluders for proposed structures</li>
+          <li><strong>Barriers</strong> &mdash; draw, set height + base elevation; can be suppressed without deleting</li>
+          <li><strong>Ground absorption zones</strong> &mdash; per-zone <em>G</em> factor (0&nbsp;=&nbsp;hard, 1&nbsp;=&nbsp;soft); overrides global <em>G</em> in those areas</li>
+          <li><strong>Site plan overlay</strong> &mdash; import PDF / PNG / JPEG; opacity, scale, rotation; PDFs auto-scan for project name and suggested sources</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> 3D Scene Viewer <span class="help-tag">V</span></summary>
       <div class="help-body">
         <ul>
+          <li>Opens via the <strong>3D View</strong> toolbar button or the <kbd>V</kbd> shortcut &mdash; always available</li>
+          <li>Renders terrain, OSM &amp; custom buildings, building sources, barriers, ground zones, point / line / area sources, and receivers in 3D</li>
+          <li>Works with or without terrain enabled (flat fallback plane shown when terrain is off / unavailable)</li>
+          <li>Read-only verification view &mdash; not an editor; use to confirm heights, screening geometry, line of sight</li>
+        </ul>
+        <div class="help-sub">Modal controls</div>
+        <ul>
+          <li><strong>Vertical exaggeration</strong> slider 1&times;&ndash;10&times; (also <kbd>+</kbd> / <kbd>&minus;</kbd>)</li>
+          <li><strong>Wireframe</strong> terrain (<kbd>W</kbd>) &middot; <strong>Labels</strong> (<kbd>L</kbd>) &middot; <strong>Grid</strong> (<kbd>G</kbd>) &middot; <strong>Axes</strong> (<kbd>A</kbd>)</li>
+          <li><strong>Reset view</strong> (<kbd>R</kbd>) &mdash; frames the camera on the scene</li>
+          <li><kbd>Esc</kbd> closes the viewer</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> Propagation</summary>
+      <div class="help-body">
+        <ul>
+          <li>Choose <strong>Simple</strong> (geometric spreading only) or <strong>ISO 9613-2</strong> (full octave-band) in the Propagation method panel</li>
+          <li>Set atmospheric <strong>temperature</strong> and <strong>relative humidity</strong> for atmospheric absorption</li>
+          <li>Set global <strong>ground factor G</strong> (0&nbsp;=&nbsp;hard, 0.5&nbsp;=&nbsp;mixed, 1&nbsp;=&nbsp;soft) &mdash; ground zones override locally</li>
+          <li>Barrier and terrain screening are always applied (Maekawa diffraction, Deygout 3-edge for terrain)</li>
+          <li>L<sub>Amax</sub> uses Maekawa per band; ground attenuation is not applied to L<sub>Amax</sub></li>
+          <li><strong>Run validation</strong> button executes ISO/TR 17534-3 ground-attenuation tests T01&ndash;T03</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> Noise map <span class="help-tag">Modelling</span></summary>
+      <div class="help-body">
+        <ul>
+          <li>Toggle the noise map (<kbd>M</kbd>) &mdash; grid calculation across the map extent</li>
           <li>Select period: day / evening / night / L<sub>Amax</sub></li>
-          <li>Set contour height</li>
-          <li>Set grid size (auto = based on map zoom)</li>
-          <li>Set contour range and interval</li>
-          <li>Save JPG as needed (toggle off objects / boundary / mapping layers first)</li>
+          <li>Set <strong>contour height</strong> above ground</li>
+          <li>Set <strong>grid size</strong> (auto = based on map zoom, 5&ndash;50&thinsp;m)</li>
+          <li>Set <strong>contour range</strong> and interval</li>
+          <li>Independent CoRTN noise map can be active simultaneously when road sources are present</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> Save, export &amp; report</summary>
+      <div class="help-body">
+        <ul>
+          <li><strong>Save Assessment</strong> &mdash; downloads a <code>.json</code> file with the full assessment state (all sources, receivers, barriers, ground zones, settings, cases)</li>
+          <li><strong>Load Assessment</strong> &mdash; restore a previously saved <code>.json</code></li>
+          <li><strong>Save JPG</strong> &mdash; map screenshot; toggle layers / objects on or off first to clean the view</li>
+          <li><strong>GIS Export</strong> &mdash; GeoJSON, KML, or CSV of objects + predictions</li>
+          <li><strong>Generate Report</strong> &mdash; populates a Word (<code>.docx</code>) report from the current assessment</li>
         </ul>
       </div>
     </details>
@@ -34000,13 +36403,14 @@ if (window.pdfjsLib) {
           <li><kbd>L</kbd> &nbsp;Line source</li>
           <li><kbd>A</kbd> &nbsp;Area source</li>
           <li><kbd>K</kbd> &nbsp;Building source</li>
+          <li><kbd>W</kbd> &nbsp;Road (CoRTN) source</li>
           <li><kbd>1</kbd>&ndash;<kbd>4</kbd> &nbsp;Receivers 1&ndash;4</li>
         </ul>
         <div class="help-sub">Site elements</div>
         <ul>
           <li><kbd>B</kbd> &nbsp;Barrier</li>
           <li><kbd>N</kbd> &nbsp;New building</li>
-          <li><kbd>G</kbd> &nbsp;Ground absorption</li>
+          <li><kbd>G</kbd> &nbsp;Ground absorption zone</li>
         </ul>
         <div class="help-sub">Layers</div>
         <ul>
@@ -34020,22 +36424,34 @@ if (window.pdfjsLib) {
         <ul>
           <li><kbd>R</kbd> &nbsp;Ruler</li>
           <li><kbd>M</kbd> &nbsp;Noise map</li>
-          <li><kbd>H</kbd> &nbsp;Show/hide objects</li>
-          <li><kbd>S</kbd> &nbsp;Search bar</li>
-          <li><kbd>?</kbd> &nbsp;Quick reference</li>
+          <li><kbd>V</kbd> &nbsp;3D Scene Viewer</li>
+          <li><kbd>H</kbd> &nbsp;Show / hide objects</li>
+          <li><kbd>S</kbd> &nbsp;Focus search bar</li>
+          <li><kbd>?</kbd> &nbsp;Quick reference (this panel)</li>
+        </ul>
+        <div class="help-sub">3D Scene Viewer (when modal open)</div>
+        <ul>
+          <li><kbd>W</kbd> &nbsp;Wireframe terrain</li>
+          <li><kbd>L</kbd> &nbsp;Labels</li>
+          <li><kbd>G</kbd> &nbsp;Grid</li>
+          <li><kbd>A</kbd> &nbsp;Axes</li>
+          <li><kbd>R</kbd> &nbsp;Reset camera</li>
+          <li><kbd>+</kbd> / <kbd>&minus;</kbd> &nbsp;Vertical exaggeration &plusmn; 0.5&times;</li>
+          <li><kbd>Esc</kbd> &nbsp;Close 3D viewer</li>
         </ul>
         <div class="help-sub">Editing</div>
         <ul>
           <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> &nbsp;Undo</li>
           <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> &nbsp;Redo</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Y</kbd> &nbsp;Redo</li>
         </ul>
         <div class="help-sub">Layout</div>
         <ul>
-          <li><kbd>]</kbd> &nbsp;Toggle side panel</li>
-          <li><kbd>E</kbd> &nbsp;Toggle side panel</li>
-          <li><kbd>Esc</kbd> &nbsp;Close side panel (if open)</li>
+          <li><kbd>]</kbd> &nbsp;Toggle side drawer</li>
+          <li><kbd>E</kbd> &nbsp;Toggle map / panels view</li>
+          <li><kbd>Esc</kbd> &nbsp;Close drawer or active modal</li>
         </ul>
-        <p style="margin:4px 0 0;font-size:10px;color:#9ca3af;">Keys inactive while typing in any input field.</p>
+        <p style="margin:4px 0 0;font-size:10px;color:#9ca3af;">Keys inactive while typing in any input field. <kbd>Ctrl</kbd> = <kbd>Cmd</kbd> on macOS.</p>
       </div>
     </details>
 
@@ -35691,6 +38107,15 @@ if (window.pdfjsLib) {
       case 'f': case 'F':
         _btn('reflectionsBtn');
         _kbToast('Reflections ' + (_isActive('reflectionsBtn') ? 'ON' : 'OFF') + ' (F)');
+        e.preventDefault(); break;
+
+      case 'v': case 'V':
+        /* 3D View button is always visible. Works in two modes: real
+           terrain mesh when DEM data is cached, flat fallback plane
+           otherwise. Either way the user sees buildings / barriers /
+           sources / receivers at their specified heights. */
+        _btn('threeDViewBtn');
+        _kbToast('3D View (V)');
         e.preventDefault(); break;
 
       case 'r': case 'R':

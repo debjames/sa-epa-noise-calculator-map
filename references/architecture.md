@@ -1101,3 +1101,429 @@ These are pre-existing reservations in the Mapping panel at [`index.html:2082`](
 - **CSS class:** `.hidden` for slide-down/fade-out transition; `body.disclaimer-visible` adds bottom padding
 - **JS:** Self-executing function at end of `<body>` — checks `localStorage`, removes banner if accepted
 - **Responsive:** At `max-width: 600px`, content stacks vertically and button becomes full-width
+
+## 3D Scene Viewer
+
+A full-viewport modal that renders the current assessment geometry (terrain, buildings, barriers, sources, receivers) in a Three.js scene for visual verification of screening geometry and heights. It is a snapshot-on-open read-only view — no editing, no real-time sync with the Leaflet map. Shipped in phases; **Phase 1** provides only the modal scaffolding and an empty scene with a placeholder ground plane.
+
+The viewer operates in **two modes** depending on whether DEM data is available:
+
+- **Terrain mesh mode** — DEM tiles are cached (Terrain is ON and tiles have finished fetching). The scene is built on a colour-ramped elevation surface with per-vertex heights from the LiDAR / SRTM sample grid. Wireframe toolbar button enabled.
+- **Flat fallback mode** — no DEM tiles cached (Terrain is OFF, or just turned on but fetch is in flight, or the site is outside LiDAR + SRTM coverage). The scene uses a 2 km × 2 km grey `PlaneGeometry` at Y=0 as the ground surface; all buildings / barriers / sources / receivers still render at their specified heights above Y=0 so the viewer is still useful for verifying relative heights. A yellow banner reads "No terrain data available. Enable Terrain for 3D elevation." The Wireframe toolbar button is disabled with a "No terrain mesh (fallback plane in use)" tooltip.
+
+Both modes go through the same Phase 2–5 build pipeline — the `showNoTerrainFallback()` branch just replaces the real terrain mesh step with the flat plane and skips the chunked DEM sampling.
+
+### Triggering
+
+- **Toolbar button** `#threeDViewBtn` in the Tools panel at [`index.html:2214`](../index.html:2214), between `#terrainContourBtn` and `#buildingsToggleBtn`. **Always visible** — not gated on terrain state (the viewer works in flat-fallback mode when no DEM is cached).
+- **Keyboard shortcut** `V` at [`index.html:36097`](../index.html:36097). Input-focus guard inherited from the main keyboard handler; no terrain-state gating.
+- **Save/load** does not persist the modal open/close state (matches the ISO noise map policy). The button is always visible so there's nothing about the button itself to restore from the saved JSON.
+
+### Three.js lazy-load
+
+- **Library:** Three.js **r128** from cdnjs (`three.min.js`) + OrbitControls from jsdelivr (`examples/js/controls/OrbitControls.js` under `three@0.128.0`).
+- **Why r128:** later Three.js releases dropped the UMD `examples/js/` path. The app has no build step, so ES modules / `/addons/` imports don't work. r128 is the last release that exposes `THREE.OrbitControls` as a global via plain `<script>` tags.
+- **Loader:** `loadThreeJS()` inside the 3D-viewer IIFE. Returns a cached Promise on second+ call. CDN failures surface as an in-modal error message (no silent blank). Implemented at [`index.html:3672`](../index.html:3672).
+
+### Modal DOM structure
+
+Built on-demand by `show3DModal()` at [`index.html:3851`](../index.html:3851). DOM layout:
+
+```
+#threeDModalBackdrop       position:fixed; inset:0; z-index:10000; rgba(0,0,0,0.85)
+└── box                    position:absolute; inset:12px; #1a1a2e; flex column
+    ├── header             #0f0f1e; flex row; title + × close button
+    └── canvasWrap         position:relative; flex:1 1 auto; #000
+        ├── #threeDCanvas  WebGLRenderer attaches here
+        ├── status         loading / error overlay (pointer-events:none)
+        └── hint           bottom-left usage hint (pointer-events:none)
+```
+
+- **ARIA:** `role="dialog"`, `aria-modal="true"`, `aria-labelledby="3d-modal-title"`.
+- **Close mechanisms:** × button, Escape key (capture phase + `stopImmediatePropagation` so it doesn't leak to the drawer Esc handler), click on backdrop outside the box.
+- **Focus trap:** `focusin` capture handler pulls focus back to the close button if it escapes the backdrop.
+- **Focus restore:** tracks `document.activeElement` on open, restores on close with a stale-element guard (`document.contains()` check, fall-back to fresh `getElementById('threeDViewBtn')` lookup) — same pattern as methodology modal.
+
+### Scene setup
+
+Inside `initThreeScene(canvas, container, statusEl)`:
+
+| Component | Configuration |
+|---|---|
+| `WebGLRenderer` | `antialias: true`, `setPixelRatio(devicePixelRatio)`, sky-blue clear color `0x87ceeb` |
+| `PerspectiveCamera` | FOV 60, near 0.1, far 50000, initial `(300, 250, 300)` (overridden by `frameCameraToTerrain()` once the mesh is built) |
+| `OrbitControls` | `enableDamping: true`, `dampingFactor: 0.1`, `minDistance` / `maxDistance` set from terrain bbox after build |
+| `AmbientLight` | `0xffffff` × 0.5 |
+| `DirectionalLight` | `0xffffff` × 0.7, positioned NW at `(-100, 200, -100)` |
+| `GridHelper` | Sized to `max(100, 1.2 × terrain-bbox-diagonal)`, positioned at `Y = elevMin − 0.5`, **hidden by default** (`.visible = false`) |
+| `AxesHelper` | Size 20 at origin, **hidden by default** |
+
+Placeholder ground plane from Phase 1 is removed — the real terrain mesh (or a fallback flat plane when DEM data is absent) takes its place. After scene construction, `initThreeScene()` calls `buildTerrainMesh()` which runs async over many ticks.
+
+**Render loop** uses `setTimeout(animate, 16)` rather than `requestAnimationFrame`. Some embedded preview / iframe / hidden-tab renderers throttle rAF to zero callbacks/second, which would stall `OrbitControls` damping and leave post-build scene mutations (most importantly the Phase 2 terrain mesh arriving after chunked sampling) permanently invisible. `setTimeout` has negligible perf cost for a small scene in a short-lived modal and works in every environment. The internal variable name `_3dRafId` is retained for diff-noise reduction — it's just a timer id now; the matching `cancelAnimationFrame` in `close3DModal` has been swapped for `clearTimeout`.
+
+### Coordinate system
+
+- **Y axis** — up. Scene Y = elevation in metres above the reference datum.
+- **X axis** — east (positive longitude direction).
+- **Z axis** — south (negative Z = north).
+- **Scene origin** — current map centre (`window._map.getCenter()`), not a lat/lng origin.
+
+### `window.latLngToLocal(lat, lng, centreLat, centreLng)`
+
+Equirectangular projection with `cos(centreLat)` scaling. Returns `{ x, z }` in metres relative to the scene origin. Accurate for areas under ~5 km (typical noise-assessment viewport). Will be used by Phase 2 terrain mesh and Phase 3+ geometry:
+
+```js
+var R = 6371000, D = Math.PI / 180;
+var x = (lng - centreLng) * D * R * Math.cos(centreLat * D);
+var z = -(lat - centreLat) * D * R;
+```
+
+Exposed globally so other modules can reuse it once later phases need to serialise geometry for the scene.
+
+**Verified with real coordinates** (Adelaide CBD, lat -34.9285): self-transform at viewport centre returns `(0, 0)` exactly; a `+0.001°` lat/lng offset produces `(91.165 m east, -111.195 m north)` matching the hand-calc to ~5×10⁻¹⁰ m (floating-point noise); a point ~300 m north-west of centre lands at `(27.35 m east, -300.23 m north)` — exact match against the formula.
+
+### `window._3dAddMarker(lat, lng, opts)`
+
+Debug / dev helper for dropping a coloured sphere at an arbitrary geographic point in the live 3D scene. Returns the `THREE.Mesh` (so callers can inspect `.position.x/y/z`), or `null` if the modal isn't open / Three.js isn't loaded / no map is mounted.
+
+`opts` is optional: `{ radius = 5, color = 0xff3b3b, y = 10, name = 'debug-marker' }`. Used during Phase 1 verification to confirm `latLngToLocal` works; will be useful through Phases 2–6 for visual debug of building/barrier/source positioning before the dedicated geometry code is in place.
+
+### Cleanup pattern
+
+Called by `close3DModal()` in this exact order (WebGL context leak prevention — browsers cap at ~8–16 contexts):
+
+1. **Cancel in-flight chunked terrain sampling** — `_3dSamplingCancel = true` + `clearTimeout(_3dSamplingHandle)`. Must run first so no late `processChunk` callback mutates a scene that's about to be disposed.
+2. `clearTimeout(_3dRafId)` — stop the render loop before any further `render()` can run on a disposed resource. (Variable retains the `_RafId` name for diff-noise reduction; it's just a `setTimeout` handle — see "Render loop" under Scene setup.)
+3. `scene.traverse(obj => { obj.geometry?.dispose(); obj.material?.dispose(); })` — release GPU buffers and textures for the terrain mesh, fallback plane, grid + axes helpers, all three building flavours, and any marker spheres added via `_3dAddMarker`.
+4. `controls.dispose()` — remove the orbit controls' pointer listeners from the canvas.
+5. `renderer.forceContextLoss()` — explicitly drop the WebGL context (without this, browsers silently fail to grant a new context on the 9th+ modal open).
+6. `renderer.dispose()` — release internal state.
+7. Remove the backdrop from the DOM.
+8. Remove keydown, focusin, and window resize listeners.
+9. Restore focus to `#threeDViewBtn`.
+
+All state variables are module-scoped inside the IIFE and nulled-out (or reset to empty arrays) on close so a subsequent `show3DModal()` starts with a clean slate:
+
+- Phase 1 / 2 core: `_3dRenderer`, `_3dScene`, `_3dCamera`, `_3dControls`, `_3dModalEl`, `_3dRafId`
+- Phase 2 terrain: `_3dTerrainMesh`, `_3dFallbackPlane`, `_3dGridHelper`, `_3dAxesHelper`, `_3dCanvasWrap`, `_3dBannerEl`, `_3dProgressEl`, `_3dSamplingHandle`
+- Phase 3 buildings: `_3dOsmBuildingsMesh`, `_3dCustomBuildingMeshes[]`, `_3dBuildingSourceMeshes[]`
+- Phase 4 barriers + ground zones: `_3dBarrierMeshes[]`, `_3dBarrierCrests[]`, `_3dGroundZoneMeshes[]`
+- Phase 5 sources + receivers + labels: `_3dSourcesGroup`, `_3dReceiversGroup`, `_3dLabelsGroup` (each a `THREE.Group`; `scene.traverse` walks into them to dispose geometries + materials + `material.map` CanvasTextures)
+- Phase 6 toolbar: `_3dToolbarControls` (refs to slider + toggle buttons), `_3dToolbarKeyHandler` (document-level capture-phase keydown listener) — both removed / nulled on close
+
+### Reference-elevation datum
+
+All Y values in the 3D scene are **relative**, not absolute ASL. A module-level `_3dReferenceElevation` holds the local datum — the minimum elevation across the cached DEM sample grid at modal-open time. Every Y-coordinate producer subtracts this value so the terrain minimum sits at Y=0 and relief grows upward from there. Without this step, a 45 m-ASL Adelaide CBD site would render the terrain mesh floating 45 m above the OSM buildings and fallback plane (which sit at Y=0), with cliff-like edges where the two coordinate systems meet.
+
+Where the subtraction happens:
+
+- **Terrain mesh** — directly in `finaliseTerrainMesh()`: position buffer writes `(elev - elevMin)` for each vertex. The colour ramp was already driven by `(elev - elevMin) / range`, so its output is byte-identical to pre-normalisation.
+- **`sampleTerrainAt(lat, lng)`** — subtracts `_3dReferenceElevation` before returning. Every Phase 3–4 consumer (building centroid lookup, barrier per-endpoint sampling, ground-zone per-vertex lookup, area-source per-vertex lookup) automatically gets normalised values via this one helper.
+- **Point sources** using `source.groundElevation_m` — subtract explicitly at the call site (this value is pre-fetched from DEM for the propagation engine, which DOES need absolute ASL, so the source of truth stays absolute and the 3D viewer does its own subtraction).
+- **Receivers** using `recvGroundElevations[key]` — same deal, subtract explicitly.
+
+Behaviour across modes:
+
+| Mode | `_3dReferenceElevation` |
+|---|---|
+| Terrain mesh built | `elevMin` of the cached sample grid |
+| Flat fallback (terrain off, or no DEM cached) | `0` |
+
+In fallback mode the subtraction is a no-op; buildings / sources / receivers sit at `0 + their_height`. The main app's terrain-toggle-off path also clears `sources[*].groundElevation_m` and `recvGroundElevations[*]` so stale absolute values never leak into the fallback scene.
+
+Reset to 0 in `close3DModal()` so every fresh open starts with a clean datum. The propagation engine, 2D contour rendering, and `DEMCache` raw samples are all untouched by this normalisation — it's a 3D-viewer-local transform applied at use-time.
+
+### Building-aware object heights
+
+Every source / barrier / receiver / line-source / area-source vertex placed inside a building footprint has its Y lifted by the roof height at that point, so rooftop objects visually sit on the roof rather than inside the building.
+
+The underlying data model distinguishes height-above-surface from height-above-ground:
+
+- `pin.height_m` — height ABOVE the local surface (ground, or roof if the pin is on a building)
+- `pin.buildingHeight_m` — pre-computed roof height beneath the pin (0 if no building), maintained by `detectBuildingUnderSource()` at [`index.html:10754`](../index.html:10754)
+- Effective height above ground = `height_m + buildingHeight_m` — the propagation engine already does this addition at every prediction site.
+
+#### `_3dBuildingHeightAt(lat, lng)`
+
+The 3D viewer's own lookup helper. Returns the effective roof height at a geographic point, or 0 if the point isn't inside any building footprint. Independent of the 2D "Buildings layer" toggle because the 3D viewer always renders every building it knows about — an object on a rooftop must always sit on it in 3D regardless of 2D layer visibility.
+
+**Priority order** — first hit wins:
+
+1. `window._getCustomBuildings()` — `(cb.baseHeightM || 0) + (cb.heightM || 3)`
+2. `window._getBuildingSources()` — `(bs.baseHeightM || 0) + (bs.height_m || 6)` (note the underscore-separated `height_m` field and the `vertices` property vs custom buildings' `polygon`)
+3. `window._buildings` (OSM) — filtered to skip `isCustom` / `isBarrier` / `isBuildingSource` pseudo-entries and `excluded` / `demolished`. Height fallback chain `heightM → height → levels × 3 → 6 m` matches `buildOSMBuildings()`.
+
+Reuses the existing top-level `_pointInPolygon(lat, lng, polygon)` ray-casting PIP at [`index.html:10736`](../index.html:10736).
+
+#### Call-site pattern
+
+For every per-vertex Y calculation in Phases 3–5:
+
+```js
+var terrainY  = sampleTerrainAt(lat, lng) || 0;
+var buildingY = _3dBuildingHeightAt(lat, lng);
+var y         = terrainY + buildingY + object.height;
+```
+
+Call sites wired in:
+
+| Object type | Lookup granularity | What happens on a rooftop |
+|---|---|---|
+| Point sources | Per-pin | Sphere sits at `roof + height_m` |
+| Line sources | Per-vertex | Tube rises where vertices fall inside a footprint, drops back on the outside |
+| Area sources | Per-vertex | Polygon drapes over the roof on the overlapping side |
+| Barriers | Per-endpoint | Wall steps up at the vertex crossing the building edge |
+| Receivers | Per-pin | Cone sits at `roof + receiver_height + cone-centering offset` |
+
+Line / area source centroid labels also subtract the centroid's `_3dBuildingHeightAt` so labels float above the object even when the centroid is on a rooftop.
+
+Per-vertex transitions mean a line source that enters a building mid-segment gets its height change at the NEXT vertex, not at the building edge. Acceptable for v1; proper edge-intersection would require ray-building-edge clipping which isn't worth the complexity for a visual-verification tool.
+
+#### Performance
+
+Worst case `O(objects × vertices × buildings)` per modal open. A 500-OSM-building project with 50 source vertices is ~25,000 PIP tests at microseconds each — well under 100 ms total, no observable slowdown. If a project ever pushes this, the right fix is to pre-build a bbox spatial index for `window._buildings`; not needed at v1.
+
+### Terrain mesh pipeline (Phase 2)
+
+Entry point: `buildTerrainMesh()` called at the end of `initThreeScene()` after the scene and camera are set up but before Phase 3's building pass.
+
+- **Data source**: `DEMCache.getAllWCSRasters()` filtered to LiDAR + SRTM tiles that overlap `window._map.getBounds()`. Mirrors the tile filter in `generateTerrainContours()`. Zero overlap → `showNoTerrainFallback()`.
+- **Grid construction** identical to the 2D contour code: `rawSpacing = max(latSpan, lngSpan) / 250`, snapped up to the nearest `10^floor(log10(raw))` magnitude, floor 0.00005°, capped at 250 samples per axis. Lat / lng axis arrays built south-to-north and west-to-east.
+- **Chunked sampling** — 5,000 samples per `setTimeout(…, 0)` tick. LiDAR preferred (most-recent-first), SRTM fallback, NaN when neither covers a cell. Progress overlay text updates after each chunk. `_3dSamplingCancel` flag short-circuits the loop on modal close so a late chunk never mutates a disposed scene. `setTimeout` rather than `requestAnimationFrame` — see "Render loop" under Scene setup for why.
+- **Geometry build** (`finaliseTerrainMesh`):
+  - Position buffer `(x, y, z)` per vertex, Y = sampled elevation (or Y = elevMin when NaN so the vertex exists but isn't indexed).
+  - Index buffer: two triangles per cell, **skipped when any of the four corners is NaN** → honest gaps instead of cliff artifacts from zero-filling.
+  - Colour buffer: three-stop RGB ramp (green `#4a7c3a` at t=0 → brown `#8b6f3a` at t=0.5 → tan `#d4b896` at t=1) with `t = (elev − elevMin) / (elevMax − elevMin)`. Normalised so a 2 m fall on a flat industrial site still maps across the full palette. Implemented in `_elevationRamp(t)`.
+  - `computeVertexNormals()` → `MeshLambertMaterial({ vertexColors: true, side: DoubleSide })`.
+- **Grid-helper swap**: `THREE.GridHelper` doesn't expose a resize API, so the Phase 1 1000-unit placeholder is disposed and replaced with one sized to `max(100, 1.2 × bbox diagonal)`, positioned at `Y = elevMin − 0.5` so it sits just below the lowest terrain vertex. Visibility state is preserved across the swap so Phase 7's toolbar toggle still works.
+
+### No-terrain fallback
+
+Triggered when `DEMCache.getAllWCSRasters()` returns zero tiles overlapping the current viewport — e.g. the user opens the modal before the terrain fetch finishes, or the site is entirely outside LiDAR + SRTM coverage.
+
+- Adds a 2 km × 2 km flat grey `PlaneGeometry` at Y = 0 (named `fallback-plane`) so Phase 3+ geometry still has a surface to build on.
+- Repositions the grid helper to `Y = −0.1` so it stays just below the plane.
+- Frames the camera via `frameCameraToTerrain(new Box3(-1000..1000, 0, -1000..1000))`.
+- Shows a yellow non-blocking banner at the top of the canvas reading "No terrain data available. Enable Terrain for 3D elevation." — `pointer-events: none` so it doesn't interfere with orbit controls.
+- **Partial coverage** (some tiles missing within the viewport) is NOT treated as no-data; it's handled by the per-cell NaN-skip in the mesh builder so the rest of the mesh still renders with visible gaps where data is missing.
+
+### Camera auto-positioning
+
+`frameCameraToTerrain(bbox)` computes a good viewing position based on the geometry bounding box:
+
+- **Target** = bbox centre.
+- **Distance** = `1.5 × diagonal` along a `(+x, +y, +z)` vector (normalised so horizontal offset is `0.7 × cos45° × distance` in each of X and Z, vertical is `0.7 × distance` in Y) — approximately 45° elevation looking NW, so north reads as "up-left" matching the Leaflet 2D convention.
+- `controls.target` set to the bbox centre.
+- `controls.maxDistance = 5 × diagonal`, `controls.minDistance = 10 m`.
+
+Called from both `finaliseTerrainMesh()` (after the real terrain is added) and `showNoTerrainFallback()` (with a synthetic 2 km box) so the camera always frames whatever surface is actually on-screen.
+
+### Building extrusion (Phase 3)
+
+Three flavours of building-shaped geometry, identical extrusion logic, different data source + material:
+
+| Flavour | Data source | Material | Mesh strategy |
+|---|---|---|---|
+| OSM buildings | `window._buildings` (filtered) | `MeshLambertMaterial({ color: 0x888888, transparent: true, opacity: 0.7, side: DoubleSide })` | Single merged mesh across all footprints (perf — dense urban can have 500+) |
+| Custom buildings | `window._getCustomBuildings()` | `MeshLambertMaterial({ color: 0x4a90d9, transparent: true, opacity: 0.8, side: DoubleSide })` | Individual mesh per building |
+| Building sources | `window._getBuildingSources()` (new accessor) | `MeshLambertMaterial({ color: 0xE67E22, transparent: true, opacity: 0.8, side: DoubleSide })` | Individual mesh per source |
+
+`buildAllBuildings()` is called from both `finaliseTerrainMesh()` and `showNoTerrainFallback()` so buildings appear whether terrain loaded or not.
+
+#### `buildExtrudedFootprint(vertices, baseY, topY, centreLat, centreLng)`
+
+Shared helper that takes a footprint polygon and base / top elevations, returns raw indexed geometry arrays `{ positions: Float32Array, indices: Uint32Array }` (or `null` on degenerate input / triangulation failure). The raw-arrays return shape lets the caller either attach them directly to a `BufferGeometry` (custom + source paths) or concat them into a merged accumulator (OSM path). Key steps:
+
+1. Normalise both `{lat,lng}` and `[lat,lng]` vertex shapes; drop a closing duplicate vertex if present (earcut expects an open contour).
+2. Convert each vertex to local XZ via `latLngToLocal()`.
+3. Compute signed area of the XZ polygon. If negative (CW from above) reverse the contour so side-wall outward-facing winding is consistent with the top-cap CCW winding.
+4. Triangulate the top cap via `THREE.ShapeUtils.triangulateShape(contour, [])` inside `try/catch`. On throw → `console.warn` + return `null` so self-intersecting OSM polygons are skipped instead of killing the scene.
+5. Build vertex layout:
+   - `0 .. N-1`: top-cap verts at `topY`
+   - `N .. 2N-1`: bottom-cap verts at `baseY` (same XZ)
+   - `2N .. 2N + 4N - 1`: side-wall verts, **4 per edge** so `computeVertexNormals()` produces distinct per-wall normals rather than smoothing them across corners.
+6. Emit indices: top cap (original winding, +Y normals), bottom cap (reversed winding, −Y normals), two side-wall triangles per edge.
+
+#### `sampleTerrainAt(lat, lng)`
+
+Point-samples `DEMCache` for a single lat/lng. LiDAR preferred (most-recent-first), SRTM fallback, `null` if no coverage. Used for per-building base-elevation lookup at the centroid of each footprint. Null-sample buildings use `baseY = 0` so they sit on the mean ground plane / fallback plane rather than floating.
+
+#### OSM pass (`buildOSMBuildings`)
+
+- **Skip rules**: <3 vertices, `excluded` / `demolished` flags, any entry flagged `isCustom` / `isBarrier` / `isBuildingSource`, and any entry whose `id` appears in the custom-buildings or building-sources lists.
+- **Why the id dedup**: in some paths the 2D screening pipeline injects pseudo-entries for customs / barriers / building sources into `window._buildings` so the combined screening iteration hits them too. Without the id check those would double-render — once as grey OSM, once as the correct custom blue / source orange.
+- **Height fallback**: `b.heightM || b.height || (b.levels ? b.levels * 3 : null) || 6` — catches OSM records where the `height` tag is null but `levels` isn't, and finally a 6 m last-resort for records with no height information at all.
+- **Merge**: each building's positions + indices go into per-chunk typed arrays; after the loop they're concatenated into a single `Float32Array` + `Uint32Array` pair attached to one `BufferGeometry`. Indices are offset by the running vertex count as each building is appended.
+
+#### Custom + building-source passes
+
+Small counts → individual meshes, easier to reason about than a merged blob. Height is `cb.heightM` (custom) or `bs.height_m` (source — note the underscore, matching the field naming in the existing data structure). Base elevation is `(sampleTerrainAt(centroid) || 0) + (baseHeightM || 0)`, so a custom building with `baseHeightM = 3` sits on a 3 m elevated platform above the terrain — matches how the 2D renderer treats those.
+
+#### Accessors
+
+- `window._buildings` — existing global (OSM footprints + pseudo-entries in some paths), read-only from 3D code
+- `window._getCustomBuildings()` — pre-existing accessor next to save/load
+- `window._getBuildingSources()` — **new** in Phase 3, exposed next to `_getCustomBuildings()` at [`index.html:31153`](../index.html:31153). Returns the closed-over `buildingSources[]` array. Also used by save/load in future if needed.
+
+### Barriers and ground zones (Phase 4)
+
+Two more polygon-based geometry types — same coordinate / DEM-sampling utilities as Phase 3, different data structure and rendering.
+
+#### Barriers
+
+Data source: `window._getUserBarriers()` returning `userBarriers[]`. Each barrier has `{ id, vertices: [[lat,lng],…], heightM, baseHeightM, suppressed, name }`. Suppressed barriers are fully skipped in 3D — the 2D map handles suppression indication with its own styling.
+
+`_buildOneBarrier(barrier, centre)` at [`index.html:4664`](../index.html:4664) emits:
+
+- **Wall mesh** — one quad per consecutive vertex pair. Each quad has:
+  - Bottom corners at `(x_i, baseY_i, z_i)` and `(x_j, baseY_j, z_j)` where `baseY_n = sampleTerrainAt(n) + baseHeightM` — independent per endpoint, so the bottom edge **follows the ground slope** exactly.
+  - Top corners at `baseY_n + heightM`.
+  - Winding `BL → BR → TR` and `BL → TR → TL` with `side: THREE.DoubleSide` so both faces render.
+- **Crest accent line** — a `THREE.Line` with `LineBasicMaterial({ color: 0x2E7D32 })` running through every barrier vertex at `y = baseY_n + heightM`. Makes the top edge readable from any orbit angle, especially when a barrier sits behind or over a building.
+
+Material: `MeshLambertMaterial({ color: 0x4CAF50, transparent: true, opacity: 0.85, side: DoubleSide })`. Matches the 2D `BARRIER_STYLE` green.
+
+#### Ground zones
+
+Data source: `window._getGroundZones()` returning `_groundZones[]`. Each zone has `{ id, name, g, vertices: [[lat,lng],…] }` where `g ∈ [0, 1]` is the ground absorption coefficient.
+
+`_buildOneGroundZone(zone, centre)` at [`index.html:4779`](../index.html:4779):
+
+1. Normalise vertex shape, drop duplicate closing vertex, enforce CCW winding.
+2. Per-vertex `y = sampleTerrainAt(lat, lng) + 0.2 m` — the **+0.2 m offset** is critical for avoiding z-fighting with the terrain mesh surface; anything closer flickers.
+3. Triangulate via `THREE.ShapeUtils.triangulateShape(contour2D, [])` inside `try/catch` — warn + skip on failure (same pattern as Phase 3 buildings).
+4. Build `BufferGeometry` with positions only (no vertex colours — G is uniform within a zone).
+
+Material: `MeshBasicMaterial({ color: _groundZoneColour(g), transparent: true, opacity: 0.4, side: DoubleSide, depthWrite: false })`. `depthWrite: false` is what makes the zone look like a tint on the terrain rather than an occluder — the terrain colour shows through the semi-transparent fill. `renderOrder: 1` (terrain and other geometry default to 0) puts the zones last in the draw order so the blend is correct.
+
+G-factor colour ramp (`_groundZoneColour(g)`):
+
+| G | Description | Colour |
+|---|---|---|
+| 0.0 | Hard | `#9E9E9E` grey |
+| 0.5 | Mixed | `#7A8B4A` olive |
+| 1.0 | Soft | `#4CAF50` green |
+
+Linear RGB interpolation between stops. Flat colour per zone (not vertex colours — G is uniform within a zone by definition).
+
+#### Build order
+
+`buildAllBuildings()` now calls in sequence: OSM buildings → custom buildings → building sources → barriers → ground zones. Transparent zone fills render last so they blend over the opaque / mostly-opaque volumes that would otherwise peek through.
+
+### Sources + receivers + labels (Phase 5)
+
+The acoustic elements of an assessment — point / line / area sources, receivers, and their text labels. Rendered after the static Phase 2–4 geometry so they sit on top visually.
+
+#### Data accessors
+
+Added to the window export surface at [`index.html:31803`](../index.html:31803) alongside the existing `_getCustomBuildings` / `_getBuildingSources`:
+
+- `window._getSourcePins()` → `sourcePins[]`
+- `window._getLineSources()` → `lineSources[]`
+- `window._getAreaSources()` → `areaSources[]`
+
+Receiver positions come from the existing `window._getAllLatLngs()` (returning `{ r1: {lat,lng}, r2: {lat,lng}, … }`). Receiver heights come from the pre-existing global `getReceiverHeight(idx)` which reads `recvHeights[key]` (overrides) with fallback to `iso_receiverHeight`. Cached receiver ground elevations live on `window.recvGroundElevations` and are preferred over a fresh DEM sample.
+
+#### `THREE.Group` containers
+
+Three groups added to the scene during build, one per category — enables Phase 6 to toggle an entire category with `group.visible = !group.visible`:
+
+| Group | Contains | `.name` |
+|---|---|---|
+| `_3dSourcesGroup` | All point / line / area source meshes (not building sources — those are Phase 3) | `sources` |
+| `_3dReceiversGroup` | All receiver cone meshes | `receivers` |
+| `_3dLabelsGroup` | All sprite labels (sources + receivers) | `labels` |
+
+Groups are created fresh on every build (inside `buildAllSourcesAndReceivers()`), so a close → reopen cycle starts with clean state. Nulled on close; `scene.traverse` in `disposeScene()` walks into the groups and disposes every `.geometry` / `.material` / `.material.map`.
+
+#### Geometry by type
+
+| Type | Geometry | Material | Notes |
+|---|---|---|---|
+| Point source | `SphereGeometry(0.8, 12, 8)` — same as receivers; distinguished from receivers by colour only | `MeshLambertMaterial({ color: 0xE53E3E })` | Y prefers `source.groundElevation_m` (pre-fetched), falls back to `sampleTerrainAt()` |
+| Line source | `TubeGeometry(CatmullRomCurve3, max(16, (N−1)×8), 0.5, 8)` | `MeshLambertMaterial({ color: 0xE53E3E, transparent: true, opacity: 0.9 })` | Each vertex elevated to `terrainY + height_m` |
+| Area source | `BufferGeometry` from `ShapeUtils.triangulateShape` | `MeshLambertMaterial({ color: 0xE53E3E, transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false })` | Per-vertex Y, `renderOrder: 2` (above ground zones) |
+
+#### Receiver cone colours
+
+Exactly matches the 2D map marker palette so mental mapping between views is instant:
+
+| Receiver | Colour |
+|---|---|
+| R1 | `#2563EB` blue |
+| R2 | `#16A34A` green |
+| R3 | `#D97706` amber |
+| R4 | `#7C3AED` purple |
+
+Geometry is `SphereGeometry(0.8, 12, 8)`, positioned with the **sphere centre at the receiver point** (`groundY + buildingY + receiverHeight`) — natural visual for "person / ear at this point", and paired with the 0.8–1.4 m source bursts for matched marker weight. Receivers without a placed map marker are skipped entirely.
+
+#### `_makeLabelSprite(text)` sprite helper
+
+Canvas-rendered text label that billboards to face the camera. At [`index.html:4911`](../index.html:4911):
+
+1. 256 × 64 pixel `<canvas>` with `bold 28px sans-serif` text.
+2. White fill with a 4-pixel black outline for legibility against any background (sky, terrain, building roof, cone).
+3. Truncated to 17 chars + `…` if the name is long.
+4. `CanvasTexture` wrapped in `SpriteMaterial({ map, depthTest: false, transparent: true })` — labels are readable **through** geometry (point of a label is to tag something even when something visually occludes it).
+5. World-unit sprite scale `20 × 5` — big enough at typical site distances, not dominant.
+6. `renderOrder: 10` so `depthTest: false` actually wins over other geometry in the draw order.
+
+`_addLabel(text, x, y, z)` positions the sprite in world space and adds it to `_3dLabelsGroup`. Offsets tuned to the current marker sizes: sources get a label 3 m above the sphere centre, receivers get one 2.5 m above the sphere centre — both clear the 0.8 m radius with generous margin. Anti-stacking: collisions within a 5 m XZ radius bump the label Y by 4 m per prior label.
+
+Labels are added during geometry construction — there's no "add labels afterwards" phase. Phase 6's label-toggle button will flip `_3dLabelsGroup.visible`.
+
+#### Canvas texture disposal
+
+`SpriteMaterial.map` is a `CanvasTexture` that holds references to both the backing `<canvas>` element and its GPU texture. `material.dispose()` does NOT cascade into `.map`, so `disposeScene()` at [`index.html:3733`](../index.html:3733) was extended to explicitly call `.map.dispose()` before `.dispose()`. Without this, repeated open / close cycles leaked both canvas nodes and GPU textures.
+
+### Toolbar controls (Phase 6)
+
+A bottom toolbar inside the 3D modal exposes session-only view controls. No GPU resources, no persistence, no changes to geometry — the controls read / write boolean properties on existing scene objects.
+
+#### Layout
+
+Flex row at the bottom of the inner modal box, below the canvas. `#0f0f1e` background matching the header, thin `#2a2a44` top border. The canvas container has `flex: 1 1 auto` and the toolbar has `flex: 0 0 auto`, so the canvas shrinks automatically to fit between header and toolbar — no manual resize maths. Order left-to-right:
+
+```
+[Vert × slider + value readout] [|] [Wireframe] [Labels] [Grid] [Axes] [|] [Reset view]
+```
+
+#### Controls
+
+| Control | Target | Default | Shortcut |
+|---|---|---|---|
+| Vert × slider (1.0× – 10.0×, step 0.5) | `_3dScene.scale.y` | 1.0× | `+` / `-` adjust ±0.5 |
+| Wireframe | `_3dTerrainMesh.material.wireframe` | off | `W` |
+| Labels | `_3dLabelsGroup.visible` | on | `L` |
+| Grid | `_3dGridHelper.visible` | off | `G` |
+| Axes | `_3dAxesHelper.visible` | off | `A` |
+| Reset view | `resetCameraToScene()` | — | `R` |
+
+The Wireframe button is created in a disabled state at modal-open time (terrain builds async, `_3dTerrainMesh` is null then) and re-wired inside `finaliseTerrainMesh()` once the mesh exists. If the fallback flat plane is in use instead of a real terrain mesh, the button stays disabled with a `"No terrain mesh (fallback plane in use)"` tooltip.
+
+#### Vertical exaggeration
+
+`_3dScene.scale.y = n` multiplies into the world transform of every child, so a single line scales the whole terrain / buildings / barriers / ground zones / sources / receivers stack on the Y axis uniformly. Sprite labels are unaffected because sprites use their own world-space positioning, so text stays legible at any exaggeration — exactly the behaviour you want for a verification tool.
+
+#### `resetCameraToScene()`
+
+At [`index.html:4103`](../index.html:4103). Builds a `THREE.Box3` across every `isMesh` / `isLine` child of the scene, skipping helpers (`GridHelper` / `AxesHelper`), lights, sprites (their positions are already covered by the source / receiver meshes they sit above), the debug marker, and the fallback plane (would skew the box for a tiny site with a 2 km fallback). Passes the union box to the existing Phase 2 `frameCameraToTerrain()` which computes a 45°-from-NE camera position at 1.5× the bbox diagonal and calls `controls.update()`.
+
+Empty-box fallback: if no geometry has accumulated (terrain still loading, no buildings/barriers/etc.), falls back to framing the terrain mesh alone, or — if even that isn't present — a synthetic 2 km box centred on the origin.
+
+#### Modal-scoped keyboard shortcuts
+
+Attached to `document` in capture phase inside `show3DModal()`, removed in `close3DModal()`. Handler gate:
+
+- Ignores when `_3dModalEl` is null (safety).
+- Ignores modifier combos (`ctrlKey` / `metaKey` / `altKey`).
+- Ignores `INPUT` / `TEXTAREA` / `SELECT` / contenteditable targets.
+
+When a handled key fires: `preventDefault` + `stopPropagation` + `stopImmediatePropagation`, so the global 2D keyboard handler at the end of `index.html` does NOT also fire. Verified live: while the modal is open, `R` resets the 3D camera and does NOT toggle the 2D ruler; after the modal closes the 3D handler is removed and `R` correctly activates the 2D ruler again.
+
+The cleanup pattern also nulls `_3dToolbarControls` (the ref bundle `{ exagSlider, applyExag, wire, labels, grid, axes }`) and `_3dToolbarKeyHandler` on close.
+
+### Future phases (not yet shipped)
+
+- **Phase 7**: optional propagation-path visualisation (source → receiver lines)

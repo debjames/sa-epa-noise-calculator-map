@@ -688,3 +688,169 @@ Prerequisite: Phase 2 validation scenario already entered (AADT 23600, Speed 60,
 89. **Save/load round-trip** — Save an assessment with barrier + ground zones, reload, load — all state preserved, predicted levels byte-identical to before save.
 
 90. **Simple / ISO convergence for G=0** — With `groundFactor = 0`, no barrier, one source / one receiver, the ISO 9613-2 and simple propagation methods must still match within 0.5 dB (the `max(Dz, Agr_bar)` change is a no-op when no barrier is present).
+
+## 3D Scene Viewer
+
+### Phase 1 — infrastructure
+
+91. **Button hidden when terrain off** — Load the app with Terrain disabled. `#threeDViewBtn` must be `display:none`. Enable Terrain; button appears in the Tools panel between `#terrainContourBtn` and `#buildingsToggleBtn` with the `V` keyboard-shortcut badge.
+
+92. **V key opens when visible** — Terrain ON, no input focused. Press `V`. Modal opens with role="dialog". Press `Escape`. Modal closes; focus returns to the button.
+
+93. **V key no-op when hidden** — Terrain OFF. Press `V`. No modal opens, no console error, no toast. Press `Escape` — does not throw.
+
+94. **Backdrop click closes** — Open the modal. Click the dark area outside the inner `#1a1a2e` box. Modal closes. Clicking inside the box (e.g. on the header, canvas, hint overlay) must NOT close.
+
+95. **10× open/close — WebGL context budget** — Open the modal, close it, repeat 10 times. No "too many WebGL contexts" warning in console. `renderer.forceContextLoss()` must be doing its job.
+
+### Phase 2 — terrain mesh
+
+96. **Adelaide Hills relief** — Set map view over a hilly area (e.g. Mount Lofty, zoom 13–14). Enable Terrain, wait for LiDAR tiles to fetch. Open 3D View. Terrain mesh should show visible relief with the ridgelines corresponding to the same contour lines visible on the 2D layer when Contours is toggled on.
+
+97. **Flat site colour-ramp normalisation** — Set map view over a flat industrial area (e.g. Port Adelaide, zoom 15). Enable Terrain, wait. Open 3D View. Colour variation across the mesh must still be visible (not uniform green) thanks to the min-max normalisation — even a <5 m elevation range should map across the full green → brown → tan palette.
+
+98. **SRTM-only remote site** — Set map view over a location outside LiDAR coverage (e.g. inland SA). Enable Terrain, wait for SRTM fallback. Open 3D View. Mesh renders but coarser; `DEMCache.getAllWCSRasters()` should include entries with `source === 'srtm'`.
+
+99. **No-terrain fetched yet — fallback banner** — Fresh page reload. Enable Terrain, immediately open 3D View before tiles finish loading. Expect a yellow banner reading "No terrain data available. Enable Terrain and wait for it to load, then reopen 3D View." and a 2 km flat grey plane. Close, wait for the fetch to finish, reopen — now the real mesh builds.
+
+100. **Partial coverage gaps** — Set map view where LiDAR coverage is partial (e.g. an edge tile). Open 3D View. Mesh should render with visible gaps where the NaN-skip logic drops cells whose corners are uncovered — NO cliff artifacts from zero-filling.
+
+101. **Escape during chunked sampling** — Set a very wide view (zoom 10–11) with a large number of tiles; open 3D View. Press `Escape` while "Building terrain mesh… N%" is still updating. Modal closes cleanly. No console errors. Reopen — build runs from scratch without issue.
+
+102. **Grid + axes helpers hidden by default** — Open 3D View. In devtools, query `THREE.GridHelper` / `THREE.AxesHelper` children of the scene via `window._3dAddMarker(…).parent.children`. Both exist but `.visible === false`. Manually toggle `.visible = true` via console — grid renders at terrain-appropriate scale, axes render at the origin. Phase 7 will add toolbar buttons to flip these.
+
+### Phase 3 — buildings
+
+103. **OSM-only project** — Load / open a project in a dense urban area with the OSM Buildings layer on. Open 3D View. All OSM footprints appear as extruded grey volumes at the correct positions. Heights resolved from OSM `heightM` / `height` / `levels × 3`; missing-height buildings get the 6 m fallback.
+
+104. **Merged-mesh performance** — With 200+ OSM buildings in view, orbit should stay ≥ 30 fps in a real browser. The whole OSM set is a single `Mesh` named `osm-buildings` — verify via `scene.traverse` that there's exactly one such mesh regardless of building count.
+
+105. **Self-intersecting polygon tolerance** — Inject a bowtie polygon into `window._buildings`, open 3D View. Console may log `[3D] triangulation failed for building footprint …` (warning, not error). Other buildings still render. Scene doesn't crash.
+
+106. **Custom building appears blue** — Draw a 10 m custom building in 2D. Open 3D View. The custom building renders blue (`#4a90d9`, opacity 0.8), visibly distinct from surrounding OSM grey.
+
+107. **No double-render for custom** — Same scenario as 106. In devtools, count meshes whose name matches either `osm-buildings` OR `custom-building-*`. The custom building's id should appear only in the custom mesh — id-dedup in `buildOSMBuildings` prevents the same footprint rendering both grey (OSM pass) and blue (custom pass).
+
+108. **baseHeightM platform** — Draw a custom building with `baseHeightM = 5`, `heightM = 10`. Open 3D View. Base sits 5 m above terrain at the centroid-sampled elevation; top 15 m above terrain. Visible "floating platform" effect is expected.
+
+109. **Building source orange material** — Draw a building source, `height_m = 8`. Open 3D View. Renders with the same footprint silhouette as a custom building would, but orange (`#E67E22`, opacity 0.8). Material matches the 2D "this is a source" styling convention.
+
+110. **Buildings on sloping terrain** — Place a custom building on a visibly-sloping part of the terrain (e.g. a hillside). Building base sits at the centroid-sampled elevation. Small clipping/floating at the downhill / uphill edges is acceptable at v1 (Phase 6 may add per-vertex terrain-following later).
+
+111. **Empty project** — New project, no buildings of any kind. Open 3D View. Scene renders terrain (or fallback plane) only, no errors.
+
+112. **10× open/close with buildings** — Project with OSM + custom + building source present. Open / close the modal 10 times. No memory growth in DevTools Memory tab. Scene teardown traverses all mesh types and disposes geometries + materials correctly.
+
+113. **Post-close 2D intact** — After testing 111–112, close the modal. 2D map building layer still toggles on/off normally; custom building edit / delete still works; building source context menu still fires. No state leaked between 3D and 2D.
+
+### Phase 4 — barriers and ground zones
+
+114. **Barrier on flat ground** — Draw a 3 m barrier with both endpoints over flat terrain. Open 3D View. A green wall (opacity 0.85) appears at the correct XZ position. Bottom edge is flat; top edge exactly 3 m above. A darker-green accent line runs along the crest.
+
+115. **Barrier across sloping ground — bottom edge follows terrain** — Draw a barrier with one endpoint on high ground and the other on low ground (e.g. across a hillside at zoom 14). Open 3D View. The bottom edge of each segment is at its respective terrain elevation + `baseHeightM`; the two base corners of a given quad are at DIFFERENT Y values. Top edge remains uniformly `heightM` above each base — the two top corners are also at different Y values, matching the bottom-edge slope. Verify in devtools: read the barrier's `geometry.attributes.position` and check the 4 verts of a single segment quad — `BL.y` ≠ `BR.y` by the terrain delta across the segment.
+
+116. **Barrier next to building — height comparison** — Draw a 10 m barrier adjacent to a 6 m custom building. Open 3D View. From any orbit angle the barrier is clearly taller than the building. The crest accent line is visible above the building roofline.
+
+117. **Multi-segment barrier — connected wall, no gaps** — Draw a barrier with 3+ vertices (e.g. a U-shape around a receiver). Open 3D View. Wall segments connect cleanly at shared vertices — no visible gaps or overlaps. The crest line passes through every barrier vertex.
+
+118. **Suppressed barrier — invisible in 3D** — Mark a barrier as `suppressed: true` in 2D (or via devtools). Open 3D View. The suppressed barrier does NOT render — no mesh, no crest line. Unsuppress it → reopen → it renders normally.
+
+119. **Ground zone G=0 (hard)** — Draw a ground zone with G=0. Open 3D View. Flat grey (`#9E9E9E`) semi-transparent overlay appears on the terrain surface. The underlying terrain colour is still visible THROUGH the zone (confirms `depthWrite: false` working).
+
+120. **Ground zone G=0.5 (mixed)** — Draw a zone with G=0.5. Open 3D View. Olive (`#7A8B4A`) overlay — visibly between the grey-0 and green-1 stops. Hard to mistake for either.
+
+121. **Ground zone G=1 (soft)** — Draw a zone with G=1. Open 3D View. Green (`#4CAF50`) overlay. Three zones (G=0, G=0.5, G=1) side-by-side should show a clear grey → olive → green progression.
+
+122. **Ground zone on sloping terrain — follows the slope** — Draw a zone across a hillside. Open 3D View. The fill follows the terrain contour (per-vertex Y sampling), not a flat plane cutting through the hill. +0.2 m offset means no z-fighting / flicker.
+
+123. **Empty project — barriers + zones path** — New project with no barriers and no ground zones but one terrain mesh. Open 3D View. Scene renders terrain only. No `ground-zone-*` / `barrier-*` meshes in the scene. No console errors.
+
+124. **Overlapping zones** — Draw two ground zones whose polygons overlap. Open 3D View. Both zones render; in the overlap region the blending adds (two × 0.4 transparent layers). No z-fighting. `renderOrder: 1` on both keeps them above the terrain cleanly.
+
+125. **10× open/close with barriers + zones** — Project with multiple barriers (including suppressed) and several ground zones (various G values). Open / close 10 times. No memory growth in DevTools Memory tab. Scene teardown disposes `barrier-*` meshes, `barrier-crest-*` Lines, and `ground-zone-*` meshes — the `scene.traverse` pass catches Line objects because they have the same `.geometry` + `.material` shape as Mesh.
+
+126. **Post-close 2D barriers + zones still work** — After all the above, close the modal. 2D barrier drag-to-move, delete-key removal, suppress toggle still work; ground zone edit (G value, polygon drag) still fires correctly. No state leaked.
+
+### Phase 5 — sources, receivers, and labels
+
+127. **Point source at 5 m height** — Place a point source, set height to 5 m. Open 3D View. Red sphere (`#E53E3E`) appears at the correct XZ position with Y = terrain-at-source + 5 m. Label "Source 1" (or the source's name) floats 5 m above the sphere.
+
+128. **Cached ground elevation preferred over re-sample** — Place a source on a hillside, wait for terrain fetch so `source.groundElevation_m` is set, then artificially override it (e.g. `sourcePins[0].groundElevation_m = 99`). Open 3D View. Sphere Y = 99 + height_m, NOT the DEM-sampled value — confirms the code uses the stored value over a fresh `sampleTerrainAt()`.
+
+129. **Line source as 3D tube** — Draw a 3-vertex line source at 2 m above terrain. Open 3D View. A red tube (`TubeGeometry`) follows the polyline smoothly with 0.5 m radius, elevated 2 m above the terrain at each vertex. Bends are smoothed (CatmullRomCurve3) without over-tessellating straight sections. Label "Conveyor" floats near the centroid.
+
+130. **Area source as semi-transparent red polygon** — Draw an area source at 1 m above terrain. Open 3D View. Red (`#E53E3E`) flat polygon with `opacity 0.5`, per-vertex Y so on sloping ground it follows the slope. Terrain visible THROUGH the zone (`depthWrite: false`). Renders above ground zones (`renderOrder: 2` > zone's 1). Label floats above the centroid.
+
+131. **Receiver R1 blue** — Place Receiver 1. Open 3D View. Blue (`#2563EB`) cone appears with its base at `terrain + receiver_height`, apex pointing up 4 m higher. Label "R1" (or custom name if set) 6 m above the apex.
+
+132. **All four receivers with distinct colours** — Place all four receivers. Open 3D View. Four cones at the four positions, colours R1 blue / R2 green / R3 amber / R4 purple matching the 2D map markers exactly.
+
+133. **Unplaced receivers skipped** — Place only R1 and R3. Open 3D View. Only two cones in the scene (blue and amber). No `receiver-r2` / `receiver-r4` meshes, no "R2" / "R4" labels.
+
+134. **Custom receiver name in label** — In the RHS drawer, set Receiver 1's name to something like "Living room". Open 3D View. The R1 label reads "Living room" (truncated to 17 chars with `…` if longer), not "R1".
+
+135. **Label billboarding** — Open 3D View with labels present. Orbit 360° around the scene. Labels rotate to always face the camera — text is always readable.
+
+136. **Labels readable through geometry** — Place a source directly behind a tall building (from the current camera angle). Open 3D View. The source sphere is occluded by the building, but its label is still visible through / over the building (`depthTest: false`).
+
+137. **Source positions match 2D map** — Take screenshots of the 2D map with sources + receivers placed, then open 3D View and orbit to a plan (top-down) view. Source XZ positions relative to buildings / roads should match the 2D map exactly.
+
+138. **Building sources vs point sources visually distinct** — Project with both a building source (Phase 3 orange extrusion) and point sources (Phase 5 red sphere). Open 3D View. The two types are unambiguous — building source is a tall orange box, point source is a small red sphere.
+
+139. **Empty project** — New project, no sources and no receivers (receivers cleared). Open 3D View. Scene renders terrain + buildings + barriers + zones only, no errors. `sources` / `receivers` / `labels` groups exist but have zero children.
+
+140. **10× open/close — canvas texture leak check** — Project with ~10 sources and 4 receivers (14 labels total). Open / close the modal 10 times. DevTools Memory tab: no sustained growth. Performance tab: confirm no "Detached nodes" accumulating from the `<canvas>` elements that back label sprites. The `disposeScene()` `.map.dispose()` call must be doing its job.
+
+141. **Post-close 2D source / receiver interactions** — After all the above, close the modal. Drag a source to a new position in 2D — works. Open the source edit panel — works. Drag receiver R1 to a new position — works. No state leaked between 3D and 2D.
+
+### Phase 6 — toolbar controls
+
+142. **Toolbar layout** — Open 3D View. A flex-row toolbar appears at the bottom of the modal with dark `#0f0f1e` background, thin top border. Left-to-right: `Vert × [slider] 1.0×` | `Wireframe` | `Labels` | `Grid` | `Axes` | `Reset view`. Canvas fills the space between header and toolbar with no gap.
+
+143. **Vert slider at 1×** — Open 3D View. Slider defaults to position 1, readout reads `1.0×`. `_3dScene.scale.y === 1` (verify in devtools). Scene shows true elevation scale.
+
+144. **Vert slider to 5×** — Drag the slider to position 5. Readout updates live to `5.0×`. Terrain relief visibly amplified (hilltops 5× taller); buildings and barriers stretched vertically; sprite labels unchanged (sprites are unaffected by scene scale — this is correct behaviour).
+
+145. **Vert slider to 10×** — Drag to max. Readout `10.0×`. Extreme exaggeration visible. Scene remains coherent — no flickering, no geometry missing.
+
+146. **Wireframe toggle on** — Click `Wireframe`. Terrain mesh renders as triangle wireframe (can see the ~250² grid structure). Button takes the blue active style.
+
+147. **Wireframe toggle off** — Click `Wireframe` again. Terrain returns to solid shaded surface. Button style returns to inactive.
+
+148. **Labels toggle off** — Click `Labels`. All sprite labels (source names, receiver names) disappear from the scene. Button active style flips off.
+
+149. **Labels toggle on** — Click `Labels` again. Labels reappear at their original positions.
+
+150. **Grid toggle on** — Click `Grid`. The `THREE.GridHelper` becomes visible at terrain min elevation (or −0.1 m on the fallback plane). Sized to the terrain extent.
+
+151. **Axes toggle on** — Click `Axes`. The 20-unit `THREE.AxesHelper` becomes visible at the scene origin. Red = +X (east), green = +Y (up), blue = +Z (south).
+
+152. **Reset view** — Orbit / zoom / pan far away so the scene is barely visible. Click `Reset view`. Camera snaps to the 45° NE overview, framing the whole scene — terrain + buildings + barriers + sources + receivers all in view.
+
+153. **Reset view with partial scene** — Project with terrain only (no buildings / barriers / sources). Click `Reset view`. Camera frames the terrain mesh cleanly.
+
+154. **`W` key toggles wireframe** — Modal open. Focus NOT in an input. Press `W`. Wireframe toggles on. Press `W` again — off. Matches button click behaviour.
+
+155. **`L` key toggles labels** — Press `L` — labels hide. Press `L` again — labels show. 
+
+156. **`G` key toggles grid** — Press `G` — grid shows. Press `G` again — hides. Does NOT activate the 2D Ground Zone draw mode (`stopImmediatePropagation` beats the 2D handler).
+
+157. **`A` key toggles axes** — Press `A` — axes show. Press `A` again — hides. Does NOT activate the 2D Area Source draw mode.
+
+158. **`R` key resets camera** — Orbit away. Press `R`. Camera returns to overview. Does NOT toggle the 2D Ruler.
+
+159. **`+` key increases exaggeration** — Press `+` twice from 1.0×. Slider and readout advance to 2.0×, scene Y scale = 2.
+
+160. **`-` key decreases exaggeration** — Press `-` once from 2.0×. Down to 1.5×. `-` cannot go below 1.0×; `+` cannot go above 10.0×.
+
+161. **Shortcuts inert when modal closed** — Close the modal. Press `R`. 2D Ruler button activates (its normal behaviour). The 3D keyboard handler has been removed cleanly in `close3DModal()`. Click the ruler button to deactivate before continuing.
+
+162. **Shortcuts skip when typing in an input** — Reopen modal. Focus into any future input (or the main app's address search in the background — the modal's focus trap should prevent this, but verify shortcuts don't fire if somehow the target is an input).
+
+163. **Wireframe button disabled on fallback plane** — Open 3D View WITHOUT fetching terrain (immediately after enabling Terrain, before tiles arrive). The modal shows the fallback plane + banner. `Wireframe` button appears greyed out / disabled with a tooltip `"No terrain mesh (fallback plane in use)"`. Clicking does nothing. Pressing `W` also does nothing.
+
+164. **Toolbar state resets on each open** — Open modal, set slider to 8×, toggle wireframe on, toggle labels off. Close modal. Reopen. Slider reads `1.0×`, Wireframe off, Labels on — all defaults. No stale state.
+
+165. **10× open/close with toolbar interaction** — Open, slide Vert to 5×, toggle buttons, close. Repeat 10 times. No memory growth in DevTools. No console errors. The toolbar keydown listener is cleanly removed each time — open DevTools Listeners view on `document` and verify only one `keydown` capture listener is present while the modal is open, zero when closed.
+
+166. **No console errors** — After the full Phase 6 walkthrough (142–165) the console has zero errors and zero new warnings.
