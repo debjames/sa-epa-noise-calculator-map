@@ -20264,9 +20264,21 @@ setInitialCollapseState();
     var exportBtn = document.getElementById('exportJsonBtn');
     if (exportBtn) exportBtn.addEventListener('click', function() {
       try {
+        // v3: compute fresh predictions synchronously so the saved JSON carries
+        // results (not just inputs). runCasePredictions writes into
+        // window.casePredictions and triggers a UI re-render; it's cheap for
+        // typical assessments (<1 s for 4 receivers × 8 cases).
+        if (typeof runCasePredictions === 'function') {
+          try {
+            runCasePredictions();
+          } catch (e) {
+            console.warn('runCasePredictions failed during export; casePredictions will be omitted.', e);
+          }
+        }
+
         var data = {};
         data._format = 'resonate-noise-tool';
-        data._version = 2;
+        data._version = 3;
         data._exportedAt = new Date().toISOString();
 
         // State
@@ -20344,7 +20356,8 @@ setInitialCollapseState();
         // Distances: no longer exported — computed from marker coordinates.
         // v1 files may contain data.distances; ignored on load.
 
-        // Predicted levels
+        // Predicted levels (legacy v1/v2 — per receiver × period, from manual
+        // localStorage entries. Kept unchanged for backward compatibility.)
         data.predictions = {};
         ['r1','r2','r3','r4'].forEach(function(rid) {
           ['day','eve','night','lmax'].forEach(function(per) {
@@ -20352,6 +20365,22 @@ setInitialCollapseState();
             if (v) data.predictions[rid + '_' + per] = v;
           });
         });
+
+        // v3: per-assessment-case, per-receiver results computed by
+        // runCasePredictions(). Shape:
+        //   { caseId: { r1: { predicted, criteria, delta, complies, ... }, ... } }
+        // Consumers should check data._version >= 3 before relying on this.
+        // Deep-clone to strip references and any non-serialisable values.
+        if (window.casePredictions && typeof window.casePredictions === 'object') {
+          try {
+            data.casePredictions = JSON.parse(JSON.stringify(window.casePredictions));
+          } catch (e) {
+            console.warn('casePredictions serialisation failed; omitting from export.', e);
+            data.casePredictions = {};
+          }
+        } else {
+          data.casePredictions = {};
+        }
 
         // Characteristic penalties
         data.recvPenalties = JSON.parse(JSON.stringify(recvPenalties));
@@ -21907,6 +21936,19 @@ setInitialCollapseState();
         window._caseManualOverrides = data.caseManualOverrides || {};
       }
       if (typeof renderAssessmentCases === 'function') renderAssessmentCases();
+
+      // v3: restore per-case predictions if present in the save file. They'll be
+      // overwritten the next time runCasePredictions fires (it's debounced at
+      // 500 ms after any state change), but pre-populating window.casePredictions
+      // avoids transient blank tables between load and the first re-render.
+      if (data.casePredictions && typeof data.casePredictions === 'object') {
+        try {
+          window.casePredictions = JSON.parse(JSON.stringify(data.casePredictions));
+          casePredictions = window.casePredictions;
+        } catch (e) {
+          console.warn('Failed to restore casePredictions from save file; will recompute.', e);
+        }
+      }
 
       // 16. Re-render detected zones panel for VIC, then push undo snapshot
       setTimeout(function() {

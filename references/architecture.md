@@ -1527,3 +1527,56 @@ The cleanup pattern also nulls `_3dToolbarControls` (the ref bundle `{ exagSlide
 ### Future phases (not yet shipped)
 
 - **Phase 7**: optional propagation-path visualisation (source → receiver lines)
+
+## Save Assessment JSON — schema version 3
+
+`data._format = 'resonate-noise-tool'`, `data._version = 3` (bumped from 2).
+
+### What's new in v3
+
+Per-case, per-receiver prediction results are now embedded in the export:
+
+```
+data.casePredictions = {
+  [caseId]: {
+    r1: { predicted, predictedRaw, criteria, delta, complies } | null,
+    r2: { … } | null,
+    r3: { … } | null,
+    r4: { … } | null
+  },
+  …
+}
+```
+
+Music cases (`criteriaType === 'dts_dpf_4.6'`) store band data:
+
+```
+data.casePredictions[musicCaseId] = {
+  r1: {
+    bands: [{ freq, predicted, criteria, delta, complies }, …],
+    overallComplies
+  },
+  …
+}
+```
+
+Shape matches the in-memory `window.casePredictions` structure populated by `runCasePredictions()` at [`index.html:12613`](../index.html:12613). Only enabled cases are present (matches the existing global).
+
+### Generation
+
+The `#exportJsonBtn` handler at [`index.html:20265`](../index.html:20265) calls `runCasePredictions()` **synchronously** immediately before building the `data` object, then deep-clones `window.casePredictions` into `data.casePredictions`. Synchronous (not the 500 ms-debounced `_triggerCasePredictions()`) because the user explicitly pressed Save and wants fresh results.
+
+### Restoration
+
+`loadAssessment()` at [`index.html:21286`](../index.html:21286) restores `window.casePredictions` from `data.casePredictions` if present (deep-cloned), so the assessment-cases panel paints the restored numbers on first render instead of flashing blank until `_triggerCasePredictions()` fires. The loaded values are authoritative until any state change re-triggers computation.
+
+### Backward compatibility
+
+- `data._version = 1` and `= 2` files load unchanged. The loader reads `data.casePredictions` only if present; otherwise it remains empty and the existing runtime-recompute path populates it on first debounce tick.
+- Legacy `data.predictions` field (per receiver × period, from `loadPred(id)` localStorage reads) preserved unchanged — different structure, different population path.
+- Consumers should gate on `data._version >= 3` before relying on `data.casePredictions`.
+
+### Downstream consumers
+
+- `process_template.py` (SA Enviro document-generator pipeline) reads `data.casePredictions` directly when `_version >= 3`, skipping the previous browser-DOM-scrape path.
+- Any future batch processor / API / in-browser "Generate Report" button will read the same field from the same JSON.

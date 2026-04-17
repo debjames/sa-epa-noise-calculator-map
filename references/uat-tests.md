@@ -1,5 +1,52 @@
 # UAT Tests
 
+## Save Assessment JSON schema v3 — embedded case predictions
+
+Prerequisite: tool loaded, at least one source and one receiver placed (or a saved v2/v3 assessment ready to load).
+
+### Fresh assessment → save → verify v3 fields present
+
+1. Place one source (any type, any location) and one receiver.
+2. Wait 500 ms for the auto-debounced `runCasePredictions()` to fire and populate the UI (prediction rows appear in the assessment-cases panel).
+3. Click **Save Assessment**, accept the default filename.
+4. Open the downloaded JSON in a text editor. Expected:
+   - `"_format": "resonate-noise-tool"`
+   - `"_version": 3`
+   - `"casePredictions"` is present and is an object (non-empty if at least one assessment case is enabled).
+   - For each enabled case key, entries for each placed receiver (`r1`–`r4`) with `{ predicted, predictedRaw, criteria, delta, complies }`.
+   - For any music case (`criteriaType === "dts_dpf_4.6"`), entries contain `{ bands: [{freq, predicted, criteria, delta, complies}, …], overallComplies }` instead.
+   - Legacy `"predictions": {}` field still present (empty unless localStorage has `pred_*` values).
+
+### Round-trip — save, reload, confirm restoration
+
+1. After the Save above, reload the page (fresh tool state, no session).
+2. Click **Load Assessment**, pick the JSON from the previous step.
+3. Immediately after the load animation completes, expected: the assessment-cases panel shows prediction rows populated instantly — **no blank → filled transition** (no 500 ms flash). Verifies `loadAssessment` restored `window.casePredictions` from the save.
+4. Make any state change (e.g., nudge a source). Predictions recompute via the normal debounce path (the restored values get overwritten with fresh ones). Verify numbers update within ~600 ms.
+
+### Legacy v1/v2 file still loads
+
+1. Take any pre-existing v2 assessment JSON (e.g., `test-104-frome-st.json`) — it will have `_version: 2` and `predictions: {}`, no `casePredictions` field.
+2. Load it. Expected: loads without error; prediction rows appear within 500 ms of the debounced recompute (NOT instantly — no stored predictions to restore); no console warnings other than any pre-existing v1/v2 migration messages.
+3. Save the assessment again (now writes v3). Expected: downloaded JSON has `_version: 3` and populated `casePredictions`.
+
+### Synchronous-on-export behaviour
+
+1. Place a source + receiver. Do NOT wait for the debounce — within ~100 ms click **Save Assessment** directly.
+2. Expected: the downloaded JSON has fully populated `casePredictions` for every enabled case × placed receiver, NOT empty. Verifies the synchronous `runCasePredictions()` call at the top of the export handler (not the debounced trigger) runs before serialisation.
+
+### Error resilience
+
+1. With a normal assessment, temporarily set `window.casePredictions = { bad: { r1: { foo: () => 1 } } }` via DevTools (functions aren't JSON-serialisable).
+2. Click Save. Expected: save still succeeds, downloaded JSON has `"casePredictions": {…}` (with the function stripped by `JSON.stringify`) OR `"casePredictions": {}` (with a `console.warn` about serialisation failure), NEVER a broken / truncated file.
+
+### Not touched (regression checks)
+
+- Source / receiver placement, zone detection, propagation calculations, criteria derivation for any state (SA / VIC / NSW) — unchanged.
+- `runCasePredictions()` computation logic — unchanged.
+- Debounced `_triggerCasePredictions()` still fires on every state change.
+- 2D map rendering, 3D viewer, Save JPG, GIS Export (GeoJSON / KML / CSV), Methodology modal, Quick Reference panel — all unchanged.
+
 ## Methodology modal — focus management and a11y
 
 Prerequisite: tool loaded, LHS side panel expanded so `#side-panel-methodology-btn` is visible.
