@@ -5009,8 +5009,10 @@ body.disclaimer-visible .container {
     var v = barrier.vertices;
     if (!v || v.length < 2) return;
 
-    /* Normalise vertex shape and reject invalid points up front */
-    var pts = [];
+    /* Normalise vertex shape — store lat/lng alongside local x,z so
+       we can interpolate geodetic coordinates for terrain sampling at
+       intermediate sub-points during densification below. */
+    var userPts = [];
     for (var vi = 0; vi < v.length; vi++) {
       var rv = v[vi];
       var lat, lng;
@@ -5019,20 +5021,40 @@ body.disclaimer-visible .container {
       else continue;
       if (!isFinite(lat) || !isFinite(lng)) continue;
       var local = latLngToLocal(lat, lng, centre.lat, centre.lng);
-      /* Per-endpoint terrain + building roof + barrier base so the
-         bottom edge follows the ground slope AND rises where the
-         barrier crosses a building footprint. A barrier running from
-         open ground across a rooftop will step up at the vertex
-         where it crosses the building edge — per-vertex transition,
-         acceptable for v1.                                        */
-      var terrainY = sampleTerrainAt(lat, lng);
-      var buildingY = _3dBuildingHeightAt(lat, lng);
-      var baseY = (terrainY !== null ? terrainY : 0)
-                + buildingY
-                + (barrier.baseHeightM || 0);
-      pts.push({ x: local.x, z: local.z, baseY: baseY });
+      userPts.push({ lat: lat, lng: lng, x: local.x, z: local.z });
     }
-    if (pts.length < 2) return;
+    if (userPts.length < 2) return;
+
+    /* Sample base Y (terrain + building roof + baseHeightM) at a given
+       geodetic point. Centralised so the densification loop is clean. */
+    function _baseAt(lat, lng) {
+      var tY = sampleTerrainAt(lat, lng);
+      var bY = _3dBuildingHeightAt(lat, lng);
+      return (tY !== null ? tY : 0) + bY + (barrier.baseHeightM || 0);
+    }
+
+    /* Densify each user-placed segment to ~5 m sub-intervals so the
+       barrier bottom tracks intermediate terrain bumps. Without this, a
+       single long quad base is a straight line between two endpoint
+       heights — terrain that rises between those endpoints clips through
+       the barrier geometry. */
+    var pts = [];
+    for (var si = 0; si < userPts.length - 1; si++) {
+      var pA = userPts[si], pB = userPts[si + 1];
+      var segLen = Math.sqrt((pB.x - pA.x) * (pB.x - pA.x) + (pB.z - pA.z) * (pB.z - pA.z));
+      var nSteps = Math.max(1, Math.round(segLen / 5));
+      for (var step = 0; step < nSteps; step++) {
+        var tt = step / nSteps;
+        pts.push({
+          x:     pA.x   + tt * (pB.x   - pA.x),
+          z:     pA.z   + tt * (pB.z   - pA.z),
+          baseY: _baseAt(pA.lat + tt * (pB.lat - pA.lat), pA.lng + tt * (pB.lng - pA.lng))
+        });
+      }
+    }
+    /* Final user vertex */
+    var _lastU = userPts[userPts.length - 1];
+    pts.push({ x: _lastU.x, z: _lastU.z, baseY: _baseAt(_lastU.lat, _lastU.lng) });
 
     var heightM = barrier.heightM || 2;
     var segments = pts.length - 1;
@@ -5042,7 +5064,8 @@ body.disclaimer-visible .container {
     var indices   = new Uint32Array(segments * 6);
     var pOff = 0, iOff = 0;
 
-    /* Top-edge accent — one vertex per barrier vertex, connected in order */
+    /* Top-edge accent follows the densified sub-points so the crest
+       line also hugs the terrain (no sagging between user vertices). */
     var topPositions = new Float32Array(pts.length * 3);
     for (var t = 0; t < pts.length; t++) {
       topPositions[t * 3]     = pts[t].x;
@@ -13835,9 +13858,11 @@ function triggerRecalculation() {
 }
 
 /** Point-source attenuation — delegates to calc.js.
- *  Returns 0 during initial load race (module not yet loaded); recalc fires once ready. */
+ *  Falls back to inline formula if bridge not yet set, matching SharedCalc.attenuatePoint. */
 function attenuatePoint(Lw, r) {
-  return window._calc.attenuatePoint(Lw, r);
+  if (window._calc) return window._calc.attenuatePoint(Lw, r);
+  if (r <= 0) r = 0.1;
+  return Lw - (20 * Math.log10(r) + 8);
 }
 
 function rowTotalLw(baseLw, n, opValue){
@@ -19348,8 +19373,9 @@ function initPropagationMethod() {
       if (dg) dg.style.display = (_concaweMetMode === 'direct') ? '' : 'none';
       if (cg) cg.style.display = (_concaweMetMode === 'computed') ? '' : 'none';
       _updateConcaweMet();
-      render();
-      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      try { render(); } finally {
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      }
     });
   });
 
@@ -19358,15 +19384,16 @@ function initPropagationMethod() {
   if (metCatSel) {
     metCatSel.addEventListener('change', function() {
       _concaweMetCategory = parseInt(this.value) || 4;
-      render();
-      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      try { render(); } finally {
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      }
     });
   }
 
   // Computed mode inputs — all trigger recompute + render
   ['concaweWindSpeed', 'concaweWindDir'].forEach(function(id) {
     var el = document.getElementById(id);
-    if (el) el.addEventListener('change', function() { _updateConcaweMet(); render(); if (window._recomputeNoiseMap) window._recomputeNoiseMap(); });
+    if (el) el.addEventListener('change', function() { _updateConcaweMet(); try { render(); } finally { if (window._recomputeNoiseMap) window._recomputeNoiseMap(); } });
   });
 
   // Time of day — also toggles solar/cloud visibility
@@ -19378,15 +19405,16 @@ function initPropagationMethod() {
       if (sg) sg.style.display = (this.value === 'day') ? '' : 'none';
       if (cg) cg.style.display = (this.value === 'night') ? '' : 'none';
       _updateConcaweMet();
-      render();
-      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      try { render(); } finally {
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      }
     });
   }
 
   // Solar radiation + cloud cover selects
   ['concaweSolarRad', 'concaweCloudCover'].forEach(function(id) {
     var el = document.getElementById(id);
-    if (el) el.addEventListener('change', function() { _updateConcaweMet(); render(); if (window._recomputeNoiseMap) window._recomputeNoiseMap(); });
+    if (el) el.addEventListener('change', function() { _updateConcaweMet(); try { render(); } finally { if (window._recomputeNoiseMap) window._recomputeNoiseMap(); } });
   });
 
   // Wire up ISO parameter inputs
