@@ -25,6 +25,7 @@ var calcAlphaAtm         = SharedCalc.calcAlphaAtm;
 var calcBarrierAttenuation = SharedCalc.calcBarrierAttenuation;
 var calcBarrierWithEndDiffraction = SharedCalc.calcBarrierWithEndDiffraction;
 var calcISOatPoint        = SharedCalc.calcISOatPoint;
+var calcConcaweAtPoint    = SharedCalc.calcConcaweAtPoint;
 var getDominantReflection = SharedCalc.getDominantReflection;
 var ISO_FREQS            = SharedCalc.OCT_FREQ;
 
@@ -40,6 +41,8 @@ self.onmessage = function(e) {
     var method = opts.propagationMethod || 'simple';
     var isoParams = opts.isoParams || {};
     var recvHeight = isoParams.receiverHeight || 1.5;
+    var concaweMetCategory = opts.concaweMetCategory || 4;
+    console.log('[WORKER] Started: method=' + method + ', concaweMetCategory=' + concaweMetCategory + ', sources=' + sources.length + ', hasSpectrum=' + (sources[0] ? !!sources[0].spectrum : 'N/A'));
     var demCache = opts.demCache || null;   // flat [{lat, lng, elev}] from main thread
     var terrainEnabled = !!opts.terrainEnabled;
     var debugTerrain = !!opts.debugTerrain;
@@ -741,6 +744,73 @@ self.onmessage = function(e) {
             // Lmax ISO but no spectrum: simple propagation + any computed barriers/terrain
             var effectiveIL_lmax = Math.max(buildingIL_broadband, terrIL);
             lp = attenuatePoint(src.combinedLw, dist) - effectiveIL_lmax;
+          } else if (method === 'concawe' && src.spectrum) {
+            // CONCAWE with spectrum — K3 ground + K4 met + K5 height + barrier/terrain
+            if (r === 0 && c === 0) console.log('[WORKER] CONCAWE+spectrum branch, metCat=' + concaweMetCategory + ', src0 hasSpec=' + !!src.spectrum);
+            var _pathGWC = _wkPathG(src.lat, src.lng, lat, lng, src.heightM, recvHeight, dist);
+            var _gScalarC = (typeof _pathGWC === 'object')
+              ? ((_pathGWC.Gs || 0) + (_pathGWC.Gr || 0) + (_pathGWC.Gm || 0)) / 3 : _pathGWC;
+            var concParamsW = { receiverHeight: recvHeight, groundFactor: _gScalarC,
+                temperature: isoParams.temperature, humidity: isoParams.humidity,
+                metCategory: concaweMetCategory };
+            var _bBaseWC = _barrierW ? (_barrierW.baseHeightM || 0) : 0;
+            var _bGapWC  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
+            if (_bBaseWC > 0 && _bGapWC > 0 && !(_barrierW && _barrierW.rayInGap)) {
+              var lp_tC = calcConcaweAtPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
+                barrierDelta, recvHeight, concParamsW, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
+              var lp_gC = calcConcaweAtPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
+                _bGapWC, recvHeight, concParamsW, 0, 0, _barrInfoW, terrBands);
+              lp = (!isFinite(lp_tC)) ? lp_gC : (!isFinite(lp_gC)) ? lp_tC
+                 : 10 * Math.log10(Math.pow(10, lp_tC / 10) + Math.pow(10, lp_gC / 10));
+            } else {
+              lp = calcConcaweAtPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
+                barrierDelta, recvHeight, concParamsW, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
+            }
+          } else if (method === 'concawe' && groundZones.length > 0) {
+            // CONCAWE without spectrum but with ground zones: flat spectrum
+            if (r === 0 && c === 0) console.log('[WORKER] CONCAWE+groundZones branch, metCat=' + concaweMetCategory);
+            var flatCW = [];
+            for (var fcb = 0; fcb < 8; fcb++) flatCW.push(src.combinedLw - 9.03);
+            var _pathGWCS = _wkPathG(src.lat, src.lng, lat, lng, src.heightM, recvHeight, dist);
+            var _gScalarCS = (typeof _pathGWCS === 'object')
+              ? ((_pathGWCS.Gs || 0) + (_pathGWCS.Gr || 0) + (_pathGWCS.Gm || 0)) / 3 : _pathGWCS;
+            var concParamsWS = { receiverHeight: recvHeight, groundFactor: _gScalarCS,
+                temperature: isoParams.temperature, humidity: isoParams.humidity,
+                metCategory: concaweMetCategory };
+            var _bBaseWCS = _barrierW ? (_barrierW.baseHeightM || 0) : 0;
+            var _bGapWCS  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
+            if (_bBaseWCS > 0 && _bGapWCS > 0 && !(_barrierW && _barrierW.rayInGap)) {
+              var lp_tCS = calcConcaweAtPoint(flatCW, src.heightM, dist, 0,
+                barrierDelta, recvHeight, concParamsWS, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
+              var lp_gCS = calcConcaweAtPoint(flatCW, src.heightM, dist, 0,
+                _bGapWCS, recvHeight, concParamsWS, 0, 0, _barrInfoW, terrBands);
+              lp = (!isFinite(lp_tCS)) ? lp_gCS : (!isFinite(lp_gCS)) ? lp_tCS
+                 : 10 * Math.log10(Math.pow(10, lp_tCS / 10) + Math.pow(10, lp_gCS / 10));
+            } else {
+              lp = calcConcaweAtPoint(flatCW, src.heightM, dist, 0,
+                barrierDelta, recvHeight, concParamsWS, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
+            }
+          } else if (method === 'concawe') {
+            // CONCAWE without spectrum and without ground zones: flat spectrum
+            if (r === 0 && c === 0) console.log('[WORKER] CONCAWE catch-all branch, metCat=' + concaweMetCategory);
+            var flatCWN = [];
+            for (var fcbn = 0; fcbn < 8; fcbn++) flatCWN.push(src.combinedLw - 9.03);
+            var concParamsWN = { receiverHeight: recvHeight, groundFactor: isoParams.groundFactor || 0.5,
+                temperature: isoParams.temperature, humidity: isoParams.humidity,
+                metCategory: concaweMetCategory };
+            var _bBaseWCN = _barrierW ? (_barrierW.baseHeightM || 0) : 0;
+            var _bGapWCN  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
+            if (_bBaseWCN > 0 && _bGapWCN > 0 && !(_barrierW && _barrierW.rayInGap)) {
+              var lp_tCN = calcConcaweAtPoint(flatCWN, src.heightM, dist, 0,
+                barrierDelta, recvHeight, concParamsWN, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
+              var lp_gCN = calcConcaweAtPoint(flatCWN, src.heightM, dist, 0,
+                _bGapWCN, recvHeight, concParamsWN, 0, 0, _barrInfoW, terrBands);
+              lp = (!isFinite(lp_tCN)) ? lp_gCN : (!isFinite(lp_gCN)) ? lp_tCN
+                 : 10 * Math.log10(Math.pow(10, lp_tCN / 10) + Math.pow(10, lp_gCN / 10));
+            } else {
+              lp = calcConcaweAtPoint(flatCWN, src.heightM, dist, 0,
+                barrierDelta, recvHeight, concParamsWN, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
+            }
           } else if (method === 'iso9613' && src.spectrum) {
             // ISO with spectrum — per-band terrain/barrier screening inside calcISOatPoint.
             // Compute per-region ground G from custom zones for this src→gridpoint path

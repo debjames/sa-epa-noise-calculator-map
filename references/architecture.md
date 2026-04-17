@@ -626,6 +626,7 @@ The `#app-header` is a single flex row (`display: flex; align-items: center; col
     ├── #exportJsonBtn          (Save Assessment)
     ├── #importJsonBtn          (Load Assessment)
     ├── #generateReportBtn      (Generate Report, default hidden)
+    ├── #savePdfBtn             (Save PDF — A4 criteria appendix, calls generatePDFAppendix())
     ├── #shareAssessmentBtn     (Share Assessment)
     └── #gisExportDropdown      (GIS Export dropdown — see below)
         ├── #gisExportHeaderBtn ("GIS Export ▾")
@@ -1527,3 +1528,87 @@ The cleanup pattern also nulls `_3dToolbarControls` (the ref bundle `{ exagSlide
 ### Future phases (not yet shipped)
 
 - **Phase 7**: optional propagation-path visualisation (source → receiver lines)
+
+## CONCAWE Propagation (Report 4/81)
+
+Third propagation method (alongside Simple and ISO 9613-2). Engine functions
+live in `shared-calc.js` inside the `SharedCalc` IIFE; re-exported from `calc.js`.
+
+### Data structures
+
+| Name | Type | Location |
+|------|------|----------|
+| `CONCAWE_K3_COEFFS` | `{ 63: [a0,a1,a2,a3], … 4000: [...] }` | `shared-calc.js` — polynomial coefficients per octave band |
+| `CONCAWE_GAMMA_TABLE` | `[[ψ, γ], …]` (9 entries) | `shared-calc.js` — Figure 9 grazing-angle lookup |
+
+### Functions
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `calcConcaweK3(d, freqHz, groundType)` | `(number, number, 'hard'\|'soft') → number` | K3 ground attenuation per band. Hard = −3 dB; soft = polynomial lookup. Distance clamped 100–2000 m. 8 kHz maps to 4 kHz. |
+| `lookupGamma(psiDeg)` | `(number) → number` | Linear interpolation of γ from the Figure 9 table. Clamped at table bounds. |
+| `calcConcaweK5(K3, K4, hs, hr, d)` | `(number, number, number, number, number) → number` | K5 source height correction. Returns 0 when hs ≤ 2 m or (K3+K4) ≤ −3. |
+
+| `CONCAWE_K4_TABLE` | `{ 1: {63:8, …}, … 6: {63:-2, …} }` | `shared-calc.js` — K4 Simplification 2 values per met category per band |
+
+### Functions (K4 meteorological)
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `calcConcaweK4(freqHz, metCategory)` | `(number, number) → number` | K4 met correction. Category 1–6, clamped. 8 kHz maps to 4 kHz. Positive = upwind atten, negative = downwind enhancement. |
+| `getPasquillClass(windSpeed, timeOfDay, solarRadiation, cloudCover)` | `(number, string, string, string) → string` | Pasquill stability class A–G (including A-B, B-C, C-D intermediates). |
+| `pasquillToGroup(pasquill)` | `(string) → string` | Maps Pasquill class to group: 'AB', 'CDE', or 'FG'. |
+| `getConcaweMetCategory(pasquillGroup, vectorWind)` | `(string, number) → number` | CONCAWE met category 1–6 from Pasquill group + vector wind (positive=downwind). |
+| `calcConcaweK4FromMet(freqHz, windSpeed, windDirection, sourceBearing, timeOfDay, solarRadiation, cloudCover)` | `(number, number, number, number, string, string, string) → {K4, metCategory, pasquillClass, vectorWind}` | Full-chain: raw met inputs → K4 + all intermediates. |
+
+### Functions (prediction chain)
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `calcConcaweAtPoint(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, concaweParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand)` | same shape as `calcISOatPoint` | Complete CONCAWE prediction. `concaweParams = {temperature, humidity, groundFactor, metCategory}`. Returns overall A-weighted Lp. |
+| `calcConcaweAtPointDetailed(...)` | same args | Returns `{total, distance, srcHeight, recvHeight, K1, metCategory, groundType, bands: [{freq, Lw, K1, K2, K3, K4, K5, K6, Aterr, Lp}]}`. |
+
+### Method routing
+
+Global `propagationMethod` can be `'simple'`, `'iso9613'`, or `'concawe'`.
+
+- **Main thread**: `calcPredAtReceiver()` routes both `iso9613` and `concawe` through `calcTotalISO9613()` → `calcISO9613forSourcePin()` → `calcISO9613single()` which branches to `calcConcaweAtPoint` for CONCAWE.
+- **Worker**: `noise-worker.js` checks `method === 'concawe'` before the ISO branches, calls `calcConcaweAtPoint` directly.
+- **LAmax**: continues using existing ISO/simple path.
+
+### CONCAWE state fields (index.html)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `_concaweMetCategory` | 4 | Met category 1–6 (4=neutral) |
+| `_concaweMetMode` | `'direct'` | `'direct'` or `'computed'` |
+| `_concaweWindSpeed` | null | Prompt 4 UI |
+| `_concaweWindDirection` | null | Prompt 4 UI |
+| `_concaweTimeOfDay` | null | Prompt 4 UI |
+| `_concaweSolarRadiation` | null | Prompt 4 UI |
+| `_concaweCloudCover` | null | Prompt 4 UI |
+
+All serialised under `data.propagation.*` in save/load JSON.
+
+### Meteorological input panel (`#concaweMetPanel`)
+
+Visible only when `propagationMethod === 'concawe'`. Two modes controlled by radio buttons:
+
+- **Mode A (direct)**: `<select id="concaweMetCatSelect">` with options 1–6. Directly sets `_concaweMetCategory`.
+- **Mode B (computed)**: wind speed, wind direction, time of day, solar radiation (day only), cloud cover (night only). Computes Pasquill class → group → met category via SharedCalc functions. Live display strip shows intermediates.
+
+`_updateConcaweMet(skipRender)` — recomputes `_concaweMetCategory` from current UI state and source/receiver positions. Called on:
+- Any met input change
+- Mode toggle
+- At the top of `calcTotalISO9613()` when CONCAWE computed mode is active (covers drag-move of source/receiver)
+
+`_concaweBearing(lat1, lng1, lat2, lng2)` — geodetic bearing in degrees 0–360. Used to compute source bearing from first receiver to first source for vector wind calculation.
+
+### Console test harnesses
+
+`window.testConcaweK3K5()` — prints K3 soft/hard tables, expected-value
+spot checks, K5 with elevated source, and gamma interpolation checks.
+
+`window.testConcaweK4()` — prints K4 direct lookup table for all 6
+categories, Pasquill class tests, met category tests, and full-chain
+vector wind test.

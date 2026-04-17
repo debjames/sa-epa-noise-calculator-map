@@ -37,3 +37,17 @@ export const calcAgrPerBand         = SC.calcAgrPerBand;
 export const calcAgrBarrier         = SC.calcAgrBarrier;
 export const calcAlphaAtm           = SC.calcAlphaAtm;
 export const OCT_FREQ               = SC.OCT_FREQ;
+// CONCAWE (Report 4/81)
+export const CONCAWE_K3_COEFFS      = SC.CONCAWE_K3_COEFFS;
+export const CONCAWE_GAMMA_TABLE    = SC.CONCAWE_GAMMA_TABLE;
+export const CONCAWE_K4_TABLE       = SC.CONCAWE_K4_TABLE;
+export const calcConcaweAtPoint      = SC.calcConcaweAtPoint;
+export const calcConcaweAtPointDetailed = SC.calcConcaweAtPointDetailed;
+export const calcConcaweK3          = SC.calcConcaweK3;
+export const calcConcaweK5          = SC.calcConcaweK5;
+export const lookupGamma            = SC.lookupGamma;
+export const calcConcaweK4          = SC.calcConcaweK4;
+export const getPasquillClass       = SC.getPasquillClass;
+export const pasquillToGroup        = SC.pasquillToGroup;
+export const getConcaweMetCategory  = SC.getConcaweMetCategory;
+export const calcConcaweK4FromMet   = SC.calcConcaweK4FromMet;

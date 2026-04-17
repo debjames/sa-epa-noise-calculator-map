@@ -741,3 +741,190 @@ Empirically against ISO/TR 17534-3 reference values:
 The residual error in T08 / T11 is from approximations elsewhere (Fresnel
 z, region-extent G averaging, lateral-path energy summation) — not from
 the ground-barrier interaction.
+
+## CONCAWE Propagation Model (Report 4/81, Manning 1981)
+
+Alternative propagation method. CONCAWE expresses total excess attenuation
+as K1 + K2 + K3 + K4 + K5 + K6 + K7, where each K-term is an independent
+correction. This section documents the terms implemented so far.
+
+### K3 — Ground attenuation — [`shared-calc.js:calcConcaweK3`](../shared-calc.js)
+
+Polynomial form per octave band:
+
+    K3 = a₀ + a₁·log₁₀(d) + a₂·(log₁₀(d))² + a₃·(log₁₀(d))³
+
+where d = source-receiver distance in metres.
+
+#### Coefficient table (Report 4/81 Appendix II)
+
+| Band (Hz) | a₀    | a₁     | a₂     | a₃     |
+|-----------|-------|--------|--------|--------|
+| 63        | 33.4  | −35.04 | 9.159  | −0.3508|
+| 125       | 8.96  | −35.8  | 20.4   | −2.85  |
+| 250       | −64.2 | 48.6   | −9.53  | 0.634  |
+| 500       | −74.9 | 82.23  | −26.921| 2.9258 |
+| 1000      | −100.1| 104.68 | −34.693| 3.8068 |
+| 2000      | −7.0  | 3.5    | 0.0    | 0.0    |
+| 4000      | −16.9 | 6.7    | 0.0    | 0.0    |
+
+- 2000 Hz and 4000 Hz are linear (a₂ = a₃ = 0).
+- 8000 Hz: not in CONCAWE; uses 4000 Hz coefficients as extrapolation.
+
+#### Hard vs soft ground
+
+- **Hard ground** (G = 0): K3 = −3 dB for all frequencies and distances.
+  This is the hemispherical spreading correction (coherent reflection from
+  a perfectly reflecting plane).
+- **Soft ground** (G > 0): polynomial lookup as above.
+
+The tool's existing ground factor G maps directly: G = 0 → hard, G > 0 → soft.
+CONCAWE does not use intermediate G values — ground is binary.
+
+#### Distance clamping (100–2000 m)
+
+The polynomial curves were empirically fitted over the 100–2000 m range.
+Below 100 m the 100 m value is used. Above 2000 m the 2000 m value is
+used — the 500 Hz and 1000 Hz cubic terms cause physical rollover (K3
+starts decreasing) beyond ~2000 m, which is non-physical.
+
+### K5 — Source height correction — [`shared-calc.js:calcConcaweK5`](../shared-calc.js)
+
+K5 reduces the ground + meteorological effect (K3 + K4) for elevated
+sources, based on the grazing angle between source, receiver, and ground.
+
+    ψ = atan((hs + hr) / d)      [grazing angle, degrees]
+    γ = lookupGamma(ψ)           [from Figure 9 table]
+    K5 = (K3 + K4 + 3) · (γ − 1)
+
+#### Guards
+
+- K5 = 0 when hs ≤ 2 m (source at or near ground level).
+- K5 = 0 when (K3 + K4) ≤ −3 dB (ground + met effect already small).
+
+#### Gamma table (Figure 9, linear interpolation)
+
+| ψ (deg) | γ    |
+|---------|------|
+| 0.0     | 1.00 |
+| 0.5     | 0.90 |
+| 1.0     | 0.70 |
+| 1.5     | 0.54 |
+| 2.0     | 0.38 |
+| 2.5     | 0.26 |
+| 3.0     | 0.16 |
+| 4.0     | 0.06 |
+| 5.0     | 0.01 |
+
+Values between table entries use linear interpolation. Below 0° returns
+1.00; above 5° returns 0.01 (clamped).
+
+The exp(−0.6ψ) approximation cited in some references is NOT used — it
+is too inaccurate at small grazing angles (ψ < 2°) where most real
+industrial noise scenarios fall.
+
+### Complete CONCAWE prediction chain — [`shared-calc.js:calcConcaweAtPoint`](../shared-calc.js)
+
+    Lp(f) = Lw(f) + adj − (K1 + K2 + K3 + K4 + K5 + Kscreen)
+
+Where:
+- K1 = geometric divergence = 20·log₁₀(d) + 11 dB (= Adiv, reused from ISO)
+- K2 = atmospheric absorption = α(f) × d (= Aatm, reused from ISO via calcAlphaAtm)
+- K3 = CONCAWE ground attenuation (polynomial or −3 dB hard)
+- K4 = CONCAWE meteorological correction (Simplification 2)
+- K5 = CONCAWE source height correction (gamma table)
+- Kscreen = max(K6, Aterr) where K6 = barrier IL (Maekawa, reused), Aterr = terrain IL
+
+**Key difference from ISO 9613-2:** K3 is always applied regardless of barrier
+presence. ISO uses the §7.4 insertion-loss form where Agr and Abar interact
+via `AgrBar = max(Dz, Agr_subpath)`. CONCAWE treats ground and barrier as
+independent additive terms.
+
+### K4 — Meteorological correction — [`shared-calc.js:calcConcaweK4`](../shared-calc.js)
+
+Uses Simplification 2 from CONCAWE Report 4/81 §6.2 — single value per
+meteorological category per octave band, independent of distance. Accuracy
+loss vs the full distance-dependent polynomial model is only 0.5 dB(A).
+
+Convention: **positive K4 = upwind attenuation** (reduces noise at
+receiver), **negative K4 = downwind enhancement** (increases noise).
+
+#### K4 table (Simplification 2)
+
+| Cat | 63 Hz | 125 Hz | 250 Hz | 500 Hz | 1 kHz | 2 kHz | 4 kHz |
+|-----|-------|--------|--------|--------|-------|-------|-------|
+| 1   | 8.0   | 5.0    | 6.0    | 8.0    | 10.0  | 6.0   | 8.0   |
+| 2   | 3.0   | 2.0    | 5.0    | 7.0    | 11.5  | 7.5   | 8.0   |
+| 3   | 2.0   | 1.5    | 4.0    | 3.5    | 6.0   | 5.0   | 4.5   |
+| 4   | 0     | 0      | 0      | 0      | 0     | 0     | 0     |
+| 5   | −1.0  | −2.0   | −4.0   | −4.0   | −4.5  | −3.0  | −4.5  |
+| 6   | −2.0  | −4.0   | −5.0   | −6.0   | −5.0  | −4.5  | −7.0  |
+
+- Category 1 = strong upwind, Category 6 = strong downwind.
+- Category 4 = neutral (zero correction).
+- 8 kHz: uses 4 kHz values (extrapolation beyond CONCAWE range).
+
+#### Meteorological category determination
+
+Three-layer lookup: raw met inputs → Pasquill class → stability group →
+CONCAWE met category.
+
+**Layer 1: Pasquill stability class** (`getPasquillClass`)
+
+Inputs: wind speed at 10 m (m/s), time of day, solar radiation (day) or
+cloud cover (night).
+
+Day table (solar radiation in mW/cm²):
+
+| Wind (m/s)  | >60  | 30–60 | <30 |
+|-------------|------|-------|-----|
+| ≤1.5        | A    | A-B   | B   |
+| 2.0–2.5     | A-B  | B     | C   |
+| 3.0–4.5     | B    | B-C   | C   |
+| 5.0–6.0     | C    | C-D   | D   |
+| >6.0        | D    | D     | D   |
+
+Night table (cloud cover in octas):
+
+| Wind (m/s)  | 0–3  | 4–7   | 8   |
+|-------------|------|-------|-----|
+| ≤1.5        | F    | F     | D   |
+| 2.0–2.5     | F    | E     | D   |
+| 3.0–4.5     | E    | D     | D   |
+| 5.0–6.0     | D    | D     | D   |
+| >6.0        | D    | D     | D   |
+
+Special cases:
+- Transition (1 hr before sunset / after sunrise): always D.
+- Category G: night, clear sky (0–3 octas), wind < 0.5 m/s.
+
+**Layer 2: Pasquill group** (`pasquillToGroup`)
+
+| Classes           | Group |
+|-------------------|-------|
+| A, A-B, B, B-C    | AB    |
+| C, C-D, D, E      | CDE   |
+| F, G              | FG    |
+
+**Layer 3: Met category** (`getConcaweMetCategory`)
+
+From Pasquill group + vector wind speed (m/s, positive = downwind):
+
+| Group | v < −3 | −3 ≤ v < −0.5 | −0.5 ≤ v < 0.5 | 0.5 ≤ v < 3 | v ≥ 3 |
+|-------|--------|---------------|-----------------|-------------|-------|
+| AB    | 1      | 2             | 3               | 4           | 5     |
+| CDE   | 2      | 3             | 4               | 5           | 6     |
+| FG    | 3      | 4             | 5               | 6           | 6     |
+
+#### Vector wind calculation
+
+    vectorWind = windSpeed × cos(windDirection − sourceBearing)
+
+- `windDirection`: degrees, direction wind is coming FROM (met convention).
+- `sourceBearing`: degrees, bearing from receiver to source.
+- When `windDirection = sourceBearing`, wind blows from source toward
+  receiver = downwind = positive vectorWind.
+
+The convenience wrapper `calcConcaweK4FromMet()` computes vectorWind,
+derives Pasquill class → group → met category, and returns K4 plus all
+intermediate values.

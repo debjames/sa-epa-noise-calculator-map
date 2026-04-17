@@ -1879,6 +1879,7 @@ body.disclaimer-visible .container {
     <button class="pdf-btn" id="exportJsonBtn" type="button">Save Assessment</button>
     <button class="pdf-btn" id="importJsonBtn" type="button">Load Assessment</button>
     <button class="pdf-btn" id="generateReportBtn" type="button" style="display:none">Generate Report</button>
+    <button class="pdf-btn" id="savePdfBtn" type="button" title="Export A4 criteria appendix PDF for acoustic reports" onclick="generatePDFAppendix(this)">Save PDF</button>
     <button class="pdf-btn" id="shareAssessmentBtn" type="button" title="Generate a read-only link to share this assessment with a client">Share Assessment</button>
   </div>
 
@@ -2282,6 +2283,7 @@ body.disclaimer-visible .container {
                   <div class="mp-sub-row"><span>Grid:</span><select id="noiseMapGridSel" style="flex:1;" title="Grid spacing for noise map calculation"><option value="auto">Auto</option><option value="1">1 m</option><option value="2">2 m</option><option value="5">5 m</option><option value="10">10 m</option><option value="20">20 m</option><option value="50">50 m</option><option value="100">100 m</option></select><span id="noiseMapGridLabel" style="font-size:9px;"></span></div>
                   <div class="mp-sub-row"><span>Range:</span><input type="number" id="legendMin" value="25" min="0" max="119" step="1" style="width:40px;" title="Legend minimum dB"><span>&#8211;</span><input type="number" id="legendMax" value="70" min="1" max="120" step="1" style="width:40px;" title="Legend maximum dB"><span>dB</span></div>
                   <div class="mp-sub-row"><span>Interval:</span><input type="number" id="legendInterval" value="5" min="1" max="20" step="1" style="width:40px;" title="Contour interval dB"><span>dB</span></div>
+                  <div id="noiseMapMethodLabel" style="font-size:10px;color:#9ca3af;padding:2px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
                   <div id="noiseViewRow" style="display:none;flex-direction:column;gap:3px;padding-top:4px;margin-top:2px;border-top:1px solid rgba(255,255,255,0.12);">
                     <span style="font-size:10px;color:#9ca3af;font-weight:600;padding:0 4px;">VIEW</span>
                     <div style="display:flex;gap:2px;padding:0 4px;">
@@ -2973,10 +2975,11 @@ body.disclaimer-visible .container {
     <div class="grid2" style="padding-top:0;">
       <div class="card span2">
         <h2>Propagation method</h2>
-        <div class="p" id="propMethodDesc">Select the sound propagation model. The <b>simple method</b> uses geometric spreading only (−20 log<sub>10</sub> d − 8 dB). <b>ISO 9613-2</b> adds frequency-dependent atmospheric absorption (ISO 9613-1) and ground attenuation per octave band (§7.3.1 detailed method with source, receiver, and middle region contributions).</div>
+        <div class="p" id="propMethodDesc">Select the sound propagation model. The <b>simple method</b> uses geometric spreading only (−20 log<sub>10</sub> d − 8 dB). <b>ISO 9613-2</b> adds frequency-dependent atmospheric absorption (ISO 9613-1) and ground attenuation per octave band (§7.3.1 detailed method with source, receiver, and middle region contributions). <b>CONCAWE</b> (Report 4/81, Manning 1981) uses empirical ground curves and meteorological category corrections instead of ISO ground regions.</div>
         <div class="penalty-group" id="propMethodGroup">
           <button class="penalty-btn active" data-val="simple">Simple (geometric spreading)</button>
-          <button class="penalty-btn" data-val="iso9613">ISO 9613-2</button>
+          <button class="penalty-btn" data-val="iso9613">ISO 9613-2:1996</button>
+          <button class="penalty-btn" data-val="concawe">CONCAWE</button>
         </div>
         <div id="iso9613Params" style="display:none;margin-top:14px;">
           <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;">
@@ -3049,6 +3052,79 @@ body.disclaimer-visible .container {
               <button id="isoValidateBtn" onclick="runISOValidation()" style="font-size:11px;padding:4px 10px;border:1px solid #3498db;background:#3498db;color:#fff;border-radius:4px;cursor:pointer;">Run validation</button>
             </div>
             <div id="isoValidationResults" style="display:none;margin-top:8px;font-size:11px;max-height:300px;overflow-y:auto;"></div>
+          </div>
+        </div>
+        <!-- CONCAWE meteorological conditions panel -->
+        <div id="concaweMetPanel" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Meteorological conditions</div>
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px;">
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
+              <input type="radio" name="concaweMetMode" value="direct" checked> Direct category
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
+              <input type="radio" name="concaweMetMode" value="computed"> Compute from met data
+            </label>
+          </div>
+          <!-- Mode A: Direct category -->
+          <div id="concaweDirectGroup">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <label class="small" style="font-weight:600;white-space:nowrap;">Met category</label>
+              <select id="concaweMetCatSelect" style="width:auto;min-width:0;">
+                <option value="1">1 — Strong upwind, unstable</option>
+                <option value="2">2 — Moderate upwind</option>
+                <option value="3">3 — Light upwind / crosswind</option>
+                <option value="4" selected>4 — Neutral (no met correction)</option>
+                <option value="5">5 — Light downwind</option>
+                <option value="6">6 — Moderate/strong downwind</option>
+              </select>
+            </div>
+          </div>
+          <!-- Mode B: Computed from met data -->
+          <div id="concaweComputedGroup" style="display:none;">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <label class="small" style="font-weight:600;white-space:nowrap;">Wind speed (m/s)</label>
+                <input type="number" id="concaweWindSpeed" value="3" min="0" max="20" step="0.5" style="width:80px;">
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <label class="small" style="font-weight:600;white-space:nowrap;">Wind from (°)</label>
+                <input type="number" id="concaweWindDir" value="0" min="0" max="360" step="5" style="width:80px;">
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <label class="small" style="font-weight:600;white-space:nowrap;">Time of day</label>
+                <select id="concaweTimeOfDay" style="width:auto;min-width:0;">
+                  <option value="day">Day</option>
+                  <option value="transition">Transition (1hr sunset/sunrise)</option>
+                  <option value="night" selected>Night</option>
+                </select>
+              </div>
+              <div id="concaweSolarGroup" style="display:none;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <label class="small" style="font-weight:600;white-space:nowrap;">Solar radiation</label>
+                  <select id="concaweSolarRad" style="width:auto;min-width:0;">
+                    <option value=">60">&gt;60 mW/cm² (strong sun)</option>
+                    <option value="30-60">30–60 mW/cm² (moderate)</option>
+                    <option value="<30">&lt;30 mW/cm² (overcast day)</option>
+                  </select>
+                </div>
+              </div>
+              <div id="concaweCloudGroup">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <label class="small" style="font-weight:600;white-space:nowrap;">Cloud cover</label>
+                  <select id="concaweCloudCover" style="width:auto;min-width:0;">
+                    <option value="0-3">0–3 octas (clear)</option>
+                    <option value="4-7">4–7 octas (partly cloudy)</option>
+                    <option value="8">8 octas (overcast)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="small" style="margin-top:4px;color:var(--muted);">Wind direction: meteorological convention — direction wind blows FROM (0°=N, 90°=E, 180°=S, 270°=W)</div>
+            <div id="concaweComputedResult" style="margin-top:8px;padding:8px 12px;background:rgba(0,0,0,0.04);border-radius:4px;font-size:12px;">
+              Pasquill: <strong id="concawePasquillDisplay">—</strong>
+              &nbsp;|&nbsp; Vector wind: <strong id="concaweVectorWindDisplay">—</strong>
+              &nbsp;|&nbsp; Met category: <strong id="concaweMetCatDisplay">—</strong>
+            </div>
           </div>
         </div>
       </div>
@@ -5908,7 +5984,7 @@ body.disclaimer-visible .container {
 <div class="card" id="methodologyCard" style="margin-top:14px;">
   <h2>Methodology</h2>
   <div class="h2" style="font-size:13px;">Sound pressure level prediction</div>
-  <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Two propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), and ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity). It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
+  <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Three propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity), and CONCAWE (Report 4/81, Manning 1981) which adds meteorological corrections for six atmospheric stability categories. It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
   <div class="h2" style="font-size:13px;margin-top:18px;">Data sources</div>
   <div class="h2" style="font-size:12px;margin-top:10px;">Planning zones</div>
   <div class="p">Planning zone classifications are detected automatically via state planning portal APIs based on the placed receiver location. The data source varies by jurisdiction:</div>
@@ -5986,8 +6062,28 @@ body.disclaimer-visible .container {
   <div class="h2" style="font-size:13px;">Barrier attenuation (ISO 9613-2 &sect;7.4)</div>
   <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. For each source&ndash;receiver pair the dominant intervening barrier is identified and its Maekawa single- and double-diffraction attenuation <em>D<sub>z</sub></em> is computed per octave band from path-length difference. Three diffraction paths are energy-summed: over the barrier top and around each lateral end. The over-top path is capped at 20&thinsp;dB (single diffraction) or 25&thinsp;dB (double diffraction); lateral paths are uncapped. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.</div>
   <div class="p">ISO 9613-2 defines the barrier term <em>A<sub>bar</sub></em> as an insertion loss, not a separate additive attenuation. The combined ground-plus-barrier contribution is therefore computed as <em>A<sub>grBar</sub></em> = max(<em>D<sub>z</sub></em>, <em>A<sub>gr,bar</sub></em>) per band, where <em>A<sub>gr,bar</sub></em> is the ground effect recomputed along two sub-paths (source &rarr; barrier top, barrier top &rarr; receiver) with the barrier top acting as a pseudo-receiver then a pseudo-source for Table 3 region factors. This &sect;7.4 sub-path treatment is threaded through every ISO propagation call site &mdash; point, line, area, building, and road sources, for both receiver predictions and the noise map. It is most consequential for grazing geometries where per-band ground attenuation can exceed the barrier&rsquo;s diffraction loss at some frequencies; for tall barriers at short distances the barrier IL dominates and the sub-path calculation is a no-op.</div>
+  <div class="h2" style="font-size:13px;">CONCAWE propagation model (Report 4/81)</div>
+  <div class="p">The CONCAWE model predicts noise propagation from industrial plants for a range of meteorological conditions. It was developed from field measurements at three European petrochemical complexes and uses octave band calculations from 63&thinsp;Hz to 4&thinsp;kHz (this tool extends to 8&thinsp;kHz using the 4&thinsp;kHz attenuation values as a conservative approximation). The predicted sound pressure level at a receiver is:</div>
+  <div class="p" style="font-style:italic;margin:6px 0 4px 12px;">L<sub>p</sub>(f) = L<sub>w</sub>(f) + D &minus; K1 &minus; K2 &minus; K3 &minus; K4 &minus; K5 &minus; K6</div>
+  <div class="p" style="margin-top:4px;">where:</div>
+  <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;line-height:1.8;">
+    <li><strong>K1</strong> &mdash; Geometric spreading: 10&middot;log<sub>10</sub>(4&pi;d&sup2;)&thinsp;dB. Spherical propagation from a point source (identical to ISO 9613-2 A<sub>div</sub>).</li>
+    <li><strong>K2</strong> &mdash; Atmospheric absorption: per octave band, calculated from temperature and relative humidity per ISO 9613-1 (identical to ISO 9613-2 A<sub>atm</sub>).</li>
+    <li><strong>K3</strong> &mdash; Ground attenuation: for acoustically hard surfaces (concrete, water), K3&thinsp;=&thinsp;&minus;3&thinsp;dB. For soft ground (grass, soil), K3 is determined from empirical curves as a function of frequency and distance (CONCAWE Figure 1, Appendix II polynomials). Distance clamped to 100&ndash;2000&thinsp;m.</li>
+    <li><strong>K4</strong> &mdash; Meteorological correction: accounts for refraction by wind and temperature gradients. Six meteorological categories are defined from the Pasquill atmospheric stability class and the vector wind speed (component of wind from source to receiver). Category 1 represents strong upwind propagation with unstable atmosphere (greatest attenuation). Category 4 is neutral (zero correction). Category 6 represents moderate to strong downwind propagation (greatest enhancement). This implementation uses the Simplification 2 distance-independent K4 values from &sect;6.2, which the authors showed to have only 0.5&thinsp;dB(A) accuracy loss compared to the full distance-dependent polynomial model.</li>
+    <li><strong>K5</strong> &mdash; Source height correction: reduces the combined ground and meteorological effect (K3&thinsp;+&thinsp;K4) for elevated sources (height&thinsp;&gt;&thinsp;2&thinsp;m) based on the grazing angle between the source, receiver, and ground plane (CONCAWE Figure 9).</li>
+    <li><strong>K6</strong> &mdash; Barrier attenuation: calculated using the Maekawa diffraction method, consistent with SoundPLAN&rsquo;s implementation of CONCAWE which substitutes the General Prediction Method (GPM) barrier algorithm.</li>
+  </ul>
+  <div class="p">The model is validated for source&ndash;receiver distances of 100&ndash;2000&thinsp;m and wind speeds up to 7&thinsp;m/s.</div>
+  <div class="p" style="margin-top:6px;"><strong>Key differences from ISO 9613-2:</strong></div>
+  <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;line-height:1.8;">
+    <li><em>Ground effect:</em> CONCAWE uses single empirical curves based on neutral-condition measurements (Parkin &amp; Scholes). ISO 9613-2 uses a three-region detailed method (source, middle, receiver) based on favourable (downwind) conditions. CONCAWE ground attenuation (K3) is applied independently of barrier screening &mdash; there is no &sect;7.4 insertion-loss interaction.</li>
+    <li><em>Meteorological conditions:</em> CONCAWE explicitly models six weather categories. ISO 9613-2 assumes favourable (downwind) conditions and offers only a long-distance C<sub>met</sub> correction (not implemented in this tool). CONCAWE is preferred when assessments require prediction under specific meteorological conditions, particularly in Victoria where neutral conditions are often specified.</li>
+    <li><em>Frequency range:</em> CONCAWE covers 63&thinsp;Hz to 4&thinsp;kHz. This tool extends to 8&thinsp;kHz using the 4&thinsp;kHz attenuation values.</li>
+  </ul>
+  <div class="p" style="font-size:11px;color:var(--muted);margin-top:4px;">Reference: Manning, C.J. (1981). <em>The propagation of noise from petroleum and petrochemical complexes to neighbouring communities.</em> CONCAWE Report 4/81.</div>
   <div class="h2" style="font-size:13px;">L<sub>Amax</sub> barrier and terrain screening</div>
-  <div class="p">L<sub>Amax</sub> barrier and building attenuation is calculated using the Maekawa diffraction formula applied per octave band to the source L<sub>max</sub> spectrum. Ground effect (A<sub>gr</sub>) is not applied to L<sub>Amax</sub> predictions. Terrain screening is applied where enabled. Barrier and terrain screening is applied regardless of whether the simple or ISO 9613-2 propagation method is selected.</div>
+  <div class="p">L<sub>Amax</sub> barrier and building attenuation is calculated using the Maekawa diffraction formula applied per octave band to the source L<sub>max</sub> spectrum. Ground effect (A<sub>gr</sub>) is not applied to L<sub>Amax</sub> predictions. Terrain screening is applied where enabled. Barrier and terrain screening is applied regardless of the selected propagation method.</div>
   <div class="h2" style="font-size:13px;">Terrain screening &mdash; Deygout 3-edge method</div>
   <div class="p">Where ground elevation data is available, the terrain profile between each source and receiver is sampled from DEM data. The Geoscience Australia 5&thinsp;m LiDAR WCS service is queried as the primary source; Open-Elevation (SRTM &sim;30&thinsp;m resolution) is used as a fallback where WCS data is unavailable. The terrain profile is processed with the Deygout construction: the profile point with the greatest path-length difference is selected as the primary diffracting edge, and the source-side and receiver-side sub-profiles are then searched recursively for secondary edges. Up to three edges (one primary, two secondary) are considered per profile and their Maekawa <em>D<sub>z</sub></em> contributions combined per the Deygout energy-sum rule. Terrain diffraction is computed per octave band. Where terrain and building barriers coincide, the screening term is <em>A<sub>screen</sub></em> = max(<em>A<sub>bar</sub></em>, <em>A<sub>terr</sub></em>) per band, and this combined insertion loss enters the ground-barrier interaction (&sect;7.4) as a single <em>D<sub>z</sub></em>-equivalent value.</div>
   <div class="h2" style="font-size:13px;">Ground absorption zones</div>
@@ -8808,12 +8904,21 @@ let dayPenalty = 0;
 let nightPenalty = 0;
 let eveningPenalty = 0;
 
-// ──── ISO 9613-2 Propagation Method ────
-let propagationMethod = 'simple'; // 'simple' | 'iso9613'
+// ──── Propagation Method ────
+let propagationMethod = 'simple'; // 'simple' | 'iso9613' | 'concawe'
 
-// ISO 9613-2 default parameters
+// ISO 9613-2 / CONCAWE shared parameters
 let iso_receiverHeight = 1.5; // metres (standard receiver height)
 let iso_groundFactor = 0.5;   // G: 0=hard, 0.5=mixed, 1.0=soft/porous
+
+// CONCAWE-specific state (Prompt 4 UI will populate these)
+var _concaweMetCategory = 4;          // 1–6, default 4 (neutral, K4=0)
+var _concaweMetMode = 'direct';       // 'direct' (pick 1-6) or 'computed' (from met data)
+var _concaweWindSpeed = null;         // m/s at 10m height
+var _concaweWindDirection = null;     // degrees, met "from" convention
+var _concaweTimeOfDay = null;         // 'day' | 'night' | 'transition'
+var _concaweSolarRadiation = null;    // '>60' | '30-60' | '<30'
+var _concaweCloudCover = null;        // '0-3' | '4-7' | '8'
 
 // ── Ground absorption zones ──────────────────────────────────────────────────
 // Each zone: {id, name, g, vertices: [[lat,lng],...], _polygon (Leaflet ref)}
@@ -9966,7 +10071,11 @@ function calcAreaSourceAtReceiver(as, period, ri) {
 
     var specA = _asGetSpectrumA(as, period, lwPoint);
     var lp;
-    if (specA) {
+    if (specA && propagationMethod === 'concawe') {
+      lp = SharedCalc.calcConcaweAtPoint(specA, effectiveH, d, 0, barrierDelta, recHt,
+        { temperature: iso_temperature, humidity: iso_humidity, groundFactor: gf, metCategory: _concaweMetCategory },
+        endDL, endDR, barrInfoAS, null);
+    } else if (specA) {
       lp = SharedCalc.calcISOatPoint(specA, effectiveH, d, 0, barrierDelta, recHt, isoP, endDL, endDR, barrInfoAS);
     } else {
       // No spectrum: use broadband hemispherical propagation (attenuatePoint).
@@ -10159,7 +10268,7 @@ function calcLineSourceAtReceiver(ls, period, ri) {
     if (d < 0.1) d = 0.1;
 
     var lp;
-    if (propagationMethod === 'iso9613' && period !== 'lmax') {
+    if ((propagationMethod === 'iso9613' || propagationMethod === 'concawe') && period !== 'lmax') {
       // Build per-band spectrum for this segment
       var specA;
       if (specArr && specArr.length === 8) {
@@ -10196,10 +10305,16 @@ function calcLineSourceAtReceiver(ls, period, ri) {
       var gf = (typeof _gzComputePathG === 'function')
         ? _gzComputePathG(seg.lat, seg.lng, recLL.lat, recLL.lng, heightM, recHt, d)
         : iso_groundFactor;
-      var isoP = { receiverHeight: recHt, groundFactor: gf,
-                   temperature: iso_temperature, humidity: iso_humidity };
 
-      lp = SharedCalc.calcISOatPoint(specA, heightM, d, 0, barrierDelta, recHt, isoP, endDL, endDR, barrInfoLS);
+      if (propagationMethod === 'concawe') {
+        lp = SharedCalc.calcConcaweAtPoint(specA, heightM, d, 0, barrierDelta, recHt,
+          { temperature: iso_temperature, humidity: iso_humidity, groundFactor: gf, metCategory: _concaweMetCategory },
+          endDL, endDR, barrInfoLS, null);
+      } else {
+        var isoP = { receiverHeight: recHt, groundFactor: gf,
+                     temperature: iso_temperature, humidity: iso_humidity };
+        lp = SharedCalc.calcISOatPoint(specA, heightM, d, 0, barrierDelta, recHt, isoP, endDL, endDR, barrInfoLS);
+      }
     } else {
       // Simple propagation
       lp = attenuatePoint(lwSeg, d);
@@ -10341,6 +10456,16 @@ function getReceiverHeight(receiverIdx) {
 function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, recvHeight, endDeltaLeft, endDeltaRight, terrainPerBand, groundFactorOverride, barrierInfo) {
   var hR = (recvHeight !== undefined && Number.isFinite(recvHeight)) ? recvHeight : iso_receiverHeight;
   var gf = (groundFactorOverride !== undefined && groundFactorOverride !== null) ? groundFactorOverride : iso_groundFactor;
+
+  // CONCAWE path: terrain is handled internally (same as worker-side ISO path)
+  if (propagationMethod === 'concawe') {
+    return SharedCalc.calcConcaweAtPoint(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
+      temperature: iso_temperature, humidity: iso_humidity,
+      groundFactor: gf, metCategory: _concaweMetCategory
+    }, endDeltaLeft || 0, endDeltaRight || 0, barrierInfo || null, terrainPerBand || null);
+  }
+
+  // ISO 9613-2 path (unchanged)
   var result = SharedCalc.calcISOatPoint(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
     temperature: iso_temperature,
     humidity: iso_humidity,
@@ -10603,6 +10728,10 @@ function getSourceReflection(pin, receiverIdx) {
  *  @param {number} receiverIdx - 0-based receiver index
  *  @returns {number|string} predicted LAeq (rounded) or "" if invalid */
 function calcTotalISO9613(prefix, receiverIdx) {
+  // Recompute CONCAWE met category from current positions (handles drag)
+  if (propagationMethod === 'concawe' && _concaweMetMode === 'computed' && window._updateConcaweMet) {
+    window._updateConcaweMet(true); // skipRender=true to avoid recursion
+  }
   var totalLin = 0;
   var anySrc = false;
 
@@ -13130,6 +13259,360 @@ function _renderEmergTablePDF(pdf, margin, startY, cW, GOLD, DARK, MUTED) {
   return y;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   generatePDFAppendix() — A4 PDF criteria appendix for acoustic reports
+   Uses the Save JPG canvas-rendering pipeline for the zone map (handles
+   CORS/ESRI tiles correctly) and html2canvas screenshots for data tables.
+   ═══════════════════════════════════════════════════════════════════════════ */
+async function generatePDFAppendix(btn) {
+  if (btn) { btn.disabled = true; var origText = btn.textContent; btn.textContent = 'Exporting\u2026'; }
+  try {
+    var jsPDF = (window.jspdf || {}).jsPDF;
+    if (!jsPDF) throw new Error('jsPDF library not loaded');
+    if (!window.html2canvas) throw new Error('html2canvas not loaded');
+
+    var projNum = (document.getElementById('projectNumberInput') || {}).value || '';
+
+    // ── Helper: screenshot a DOM element ────────────────────────────────────
+    // Temporarily un-collapses ancestors, removes overflow clipping on
+    // .table-scroll containers, and widens the element so tables render
+    // at full width without text being cut off.
+    async function captureElement(el) {
+      if (!el) return null;
+      var restored = [];
+      var node = el;
+      while (node && node !== document.body) {
+        var cs = window.getComputedStyle(node);
+        if (cs.display === 'none') {
+          restored.push({ el: node, prop: 'display', val: node.style.display });
+          node.style.display = 'block';
+        }
+        if (node.classList && node.classList.contains('collapsed')) {
+          restored.push({ el: node, prop: 'class-collapsed', val: true });
+          node.classList.remove('collapsed');
+        }
+        // Remove overflow clipping on table-scroll containers
+        if (cs.overflowX === 'auto' || cs.overflowX === 'hidden' || cs.overflowX === 'scroll') {
+          restored.push({ el: node, prop: 'overflowX', val: node.style.overflowX });
+          node.style.overflowX = 'visible';
+        }
+        node = node.parentElement;
+      }
+      // Temporarily widen the element AND all tables inside it so narrow
+      // drawer tables render at full width without clipping text.
+      // Also widen the drawer panel container itself so the layout engine
+      // gives the table room to expand.
+      var widened = [];
+      // Widen the target element
+      widened.push({ el: el, mw: el.style.minWidth, w: el.style.width });
+      el.style.minWidth = '1100px';
+      el.style.width = '1100px';
+      // Widen all tables inside
+      el.querySelectorAll('table').forEach(function(tbl) {
+        widened.push({ el: tbl, mw: tbl.style.minWidth, w: tbl.style.width });
+        tbl.style.minWidth = '1100px';
+        tbl.style.width = '1100px';
+      });
+      // Widen the drawer panel container so it doesn't constrain the table
+      var drawer = document.getElementById('pdfArea');
+      if (drawer) {
+        widened.push({ el: drawer, mw: drawer.style.minWidth, w: drawer.style.width });
+        drawer.style.minWidth = '1200px';
+        drawer.style.width = '1200px';
+      }
+      try {
+        var c = await html2canvas(el, {
+          scale: 3, useCORS: true, logging: false,
+          backgroundColor: '#ffffff', removeContainer: true,
+          windowWidth: 1400
+        });
+        return { dataUrl: c.toDataURL('image/png'), aspect: c.height / c.width };
+      } finally {
+        widened.forEach(function(w) { w.el.style.minWidth = w.mw; w.el.style.width = w.w; });
+        restored.reverse().forEach(function(r) {
+          if (r.prop === 'class-collapsed') r.el.classList.add('collapsed');
+          else r.el.style[r.prop] = r.val;
+        });
+      }
+    }
+
+    // ── 1. Capture zone map ────────────────────────────────────────────────
+    // Keep the user's current view (aerial/street + zone overlay) exactly
+    // as-is. Only hide objects we don't want: sources, receivers, barriers,
+    // noise map, contours. This avoids the tile-reload problem caused by
+    // _prepareZoneCapture switching base maps.
+    var mapEl = document.getElementById('noise-map');
+    var _pdfRestore = [];
+    // Hide objects (sources, receivers, barriers) via the pins toggle
+    if (typeof _allObjVisible !== 'undefined' && _allObjVisible) {
+      var _pb = document.getElementById('pinsToggleBtn');
+      if (_pb) { _pb.click(); _pdfRestore.push(function() { var b = document.getElementById('pinsToggleBtn'); if (b && !_allObjVisible) b.click(); }); }
+    }
+    // Hide noise map canvas
+    if (typeof _noiseCanvasLayer !== 'undefined' && _noiseCanvasLayer &&
+        typeof _map !== 'undefined' && _map && _map.hasLayer(_noiseCanvasLayer)) {
+      var _origNoiseOp = _noiseCanvasLayer.options.opacity || 0.8;
+      _noiseCanvasLayer.setOpacity(0);
+      _pdfRestore.push(function() { _noiseCanvasLayer.setOpacity(_origNoiseOp); });
+    }
+    // Hide compliance canvas
+    if (typeof _complianceCanvasLayer !== 'undefined' && _complianceCanvasLayer &&
+        typeof _map !== 'undefined' && _map && _map.hasLayer(_complianceCanvasLayer)) {
+      var _origCompOp = _complianceCanvasLayer.options.opacity || 0.82;
+      _complianceCanvasLayer.setOpacity(0);
+      _pdfRestore.push(function() { _complianceCanvasLayer.setOpacity(_origCompOp); });
+    }
+    // Hide noise contour lines
+    if (typeof _noiseContourLayer !== 'undefined' && _noiseContourLayer &&
+        typeof _map !== 'undefined' && _map && _map.hasLayer(_noiseContourLayer)) {
+      _map.removeLayer(_noiseContourLayer);
+      _pdfRestore.push(function() { if (_noiseContourLayer) _noiseContourLayer.addTo(_map); });
+    }
+    // Hide terrain contour layer
+    if (window._terrainContourLayer && typeof _map !== 'undefined' && _map &&
+        _map.hasLayer(window._terrainContourLayer)) {
+      _map.removeLayer(window._terrainContourLayer);
+      _pdfRestore.push(function() { if (window._terrainContourLayer) window._terrainContourLayer.addTo(_map); });
+    }
+    // Hide noise map legend (bottom-right controls)
+    var _noiseLegEls = mapEl ? Array.from(mapEl.querySelectorAll('.leaflet-bottom.leaflet-right .leaflet-control')) : [];
+    _noiseLegEls.forEach(function(el) { el.style.display = 'none'; });
+    _pdfRestore.push(function() { _noiseLegEls.forEach(function(el) { el.style.display = ''; }); });
+
+    await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+    await new Promise(function(r) { setTimeout(r, 200); });
+
+    var zoneImg = null;
+
+    if (mapEl) {
+      zoneImg = await new Promise(function(resolve) {
+        var mapRect = mapEl.getBoundingClientRect();
+        var W = Math.round(mapRect.width), H = Math.round(mapRect.height), dpr = 3;
+
+        var hideEls = [];
+        mapEl.querySelectorAll('.leaflet-top').forEach(function(el) { hideEls.push(el); });
+        var popupPane = mapEl.querySelector('.leaflet-popup-pane');
+        if (popupPane) hideEls.push(popupPane);
+        var panelsEl = document.getElementById('mapPanelContainer');
+        if (panelsEl) hideEls.push(panelsEl);
+        var objPanel = document.getElementById('objectsPanelSection');
+        if (objPanel) hideEls.push(objPanel);
+        hideEls.forEach(function(el) { el.style.visibility = 'hidden'; });
+
+        var out = document.createElement('canvas');
+        out.width = W * dpr; out.height = H * dpr;
+        var ctx = out.getContext('2d');
+        ctx.scale(dpr, dpr);
+        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+        ctx.fillStyle = '#e8e0d4'; ctx.fillRect(0, 0, W, H);
+
+        function pos(el) { var r = el.getBoundingClientRect(); return { x: r.left - mapRect.left, y: r.top - mapRect.top, w: r.width, h: r.height }; }
+        function effectiveOpacity(el) { var op = 1, e = el; while (e && e !== mapEl) { var o = parseFloat(window.getComputedStyle(e).opacity); if (!isNaN(o)) op *= o; e = e.parentElement; } return op; }
+        // Draw the original DOM <img> element directly — no re-fetch needed.
+        // Leaflet/ESRI loads tiles with crossOrigin='anonymous' (useCors:true),
+        // so the images in the DOM are already CORS-clean. Drawing the original
+        // element preserves this and does NOT taint the canvas.
+        // This is the key fix for zone overlay tiles — re-fetching via a new
+        // Image() object caused caching/timing failures that silently skipped
+        // the ESRI zone overlay tiles.
+        function drawImg(el) {
+          var r = pos(el);
+          if (r.w <= 0 || r.h <= 0) return Promise.resolve();
+          var op = effectiveOpacity(el);
+          try {
+            ctx.save();
+            ctx.globalAlpha = op;
+            ctx.drawImage(el, r.x, r.y, r.w, r.h);
+            ctx.restore();
+          } catch(e) {
+            // SecurityError if image is opaque cross-origin — skip silently
+            console.warn('[PDF] img draw skipped:', e.message);
+          }
+          return Promise.resolve();
+        }
+        function drawCanvas(el) { if (!el.width || !el.height) return; var r = pos(el), op = effectiveOpacity(el); try { ctx.save(); ctx.globalAlpha = op; ctx.drawImage(el, r.x, r.y, r.w, r.h); ctx.restore(); } catch(e) {} }
+        function drawSVG(el) { return new Promise(function(res) { var r = pos(el); if (r.w <= 0 || r.h <= 0) return res(); var op = effectiveOpacity(el); try { var clone = el.cloneNode(true); clone.style.transform = ''; clone.style.webkitTransform = ''; clone.style.msTransform = ''; clone.style.position = ''; clone.style.left = ''; clone.style.top = ''; clone.setAttribute('width', r.w * dpr); clone.setAttribute('height', r.h * dpr); if (!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', '0 0 ' + r.w + ' ' + r.h); var xml = new XMLSerializer().serializeToString(clone); var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' }); var url = URL.createObjectURL(blob); var img = new Image(); img.onload = function() { try { ctx.save(); ctx.globalAlpha = op; ctx.drawImage(img, r.x, r.y, r.w, r.h); ctx.restore(); } catch(e) {} URL.revokeObjectURL(url); res(); }; img.onerror = function() { URL.revokeObjectURL(url); res(); }; img.src = url; } catch(e) { res(); } }); }
+
+        var tasks = [];
+        function walkNode(node) { var tag = (node.tagName || '').toLowerCase(); var cs = window.getComputedStyle(node); if (cs.display === 'none') return; if (tag === 'canvas') { if (node.width > 0 && node.height > 0) tasks.push({ type: 'canvas', el: node }); return; } if (tag === 'svg') { tasks.push({ type: 'svg', el: node }); return; } if (tag === 'img') { if (node.complete && node.naturalWidth > 0) tasks.push({ type: 'img', el: node }); return; } for (var i = 0; i < node.children.length; i++) walkNode(node.children[i]); }
+        mapEl.querySelectorAll('.leaflet-map-pane > .leaflet-pane').forEach(walkNode);
+
+        var chain = tasks.reduce(function(p, t) { return p.then(function() { if (t.type === 'canvas') { drawCanvas(t.el); return; } if (t.type === 'img') return drawImg(t.el); if (t.type === 'svg') return drawSVG(t.el); }); }, Promise.resolve());
+
+        chain = chain.then(function() {
+          return Array.from(mapEl.querySelectorAll('.leaflet-marker-icon')).reduce(function(p, iconEl) {
+            return p.then(function() { var ir = iconEl.getBoundingClientRect(); if (!ir.width || !ir.height) return; var ix = Math.round(ir.left - mapRect.left), iy = Math.round(ir.top - mapRect.top); if (ix + ir.width <= 0 || iy + ir.height <= 0 || ix >= W || iy >= H) return; return html2canvas(iconEl, { useCORS: true, scale: dpr, logging: false, backgroundColor: null, removeContainer: true }).then(function(c) { ctx.drawImage(c, 0, 0, c.width, c.height, ix, iy, ir.width, ir.height); }).catch(function() {}); });
+          }, Promise.resolve());
+        });
+        // Only capture bottom-LEFT controls (zone legend, scale bar, attribution).
+        // Skip bottom-RIGHT controls (noise map legend) — not wanted in zone map.
+        chain = chain.then(function() {
+          return Array.from(mapEl.querySelectorAll('.leaflet-bottom.leaflet-left .leaflet-control')).reduce(function(p, ctrl) {
+            return p.then(function() { if (!ctrl.offsetWidth || !ctrl.offsetHeight) return; return html2canvas(ctrl, { useCORS: true, scale: dpr, logging: false, backgroundColor: null, removeContainer: true }).then(function(c) { var r = pos(ctrl); ctx.drawImage(c, 0, 0, c.width, c.height, r.x, r.y, r.w, r.h); }).catch(function() {}); });
+          }, Promise.resolve());
+        });
+
+        chain.then(function() {
+          ctx.restore();
+          hideEls.forEach(function(el) { el.style.visibility = ''; });
+          resolve({ dataUrl: out.toDataURL('image/jpeg', 0.92), aspect: H / W });
+        }).catch(function(err) {
+          console.warn('[PDF Appendix] Map capture failed:', err);
+          hideEls.forEach(function(el) { el.style.visibility = ''; });
+          resolve(null);
+        });
+      });
+    }
+
+    // Restore all hidden layers immediately after map capture
+    _pdfRestore.forEach(function(fn) { fn(); });
+
+    // ── 2. Capture table screenshots ────────────────────────────────────────
+    // A) Planning & Design Code — Interface between Land Uses (SA only)
+    // Capture #pdcBody but temporarily hide the intro paragraph so only the
+    // provisions table + sensitive receiver definition note are captured.
+    var pdcBodyEl = document.getElementById('pdcBody');
+    var pdcImg = null;
+    var pdcSection = document.getElementById('pdcProvisionsSection');
+    if (pdcSection && window.getComputedStyle(pdcSection).display !== 'none' && pdcBodyEl) {
+      var pdcIntro = pdcBodyEl.querySelector('.p');
+      var pdcIntroDisp = pdcIntro ? pdcIntro.style.display : '';
+      if (pdcIntro) pdcIntro.style.display = 'none';
+      pdcImg = await captureElement(pdcBodyEl);
+      if (pdcIntro) pdcIntro.style.display = pdcIntroDisp;
+    }
+
+    // B) Receivers & criteria table (the main table inside #critBody)
+    var critBodyEl = document.getElementById('critBody');
+    var critTableEl = critBodyEl ? critBodyEl.querySelector('.table-scroll') : null;
+    var critImg = await captureElement(critTableEl);
+
+    // C) Emergency equipment table (conditional)
+    var emergOn = !!(document.getElementById('srcCatEmergency') && document.getElementById('srcCatEmergency').checked);
+    var fireOn = emergOn && !!(document.getElementById('srcEmergFire') && document.getElementById('srcEmergFire').checked);
+    var genOn  = emergOn && !!(document.getElementById('srcEmergGen')  && document.getElementById('srcEmergGen').checked);
+    var emergImg = null;
+    if (fireOn || genOn) emergImg = await captureElement(document.getElementById('emergEquipTable'));
+
+    // D) Music criteria table (conditional)
+    var musicOn = !!(document.getElementById('srcCatMusic') && document.getElementById('srcCatMusic').checked);
+    var musicImg = null;
+    if (musicOn) musicImg = await captureElement(document.getElementById('musicBgTable'));
+
+    // E) Childcare section table (conditional)
+    var childOn = !!(document.getElementById('srcCatChildcare') && document.getElementById('srcCatChildcare').checked);
+    var childSec = document.getElementById('childcareCriteriaSection');
+    var childImg = null;
+    if (childOn && childSec) childImg = await captureElement(childSec.querySelector('table'));
+
+    // ── 3. Build PDF ────────────────────────────────────────────────────────
+    var pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    var pW = 210, pH = 297, margin = 22, cW = pW - 2 * margin;
+    var TEXT  = [51, 51, 51];
+    var MUTED = [102, 102, 102];
+    var LINE  = [204, 204, 204];
+    // jsPDF's built-in 'helvetica' is the PDF equivalent of Arial
+    var FONT = 'helvetica';
+    var y = margin;
+
+    function placeImage(img, maxH) {
+      if (!img) return;
+      var drawW = cW, drawH = cW * img.aspect;
+      if (maxH && drawH > maxH) { drawH = maxH; drawW = drawH / img.aspect; }
+      if (y + drawH > pH - margin - 8) { pdf.addPage(); y = margin; }
+      var imgX = margin + (cW - drawW) / 2;
+      pdf.addImage(img.dataUrl, 'PNG', imgX, y, drawW, drawH);
+      y += drawH + 3;
+    }
+
+    function sectionLabel(text) {
+      if (y > pH - margin - 20) { pdf.addPage(); y = margin; }
+      pdf.setFont(FONT, 'bold');
+      pdf.setFontSize(10);
+      pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
+      pdf.text(text, margin, y);
+      y += 5;
+    }
+
+    // ── A) Zone Map ─────────────────────────────────────────────────────────
+    if (zoneImg) {
+      var imgMaxH = 90;
+      var imgH = cW * zoneImg.aspect;
+      var drawH = Math.min(imgH, imgMaxH);
+      var drawW = drawH / zoneImg.aspect;
+      var imgX  = margin + (cW - drawW) / 2;
+      pdf.setDrawColor(LINE[0], LINE[1], LINE[2]);
+      pdf.setLineWidth(0.5);
+      pdf.rect(imgX - 0.3, y - 0.3, drawW + 0.6, drawH + 0.6, 'S');
+      pdf.addImage(zoneImg.dataUrl, 'JPEG', imgX, y, drawW, drawH);
+      y += drawH + 3;
+      // Caption: "Figure 1  Zone map" — bold 8pt, left-aligned
+      pdf.setFont(FONT, 'bold');
+      pdf.setFontSize(8);
+      pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
+      pdf.text('Figure 1  Zone map', margin, y);
+      y += 7;
+    }
+
+    // ── B) Planning & Design Code — Interface between Land Uses ───────────
+    if (pdcImg) {
+      sectionLabel('Planning & Design Code \u2014 Interface between Land Uses');
+      placeImage(pdcImg);
+      y += 3;
+    }
+
+    // ── C) Receivers & Criteria ─────────────────────────────────────────────
+    if (critImg) {
+      sectionLabel('Receivers & Criteria');
+      placeImage(critImg);
+      y += 3;
+    }
+
+    // ── C) Emergency Equipment Criteria (conditional) ───────────────────────
+    if (emergImg) {
+      sectionLabel('Emergency Equipment Criteria');
+      placeImage(emergImg);
+      y += 3;
+    }
+
+    // ── D) Music Noise Criteria (conditional) ───────────────────────────────
+    if (musicImg) {
+      sectionLabel('Music Noise Criteria');
+      placeImage(musicImg);
+      y += 3;
+    }
+
+    // ── E) Childcare / Student Criteria (conditional) ───────────────────────
+    if (childImg) {
+      sectionLabel('Childcare / Student Criteria');
+      placeImage(childImg);
+      y += 3;
+    }
+
+    // ── Page numbers ────────────────────────────────────────────────────────
+    var pageCount = pdf.getNumberOfPages();
+    for (var p = 1; p <= pageCount; p++) {
+      pdf.setPage(p);
+      pdf.setFont(FONT, 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
+      pdf.text(String(p) + ' / ' + String(pageCount), pW / 2, pH - 10, { align: 'center' });
+    }
+
+    // ── 4. Save PDF ─────────────────────────────────────────────────────────
+    var fname = projNum.trim()
+      ? projNum.trim().replace(/[\\/:*?"<>|]/g, '-') + '_Appendix_Criteria.pdf'
+      : 'Appendix_Criteria.pdf';
+    pdf.save(fname);
+
+  } catch (e) {
+    console.error('generatePDFAppendix error:', e);
+    alert('PDF appendix export failed: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText || 'Save PDF'; }
+  }
+}
+
 /** Called when user explicitly clicks Major urban / Rural button. Locks area type. */
 function setVicAreaTypeManual(type) {
   _vicAreaTypeManuallySet = true;
@@ -13347,7 +13830,7 @@ function calcBarrierIL_broadband(barrier) {
  */
 function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDistanceM) {
   // ISO 9613-2: routes through calcISO9613forSourcePin for each pin
-  if (propagationMethod === 'iso9613' && prefix && prefix !== 'lmax') {
+  if ((propagationMethod === 'iso9613' || propagationMethod === 'concawe') && prefix && prefix !== 'lmax') {
     return calcTotalISO9613(prefix, receiverIdx);
   }
   // Lmax ISO: routes through calcTotalISO9613Lmax with optional ground factor override
@@ -15995,41 +16478,89 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
     }
   }
 
-  // Get detailed breakdown
-  var detail = SharedCalc.calcISOatPointDetailed(
-    spectrum, srcHt, dist, adjDB, barrierDelta, recHt,
-    { temperature: iso_temperature, humidity: iso_humidity, groundFactor: iso_groundFactor },
-    endDeltaL, endDeltaR
-  );
-
-  if (!detail) { panel.style.display = 'none'; return; }
-
   // Get terrain IL for this pair (from pre-computed cache)
   var terrainData = (_terrainIL[sourceIdx] && _terrainIL[sourceIdx][receiverIdx]) ? _terrainIL[sourceIdx][receiverIdx] : null;
   var terrainPerBand = (terrainData && terrainData.perBand) ? terrainData.perBand : null;
+
+  var isConcawe = (propagationMethod === 'concawe');
+  var detail;
+  if (isConcawe) {
+    detail = SharedCalc.calcConcaweAtPointDetailed(
+      spectrum, srcHt, dist, adjDB, barrierDelta, recHt,
+      { temperature: iso_temperature, humidity: iso_humidity, groundFactor: iso_groundFactor, metCategory: _concaweMetCategory },
+      endDeltaL, endDeltaR, null, terrainPerBand
+    );
+  } else {
+    detail = SharedCalc.calcISOatPointDetailed(
+      spectrum, srcHt, dist, adjDB, barrierDelta, recHt,
+      { temperature: iso_temperature, humidity: iso_humidity, groundFactor: iso_groundFactor },
+      endDeltaL, endDeltaR
+    );
+  }
+
+  if (!detail) { panel.style.display = 'none'; return; }
+
+  // Update table header to match method
+  var thead = document.querySelector('#breakdownTable thead tr');
+  if (thead) {
+    if (isConcawe) {
+      thead.innerHTML =
+        '<th style="text-align:left;padding:3px 6px;">Band (Hz)</th>' +
+        '<th style="text-align:right;padding:3px 6px;">L<sub>w</sub></th>' +
+        '<th style="text-align:right;padding:3px 6px;">K1</th>' +
+        '<th style="text-align:right;padding:3px 6px;">K2</th>' +
+        '<th style="text-align:right;padding:3px 6px;">K3</th>' +
+        '<th style="text-align:right;padding:3px 6px;">K4</th>' +
+        '<th style="text-align:right;padding:3px 6px;">K5</th>' +
+        '<th style="text-align:right;padding:3px 6px;">K6/terr</th>' +
+        '<th style="text-align:right;padding:3px 6px;font-weight:700;">L<sub>p</sub></th>';
+    } else {
+      thead.innerHTML =
+        '<th style="text-align:left;padding:3px 6px;">Band (Hz)</th>' +
+        '<th style="text-align:right;padding:3px 6px;">L<sub>w</sub></th>' +
+        '<th style="text-align:right;padding:3px 6px;">A<sub>div</sub></th>' +
+        '<th style="text-align:right;padding:3px 6px;">A<sub>atm</sub></th>' +
+        '<th style="text-align:right;padding:3px 6px;">A<sub>gr</sub></th>' +
+        '<th style="text-align:right;padding:3px 6px;">A<sub>bar</sub></th>' +
+        '<th style="text-align:right;padding:3px 6px;">A<sub>terr</sub></th>' +
+        '<th style="text-align:right;padding:3px 6px;">A<sub>gr/bar</sub></th>' +
+        '<th style="text-align:right;padding:3px 6px;font-weight:700;">L<sub>p</sub></th>';
+    }
+  }
 
   // Render table — collect displayed Lp values to compute a consistent total
   var html = '';
   var displayedLpValues = []; // 1dp-rounded band Lp values for energy-sum total
   for (var i = 0; i < detail.bands.length; i++) {
     var b = detail.bands[i];
-    // Show per-band terrain IL (excess over building barrier where terrain is larger)
-    var aterr = 0;
-    if (_terrainEnabled && terrainPerBand && terrainPerBand[i] > 0) {
-      aterr = Math.max(0, terrainPerBand[i] - (b.Abar || 0)); // excess over building
-      if (terrainPerBand[i] > 0 && b.Abar <= 0) aterr = terrainPerBand[i]; // no building → full terrain
-    }
     var lpDisplay = isFinite(b.Lp) ? b.Lp.toFixed(1) : '—';
-    if (isFinite(b.Lp)) displayedLpValues.push(Math.round(b.Lp * 10) / 10); // same precision as shown
+    if (isFinite(b.Lp)) displayedLpValues.push(Math.round(b.Lp * 10) / 10);
     html += '<tr style="border-bottom:1px solid #eee;">';
     html += '<td style="padding:3px 6px;font-weight:600;">' + b.freq + '</td>';
     html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(b.Lw) ? b.Lw.toFixed(1) : '—') + '</td>';
-    html += '<td style="text-align:right;padding:3px 6px;">' + b.Adiv.toFixed(1) + '</td>';
-    html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(b.Aatm) ? b.Aatm.toFixed(1) : '—') + '</td>';
-    html += '<td style="text-align:right;padding:3px 6px;">' + b.Agr.toFixed(1) + '</td>';
-    html += '<td style="text-align:right;padding:3px 6px;">' + (b.Abar > 0 ? b.Abar.toFixed(1) : '—') + '</td>';
-    html += '<td style="text-align:right;padding:3px 6px;">' + (aterr > 0 ? aterr.toFixed(1) : '—') + '</td>';
-    html += '<td style="text-align:right;padding:3px 6px;">' + b.AgrBar.toFixed(1) + '</td>';
+    if (isConcawe) {
+      // CONCAWE columns: K1, K2, K3, K4, K5, K6/terr
+      var kscreen = Math.max(b.K6 || 0, b.Aterr || 0);
+      html += '<td style="text-align:right;padding:3px 6px;">' + b.K1.toFixed(1) + '</td>';
+      html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(b.K2) ? b.K2.toFixed(1) : '—') + '</td>';
+      html += '<td style="text-align:right;padding:3px 6px;">' + b.K3.toFixed(1) + '</td>';
+      html += '<td style="text-align:right;padding:3px 6px;">' + b.K4.toFixed(1) + '</td>';
+      html += '<td style="text-align:right;padding:3px 6px;">' + (b.K5 !== 0 ? b.K5.toFixed(1) : '—') + '</td>';
+      html += '<td style="text-align:right;padding:3px 6px;">' + (kscreen > 0 ? kscreen.toFixed(1) : '—') + '</td>';
+    } else {
+      // ISO columns: Adiv, Aatm, Agr, Abar, Aterr, AgrBar
+      var aterr = 0;
+      if (_terrainEnabled && terrainPerBand && terrainPerBand[i] > 0) {
+        aterr = Math.max(0, terrainPerBand[i] - (b.Abar || 0));
+        if (terrainPerBand[i] > 0 && b.Abar <= 0) aterr = terrainPerBand[i];
+      }
+      html += '<td style="text-align:right;padding:3px 6px;">' + b.Adiv.toFixed(1) + '</td>';
+      html += '<td style="text-align:right;padding:3px 6px;">' + (isFinite(b.Aatm) ? b.Aatm.toFixed(1) : '—') + '</td>';
+      html += '<td style="text-align:right;padding:3px 6px;">' + b.Agr.toFixed(1) + '</td>';
+      html += '<td style="text-align:right;padding:3px 6px;">' + (b.Abar > 0 ? b.Abar.toFixed(1) : '—') + '</td>';
+      html += '<td style="text-align:right;padding:3px 6px;">' + (aterr > 0 ? aterr.toFixed(1) : '—') + '</td>';
+      html += '<td style="text-align:right;padding:3px 6px;">' + b.AgrBar.toFixed(1) + '</td>';
+    }
     html += '<td style="text-align:right;padding:3px 6px;font-weight:700;">' + lpDisplay + '</td>';
     html += '</tr>';
   }
@@ -16047,6 +16578,7 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
   var metaText = 'Distance: ' + dist.toFixed(1) + ' m | Source ht: ' + srcHt.toFixed(1) + ' m | Receiver ht: ' + recHt.toFixed(1) + ' m';
   if (screenedBy) metaText += ' | Screened by: ' + screenedBy;
   metaText += ' | G=' + iso_groundFactor + ' | T=' + iso_temperature + '\u00b0C | RH=' + iso_humidity + '%';
+  if (propagationMethod === 'concawe') metaText += ' | Met cat=' + _concaweMetCategory;
   meta.textContent = metaText;
   panel.style.display = '';
 }
@@ -18559,11 +19091,180 @@ function initPropagationMethod() {
       btn.classList.add('active');
       propagationMethod = btn.dataset.val;
       localStorage.setItem('prop_method', propagationMethod);
-      if (paramsDiv) paramsDiv.style.display = propagationMethod === 'iso9613' ? '' : 'none';
+      if (paramsDiv) paramsDiv.style.display = (propagationMethod === 'iso9613' || propagationMethod === 'concawe') ? '' : 'none';
+      var cmp = document.getElementById('concaweMetPanel');
+      if (cmp) cmp.style.display = (propagationMethod === 'concawe') ? '' : 'none';
       // Show/hide source height column in source tables
       toggleSourceHeightColumns();
       render();
+      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
     });
+  });
+
+  // ── CONCAWE meteorological panel wiring ──────────────────────────────────────
+
+  /** Compute geodetic bearing from (lat1,lng1) to (lat2,lng2) in degrees 0–360. */
+  function _concaweBearing(lat1, lng1, lat2, lng2) {
+    var toRad = Math.PI / 180;
+    var dLng = (lng2 - lng1) * toRad;
+    var y = Math.sin(dLng) * Math.cos(lat2 * toRad);
+    var x = Math.cos(lat1 * toRad) * Math.sin(lat2 * toRad)
+          - Math.sin(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.cos(dLng);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+
+  /**
+   * Recompute _concaweMetCategory from the current UI state.
+   * In 'direct' mode: reads the dropdown.
+   * In 'computed' mode: reads met inputs + source/receiver positions,
+   *   runs the Pasquill → group → metCategory chain, updates the display.
+   * Called on every input change and at the top of calcTotalISO9613() so
+   * drag-moves recompute the vector wind automatically.
+   */
+  /**
+   * Update the noise map method label to show the method used for the
+   * DISPLAYED contours. Called only when contours are generated — not on
+   * method/category change — so the label always reflects what the user
+   * is actually looking at.
+   * @param {string} [method] - propagation method used ('simple'|'iso9613'|'concawe'). Defaults to current.
+   * @param {number} [metCat] - CONCAWE met category used. Defaults to current.
+   */
+  var _concaweCatLabels = {1:'strong upwind',2:'moderate upwind',3:'light upwind',4:'neutral',5:'light downwind',6:'strong downwind'};
+  window._updateNoiseMapMethodLabel = function(method, metCat) {
+    var el = document.getElementById('noiseMapMethodLabel');
+    if (!el) return;
+    var m = method || propagationMethod;
+    var c = metCat || _concaweMetCategory;
+    if (m === 'concawe') {
+      var catDesc = _concaweCatLabels[c] || '';
+      el.textContent = 'Method: CONCAWE \u2014 Cat ' + c + ' (' + catDesc + ')';
+    } else if (m === 'iso9613') {
+      el.textContent = 'Method: ISO 9613-2:1996';
+    } else {
+      el.textContent = 'Method: Geometric spreading';
+    }
+  };
+
+  window._updateConcaweMet = function _updateConcaweMet(skipRender) {
+    if (propagationMethod !== 'concawe') return;
+
+    if (_concaweMetMode === 'direct') {
+      var sel = document.getElementById('concaweMetCatSelect');
+      if (sel) _concaweMetCategory = parseInt(sel.value) || 4;
+      return;
+    }
+
+    // Mode B: computed
+    var wsEl = document.getElementById('concaweWindSpeed');
+    var wdEl = document.getElementById('concaweWindDir');
+    var todEl = document.getElementById('concaweTimeOfDay');
+    var srEl = document.getElementById('concaweSolarRad');
+    var ccEl = document.getElementById('concaweCloudCover');
+
+    var windSpeed = wsEl ? parseFloat(wsEl.value) || 0 : 3;
+    var windDir = wdEl ? parseFloat(wdEl.value) || 0 : 0;
+    var timeOfDay = todEl ? todEl.value : 'night';
+    var solarRad = srEl ? srEl.value : '>60';
+    var cloudCover = ccEl ? ccEl.value : '4-7';
+
+    // Update state vars
+    _concaweWindSpeed = windSpeed;
+    _concaweWindDirection = windDir;
+    _concaweTimeOfDay = timeOfDay;
+    _concaweSolarRadiation = solarRad;
+    _concaweCloudCover = cloudCover;
+
+    // Get first placed source and first placed receiver
+    var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
+    var srcLL = null, recLL = null;
+    for (var si = 0; si < sourcePins.length; si++) {
+      if (sourcePins[si].lat !== null) { srcLL = { lat: sourcePins[si].lat, lng: sourcePins[si].lng }; break; }
+    }
+    for (var ri = 1; ri <= 4; ri++) {
+      var rk = 'r' + ri;
+      if (allLL[rk]) { recLL = allLL[rk]; break; }
+    }
+
+    var pDisp = document.getElementById('concawePasquillDisplay');
+    var vDisp = document.getElementById('concaweVectorWindDisplay');
+    var mDisp = document.getElementById('concaweMetCatDisplay');
+
+    if (!srcLL || !recLL) {
+      _concaweMetCategory = 4;
+      if (pDisp) pDisp.textContent = '—';
+      if (vDisp) vDisp.textContent = 'Place source & receiver';
+      if (mDisp) mDisp.textContent = '4 (default)';
+      return;
+    }
+
+    // Bearing from receiver to source
+    var bearing = _concaweBearing(recLL.lat, recLL.lng, srcLL.lat, srcLL.lng);
+    var vectorWind = windSpeed * Math.cos((windDir - bearing) * Math.PI / 180);
+
+    var pasquill = SharedCalc.getPasquillClass(windSpeed, timeOfDay, solarRad, cloudCover);
+    var group = SharedCalc.pasquillToGroup(pasquill);
+    var metCat = SharedCalc.getConcaweMetCategory(group, vectorWind);
+
+    _concaweMetCategory = metCat;
+
+    // Update display
+    if (pDisp) pDisp.textContent = pasquill;
+    if (vDisp) {
+      var sign = vectorWind >= 0 ? '+' : '';
+      var label = vectorWind > 0.5 ? ' (downwind)' : vectorWind < -0.5 ? ' (upwind)' : ' (crosswind)';
+      vDisp.textContent = sign + vectorWind.toFixed(1) + ' m/s' + label;
+    }
+    if (mDisp) mDisp.textContent = String(metCat);
+  };
+
+  // Mode toggle
+  document.querySelectorAll('input[name="concaweMetMode"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      _concaweMetMode = this.value;
+      var dg = document.getElementById('concaweDirectGroup');
+      var cg = document.getElementById('concaweComputedGroup');
+      if (dg) dg.style.display = (_concaweMetMode === 'direct') ? '' : 'none';
+      if (cg) cg.style.display = (_concaweMetMode === 'computed') ? '' : 'none';
+      _updateConcaweMet();
+      render();
+      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+    });
+  });
+
+  // Direct category dropdown
+  var metCatSel = document.getElementById('concaweMetCatSelect');
+  if (metCatSel) {
+    metCatSel.addEventListener('change', function() {
+      _concaweMetCategory = parseInt(this.value) || 4;
+      render();
+      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+    });
+  }
+
+  // Computed mode inputs — all trigger recompute + render
+  ['concaweWindSpeed', 'concaweWindDir'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', function() { _updateConcaweMet(); render(); if (window._recomputeNoiseMap) window._recomputeNoiseMap(); });
+  });
+
+  // Time of day — also toggles solar/cloud visibility
+  var todSel = document.getElementById('concaweTimeOfDay');
+  if (todSel) {
+    todSel.addEventListener('change', function() {
+      var sg = document.getElementById('concaweSolarGroup');
+      var cg = document.getElementById('concaweCloudGroup');
+      if (sg) sg.style.display = (this.value === 'day') ? '' : 'none';
+      if (cg) cg.style.display = (this.value === 'night') ? '' : 'none';
+      _updateConcaweMet();
+      render();
+      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+    });
+  }
+
+  // Solar radiation + cloud cover selects
+  ['concaweSolarRad', 'concaweCloudCover'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', function() { _updateConcaweMet(); render(); if (window._recomputeNoiseMap) window._recomputeNoiseMap(); });
   });
 
   // Wire up ISO parameter inputs
@@ -18579,6 +19280,7 @@ function initPropagationMethod() {
       localStorage.setItem('iso_temp', String(iso_temperature));
       localStorage.setItem('iso_humidity', String(iso_humidity));
       render();
+      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
     });
   });
 
@@ -18974,7 +19676,7 @@ function initPropagationMethod() {
 /** Show/hide the source height column in Leq source tables when ISO 9613-2 is active */
 function toggleSourceHeightColumns() {
   document.querySelectorAll('.iso-ht-col').forEach(function(el) {
-    el.style.display = propagationMethod === 'iso9613' ? 'table-cell' : 'none';
+    el.style.display = (propagationMethod === 'iso9613' || propagationMethod === 'concawe') ? 'table-cell' : 'none';
   });
 }
 
@@ -20384,7 +21086,14 @@ setInitialCollapseState();
           receiverHeight: iso_receiverHeight,
           groundFactor: iso_groundFactor,
           temperature: iso_temperature,
-          humidity: iso_humidity
+          humidity: iso_humidity,
+          concaweMetCategory: _concaweMetCategory,
+          concaweMetMode: _concaweMetMode,
+          concaweWindSpeed: _concaweWindSpeed,
+          concaweWindDirection: _concaweWindDirection,
+          concaweTimeOfDay: _concaweTimeOfDay,
+          concaweSolarRadiation: _concaweSolarRadiation,
+          concaweCloudCover: _concaweCloudCover
         };
 
         // VIC-specific
@@ -20725,7 +21434,7 @@ setInitialCollapseState();
       return {
         project_address:  getExportAddress(),
         exported:         new Date().toISOString(),
-        method:           propagationMethod === 'iso9613' ? 'ISO 9613-2:1996' : 'Simple (geometric spreading)',
+        method:           propagationMethod === 'iso9613' ? 'ISO 9613-2:1996' : propagationMethod === 'concawe' ? 'CONCAWE Report 4/81' : 'Simple (geometric spreading)',
         tool:             'Resonate SA EPA Noise Calculator',
         tool_version:     'v2.0',
         source_count:     sourcePins.filter(function(p) { return p.lat !== null; }).length,
@@ -20839,7 +21548,7 @@ setInitialCollapseState();
             feature_type: 'contour',
             level_dba: level,
             period: period,
-            method: propagationMethod === 'iso9613' ? 'ISO 9613-2' : 'simple'
+            method: propagationMethod === 'iso9613' ? 'ISO 9613-2' : propagationMethod === 'concawe' ? 'CONCAWE' : 'simple'
           }
         });
       });
@@ -21549,7 +22258,7 @@ setInitialCollapseState();
           });
         }
         var paramsDiv = document.getElementById('iso9613Params');
-        if (paramsDiv) paramsDiv.style.display = propagationMethod === 'iso9613' ? '' : 'none';
+        if (paramsDiv) paramsDiv.style.display = (propagationMethod === 'iso9613' || propagationMethod === 'concawe') ? '' : 'none';
         var rhEl = document.getElementById('isoRecvHeight');
         if (rhEl) rhEl.value = iso_receiverHeight;
         var gfEl = document.getElementById('isoGroundType');
@@ -21558,6 +22267,47 @@ setInitialCollapseState();
         if (tEl) tEl.value = iso_temperature;
         var hEl = document.getElementById('isoHumidity');
         if (hEl) hEl.value = iso_humidity;
+        // CONCAWE-specific state
+        _concaweMetCategory = data.propagation.concaweMetCategory || 4;
+        _concaweMetMode = data.propagation.concaweMetMode || 'direct';
+        _concaweWindSpeed = data.propagation.concaweWindSpeed || null;
+        _concaweWindDirection = data.propagation.concaweWindDirection || null;
+        _concaweTimeOfDay = data.propagation.concaweTimeOfDay || null;
+        _concaweSolarRadiation = data.propagation.concaweSolarRadiation || null;
+        _concaweCloudCover = data.propagation.concaweCloudCover || null;
+        // Restore CONCAWE met panel UI
+        var _cmpPanel = document.getElementById('concaweMetPanel');
+        if (_cmpPanel) _cmpPanel.style.display = (propagationMethod === 'concawe') ? '' : 'none';
+        // Mode radio
+        var _cmRadio = document.querySelector('input[name="concaweMetMode"][value="' + _concaweMetMode + '"]');
+        if (_cmRadio) _cmRadio.checked = true;
+        var _cmDg = document.getElementById('concaweDirectGroup');
+        var _cmCg = document.getElementById('concaweComputedGroup');
+        if (_cmDg) _cmDg.style.display = (_concaweMetMode === 'direct') ? '' : 'none';
+        if (_cmCg) _cmCg.style.display = (_concaweMetMode === 'computed') ? '' : 'none';
+        // Direct dropdown
+        var _cmSel = document.getElementById('concaweMetCatSelect');
+        if (_cmSel) _cmSel.value = _concaweMetCategory;
+        // Computed inputs
+        var _cmWs = document.getElementById('concaweWindSpeed');
+        if (_cmWs && _concaweWindSpeed !== null) _cmWs.value = _concaweWindSpeed;
+        var _cmWd = document.getElementById('concaweWindDir');
+        if (_cmWd && _concaweWindDirection !== null) _cmWd.value = _concaweWindDirection;
+        var _cmTod = document.getElementById('concaweTimeOfDay');
+        if (_cmTod && _concaweTimeOfDay) _cmTod.value = _concaweTimeOfDay;
+        var _cmSr = document.getElementById('concaweSolarRad');
+        if (_cmSr && _concaweSolarRadiation) _cmSr.value = _concaweSolarRadiation;
+        var _cmCc = document.getElementById('concaweCloudCover');
+        if (_cmCc && _concaweCloudCover) _cmCc.value = _concaweCloudCover;
+        // Toggle solar/cloud visibility based on time of day
+        if (_concaweTimeOfDay) {
+          var _cmSg = document.getElementById('concaweSolarGroup');
+          var _cmClg = document.getElementById('concaweCloudGroup');
+          if (_cmSg) _cmSg.style.display = (_concaweTimeOfDay === 'day') ? '' : 'none';
+          if (_cmClg) _cmClg.style.display = (_concaweTimeOfDay === 'night') ? '' : 'none';
+        }
+        // Refresh computed display
+        if (window._updateConcaweMet) window._updateConcaweMet(true);
       }
 
       // 10. VIC-specific settings
@@ -22027,7 +22777,14 @@ setInitialCollapseState();
         receiverHeight: typeof iso_receiverHeight !== 'undefined' ? iso_receiverHeight : 1.5,
         groundFactor:   typeof iso_groundFactor   !== 'undefined' ? iso_groundFactor   : 0.5,
         temperature:    typeof iso_temperature    !== 'undefined' ? iso_temperature    : 10,
-        humidity:       typeof iso_humidity       !== 'undefined' ? iso_humidity       : 70
+        humidity:       typeof iso_humidity       !== 'undefined' ? iso_humidity       : 70,
+        concaweMetCategory:    _concaweMetCategory,
+        concaweMetMode:        _concaweMetMode,
+        concaweWindSpeed:      _concaweWindSpeed,
+        concaweWindDirection:  _concaweWindDirection,
+        concaweTimeOfDay:      _concaweTimeOfDay,
+        concaweSolarRadiation: _concaweSolarRadiation,
+        concaweCloudCover:     _concaweCloudCover
       };
 
       // VIC-specific
@@ -22372,6 +23129,7 @@ setInitialCollapseState();
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js" crossorigin="anonymous"></script>
 <!-- pdf.js UMD build: exposes window.pdfjsLib directly, no module magic needed -->
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.min.js"></script>
@@ -29689,7 +30447,11 @@ if (window.pdfjsLib) {
         : iso_groundFactor;
       var isoP = { temperature: iso_temperature, humidity: iso_humidity, groundFactor: gf };
       var lp;
-      if (ss.specA && propagationMethod === 'iso9613') {
+      if (ss.specA && propagationMethod === 'concawe') {
+        lp = SharedCalc.calcConcaweAtPoint(ss.specA, ss.heightM, d, 0, barrierDelta, recHt,
+          { temperature: iso_temperature, humidity: iso_humidity, groundFactor: gf, metCategory: _concaweMetCategory },
+          endDL, endDR, barrInfoBs, null);
+      } else if (ss.specA && propagationMethod === 'iso9613') {
         lp = SharedCalc.calcISOatPoint(ss.specA, ss.heightM, d, 0, barrierDelta, recHt, isoP, endDL, endDR, barrInfoBs);
       } else {
         lp = SharedCalc.attenuatePoint(ss.lwBB, d);
@@ -32735,6 +33497,8 @@ if (window.pdfjsLib) {
       }
     }
     var _lastNoiseData = null;
+    var _nmGenMethod = null;   // propagation method used for the displayed contours
+    var _nmGenMetCat = null;   // CONCAWE met category used for the displayed contours
     var _complianceMode = false;
     var _complianceCriterion = null;
     var _complianceCanvasLayer = null;
@@ -33689,6 +34453,8 @@ if (window.pdfjsLib) {
           var iso_temperature  = isoTEl  ? (parseFloat(isoTEl.value)  || 10) : 10;
           var iso_humidity     = isoHEl  ? (parseFloat(isoHEl.value)  || 70) : 70;
 
+          _nmGenMethod = propagationMethod;
+          _nmGenMetCat = _concaweMetCategory;
           _noiseWorker = new Worker('noise-worker.js');
           _noiseWorker.onmessage = function(e) {
             var msg = e.data;
@@ -33706,6 +34472,7 @@ if (window.pdfjsLib) {
                 if (_noiseContourLayer) { map.removeLayer(_noiseContourLayer); }
                 hideNoiseLegend(); renderComplianceMap();
               } else { renderNoiseCanvas(msg); showNoiseLegend(); }
+              if (window._updateNoiseMapMethodLabel) window._updateNoiseMapMethodLabel(_nmGenMethod, _nmGenMetCat);
               _noiseWorker = null;
               var cb2 = _nmOnCaseComplete; _nmOnCaseComplete = null; if (cb2) cb2();
             } else if (msg.type === 'error') {
@@ -33731,6 +34498,7 @@ if (window.pdfjsLib) {
             gridResolutionM: gridRes, sources: workerSources, buildings: _buildingsC,
             propagationMethod: propagationMethod,
             isoParams: { receiverHeight: _noiseMapHeight || 1.5, groundFactor: iso_groundFactor, temperature: iso_temperature, humidity: iso_humidity },
+            concaweMetCategory: _concaweMetCategory,
             demCache: demEntries, demSpacing: demSpacing, terrainEnabled: _terrainEnabled, debugTerrain: false,
             period: casePeriod, lmaxMethod: _lmaxMethod || 'simple', reflectionsEnabled: !!_reflectionsOn,
             groundZones: (window._getGroundZones ? window._getGroundZones() : []).map(function(gz) {
@@ -33846,6 +34614,8 @@ if (window.pdfjsLib) {
 
       try {
         if (noiseMapBtn) noiseMapBtn.textContent = 'Computing... 0%';
+        _nmGenMethod = propagationMethod;
+        _nmGenMetCat = _concaweMetCategory;
 
         _noiseWorker = new Worker('noise-worker.js');
         _noiseWorker.onmessage = function(e) {
@@ -33868,6 +34638,7 @@ if (window.pdfjsLib) {
               renderNoiseCanvas(msg);
               showNoiseLegend();
             }
+            if (window._updateNoiseMapMethodLabel) window._updateNoiseMapMethodLabel(_nmGenMethod, _nmGenMetCat);
             _noiseWorker = null;
           } else if (msg.type === 'error') {
             console.warn('Noise map error:', msg.message);
@@ -33906,6 +34677,7 @@ if (window.pdfjsLib) {
             temperature: iso_temperature,
             humidity: iso_humidity
           },
+          concaweMetCategory: _concaweMetCategory,
           demCache: demEntries,
           demSpacing: demSpacing,
           terrainEnabled: _terrainEnabled,
@@ -36357,7 +37129,7 @@ if (window.pdfjsLib) {
       <summary><span class="help-arrow">&#9658;</span> Propagation</summary>
       <div class="help-body">
         <ul>
-          <li>Choose <strong>Simple</strong> (geometric spreading only) or <strong>ISO 9613-2</strong> (full octave-band) in the Propagation method panel</li>
+          <li>Choose <strong>Simple</strong> (geometric spreading only), <strong>ISO 9613-2</strong> (full octave-band), or <strong>CONCAWE</strong> (octave-band with meteorological corrections) in the Propagation method panel</li>
           <li>Set atmospheric <strong>temperature</strong> and <strong>relative humidity</strong> for atmospheric absorption</li>
           <li>Set global <strong>ground factor G</strong> (0&nbsp;=&nbsp;hard, 0.5&nbsp;=&nbsp;mixed, 1&nbsp;=&nbsp;soft) &mdash; ground zones override locally</li>
           <li>Barrier and terrain screening are always applied (Maekawa diffraction, Deygout 3-edge for terrain)</li>

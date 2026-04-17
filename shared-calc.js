@@ -740,6 +740,160 @@ var SharedCalc = (function() {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //  CONCAWE prediction — complete K1–K6 calculation chain
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * CONCAWE prediction at a single point (Report 4/81, Manning 1981).
+   * Lp(f) = Lw(f) + adj − (K1 + K2 + K3 + K4 + K5 + Kscreen)
+   * where Kscreen = max(K6_barrier, Aterr).
+   *
+   * @param {number[]} spectrum  - 8-band Lw (A-weighted) [63–8000 Hz]
+   * @param {number} srcHeight   - source height above ground (m)
+   * @param {number} distM       - source-receiver distance (m)
+   * @param {number} adjDB       - broadband adjustment (opTime + quantity)
+   * @param {number} barrierDelta - barrier path-length difference (m), 0 if none
+   * @param {number} recvHeight  - receiver height above ground (m)
+   * @param {object} concaweParams - { temperature, humidity, groundFactor, metCategory }
+   * @param {number} endDeltaLeft  - left end-diffraction delta (m)
+   * @param {number} endDeltaRight - right end-diffraction delta (m)
+   * @param {object} barrierInfo   - { d1, d2, hBar } (unused by CONCAWE ground, passed for future)
+   * @param {number[]} terrainILPerBand - 8-band terrain insertion loss (dB), or null
+   * @returns {number} overall A-weighted Lp (dB)
+   */
+  function calcConcaweAtPoint(spectrum, srcHeight, distM, adjDB, barrierDelta,
+    recvHeight, concaweParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand) {
+    if (!spectrum || distM <= 0) return NaN;
+    var d = Math.max(distM, 1);
+    var hS = Math.max(srcHeight, 0.01);
+    var hR = recvHeight || 1.5;
+    var params = concaweParams || {};
+
+    // K1: geometric divergence (= Adiv)
+    var K1 = 20 * Math.log10(d) + 11;
+
+    // K2: atmospheric absorption per band (= Aatm)
+    var alpha = calcAlphaAtm(params.temperature || 10, params.humidity || 70);
+
+    // Ground type for K3
+    var gFactor = (params.groundFactor != null) ? params.groundFactor : 0.5;
+    // CONCAWE binary ground: G=0 → hard, G>0 → soft
+    // When gFactor is an object {Gs,Gr,Gm}, use the average to decide hard/soft
+    var gScalar = (typeof gFactor === 'object')
+      ? ((gFactor.Gs || 0) + (gFactor.Gr || 0) + (gFactor.Gm || 0)) / 3
+      : gFactor;
+    var groundType = (gScalar === 0) ? 'hard' : 'soft';
+
+    // K4: meteorological correction
+    var metCat = params.metCategory || 4;
+
+    // K6: barrier/building screen (reuse Maekawa diffraction)
+    var hasBarrier = (barrierDelta || 0) > 0 || (endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0;
+    var hasTerrain = !!(terrainILPerBand && terrainILPerBand.length === 8);
+    var Abar;
+    if (hasBarrier) {
+      if ((endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0) {
+        Abar = calcBarrierWithEndDiffraction(barrierDelta || 0, endDeltaLeft || 0, endDeltaRight || 0, OCT_FREQ);
+      } else {
+        Abar = calcBarrierAttenuation(barrierDelta || 0, OCT_FREQ);
+      }
+    }
+
+    var sumLin = 0;
+    var anyBand = false;
+    for (var i = 0; i < 8; i++) {
+      var Lw_f = spectrum[i];
+      if (Lw_f === null || Lw_f === undefined || !isFinite(Lw_f)) continue;
+
+      var freq = OCT_FREQ[i];
+      var K2_f = alpha[i] * d;
+      var K3_f = calcConcaweK3(d, freq, groundType);
+      var K4_f = calcConcaweK4(freq, metCat);
+      var K5_f = calcConcaweK5(K3_f, K4_f, hS, hR, d);
+
+      // Screen = max(barrier IL, terrain IL)
+      var K6_f = hasBarrier ? Abar[i] : 0;
+      var Aterr_f = hasTerrain ? (terrainILPerBand[i] > 0 ? terrainILPerBand[i] : 0) : 0;
+      var Kscreen_f = K6_f > Aterr_f ? K6_f : Aterr_f;
+
+      // CONCAWE: K3 is always applied (no §7.4 insertion-loss interaction)
+      var A_f = K1 + K2_f + K3_f + K4_f + K5_f + Kscreen_f;
+      sumLin += Math.pow(10, (Lw_f + (adjDB || 0) - A_f) / 10);
+      anyBand = true;
+    }
+    if (!anyBand) return NaN;
+    return 10 * Math.log10(sumLin);
+  }
+
+  /**
+   * Detailed CONCAWE prediction returning per-band intermediate values.
+   * Same calculation as calcConcaweAtPoint but returns full breakdown.
+   */
+  function calcConcaweAtPointDetailed(spectrum, srcHeight, distM, adjDB, barrierDelta,
+    recvHeight, concaweParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand) {
+    if (!spectrum || distM <= 0) return null;
+    var d = Math.max(distM, 1);
+    var hS = Math.max(srcHeight, 0.01);
+    var hR = recvHeight || 1.5;
+    var params = concaweParams || {};
+
+    var K1 = 20 * Math.log10(d) + 11;
+    var alpha = calcAlphaAtm(params.temperature || 10, params.humidity || 70);
+    var gFactor = (params.groundFactor != null) ? params.groundFactor : 0.5;
+    var gScalar = (typeof gFactor === 'object')
+      ? ((gFactor.Gs || 0) + (gFactor.Gr || 0) + (gFactor.Gm || 0)) / 3
+      : gFactor;
+    var groundType = (gScalar === 0) ? 'hard' : 'soft';
+    var metCat = params.metCategory || 4;
+
+    var hasBarrier = (barrierDelta || 0) > 0 || (endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0;
+    var hasTerrain = !!(terrainILPerBand && terrainILPerBand.length === 8);
+    var Abar;
+    if (hasBarrier) {
+      if ((endDeltaLeft || 0) > 0 || (endDeltaRight || 0) > 0) {
+        Abar = calcBarrierWithEndDiffraction(barrierDelta || 0, endDeltaLeft || 0, endDeltaRight || 0, OCT_FREQ);
+      } else {
+        Abar = calcBarrierAttenuation(barrierDelta || 0, OCT_FREQ);
+      }
+    }
+
+    var bands = [];
+    var sumLin = 0;
+    for (var i = 0; i < 8; i++) {
+      var Lw_f = spectrum[i];
+      var freq = OCT_FREQ[i];
+      var K2_f = alpha[i] * d;
+      var K3_f = calcConcaweK3(d, freq, groundType);
+      var K4_f = calcConcaweK4(freq, metCat);
+      var K5_f = calcConcaweK5(K3_f, K4_f, hS, hR, d);
+      var K6_f = hasBarrier ? Abar[i] : 0;
+      var Aterr_f = hasTerrain ? (terrainILPerBand[i] > 0 ? terrainILPerBand[i] : 0) : 0;
+      var Kscreen_f = K6_f > Aterr_f ? K6_f : Aterr_f;
+
+      if (Lw_f === null || Lw_f === undefined || !isFinite(Lw_f)) {
+        bands.push({ freq: freq, Lw: NaN, K1: K1, K2: K2_f, K3: K3_f, K4: K4_f, K5: K5_f, K6: K6_f, Aterr: Aterr_f, Lp: NaN });
+        continue;
+      }
+      var A_f = K1 + K2_f + K3_f + K4_f + K5_f + Kscreen_f;
+      var Lp_f = Lw_f + (adjDB || 0) - A_f;
+      sumLin += Math.pow(10, Lp_f / 10);
+      bands.push({
+        freq: freq,
+        Lw: Lw_f + (adjDB || 0),
+        K1: K1, K2: K2_f, K3: K3_f, K4: K4_f, K5: K5_f,
+        K6: K6_f, Aterr: Aterr_f, Lp: Lp_f
+      });
+    }
+
+    return {
+      total: sumLin > 0 ? 10 * Math.log10(sumLin) : NaN,
+      distance: d, srcHeight: hS, recvHeight: hR, K1: K1,
+      metCategory: metCat, groundType: groundType,
+      bands: bands
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //  Facade reflection — ISO 9613-2 §7.5 image source method
   // ═══════════════════════════════════════════════════════════════
 
@@ -855,6 +1009,408 @@ var SharedCalc = (function() {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //  CONCAWE (Report 4/81, Manning 1981) — K3 Ground + K5 Height
+  // ═══════════════════════════════════════════════════════════════
+
+  // K3 polynomial coefficients — verified against CONCAWE Report 4/81
+  // Appendix II. Polynomial form:
+  //   K3 = a0 + a1·log10(d) + a2·(log10(d))² + a3·(log10(d))³
+  // where d = source-receiver distance in metres.
+  // 2000 and 4000 Hz are linear (a2=a3=0).
+  // 8000 Hz: use 4000 Hz coefficients (extrapolation beyond CONCAWE range).
+  var CONCAWE_K3_COEFFS = {
+    63:   [33.4, -35.04, 9.159, -0.3508],
+    125:  [8.96, -35.8, 20.4, -2.85],
+    250:  [-64.2, 48.6, -9.53, 0.634],
+    500:  [-74.9, 82.23, -26.921, 2.9258],
+    1000: [-100.1, 104.68, -34.693, 3.8068],
+    2000: [-7.0, 3.5, 0.0, 0.0],
+    4000: [-16.9, 6.7, 0.0, 0.0]
+  };
+
+  /**
+   * K3 ground attenuation — CONCAWE Report 4/81.
+   * Hard ground: K3 = −3 dB (hemispherical correction) for all bands/distances.
+   * Soft ground: polynomial lookup per octave band.
+   * @param {number} d   - source-receiver distance (m)
+   * @param {number} freqHz - octave band centre frequency (63–8000)
+   * @param {string} groundType - 'hard' or 'soft'
+   * @returns {number} K3 in dB
+   */
+  function calcConcaweK3(d, freqHz, groundType) {
+    if (groundType === 'hard') return -3;
+
+    // Clamp distance: curves validated 100–2000 m.
+    // Below 100 m: use 100 m value.
+    // Above 2000 m: use 2000 m value (500/1000 Hz cubic terms cause
+    // rollover beyond this range).
+    var dClamped = Math.max(100, Math.min(d, 2000));
+
+    // Map 8 kHz to 4 kHz coefficients
+    var band = freqHz;
+    if (band === 8000) band = 4000;
+
+    var c = CONCAWE_K3_COEFFS[band];
+    if (!c) return 0;
+
+    var logD = Math.log10(dClamped);
+    var K3 = c[0]
+           + c[1] * logD
+           + c[2] * logD * logD
+           + c[3] * logD * logD * logD;
+
+    return K3;
+  }
+
+  // Gamma vs grazing angle — verified from CONCAWE Figure 9.
+  // Do NOT use the exp(-0.6ψ) approximation — it is too inaccurate
+  // at small angles where most real scenarios fall.
+  var CONCAWE_GAMMA_TABLE = [
+    [0.0, 1.00],
+    [0.5, 0.90],
+    [1.0, 0.70],
+    [1.5, 0.54],
+    [2.0, 0.38],
+    [2.5, 0.26],
+    [3.0, 0.16],
+    [4.0, 0.06],
+    [5.0, 0.01]
+  ];
+
+  /**
+   * Linear interpolation of gamma from the Figure 9 table.
+   * @param {number} psiDeg - grazing angle in degrees
+   * @returns {number} gamma (0–1)
+   */
+  function lookupGamma(psiDeg) {
+    var tbl = CONCAWE_GAMMA_TABLE;
+    if (psiDeg <= tbl[0][0]) return tbl[0][1];
+    if (psiDeg >= tbl[tbl.length - 1][0]) return tbl[tbl.length - 1][1];
+
+    for (var i = 0; i < tbl.length - 1; i++) {
+      if (psiDeg >= tbl[i][0] && psiDeg < tbl[i + 1][0]) {
+        var t = (psiDeg - tbl[i][0]) / (tbl[i + 1][0] - tbl[i][0]);
+        return tbl[i][1] + t * (tbl[i + 1][1] - tbl[i][1]);
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * K5 source height correction — CONCAWE Report 4/81.
+   * Reduces K3+K4 effect for elevated sources based on the grazing angle.
+   * @param {number} K3 - ground attenuation from calcConcaweK3()
+   * @param {number} K4 - meteorological correction (0 until Prompt 2)
+   * @param {number} hs - source height above ground (m)
+   * @param {number} hr - receiver height above ground (m)
+   * @param {number} d  - source-receiver distance (m)
+   * @returns {number} K5 in dB
+   */
+  function calcConcaweK5(K3, K4, hs, hr, d) {
+    // K5 only applies when source height > 2 m
+    if (hs <= 2) return 0;
+
+    // No correction when ground+met effect is already small
+    if ((K3 + K4) <= -3) return 0;
+
+    // Grazing angle in degrees
+    var psiRad = Math.atan((hs + hr) / d);
+    var psiDeg = psiRad * 180 / Math.PI;
+
+    // Gamma from Figure 9 lookup
+    var gamma = lookupGamma(psiDeg);
+
+    var K5 = (K3 + K4 + 3) * (gamma - 1);
+    return K5;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  CONCAWE — K4 Meteorological Correction (Simplification 2)
+  // ═══════════════════════════════════════════════════════════════
+
+  // K4 correction table — Simplification 2 (distance-independent).
+  // Verified against CONCAWE Report 4/81 §6.2.
+  // Convention: positive = upwind attenuation, negative = downwind enhancement.
+  // Category 4 = neutral (zero correction).
+  var CONCAWE_K4_TABLE = {
+    1: {63:8.0, 125:5.0, 250:6.0, 500:8.0, 1000:10.0, 2000:6.0, 4000:8.0},
+    2: {63:3.0, 125:2.0, 250:5.0, 500:7.0, 1000:11.5, 2000:7.5, 4000:8.0},
+    3: {63:2.0, 125:1.5, 250:4.0, 500:3.5, 1000:6.0, 2000:5.0, 4000:4.5},
+    4: {63:0, 125:0, 250:0, 500:0, 1000:0, 2000:0, 4000:0},
+    5: {63:-1.0, 125:-2.0, 250:-4.0, 500:-4.0, 1000:-4.5, 2000:-3.0, 4000:-4.5},
+    6: {63:-2.0, 125:-4.0, 250:-5.0, 500:-6.0, 1000:-5.0, 2000:-4.5, 4000:-7.0}
+  };
+
+  /**
+   * K4 meteorological correction — CONCAWE Simplification 2.
+   * @param {number} freqHz      - octave band centre frequency (63–8000)
+   * @param {number} metCategory - integer 1–6 (1=strong upwind … 6=strong downwind)
+   * @returns {number} K4 in dB (positive=upwind attenuation, negative=downwind enhancement)
+   */
+  function calcConcaweK4(freqHz, metCategory) {
+    var cat = Math.round(metCategory);
+    if (cat < 1) cat = 1;
+    if (cat > 6) cat = 6;
+
+    // Map 8 kHz to 4 kHz (CONCAWE covers 63–4000 Hz)
+    var band = freqHz;
+    if (band === 8000) band = 4000;
+
+    var row = CONCAWE_K4_TABLE[cat];
+    if (!row || row[band] === undefined) return 0;
+
+    return row[band];
+  }
+
+  /**
+   * Pasquill stability class from meteorological inputs.
+   * @param {number} windSpeed      - wind speed at 10 m height (m/s)
+   * @param {string} timeOfDay      - 'day' | 'night' | 'transition'
+   * @param {string} solarRadiation - '>60' | '30-60' | '<30' (mW/cm², day only)
+   * @param {string} cloudCover     - '0-3' | '4-7' | '8' (octas, night only)
+   * @returns {string} Pasquill class ('A' through 'G', including 'A-B','B-C','C-D')
+   */
+  function getPasquillClass(windSpeed, timeOfDay, solarRadiation, cloudCover) {
+    // Wind speed bins
+    var ws;
+    if (windSpeed <= 1.5) ws = 0;
+    else if (windSpeed <= 2.5) ws = 1;
+    else if (windSpeed <= 4.5) ws = 2;
+    else if (windSpeed <= 6.0) ws = 3;
+    else ws = 4;
+
+    if (timeOfDay === 'day') {
+      var sr;
+      if (solarRadiation === '>60') sr = 0;
+      else if (solarRadiation === '30-60') sr = 1;
+      else sr = 2; // '<30'
+
+      var dayTable = [
+        //  >60     30-60   <30
+        ['A',    'A-B',  'B'   ],  // <=1.5
+        ['A-B',  'B',    'C'   ],  // 2.0-2.5
+        ['B',    'B-C',  'C'   ],  // 3.0-4.5
+        ['C',    'C-D',  'D'   ],  // 5.0-6.0
+        ['D',    'D',    'D'   ]   // >6.0
+      ];
+      return dayTable[ws][sr];
+
+    } else if (timeOfDay === 'transition') {
+      return 'D';
+
+    } else {
+      // Night: index by cloud cover
+      var cc;
+      if (cloudCover === '0-3') cc = 0;
+      else if (cloudCover === '4-7') cc = 1;
+      else cc = 2; // '8'
+
+      var nightTable = [
+        //  0-3     4-7     8
+        ['F',    'F',    'D'   ],  // <=1.5
+        ['F',    'E',    'D'   ],  // 2.0-2.5
+        ['E',    'D',    'D'   ],  // 3.0-4.5
+        ['D',    'D',    'D'   ],  // 5.0-6.0
+        ['D',    'D',    'D'   ]   // >6.0
+      ];
+
+      var result = nightTable[ws][cc];
+
+      // Category G: night, <1 octa, wind <0.5 m/s
+      if (cloudCover === '0-3' && windSpeed < 0.5) {
+        result = 'G';
+      }
+
+      return result;
+    }
+  }
+
+  /**
+   * Map Pasquill class to stability group for met category lookup.
+   * @param {string} pasquill - Pasquill class ('A' through 'G', including intermediates)
+   * @returns {string} 'AB' | 'CDE' | 'FG'
+   */
+  function pasquillToGroup(pasquill) {
+    if (['A', 'A-B', 'B', 'B-C'].indexOf(pasquill) >= 0) return 'AB';
+    if (['F', 'G'].indexOf(pasquill) >= 0) return 'FG';
+    return 'CDE'; // C, C-D, D, E
+  }
+
+  /**
+   * CONCAWE met category (1–6) from Pasquill group + vector wind.
+   * @param {string} pasquillGroup - 'AB' | 'CDE' | 'FG'
+   * @param {number} vectorWind    - m/s, positive = downwind (source → receiver)
+   * @returns {number} integer 1–6
+   */
+  function getConcaweMetCategory(pasquillGroup, vectorWind) {
+    var v = vectorWind;
+
+    if (pasquillGroup === 'AB') {
+      if (v < -3.0) return 1;
+      if (v < -0.5) return 2;
+      if (v < 0.5)  return 3;
+      if (v < 3.0)  return 4;
+      return 5;
+    }
+
+    if (pasquillGroup === 'CDE') {
+      if (v < -3.0) return 2;
+      if (v < -0.5) return 3;
+      if (v < 0.5)  return 4;
+      if (v < 3.0)  return 5;
+      return 6;
+    }
+
+    // FG
+    if (v < -3.0) return 3;
+    if (v < -0.5) return 4;
+    if (v < 0.5)  return 5;
+    if (v < 3.0)  return 6;
+    return 6; // F/G + strong downwind = cat 6
+  }
+
+  /**
+   * Full-chain K4 from raw meteorological inputs.
+   * @param {number} freqHz         - octave band centre frequency
+   * @param {number} windSpeed      - wind speed at 10 m (m/s)
+   * @param {number} windDirection  - degrees, direction wind is coming FROM (met convention)
+   * @param {number} sourceBearing  - degrees, bearing from receiver to source
+   * @param {string} timeOfDay      - 'day' | 'night' | 'transition'
+   * @param {string} solarRadiation - '>60' | '30-60' | '<30' (day only)
+   * @param {string} cloudCover     - '0-3' | '4-7' | '8' (night only)
+   * @returns {{K4:number, metCategory:number, pasquillClass:string, vectorWind:number}}
+   */
+  function calcConcaweK4FromMet(freqHz, windSpeed, windDirection,
+                                 sourceBearing, timeOfDay,
+                                 solarRadiation, cloudCover) {
+    // Vector wind = component of wind blowing source → receiver.
+    // Wind direction is "from" (met convention) — when windDir equals
+    // sourceBearing the wind blows FROM the source TOWARD the receiver,
+    // which is downwind (positive). No +180 flip needed.
+    var angleDiff = (windDirection - sourceBearing) * Math.PI / 180;
+    var vectorWind = windSpeed * Math.cos(angleDiff);
+
+    var pasquill = getPasquillClass(windSpeed, timeOfDay, solarRadiation, cloudCover);
+    var group = pasquillToGroup(pasquill);
+    var metCat = getConcaweMetCategory(group, vectorWind);
+
+    return {
+      K4: calcConcaweK4(freqHz, metCat),
+      metCategory: metCat,
+      pasquillClass: pasquill,
+      vectorWind: vectorWind
+    };
+  }
+
+  // ── CONCAWE console test harness ──────────────────────────────
+  if (typeof window !== 'undefined') {
+    window.testConcaweK3K5 = function() {
+      var bands = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+      var distances = [100, 200, 500, 1000, 2000];
+
+      console.log('=== K3 SOFT GROUND ===');
+      for (var i = 0; i < distances.length; i++) {
+        var d = distances[i];
+        var row = 'd=' + d + 'm: ';
+        for (var j = 0; j < bands.length; j++) {
+          var v = calcConcaweK3(d, bands[j], 'soft');
+          row += bands[j] + 'Hz=' + v.toFixed(1) + '  ';
+        }
+        console.log(row);
+      }
+
+      console.log('');
+      console.log('=== K3 HARD GROUND ===');
+      console.log('All bands, all distances: -3.0');
+      console.log('Check: ' + calcConcaweK3(500, 500, 'hard'));
+
+      console.log('');
+      console.log('=== K3 expected at key points ===');
+      console.log('250Hz @ 1000m should be ~12.9: ' +
+        calcConcaweK3(1000, 250, 'soft').toFixed(1));
+      console.log('63Hz @ 100m should be ~-2.9: ' +
+        calcConcaweK3(100, 63, 'soft').toFixed(1));
+      console.log('500Hz @ 500m should be ~8.5: ' +
+        calcConcaweK3(500, 500, 'soft').toFixed(1));
+
+      console.log('');
+      console.log('=== K5 (hs=10, hr=1.5) ===');
+      for (var i = 0; i < distances.length; i++) {
+        var d = distances[i];
+        var K3 = calcConcaweK3(d, 500, 'soft');
+        var K5 = calcConcaweK5(K3, 0, 10, 1.5, d);
+        var psi = Math.atan(11.5 / d) * 180 / Math.PI;
+        console.log('d=' + d +
+          ' psi=' + psi.toFixed(2) + 'deg' +
+          ' gamma=' + lookupGamma(psi).toFixed(2) +
+          ' K3=' + K3.toFixed(1) +
+          ' K5=' + K5.toFixed(1));
+      }
+
+      console.log('');
+      console.log('=== K5 should be 0 when hs<=2 ===');
+      console.log('K5(hs=1.5): ' + calcConcaweK5(5, 0, 1.5, 1.5, 500));
+
+      console.log('');
+      console.log('=== Gamma interpolation check ===');
+      var testPsi = [0, 0.25, 0.5, 1, 1.5, 2, 3, 5];
+      for (var i = 0; i < testPsi.length; i++) {
+        console.log('psi=' + testPsi[i] +
+          ' gamma=' + lookupGamma(testPsi[i]).toFixed(3));
+      }
+    };
+
+    window.testConcaweK4 = function() {
+      console.log('=== K4 direct lookup ===');
+      var cats = [1, 2, 3, 4, 5, 6];
+      var bands = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+      for (var i = 0; i < cats.length; i++) {
+        var row = 'Cat ' + cats[i] + ': ';
+        for (var j = 0; j < bands.length; j++) {
+          row += bands[j] + '=' +
+            calcConcaweK4(bands[j], cats[i]).toFixed(1) + '  ';
+        }
+        console.log(row);
+      }
+
+      console.log('');
+      console.log('=== Category 4 should be all zeros ===');
+      console.log('1kHz Cat4: ' + calcConcaweK4(1000, 4));
+
+      console.log('');
+      console.log('=== 8kHz should equal 4kHz ===');
+      console.log('Cat6 4kHz: ' + calcConcaweK4(4000, 6) +
+        '  8kHz: ' + calcConcaweK4(8000, 6));
+
+      console.log('');
+      console.log('=== Pasquill class tests ===');
+      console.log('Day >60 1m/s: ' +
+        getPasquillClass(1.0, 'day', '>60', null));
+      console.log('Night 0-3 0.3m/s: ' +
+        getPasquillClass(0.3, 'night', null, '0-3'));
+      console.log('Night 8 3m/s: ' +
+        getPasquillClass(3.0, 'night', null, '8'));
+      console.log('Transition 2m/s: ' +
+        getPasquillClass(2.0, 'transition', null, null));
+
+      console.log('');
+      console.log('=== Met category tests ===');
+      console.log('AB v=-4: ' + getConcaweMetCategory('AB', -4));
+      console.log('CDE v=0: ' + getConcaweMetCategory('CDE', 0));
+      console.log('FG v=2: ' + getConcaweMetCategory('FG', 2));
+
+      console.log('');
+      console.log('=== Full chain test ===');
+      var result = calcConcaweK4FromMet(500, 3.0, 0, 0, 'day', '>60', null);
+      console.log('Day >60 3m/s downwind:');
+      console.log('  Pasquill=' + result.pasquillClass +
+        ' vectorWind=' + result.vectorWind.toFixed(1) +
+        ' metCat=' + result.metCategory +
+        ' K4(500Hz)=' + result.K4);
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //  Public API
   // ═══════════════════════════════════════════════════════════════
 
@@ -883,7 +1439,21 @@ var SharedCalc = (function() {
     getIntersectingEdges: getIntersectingEdges,
     getDominantBarrier: getDominantBarrier,
     // Facade reflection
-    getDominantReflection: getDominantReflection
+    getDominantReflection: getDominantReflection,
+    // CONCAWE (Report 4/81)
+    CONCAWE_K3_COEFFS: CONCAWE_K3_COEFFS,
+    CONCAWE_GAMMA_TABLE: CONCAWE_GAMMA_TABLE,
+    CONCAWE_K4_TABLE: CONCAWE_K4_TABLE,
+    calcConcaweK3: calcConcaweK3,
+    calcConcaweK5: calcConcaweK5,
+    lookupGamma: lookupGamma,
+    calcConcaweAtPoint: calcConcaweAtPoint,
+    calcConcaweAtPointDetailed: calcConcaweAtPointDetailed,
+    calcConcaweK4: calcConcaweK4,
+    getPasquillClass: getPasquillClass,
+    pasquillToGroup: pasquillToGroup,
+    getConcaweMetCategory: getConcaweMetCategory,
+    calcConcaweK4FromMet: calcConcaweK4FromMet
   };
 })();
 

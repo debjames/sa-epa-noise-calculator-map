@@ -1,5 +1,55 @@
 # UAT Tests
 
+## PDF Appendix Export
+
+Prerequisite: SA assessment with source placed, 2+ receivers placed and zones detected. Project number set to "A123456".
+
+### Basic export
+
+- [ ] **Save PDF button visible** — The "Save PDF" button appears in the header export row alongside Save Assessment / Load Assessment / Share Assessment.
+- [ ] **PDF downloads** — Click "Save PDF" → a PDF file downloads. No console errors during generation.
+- [ ] **Filename with project number** — With projectNumber "A123456", filename is `A123456_Appendix_Criteria.pdf`.
+- [ ] **Filename without project number** — Clear projectNumber, click "Save PDF" → filename is `Appendix_Criteria.pdf`.
+
+### Map capture
+
+- [ ] **Zone-only image** — Open the downloaded PDF. The site image shows ONLY: base map tiles, zone polygons/labels, and site boundary. NO sources, receivers, barriers, buildings, contours, noise map, or other objects visible in the image.
+- [ ] **Layers restored** — After PDF generation, return to the tool. All objects (sources, receivers, barriers etc.) are visible again on the map. Toggle states match pre-export state.
+
+### Planning & Design Code table
+
+- [ ] **Table present** — PDF contains a "Planning & Design Code" section with a table.
+- [ ] **Columns correct** — Table has columns: Location, Zone, Subzone, Land Use Category.
+- [ ] **Rows correct** — Source row present, plus one row per placed receiver. Values match the Receivers & criteria panel in the drawer.
+
+### Noise Criteria table
+
+- [ ] **Table present** — PDF contains a "Noise Criteria" section with a table.
+- [ ] **Day/Night values match** — Day LAeq and Night LAeq values match the Receivers & criteria panel.
+- [ ] **Clause column (SA)** — For SA assessments, the Clause column shows "Clause 5(4)", "Clause 5(5)", or "Clause 5(6)" matching the SA derivation table.
+
+### Conditional sections
+
+- [ ] **Emergency criteria — present** — Tick "Emergency equipment" checkbox + "Fire & smoke control" → regenerate PDF → "Emergency Equipment Criteria" section appears with fire pump criteria values.
+- [ ] **Emergency criteria — absent** — Untick "Emergency equipment" → regenerate PDF → no emergency section in PDF.
+- [ ] **Music criteria — present** — Tick "Music" checkbox, enter background noise values → regenerate PDF → "Music Noise Criteria" octave band table appears with LA90 and LA10 criteria values.
+- [ ] **Music criteria — absent** — Untick "Music" → regenerate PDF → no music section in PDF.
+- [ ] **Childcare criteria — present** — Tick "Childcare / students" → regenerate PDF → "Childcare / Student Criteria" section appears showing 50 dB(A).
+- [ ] **Childcare criteria — absent** — Untick "Childcare" → regenerate PDF → no childcare section in PDF.
+
+### Page layout
+
+- [ ] **A4 portrait** — PDF page is A4 portrait (210 × 297 mm).
+- [ ] **Margins** — Content area has approximately 22 mm margins on all sides.
+- [ ] **Page overflow** — With all three special categories active (emergency + music + childcare): content flows onto page 2 if needed.
+- [ ] **Page numbers** — Each page shows "1 / N" style page numbering centred at bottom.
+
+### Non-regression
+
+- [ ] **Generate Report unchanged** — Existing Generate Report (.docx) button still works correctly.
+- [ ] **Save JPG unchanged** — Existing Save JPG button still works correctly.
+- [ ] **Existing criteria PDF unchanged** — The ⇩ button in the Receivers & criteria card header still generates the existing criteria derivation PDF.
+
 ## Methodology modal — focus management and a11y
 
 Prerequisite: tool loaded, LHS side panel expanded so `#side-panel-methodology-btn` is visible.
