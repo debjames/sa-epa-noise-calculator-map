@@ -352,6 +352,7 @@ var SharedCalc = (function() {
             building: b,
             edgeStart: p3,
             edgeEnd: p4,
+            edgeVertexIdx: ei,   // index of edgeStart vertex in building.polygon
             intersection: hit,
             distFromSrc: flatDistM(srcLL, hit)
           });
@@ -444,6 +445,7 @@ var SharedCalc = (function() {
           building: best.building,
           edgeStart: best.edgeStart,
           edgeEnd: best.edgeEnd,
+          edgeVertexIdx: best.edgeVertexIdx,
           intersection: best.intersection,
           barrierHeightM: barrierH,
           baseHeightM: baseH,
@@ -477,6 +479,7 @@ var SharedCalc = (function() {
         building: best.building,
         edgeStart: best.edgeStart,
         edgeEnd: best.edgeEnd,
+        edgeVertexIdx: best.edgeVertexIdx,
         intersection: best.intersection,
         barrierHeightM: barrierH,
         baseHeightM: baseH,
@@ -523,6 +526,7 @@ var SharedCalc = (function() {
       building: best.building,
       edgeStart: best.edgeStart,
       edgeEnd: best.edgeEnd,
+      edgeVertexIdx: best.edgeVertexIdx,
       intersection: best.intersection,
       barrierHeightM: barrierH,
       baseHeightM: baseH,

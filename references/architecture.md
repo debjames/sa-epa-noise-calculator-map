@@ -1373,7 +1373,7 @@ Two more polygon-based geometry types — same coordinate / DEM-sampling utiliti
 
 #### Barriers
 
-Data source: `window._getUserBarriers()` returning `userBarriers[]`. Each barrier has `{ id, vertices: [[lat,lng],…], heightM, baseHeightM, suppressed, name }`. Suppressed barriers are fully skipped in 3D — the 2D map handles suppression indication with its own styling.
+Data source: `window._getUserBarriers()` returning `userBarriers[]`. Each barrier has `{ id, vertices: [[lat,lng],…], heightM, baseHeightM, suppressed, name, vertexElevations: number[]|null }`. `vertexElevations` stores absolute-ASL elevation at each vertex, fetched via `_fetchVertexElevations()` / `DEMCache.getElevations()`. Suppressed barriers are fully skipped in 3D — the 2D map handles suppression indication with its own styling.
 
 `_buildOneBarrier(barrier, centre)` at [`index.html:4664`](../index.html:4664) emits:
 

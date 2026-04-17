@@ -658,10 +658,37 @@ self.onmessage = function(e) {
             var _d2W = (typeof _barrierW.d2 === 'number')
               ? _barrierW.d2
               : flatDistM(_barrierW.intersection || srcLL, pt);
+            var _hBarW = (_barrierW.baseHeightM || 0) + (_barrierW.barrierHeightM || 0);
+            if (terrainEnabled && _barrierW.building) {
+              var _elevs = _barrierW.building.vertexElevations;
+              var _poly  = _barrierW.building.polygon;
+              var _iA    = _barrierW.edgeVertexIdx;
+              if (_elevs && _poly && _iA !== undefined && _iA !== null) {
+                var _iB = _barrierW.building.isBarrier ? _iA + 1 : (_iA + 1) % _poly.length;
+                var _eA = _elevs[_iA], _eB = (_iB < _elevs.length) ? _elevs[_iB] : null;
+                if (_eA !== null && _eB !== null && isFinite(_eA) && isFinite(_eB)) {
+                  var _vA = _poly[_iA], _vB = _poly[_iB];
+                  var _latA = Array.isArray(_vA) ? _vA[0] : _vA.lat;
+                  var _lngA = Array.isArray(_vA) ? _vA[1] : _vA.lng;
+                  var _latB = Array.isArray(_vB) ? _vB[0] : _vB.lat;
+                  var _lngB = Array.isArray(_vB) ? _vB[1] : _vB.lng;
+                  var _dLat = _latB - _latA, _dLng = _lngB - _lngA;
+                  var _edgeLen2 = _dLat * _dLat + _dLng * _dLng;
+                  var _t = 0.5;
+                  if (_edgeLen2 > 1e-20 && _barrierW.intersection) {
+                    var _ix = _barrierW.intersection;
+                    _t = ((_ix.lat - _latA) * _dLat + (_ix.lng - _lngA) * _dLng) / _edgeLen2;
+                    _t = Math.max(0, Math.min(1, _t));
+                  }
+                  var _tElev = _eA * (1 - _t) + _eB * _t;
+                  _hBarW = _tElev + (_barrierW.baseHeightM || 0) + (_barrierW.barrierHeightM || 0);
+                }
+              }
+            }
             _barrInfoW = {
               d1: _d1W,
               d2: _d2W,
-              hBar: (_barrierW.baseHeightM || 0) + (_barrierW.barrierHeightM || 0)
+              hBar: _hBarW
             };
           }
 

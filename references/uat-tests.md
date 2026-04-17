@@ -904,3 +904,41 @@ Prerequisite: Phase 2 validation scenario already entered (AADT 23600, Speed 60,
 165. **10× open/close with toolbar interaction** — Open, slide Vert to 5×, toggle buttons, close. Repeat 10 times. No memory growth in DevTools. No console errors. The toolbar keydown listener is cleanly removed each time — open DevTools Listeners view on `document` and verify only one `keydown` capture listener is present while the modal is open, zero when closed.
 
 166. **No console errors** — After the full Phase 6 walkthrough (142–165) the console has zero errors and zero new warnings.
+
+## Objects follow terrain (per-vertex elevation cache)
+
+### Vertex elevation fetch
+
+167. **Fetch on creation (terrain enabled)** — Enable Terrain. Draw a barrier. Within ~2 s the barrier object in `window._getUserBarriers()[0]` has a non-null `vertexElevations` array with `vertices.length` entries. Each entry is a finite number (absolute ASL metres) or null if outside DEM coverage.
+
+168. **Fetch on terrain toggle** — Draw a barrier with Terrain OFF. Check `vertexElevations` is null. Enable Terrain. Within ~2 s `vertexElevations` is populated. Disable Terrain and re-enable: values are retained (no unnecessary re-fetch).
+
+169. **Partial re-fetch on drag** — Enable Terrain. Draw a 4-vertex barrier. Drag the second vertex to a new location. Only that vertex is re-fetched (check console — one `[vertexElev]` log, not four). The other vertices retain their cached values.
+
+170. **`_fetchMissingVertexElevations` on load** — Save an assessment with Terrain enabled and a barrier. Reload the page, load the assessment. Within ~2 s the barrier has `vertexElevations` populated (if the save predated this feature and the field was null, the back-fill runs).
+
+171. **Save/load round-trip** — Save an assessment. Load it. `userBarriers[0].vertexElevations` in the loaded data matches the pre-save value (not re-fetched on load if already present).
+
+### Barrier diffraction — terrain-aware hBar
+
+172. **hBar includes terrain elevation** — Enable Terrain on a hilly site. Place a source and receiver with a barrier between them. Check the per-band breakdown panel: `hBar` in the barrier info should be significantly higher than `barrierHeightM + baseHeightM` alone if the barrier sits at elevated terrain.
+
+173. **hBar fallback on flat terrain** — On a completely flat site (all DEM samples equal), the terrain-aware `hBar` should equal `barrierHeightM + baseHeightM` (terrain elevation is zero, net effect zero). Level predictions unchanged vs pre-terrain behaviour.
+
+174. **hBar fallback when terrain off** — Disable Terrain. Draw a 3 m barrier. `_barrierHBar()` should return `3` (no terrain component). Predictions match pre-terrain values exactly.
+
+175. **hBar fallback when vertexElevations null** — With Terrain ON but DEM coverage unavailable (e.g. offshore site), `vertexElevations` will be all-null. `hBar` falls back to `baseHeightM + barrierHeightM`. No NaN or error in the prediction.
+
+### 3D viewer — per-vertex terrain for buildings
+
+176. **Custom building follows terrain** — Enable Terrain on a sloped site. Draw a custom building polygon that spans a hill. Open 3D View. The building base should step with the terrain at each vertex (not float flat at the centroid elevation). Verify by orbiting to a side view.
+
+177. **Building source follows terrain** — Same test with a building source polygon. Building source base follows terrain per-vertex; top is at `baseHeightM + height_m` above each vertex's terrain.
+
+178. **OSM buildings unaffected** — OSM buildings still use centroid `sampleTerrainAt()` (no per-vertex terrain). This is expected — OSM geometry is not edited by the user and doesn't have `vertexElevations`.
+
+### Worker (noise map)
+
+179. **Noise map hBar terrain-aware** — Enable Terrain on a hilly site. Draw a barrier. Run the noise map. The contours on the leeward side of the barrier should show increased screening compared to the flat-terrain result (terrain elevation adds to effective barrier height when the barrier is on raised ground).
+
+180. **No console errors** — After the full per-vertex terrain walkthrough (167–179) the console has zero errors and zero new warnings.

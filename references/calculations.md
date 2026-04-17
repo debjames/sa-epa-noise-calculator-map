@@ -711,14 +711,28 @@ per sub-path) with the spatially-varying G regions above, and returns the
 
 - `d1` — horizontal distance from source to the barrier edge intersection (m)
 - `d2` — horizontal distance from that intersection to the receiver (m)
-- `hBar` — height of the barrier top above ground at the intersection (m),
-  including any non-zero `baseHeightM` for floating barriers
+- `hBar` — height of the barrier top above the reference ground plane (m).
+  When terrain is enabled and `vertexElevations` are cached on the barrier
+  object, `hBar` is **terrain-aware**: `_barrierHBar(bw)` (index.html) /
+  inline interpolation in `noise-worker.js` interpolates the absolute-ASL
+  terrain elevation at the path-crossing point along the barrier edge, then
+  returns `terrainElev + baseHeightM + barrierHeightM`. The crossing point
+  is identified by `edgeVertexIdx` (threaded from `getIntersectingEdges` →
+  `getDominantBarrier` → every `barrierInfo` construction site). When terrain
+  is off or elevations unavailable, falls back to `baseHeightM + barrierHeightM`.
 
 When `barrierInfo` is omitted or missing fields, the functions fall back to
 the unobstructed-path `Agr` (backward compatible). Every ISO-path call
 site constructs `barrierInfo` from the `getDominantBarrier` return value
-(`d1`, `d2` are now exposed in that object, and `hBar = baseHeightM +
-barrierHeightM`).
+via `_barrierHBar(bw)`.
+
+#### Key functions — terrain-aware barrier height
+
+- **`_fetchVertexElevations(obj)`** — async, queries `DEMCache.getElevations()` per vertex, stores absolute-ASL values in `obj.vertexElevations`. Called on creation, drag-end (partial re-fetch), and by `_fetchMissingVertexElevations()` on terrain-on and after load.
+- **`_fetchMissingVertexElevations()`** — iterates all 6 object arrays and fetches any that lack `vertexElevations`.
+- **`_interpolateBarrierTerrain(bw)`** — given a `getDominantBarrier` result, uses `bw.building.vertexElevations[iA..iB]` and the crossing intersection to linearly interpolate terrain elevation at the crossing.
+- **`_barrierHBar(bw)`** — top-level helper; returns flat `baseHeightM + barrierHeightM` when terrain off, otherwise returns `_interpolateBarrierTerrain(bw) + baseHeightM + barrierHeightM`.
+- **`edgeVertexIdx`** — new field on `getDominantBarrier` result (index of `edgeStart` in `building.polygon`). Added to `getIntersectingEdges` results in `shared-calc.js`; threaded through all 3 return paths in `getDominantBarrier`.
 
 ### When the §7.4 fix actually moves the number
 

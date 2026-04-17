@@ -4612,11 +4612,18 @@ body.disclaimer-visible .container {
      shading along the walls doesn't wash out after
      computeVertexNormals — top and bottom faces share vertices across
      triangles (smooth shading there is fine since they're flat). */
-  function buildExtrudedFootprint(vertices, baseY, topY, centreLat, centreLng) {
+  /* Optional 6th param perVertexBaseY: Float array aligned with vertices[].
+     When provided, each vertex i uses perVertexBaseY[i] as its base Y (terrain-
+     following buildings). Falls back to the scalar baseY for any missing/invalid
+     entry. topY is ignored when perVertexBaseY is supplied — height is derived
+     as (topY - baseY) and applied uniformly on top of each per-vertex base. */
+  function buildExtrudedFootprint(vertices, baseY, topY, centreLat, centreLng, perVertexBaseY) {
     if (!vertices || vertices.length < 3) return null;
 
-    /* Normalise to {x, z} in local metres */
-    var pts = [];
+    var h = topY - baseY; /* constant building height used when perVertexBaseY supplied */
+
+    /* Normalise to {x, z} in local metres; track per-vertex base Y in parallel */
+    var pts = [], ptsBaseY = [];
     for (var i = 0; i < vertices.length; i++) {
       var v = vertices[i];
       var lat, lng;
@@ -4626,6 +4633,10 @@ body.disclaimer-visible .container {
       if (!isFinite(lat) || !isFinite(lng)) continue;
       var p = latLngToLocal(lat, lng, centreLat, centreLng);
       pts.push({ x: p.x, z: p.z });
+      var pvb = (perVertexBaseY && perVertexBaseY[i] !== null &&
+                 perVertexBaseY[i] !== undefined && isFinite(perVertexBaseY[i]))
+        ? perVertexBaseY[i] : baseY;
+      ptsBaseY.push(pvb);
     }
     if (pts.length < 3) return null;
 
@@ -4634,13 +4645,14 @@ body.disclaimer-visible .container {
     var last = pts[pts.length - 1], first = pts[0];
     if (Math.abs(last.x - first.x) < 1e-6 && Math.abs(last.z - first.z) < 1e-6) {
       pts.pop();
+      ptsBaseY.pop();
     }
     if (pts.length < 3) return null;
 
     /* Ensure CCW winding when viewed from above (+Y looking down -Y,
        i.e. from above the XZ plane). triangulateShape expects CCW; the
        side-wall winding below assumes it too. */
-    if (_signedAreaXZ(pts) < 0) pts.reverse();
+    if (_signedAreaXZ(pts) < 0) { pts.reverse(); ptsBaseY.reverse(); }
 
     /* Triangulate the top cap using Three.js's earcut. Wrap in
        try/catch because self-intersecting OSM polygons occasionally
@@ -4671,26 +4683,28 @@ body.disclaimer-visible .container {
     /* Top face vertices */
     for (var t = 0; t < N; t++) {
       positions[pOff++] = pts[t].x;
-      positions[pOff++] = topY;
+      positions[pOff++] = ptsBaseY[t] + h;
       positions[pOff++] = pts[t].z;
     }
     /* Bottom face vertices */
     for (var u = 0; u < N; u++) {
       positions[pOff++] = pts[u].x;
-      positions[pOff++] = baseY;
+      positions[pOff++] = ptsBaseY[u];
       positions[pOff++] = pts[u].z;
     }
     /* Side-wall vertices — 4 per edge (bottom-a, bottom-b, top-b, top-a) */
     for (var e = 0; e < N; e++) {
-      var a = pts[e], b = pts[(e + 1) % N];
+      var eB = (e + 1) % N;
+      var a = pts[e], b = pts[eB];
+      var bYa = ptsBaseY[e], bYb = ptsBaseY[eB];
       /* bottom-a */
-      positions[pOff++] = a.x; positions[pOff++] = baseY; positions[pOff++] = a.z;
+      positions[pOff++] = a.x; positions[pOff++] = bYa;     positions[pOff++] = a.z;
       /* bottom-b */
-      positions[pOff++] = b.x; positions[pOff++] = baseY; positions[pOff++] = b.z;
+      positions[pOff++] = b.x; positions[pOff++] = bYb;     positions[pOff++] = b.z;
       /* top-b */
-      positions[pOff++] = b.x; positions[pOff++] = topY;  positions[pOff++] = b.z;
+      positions[pOff++] = b.x; positions[pOff++] = bYb + h; positions[pOff++] = b.z;
       /* top-a */
-      positions[pOff++] = a.x; positions[pOff++] = topY;  positions[pOff++] = a.z;
+      positions[pOff++] = a.x; positions[pOff++] = bYa + h; positions[pOff++] = a.z;
     }
 
     /* Top-cap indices — CCW from above so normals point +Y. */
@@ -4849,7 +4863,19 @@ body.disclaimer-visible .container {
       var h = cb.heightM || 3;
       var topY = baseY + h;
 
-      var ext = buildExtrudedFootprint(cb.polygon, baseY, topY, centre.lat, centre.lng);
+      /* Per-vertex terrain: use cached vertexElevations if available (absolute
+         ASL → subtract _3dReferenceElevation → add baseHeightM). Falls back to
+         centroid-derived baseY vertex-by-vertex inside buildExtrudedFootprint. */
+      var pvbY = null;
+      if (cb.vertexElevations && cb.vertexElevations.length) {
+        pvbY = cb.vertexElevations.map(function(e) {
+          return (e !== null && isFinite(e))
+            ? (e - _3dReferenceElevation) + (cb.baseHeightM || 0)
+            : null;
+        });
+      }
+
+      var ext = buildExtrudedFootprint(cb.polygon, baseY, topY, centre.lat, centre.lng, pvbY);
       if (!ext) continue;
 
       var geom = new THREE.BufferGeometry();
@@ -4888,7 +4914,16 @@ body.disclaimer-visible .container {
       var h = bs.height_m || 6;
       var topY = baseY + h;
 
-      var ext = buildExtrudedFootprint(bs.vertices, baseY, topY, centre.lat, centre.lng);
+      var pvbY = null;
+      if (bs.vertexElevations && bs.vertexElevations.length) {
+        pvbY = bs.vertexElevations.map(function(e) {
+          return (e !== null && isFinite(e))
+            ? (e - _3dReferenceElevation) + (bs.baseHeightM || 0)
+            : null;
+        });
+      }
+
+      var ext = buildExtrudedFootprint(bs.vertices, baseY, topY, centre.lat, centre.lng, pvbY);
       if (!ext) continue;
 
       var geom = new THREE.BufferGeometry();
@@ -10061,8 +10096,7 @@ function calcAreaSourceAtReceiver(as, period, ri) {
       }
     }
     var barrInfoAS = (bwAS && (bwAS.pathLengthDiff > 0 || bwAS.gapPathLengthDiff > 0))
-      ? { d1: bwAS.d1, d2: bwAS.d2,
-          hBar: (bwAS.baseHeightM || 0) + (bwAS.barrierHeightM || 0) }
+      ? { d1: bwAS.d1, d2: bwAS.d2, hBar: _barrierHBar(bwAS) }
       : null;
     var gf = (typeof _gzComputePathG === 'function')
       ? _gzComputePathG(pt.lat, pt.lng, recLL.lat, recLL.lng, effectiveH, recHt, d)
@@ -10298,8 +10332,7 @@ function calcLineSourceAtReceiver(ls, period, ri) {
         }
       }
       var barrInfoLS = (bwLS && (bwLS.pathLengthDiff > 0 || bwLS.gapPathLengthDiff > 0))
-        ? { d1: bwLS.d1, d2: bwLS.d2,
-            hBar: (bwLS.baseHeightM || 0) + (bwLS.barrierHeightM || 0) }
+        ? { d1: bwLS.d1, d2: bwLS.d2, hBar: _barrierHBar(bwLS) }
         : null;
 
       var gf = (typeof _gzComputePathG === 'function')
@@ -10562,8 +10595,7 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   var _barrierGapDlt = _barrierObj ? (_barrierObj.gapPathLengthDiff || 0) : 0;
   var _barrierInGap  = _barrierObj ? !!_barrierObj.rayInGap : false;
   var _barrInfoSP    = (_barrierObj && (_barrierObj.pathLengthDiff > 0 || _barrierObj.gapPathLengthDiff > 0))
-    ? { d1: _barrierObj.d1, d2: _barrierObj.d2,
-        hBar: (_barrierObj.baseHeightM || 0) + (_barrierObj.barrierHeightM || 0) }
+    ? { d1: _barrierObj.d1, d2: _barrierObj.d2, hBar: _barrierHBar(_barrierObj) }
     : null;
 
   // Per-band terrain IL
@@ -10854,8 +10886,7 @@ function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
     var _bGapDltLmax = _bObjLmax ? (_bObjLmax.gapPathLengthDiff  || 0) : 0;
     var _bInGapLmax  = _bObjLmax ? !!_bObjLmax.rayInGap           : false;
     var _barrInfoLmax = (_bObjLmax && (_bObjLmax.pathLengthDiff > 0 || _bObjLmax.gapPathLengthDiff > 0))
-      ? { d1: _bObjLmax.d1, d2: _bObjLmax.d2,
-          hBar: (_bObjLmax.baseHeightM || 0) + (_bObjLmax.barrierHeightM || 0) }
+      ? { d1: _bObjLmax.d1, d2: _bObjLmax.d2, hBar: _barrierHBar(_bObjLmax) }
       : null;
 
     // Per-band terrain IL
@@ -11076,6 +11107,97 @@ var _terrainContourOn = false;  // controlled by terrain contour button
 var _moveMode = false;          // controlled by Move toolbar button — drag geometries
 
 function isTerrainEnabled() { return _terrainEnabled; }
+
+/**
+ * Fetch and cache terrain elevations for every vertex of a multi-vertex object.
+ * Stores absolute ASL values (same convention as groundElevation_m on point sources).
+ * obj must have a .vertices or .polygon array of [lat,lng] pairs.
+ * Returns a Promise that resolves when obj.vertexElevations is populated.
+ */
+function _fetchVertexElevations(obj) {
+  if (!window.DEMCache) return Promise.resolve();
+  var verts = obj.vertices || obj.polygon || [];
+  if (!verts.length) return Promise.resolve();
+  var pts = [];
+  for (var i = 0; i < verts.length; i++) {
+    var v = verts[i];
+    if (Array.isArray(v))         { pts.push({ lat: v[0],   lng: v[1]   }); }
+    else if (v && v.lat != null)  { pts.push({ lat: v.lat,  lng: v.lng  }); }
+  }
+  if (!pts.length) return Promise.resolve();
+  return window.DEMCache.getElevations(pts).then(function(elevs) {
+    obj.vertexElevations = elevs.map(function(e) {
+      return (e !== null && e !== undefined && isFinite(e)) ? e : null;
+    });
+  }).catch(function(err) {
+    console.warn('[vertexElev] fetch failed:', err && (err.message || err));
+  });
+}
+
+/**
+ * Fetch vertexElevations for all multi-vertex objects that don't yet have a
+ * cached array. Called when terrain is first enabled and after load (for
+ * pre-terrain saves that lack the field).
+ */
+function _fetchMissingVertexElevations() {
+  if (!window.DEMCache) return;
+  var objects = [];
+  if (typeof userBarriers     !== 'undefined') userBarriers.forEach(function(o) { objects.push(o); });
+  if (typeof customBuildings  !== 'undefined') customBuildings.forEach(function(o) { objects.push(o); });
+  if (typeof buildingSources  !== 'undefined') buildingSources.forEach(function(o) { objects.push(o); });
+  if (typeof areaSources      !== 'undefined') areaSources.forEach(function(o) { objects.push(o); });
+  if (typeof lineSources      !== 'undefined') lineSources.forEach(function(o) { objects.push(o); });
+  if (typeof _groundZones     !== 'undefined') _groundZones.forEach(function(o) { objects.push(o); });
+  objects.forEach(function(o) {
+    if (!o.vertexElevations) _fetchVertexElevations(o);
+  });
+}
+
+/**
+ * Given a getDominantBarrier result (bw), interpolate the terrain elevation
+ * at the path-crossing point using the building's vertexElevations cache.
+ * Returns the absolute ASL elevation at the crossing, or null if unavailable.
+ */
+function _interpolateBarrierTerrain(bw) {
+  if (!bw || !bw.building) return null;
+  var elevs = bw.building.vertexElevations;
+  if (!elevs) return null;
+  var poly = bw.building.polygon;
+  if (!poly || !poly.length) return null;
+  var iA = bw.edgeVertexIdx;
+  if (iA === undefined || iA === null) return null;
+  /* For open polylines (isBarrier) the closing edge doesn't exist so iB
+     is simply iA+1. For closed polygons wrap around with modulo. */
+  var iB = bw.building.isBarrier ? iA + 1 : (iA + 1) % poly.length;
+  var eA = elevs[iA], eB = (iB < elevs.length) ? elevs[iB] : null;
+  if (eA === null || eB === null || !isFinite(eA) || !isFinite(eB)) return null;
+  /* Compute fraction t where the crossing lies along edge A→B */
+  var vA = poly[iA], vB = poly[iB];
+  var latA = Array.isArray(vA) ? vA[0] : vA.lat;
+  var lngA = Array.isArray(vA) ? vA[1] : vA.lng;
+  var latB = Array.isArray(vB) ? vB[0] : vB.lat;
+  var lngB = Array.isArray(vB) ? vB[1] : vB.lng;
+  var dLat = latB - latA, dLng = lngB - lngA;
+  var edgeLen2 = dLat * dLat + dLng * dLng;
+  var t = 0.5;
+  if (edgeLen2 > 1e-20 && bw.intersection) {
+    var ix = bw.intersection;
+    t = ((ix.lat - latA) * dLat + (ix.lng - lngA) * dLng) / edgeLen2;
+    t = Math.max(0, Math.min(1, t));
+  }
+  return eA * (1 - t) + eB * t;
+}
+
+/** Compute hBar (barrier top above source-receiver ground plane) for barrierInfo.
+ *  When terrain is enabled and vertexElevations are cached, adds the interpolated
+ *  terrain elevation at the crossing so the diffraction geometry is terrain-aware.
+ *  Falls back to baseHeightM + barrierHeightM when terrain data unavailable. */
+function _barrierHBar(bw) {
+  var base = (bw.baseHeightM || 0) + (bw.barrierHeightM || 0);
+  if (!_terrainEnabled) return base;
+  var terrainElev = _interpolateBarrierTerrain(bw);
+  return (terrainElev !== null) ? terrainElev + (bw.baseHeightM || 0) + (bw.barrierHeightM || 0) : base;
+}
 
 /** Compute and cache terrain diffraction for a source-receiver pair.
  *  Returns a Promise that resolves when the cache entry is updated. */
@@ -19617,6 +19739,8 @@ function initPropagationMethod() {
         });
         // Recalculate terrain IL for all pairs
         refreshAllTerrainIL();
+        // Fetch per-vertex terrain elevations for all multi-vertex objects
+        _fetchMissingVertexElevations();
         // Prompt noise map regeneration if active
         var nmBtn = document.getElementById('noiseMapBtn');
         if (nmBtn && nmBtn.classList.contains('active')) {
@@ -21232,7 +21356,8 @@ setInitialCollapseState();
         var customs = window._getCustomBuildings ? window._getCustomBuildings() : [];
         if (customs.length > 0) {
           data.customBuildings = customs.map(function(cb) {
-            return { id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0, heightM: cb.heightM, name: cb.name };
+            return { id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0, heightM: cb.heightM, name: cb.name,
+                     vertexElevations: cb.vertexElevations || null };
           });
         }
 
@@ -21241,7 +21366,8 @@ setInitialCollapseState();
         if (barriers.length > 0) {
           data.userBarriers = barriers.map(function(ub) {
             return { id: ub.id, vertices: ub.vertices, heightM: ub.heightM,
-                     baseHeightM: ub.baseHeightM || 0, suppressed: !!ub.suppressed, name: ub.name };
+                     baseHeightM: ub.baseHeightM || 0, suppressed: !!ub.suppressed, name: ub.name,
+                     vertexElevations: ub.vertexElevations || null };
           });
         }
 
@@ -21249,7 +21375,8 @@ setInitialCollapseState();
         var gzones = window._getGroundZones ? window._getGroundZones() : [];
         if (gzones.length > 0) {
           data.groundZones = gzones.map(function(gz) {
-            return { id: gz.id, name: gz.name, g: gz.g, vertices: gz.vertices };
+            return { id: gz.id, name: gz.name, g: gz.g, vertices: gz.vertices,
+                     vertexElevations: gz.vertexElevations || null };
           });
         }
 
@@ -21266,7 +21393,8 @@ setInitialCollapseState();
               manualOverride: ls.manualOverride,
               manualLwm: ls.manualLwm,
               manualSpectrum: ls.manualSpectrum,
-              activeInPeriod: ls.activeInPeriod
+              activeInPeriod: ls.activeInPeriod,
+              vertexElevations: ls.vertexElevations || null
             };
           });
         }
@@ -21312,7 +21440,8 @@ setInitialCollapseState();
               operatingPct: as.operatingPct,
               quantity: as.quantity,
               manualOverride: as.manualOverride,
-              libraryEntry: as.libraryEntry ? { name: as.libraryEntry.name } : null
+              libraryEntry: as.libraryEntry ? { name: as.libraryEntry.name } : null,
+              vertexElevations: as.vertexElevations || null
             };
           });
         }
@@ -21328,7 +21457,8 @@ setInitialCollapseState();
               operatingPct: bs.operatingPct, defaultConstruction: bs.defaultConstruction,
               facadeOverrides: bs.facadeOverrides, roofConstruction: bs.roofConstruction,
               roofElements: bs.roofElements || [],
-              manualOverride: bs.manualOverride
+              manualOverride: bs.manualOverride,
+              vertexElevations: bs.vertexElevations || null
             };
           });
         }
@@ -22548,7 +22678,8 @@ setInitialCollapseState();
         window._setCustomBuildings((data.customBuildings || []).map(function(cb) {
           return {
             id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0,
-            heightM: cb.heightM, name: cb.name, isCustom: true, userHeightOverride: true
+            heightM: cb.heightM, name: cb.name, isCustom: true, userHeightOverride: true,
+            vertexElevations: cb.vertexElevations || null
           };
         }));
       }
@@ -22662,6 +22793,11 @@ setInitialCollapseState();
       setTimeout(function() {
         if (typeof renderDetectedZones === 'function') renderDetectedZones();
         render();
+        // Fetch vertex elevations for any objects that don't yet have them
+        // (pre-terrain saves loaded with terrain enabled, or objects missing the field)
+        if (_terrainEnabled && typeof _fetchMissingVertexElevations === 'function') {
+          _fetchMissingVertexElevations();
+        }
         // Expand all drawer panels so the restored data is visible
         if (typeof window._expandAllPanels === 'function') window._expandAllPanels();
         // Hide the map guide overlay permanently once a saved assessment loads
@@ -22860,19 +22996,22 @@ setInitialCollapseState();
       var barriers = window._getUserBarriers ? window._getUserBarriers() : [];
       if (barriers.length) {
         data.userBarriers = barriers.map(function(ub) {
-          return { id:ub.id, vertices:ub.vertices, heightM:ub.heightM, baseHeightM:ub.baseHeightM||0, suppressed:!!ub.suppressed, name:ub.name };
+          return { id:ub.id, vertices:ub.vertices, heightM:ub.heightM, baseHeightM:ub.baseHeightM||0, suppressed:!!ub.suppressed, name:ub.name,
+                   vertexElevations:ub.vertexElevations||null };
         });
       }
       var gzones = window._getGroundZones ? window._getGroundZones() : [];
       if (gzones.length) {
         data.groundZones = gzones.map(function(gz) {
-          return { id:gz.id, name:gz.name, g:gz.g, vertices:gz.vertices };
+          return { id:gz.id, name:gz.name, g:gz.g, vertices:gz.vertices,
+                   vertexElevations:gz.vertexElevations||null };
         });
       }
       var customs = window._getCustomBuildings ? window._getCustomBuildings() : [];
       if (customs.length) {
         data.customBuildings = customs.map(function(cb) {
-          return { id:cb.id, polygon:cb.polygon, baseHeightM:cb.baseHeightM||0, heightM:cb.heightM, name:cb.name };
+          return { id:cb.id, polygon:cb.polygon, baseHeightM:cb.baseHeightM||0, heightM:cb.heightM, name:cb.name,
+                   vertexElevations:cb.vertexElevations||null };
         });
       }
 
@@ -22884,7 +23023,7 @@ setInitialCollapseState();
             height_m: ls2.height_m || ls2.heightM || 1.5,
             movements:ls2.movements, lw_m_base:ls2.lw_m_base, spectrum_m_base:ls2.spectrum_m_base,
             manualOverride:ls2.manualOverride, manualLwm:ls2.manualLwm, manualSpectrum:ls2.manualSpectrum,
-            activeInPeriod:ls2.activeInPeriod };
+            activeInPeriod:ls2.activeInPeriod, vertexElevations:ls2.vertexElevations||null };
         });
       }
 
@@ -22920,7 +23059,8 @@ setInitialCollapseState();
           return { id:as.id, name:as.name, vertices:as.vertices, height_m:as.height_m||0.5,
             lwMode:as.lwMode||'per_m2', lwValue:as.lwValue, spectrum:as.spectrum,
             activeInPeriod:as.activeInPeriod, operatingPct:as.operatingPct, quantity:as.quantity,
-            manualOverride:as.manualOverride, libraryEntry:as.libraryEntry?{name:as.libraryEntry.name}:null };
+            manualOverride:as.manualOverride, libraryEntry:as.libraryEntry?{name:as.libraryEntry.name}:null,
+            vertexElevations:as.vertexElevations||null };
         });
       }
 
@@ -22936,7 +23076,7 @@ setInitialCollapseState();
             facadeOverrides: bs.facadeOverrides ? JSON.parse(JSON.stringify(bs.facadeOverrides)) : null,
             roofConstruction:bs.roofConstruction,
             roofElements: bs.roofElements ? JSON.parse(JSON.stringify(bs.roofElements)) : [],
-            manualOverride:bs.manualOverride };
+            manualOverride:bs.manualOverride, vertexElevations:bs.vertexElevations||null };
         });
       }
 
@@ -26864,7 +27004,8 @@ if (window.pdfjsLib) {
       if (typeof userBarriers !== 'undefined') {
         userBarriers.forEach(function(ub) {
           if (!ub.suppressed) {
-            result.push({ polygon: ub.vertices, heightM: ub.heightM, baseHeightM: ub.baseHeightM || 0, isBarrier: true });
+            result.push({ polygon: ub.vertices, heightM: ub.heightM, baseHeightM: ub.baseHeightM || 0,
+                          isBarrier: true, vertexElevations: ub.vertexElevations || null });
           }
         });
       }
@@ -26872,7 +27013,9 @@ if (window.pdfjsLib) {
       if (typeof buildingSources !== 'undefined') {
         buildingSources.forEach(function(bs) {
           if (bs.vertices && bs.vertices.length >= 3) {
-            result.push({ polygon: bs.vertices, heightM: (bs.baseHeightM || 0) + (bs.height_m || 6), isBuildingSource: true, buildingSourceId: bs.id });
+            result.push({ polygon: bs.vertices, heightM: (bs.baseHeightM || 0) + (bs.height_m || 6),
+                          isBuildingSource: true, buildingSourceId: bs.id,
+                          vertexElevations: bs.vertexElevations || null });
           }
         });
       }
@@ -28235,7 +28378,8 @@ if (window.pdfjsLib) {
       // Inject user-drawn barriers as pseudo-buildings (suppressed barriers excluded)
       userBarriers.forEach(function(ub) {
         if (!ub.suppressed) {
-          combined.push({ polygon: ub.vertices, heightM: ub.heightM, baseHeightM: ub.baseHeightM || 0, isBarrier: true });
+          combined.push({ polygon: ub.vertices, heightM: ub.heightM, baseHeightM: ub.baseHeightM || 0,
+                          isBarrier: true, vertexElevations: ub.vertexElevations || null });
         }
       });
       window._buildings = combined;
@@ -28384,6 +28528,8 @@ if (window.pdfjsLib) {
         document.getElementById('bpShapeSave').addEventListener('click', function() {
           line.editing.disable(); _drawingActive = false;
           ub.vertices = line.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+          ub.vertexElevations = null; // invalidate cache; re-fetch below
+          if (_terrainEnabled) _fetchVertexElevations(ub);
           _remEb(); if (dbBtn) dbBtn.classList.remove('active');
           renderUserBarriers(); rebuildBuildingsIndex();
           if (typeof render === 'function') render();
@@ -28762,7 +28908,9 @@ if (window.pdfjsLib) {
                   newCb.polygon = capturedCb.polygon.map(function(v) {
                     return [v[0] - 0.00002, v[1] + 0.00002];
                   });
+                  newCb.vertexElevations = null; // invalidate — vertices shifted
                   customBuildings.push(newCb);
+                  if (_terrainEnabled) _fetchVertexElevations(newCb);
                   renderCustomBuildings();
                   rebuildBuildingsIndex();
                   if (typeof render === 'function') render();
@@ -28910,14 +29058,16 @@ if (window.pdfjsLib) {
               var name = document.getElementById('newBarName').value || 'Barrier';
               if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid barrier height.'); return; }
               if (!Number.isFinite(baseVal) || baseVal < 0) baseVal = 0;
-              userBarriers.push({
+              var _newUb = {
                 id: 'barrier_' + Date.now(),
                 vertices: latLngs,
                 heightM: ht,
                 baseHeightM: baseVal,
                 suppressed: false,
                 name: name
-              });
+              };
+              userBarriers.push(_newUb);
+              if (_terrainEnabled) _fetchVertexElevations(_newUb);
               map.closePopup();
               renderUserBarriers();
               rebuildBuildingsIndex();
@@ -28987,6 +29137,7 @@ if (window.pdfjsLib) {
               var gzName = (document.getElementById('newGzName').value || '').trim() || ('Ground absorption ' + (_gzIdCtr + 1));
               var gz = { id: 'gz_' + (++_gzIdCtr), name: gzName, g: gVal, vertices: gzVerts };
               _groundZones.push(gz);
+              if (_terrainEnabled) _fetchVertexElevations(gz);
               _renderGroundZone(gz);
               map.closePopup();
               if (typeof render === 'function') render();
@@ -29048,6 +29199,7 @@ if (window.pdfjsLib) {
               var newBs = _bsMakeDefault(bsVerts, ht);
               newBs.baseHeightM = base;
               buildingSources.push(newBs);
+              if (_terrainEnabled) _fetchVertexElevations(newBs);
               renderBuildingSourceLayer();
               openBsPanel(newBs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
               if (typeof render === 'function') render();
@@ -29083,6 +29235,7 @@ if (window.pdfjsLib) {
             _userEdited: { eve: false, night: false }
           };
           areaSources.push(newAs);
+          if (_terrainEnabled) _fetchVertexElevations(newAs);
           renderAreaSourceLayer();
           openAsPanel(newAs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
           if (typeof render === 'function') render();
@@ -29144,7 +29297,7 @@ if (window.pdfjsLib) {
             var name = document.getElementById('newCbName').value || 'Custom building';
             if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid height.'); return; }
 
-            customBuildings.push({
+            var _newCb = {
               id: 'custom_' + Date.now(),
               polygon: latLngs,
               baseHeightM: base,
@@ -29152,7 +29305,9 @@ if (window.pdfjsLib) {
               name: name,
               isCustom: true,
               userHeightOverride: true
-            });
+            };
+            customBuildings.push(_newCb);
+            if (_terrainEnabled) _fetchVertexElevations(_newCb);
             map.closePopup();
             renderCustomBuildings();
             rebuildBuildingsIndex();
@@ -29916,7 +30071,9 @@ if (window.pdfjsLib) {
                   newAs.id = 'as_' + (++_asIdCtr);
                   newAs.name = (capturedAs.name || 'Area source') + ' (copy)';
                   newAs.vertices = capturedAs.vertices.map(function(v) { return [v[0] - 0.00005, v[1] + 0.00005]; });
+                  newAs.vertexElevations = null; // invalidate — vertices shifted
                   areaSources.push(newAs);
+                  if (_terrainEnabled) _fetchVertexElevations(newAs);
                   renderAreaSourceLayer();
                   if (typeof render === 'function') render();
                   if (window._recomputeNoiseMap) window._recomputeNoiseMap();
@@ -30440,7 +30597,7 @@ if (window.pdfjsLib) {
         if (bw) { barrierDelta=bw.pathLengthDiff||0; endDL=bw.endDeltaLeft||0; endDR=bw.endDeltaRight||0; }
       }
       var barrInfoBs = (bw && (bw.pathLengthDiff > 0 || bw.gapPathLengthDiff > 0))
-        ? { d1: bw.d1, d2: bw.d2, hBar: (bw.baseHeightM || 0) + (bw.barrierHeightM || 0) }
+        ? { d1: bw.d1, d2: bw.d2, hBar: _barrierHBar(bw) }
         : null;
       var gf = (typeof _gzComputePathG === 'function')
         ? _gzComputePathG(ss.lat, ss.lng, recLL.lat, recLL.lng, ss.heightM, recHt, d)
@@ -32210,7 +32367,9 @@ if (window.pdfjsLib) {
                   newLs.vertices = capturedLs.vertices.map(function(v) {
                     return [v[0] - 0.00002, v[1] + 0.00002];
                   });
+                  newLs.vertexElevations = null; // invalidate — vertices shifted
                   lineSources.push(newLs);
+                  if (_terrainEnabled) _fetchVertexElevations(newLs);
                   renderLineSourceLayer();
                   renderLineSourceCards();
                   if (typeof render === 'function') render();
@@ -32439,6 +32598,7 @@ if (window.pdfjsLib) {
         _userEdited:     { eve:false, night:false }
       };
       lineSources.push(newLs);
+      if (_terrainEnabled) _fetchVertexElevations(newLs);
       renderLineSourceLayer();
       renderLineSourceCards();
       if (typeof render === 'function') render();
@@ -34490,7 +34650,7 @@ if (window.pdfjsLib) {
               if (Array.isArray(v)) return [v[0], v[1]];
               return [v.lat !== undefined ? v.lat : v[0], v.lng !== undefined ? v.lng : v[1]];
             });
-            return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null };
+            return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null, vertexElevations: b.vertexElevations || null };
           });
 
           _noiseWorker.postMessage({
@@ -34657,7 +34817,7 @@ if (window.pdfjsLib) {
             if (Array.isArray(v)) return [v[0], v[1]];
             return [v.lat !== undefined ? v.lat : v[0], v.lng !== undefined ? v.lng : v[1]];
           });
-          return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null };
+          return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null, vertexElevations: b.vertexElevations || null };
         });
 
         _noiseWorker.postMessage({
