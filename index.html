@@ -3832,6 +3832,62 @@ body.disclaimer-visible .container {
      so a subsequent open starts with a clean datum. */
   var _3dReferenceElevation = 0;
 
+  /* Terrain grid snapshot stored during finaliseTerrainMesh so that
+     _sampleTerrainMeshAt() can replicate the EXACT same triangle
+     interpolation used to build the mesh — eliminating the bilinear-
+     vs-triangle divergence that caused barriers to clip through. */
+  var _terrainGrid = null;  // { lats, lngs, elevations, H, W, elevMin }
+
+  /* Sample the terrain mesh at an exact geodetic point using the same
+     triangulation used by the mesh (tri-split: a,c,b / b,c,d).
+     Returns normalised Y (metres above site datum) like sampleTerrainAt,
+     falls back to sampleTerrainAt if the grid hasn't been stored yet
+     or the point is outside the grid extent. */
+  function _sampleTerrainMeshAt(lat, lng) {
+    if (!_terrainGrid) return sampleTerrainAt(lat, lng);
+    var G = _terrainGrid;
+    /* Bounds check */
+    var latA = G.lats[0], latB = G.lats[G.H - 1];
+    var lngA = G.lngs[0], lngB = G.lngs[G.W - 1];
+    if (lat < Math.min(latA,latB) || lat > Math.max(latA,latB) ||
+        lng < Math.min(lngA,lngB) || lng > Math.max(lngA,lngB)) {
+      return sampleTerrainAt(lat, lng);
+    }
+    /* Binary search for grid cell — handles non-uniform spacing and
+       either ascending or descending lat/lng arrays. */
+    function _bsearch(arr, val) {
+      var lo = 0, hi = arr.length - 2, asc = arr[arr.length-1] >= arr[0];
+      while (lo < hi) {
+        var mid = (lo + hi) >> 1;
+        if (asc ? arr[mid + 1] <= val : arr[mid + 1] >= val) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo;
+    }
+    var ri = Math.max(0, Math.min(G.H - 2, _bsearch(G.lats, lat)));
+    var ci = Math.max(0, Math.min(G.W - 2, _bsearch(G.lngs, lng)));
+    /* Fractional position [0,1] within the grid cell */
+    var dLat = G.lats[ri + 1] - G.lats[ri];
+    var dLng = G.lngs[ci + 1] - G.lngs[ci];
+    var u = dLat ? Math.max(0, Math.min(1, (lat - G.lats[ri]) / dLat)) : 0;
+    var w = dLng ? Math.max(0, Math.min(1, (lng - G.lngs[ci]) / dLng)) : 0;
+    /* Corner elevations */
+    var ea = G.elevations[ ri      * G.W + ci    ];   // (ri,   ci  )
+    var eb = G.elevations[ ri      * G.W + ci + 1];   // (ri,   ci+1)
+    var ec = G.elevations[(ri + 1) * G.W + ci    ];   // (ri+1, ci  )
+    var ed = G.elevations[(ri + 1) * G.W + ci + 1];   // (ri+1, ci+1)
+    if (!isFinite(ea) || !isFinite(eb) || !isFinite(ec) || !isFinite(ed)) {
+      return sampleTerrainAt(lat, lng);
+    }
+    /* Exact triangle interpolation matching the mesh index pattern:
+         tri1 = a, c, b  (u+w ≤ 1)  →  (1-u-w)·ea + u·ec + w·eb
+         tri2 = b, c, d  (u+w > 1)  →  (1-u)·eb + (1-w)·ec + (u+w-1)·ed */
+    var elev = (u + w <= 1.0)
+      ? (1 - u - w) * ea + u * ec + w * eb
+      : (1 - u) * eb + (1 - w) * ec + (u + w - 1) * ed;
+    return elev - G.elevMin;
+  }
+
   function disposeScene(scene) {
     if (!scene) return;
     scene.traverse(function(obj) {
@@ -3935,6 +3991,7 @@ body.disclaimer-visible .container {
     /* Reset the Y datum so a fresh open starts with 0 until the
        terrain build sets it to the local elevation minimum. */
     _3dReferenceElevation = 0;
+    _terrainGrid = null;
     /* Restore focus to the button that opened the modal */
     var restoreTarget = null;
     if (_3dPrevFocus && typeof _3dPrevFocus.focus === 'function'
@@ -4169,6 +4226,10 @@ body.disclaimer-visible .container {
        reads this module-level var and subtracts it for all the
        Phase 3–5 building / barrier / source / receiver builders.  */
     _3dReferenceElevation = elevMin;
+    /* Store the raw grid so _sampleTerrainMeshAt can replicate the
+       exact triangle interpolation used to build the mesh vertices. */
+    _terrainGrid = { lats: lats, lngs: lngs, elevations: elevations,
+                     H: H, W: W, elevMin: elevMin };
 
     var N = H * W;
     var positions = new Float32Array(N * 3);
@@ -5028,7 +5089,8 @@ body.disclaimer-visible .container {
     /* Sample base Y (terrain + building roof + baseHeightM) at a given
        geodetic point. Centralised so the densification loop is clean. */
     function _baseAt(lat, lng) {
-      var tY = sampleTerrainAt(lat, lng);
+      var tY = _sampleTerrainMeshAt(lat, lng);
+      if (tY === null) tY = sampleTerrainAt(lat, lng);
       var bY = _3dBuildingHeightAt(lat, lng);
       return (tY !== null ? tY : 0) + bY + (barrier.baseHeightM || 0);
     }
@@ -5143,7 +5205,8 @@ body.disclaimer-visible .container {
       else continue;
       if (!isFinite(lat) || !isFinite(lng)) continue;
       var local = latLngToLocal(lat, lng, centre.lat, centre.lng);
-      var terrainY = sampleTerrainAt(lat, lng);
+      var terrainY = _sampleTerrainMeshAt(lat, lng);
+      if (terrainY === null) terrainY = sampleTerrainAt(lat, lng);
       var y = (terrainY !== null ? terrainY : 0) + 0.2;
       pts.push({ x: local.x, z: local.z });
       ys.push(y);
