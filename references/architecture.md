@@ -352,7 +352,7 @@ The map area (inside `#map-column`) is flanked by two panels:
 - PDF export: `_restoreForPdfExport()` strips all `.section-hidden` classes so all panels appear in the captured output
 
 ```
-┌─ #side-panel 300px ──┬─ #map-column (reflowed) ──┬─ #drawer-panel 520px ─┐
+┌─ #side-panel 280px ──┬─ #map-column (reflowed) ──┬─ #drawer-panel 520px ─┐
 │ [«]                  │                           │ (14 panels)           │
 │ [?][💡][↶][↷][📷]   │                           │                       │
 │ [Search__________]   │                           │                       │
@@ -373,8 +373,9 @@ controls, scale bar, marker status rows, and the empty `map-guide-overlay`.
 
 ```
 #app-layout (position: relative; display: block; overflow: hidden)
-├── #side-panel (position: absolute; top:0 left:0 bottom:0; width: 300px; box-sizing: border-box)
-│   ├── #side-panel-toggle (position: absolute; right: -14px; the « / » chevron)
+├── #side-panel (position: absolute; top:0 left:0 bottom:0; width: 280px; box-sizing: border-box)
+│   ├── #side-panel-toggle (position: absolute; right: -32px; 32×48px chevron tab)
+│   ├── #side-panel-resize-handle (position: absolute; right: -8px; 16px drag zone)
 │   └── #side-panel-inner (flex column; padding 12px 14px; box-sizing: border-box; gap 4px)
 │       ├── #side-panel-toolbar (horizontal flex row of 5 icon buttons, 6px gap)
 │       │   ├── #mp-help         — ? Quick Reference (moved from #mapPanelContainer)
@@ -391,41 +392,45 @@ controls, scale bar, marker status rows, and the empty `map-guide-overlay`.
 │       ├── #mp-customsrc  (.mp accordion — Custom sources, moved from RHS)
 │       └── #side-panel-footer (margin-top: auto; border-top)
 │           └── #mp-toggle-drawer (the Expand/Panels button, moved here)
+├── #side-panel-nametag-tab (sibling; display:none normally; shown when side-panel-collapsed)
 ├── #side-panel-backdrop (display: none; shown only on mobile)
-├── #map-column (position: absolute; top:0 right:0 bottom:0; left: 300px)
+├── #map-column (position: absolute; top:0 right:0 bottom:0; left: 280px)
 │   ├── #mapInnerWrapper
 │   │   ├── #mapPanelContainer (display: none !important — empty after boot)
 │   │   ├── #mapFullscreenSidebar
 │   │   ├── #noise-map (Leaflet — only app overlay on the map canvas)
 │   │   └── #map-guide-overlay (hidden once sources exist)
 │   └── #map-status-row (bottom: 24px; left: 10px)
-└── #drawer-panel (position: absolute; top:0 right:0 bottom:0; width: 520px; unchanged)
+├── #drawer-panel (position: absolute; top:0 right:0 bottom:0; width: 520px; defaults closed)
+└── #drawer-collapsed-nametag (sibling; display:none when drawer open; shown when drawer-closed)
 ```
 
 ### CSS variables & classes
 
 | Variable / Class | Effect |
 |---|---|
-| `--side-panel-width: 300px` | Declared on `:root`. Used by the `@media (max-width: 767px)` rule so the collapsed mobile panel retains its width for the `transform: translateX(-100%)` slide, and by `#side-panel-inner.min-width` so content stays laid out during collapse. |
-| `#side-panel.collapsed` | `width: 0; border-right: none; box-shadow: none`. Added/removed by `setCollapsed()` in the boot IIFE. |
-| `#app-layout.side-panel-collapsed` | Flips `#map-column.left` from `300px` → `0` via `#app-layout.side-panel-collapsed #map-column { left: 0 }` so the map reflows. |
+| `--side-panel-width: 280px` | Declared on `:root`. Default panel width (minimum to fit 6 toolbar icons). User resize saved to `localStorage('resonate_side_panel_width')` and restored on boot. |
+| `#side-panel.collapsed` | `width: 0; border-right: none; box-shadow: none`. Added/removed by `setCollapsed()`. Toggle and resize handle hidden via CSS child selectors; nametag shown via `#app-layout.side-panel-collapsed` selector. |
+| `#app-layout.side-panel-collapsed` | Flips `#map-column.left` from `280px` → `0` and shows `#side-panel-nametag-tab` via `> #side-panel-nametag-tab { display:block }`. |
 | `#drawer-panel.drawer-closed` | Pre-existing. New atom-button rule `#drawer-panel.drawer-closed ~ #map-column #mapPanelContainer { right: 10px }` moves the atom buttons flush right when the drawer is manually closed. |
 
 ### Collapse / expand state machine
 
 `_resonateSidePanelBoot()` in the inline script block in `#mapInnerWrapper`:
 
-1. Creates `#side-panel`, its toggle button (`#side-panel-toggle`), an inner flex column (`#side-panel-inner`), a footer (`#side-panel-footer`), and a sibling `#side-panel-backdrop`.
-2. Moves 5 elements out of `#mapPanelContainer`: `#mapSearchWrapper`, `#mp-mapping`, `#mp-tools`, `#mp-modelling`, `#mp-toggle-drawer` (the last goes into the footer).
-3. Inserts `#side-panel` and `#side-panel-backdrop` as the first children of `#app-layout` (before `#map-column`).
-4. Defines `setCollapsed(collapsed)` which:
-   - Toggles `.side-panel-collapsed` on `#app-layout` (drives `#map-column.left`)
-   - Toggles `.collapsed` on `#side-panel` (drives `#side-panel.width`)
-   - Flips the toggle button text between `«` and `»`
-   - Writes `localStorage['sidePanelCollapsed']` = `'true'` / `'false'`
-   - Calls `window._map.invalidateSize()` so Leaflet reflows
-5. Initial state: on mobile (`matchMedia('(max-width: 767px)').matches`), force-collapse regardless of localStorage; otherwise honour the stored value. A `matchMedia('change')` listener re-collapses if the viewport crosses into mobile later.
-6. Clicking `#side-panel-backdrop` calls `setCollapsed(true)` (mobile-only — the backdrop is hidden on desktop).
+1. Creates `#side-panel`, its toggle button (`#side-panel-toggle`), a resize handle (`#side-panel-resize-handle`), an inner flex column (`#side-panel-inner`), a footer (`#side-panel-footer`), and a sibling `#side-panel-backdrop`.
+2. Creates `#side-panel-nametag-tab` (sibling of `#side-panel`, inserted after it in `#app-layout`). Also creates `#drawer-collapsed-nametag` (appended to `#app-layout`).
+3. Moves 5 elements out of `#mapPanelContainer`: `#mapSearchWrapper`, `#mp-mapping`, `#mp-tools`, `#mp-modelling`, `#mp-toggle-drawer` (the last goes into the footer).
+4. Inserts `#side-panel`, `#side-panel-nametag-tab`, and `#side-panel-backdrop` as the first children of `#app-layout`.
+5. Defines `setCollapsed(collapsed)` which:
+   - Toggles `.side-panel-collapsed` on `#app-layout` (drives `#map-column.left` and nametag visibility via CSS)
+   - Toggles `.collapsed` on `#side-panel` (drives width=0; toggle/resize-handle visibility via CSS child selectors)
+   - On collapse: clears `sidePanel.style.width` so CSS `width:0` takes effect
+   - On expand: restores saved width from `localStorage('resonate_side_panel_width')` if present
+   - Writes `localStorage['sidePanelCollapsed']`; calls `_map.invalidateSize()`
+   - Does NOT touch `toggle.style.display` or `spNametag.style.display` — all visibility controlled by CSS classes
+6. `initSidePanelResize()` IIFE wires pointer events on `#side-panel-resize-handle`. Drag saves width to `localStorage('resonate_side_panel_width')`; click (< 5px movement) calls `setCollapsed(toggle)`.
+7. Initial state: mobile → force-collapse; desktop → honour `localStorage`. `matchMedia` listener re-collapses on crossing mobile breakpoint. Drawer initialises as `drawer-closed` (user must open manually).
 
 ### Accordion mode (`.mp` + `.mp-body` inside `#side-panel`)
 
@@ -952,23 +957,23 @@ The handle lives on `#drawer-panel` (not `#drawer-content`). Both `_restoreForPd
 | `.cs-cell.cs-ok` | Green badge: compliant (predicted ≤ criterion) |
 | `.cs-cell.cs-bad` | Red badge: exceeded (predicted > criterion) |
 | `.cs-cell.cs-na` | Grey badge: missing pred or crit |
-| `#jump-nav` | Flex row of `.jump-btn` pills: Setup / Criteria / Sources / Results / Export |
+| `#jump-nav` | Flex row of `.jump-btn` pills: Setup / Criteria / Results / Recommended treatments |
 | `.jump-btn.jump-active` | Highlighted state (blue) for current scroll section |
 | `.drawer-group-anchor` | Zero-height `<div>` inserted before panel groups in `#drawer-content` — scroll targets for jump nav |
 
 ### Group anchor IDs and their targets
 
-Anchors are inserted **inside** the drawer content structure, immediately before the `.grid2` ancestor of each target element. Because the drawer contains one giant wrapper `.grid2` holding Receivers & criteria + Propagation + Custom sources + Predicted levels etc., the helper walks up to the nearest `.grid2` (inner, not outer) and inserts the anchor as its previous sibling. `#drawer-content` has `position: relative` so `anchor.offsetTop` resolves against drawer-content regardless of nesting depth.
+Anchors are inserted **inside** the drawer content structure, immediately before the `.grid2` ancestor of each target element. `#drawer-content` has `position: relative` so `anchor.offsetTop` resolves against drawer-content regardless of nesting depth.
+
+**Nesting note:** One outer wrapper `<div class="grid2" data-section="criteria results">` spans from the "Receivers & criteria" card all the way through the results panels. Its `data-section="criteria results"` keeps it visible under both the Criteria and Results tabs. The inner "Receivers & criteria" `card.span2` carries `data-section="criteria"` so it hides under Results. Each nested panel manages its own visibility via its own `data-section` attribute.
 
 | Anchor ID | Target element | Group contents |
 |---|---|---|
-| `group-setup` | `#devInfoCard` | Development info, Objects, P&D Code, MBS 010 |
-| `group-criteria` | `#critBody` | Receivers & criteria, VIC/NSW params, SA/NSW Derivation, Emergency/Music/Childcare criteria |
-| `group-sources` | `#customSrcBody` | Custom sources, Propagation method, (hidden noise sources panel) |
-| `group-results` | `#predTableDay` | Assessment cases, Source contribution, Characteristic penalties, Predicted noise levels, Recommendations |
+| `group-setup` | `#devInfoCard` | Development info |
+| `group-criteria` | `#critBody` | Receivers & criteria, VIC/NSW params, SA/NSW Derivation, Emergency/Music/Childcare criteria, MBS 010 |
+| `group-results` | `#assessmentCasesSection` | Assessment cases, Source contribution (`#contribSection`), Characteristic penalties (`#charPenaltySection`), Predicted noise levels (`#predNoiseSection`) |
+| `group-treatments` | `#recommendationsCard` | Recommended treatments |
 | `group-export` | `#pdfBtn` | PDF/Report buttons, GIS Export, Methodology |
-
-> Note: `#sourcePanel` has `display: none` in most states, so it's not a reliable jump target. `#customSrcBody` is always visible and serves as the "Sources" anchor.
 
 ### Data flow: strip rendering
 

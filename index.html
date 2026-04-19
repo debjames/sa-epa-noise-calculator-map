@@ -41,6 +41,14 @@ body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Aria
 table{width:100%;border-collapse:collapse;}
 td,th{border:1px solid var(--border);padding:8px 10px;font-size:13px;vertical-align: middle; text-align: left;}
 th{background:rgba(242,203,0,1);font-weight:700;}
+/* LHS side panel: table headers match mp-btn active blue */
+#side-panel th {
+  background: rgba(59,130,246,.25);
+  color: #e5e7eb;
+  font-size: 11px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(59,130,246,.4);
+}
 /* RHS drawer: soften table headers — warm neutral instead of solid yellow */
 #drawer-content th {
   background: #f8f8f6;
@@ -1189,7 +1197,7 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   top: 0;
   right: 0;
   bottom: 0;
-  left: 300px;
+  left: 280px;
   z-index: 1;
 }
 #app-layout.side-panel-collapsed #map-column {
@@ -1215,14 +1223,14 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
    real flex sibling of #map-column inside #app-layout, so the Leaflet map
    reflows to the remaining viewport width (not overlaid).
    ═══════════════════════════════════════════════════════════════════════════ */
-:root { --side-panel-width: 300px; }
+:root { --side-panel-width: 280px; }
 
 #side-panel {
   position: absolute;
   top: 0;
   left: 0;
   bottom: 0;
-  width: 300px;
+  width: 280px;
   max-width: 100vw;
   box-sizing: border-box;
   background: rgba(20, 26, 38, 0.98);
@@ -1258,28 +1266,125 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
 /* Right-edge collapse/expand toggle — sticks out 14px into the map area */
 #side-panel-toggle {
   position: absolute;
-  top: 14px;
-  right: -14px;
-  width: 20px;
-  height: 36px;
+  top: 8px;
+  right: -32px;
+  width: 32px;
+  height: 48px;
   background: rgba(20, 26, 38, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-left: none;
   border-radius: 0 6px 6px 0;
   color: #f3f4f6;
   cursor: pointer;
-  z-index: 1;
+  z-index: 111;
   padding: 0;
-  font-size: 13px;
-  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
   box-shadow: 2px 0 6px rgba(0, 0, 0, 0.2);
+  transition: background 0.15s;
 }
 #side-panel-toggle:hover { background: rgba(40, 48, 64, 1); }
-#side-panel.collapsed #side-panel-toggle { right: -20px; }
+/* Resize handle on right edge of LHS side panel */
+#side-panel-resize-handle {
+  position: absolute;
+  right: -8px;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  cursor: pointer;
+  z-index: 111;
+  background: transparent;
+  background-clip: content-box;
+  padding: 0 5px;
+  box-sizing: border-box;
+  transition: background 0.15s;
+}
+#side-panel-resize-handle:hover { background: rgba(74, 144, 217, 0.35); }
+#side-panel-resize-handle.dragging { cursor: col-resize; background: rgba(74, 144, 217, 0.35); }
+#side-panel.collapsed #side-panel-resize-handle { display: none; }
+/* LHS panel label — horizontal header when expanded */
+#side-panel-label {
+  padding: 5px 10px 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #6b7280;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+#side-panel.collapsed #side-panel-label { display: none; }
+/* Hide toggle arrow when panel is collapsed; show via CSS not inline JS */
+#side-panel.collapsed #side-panel-toggle { display: none; }
+/* Show nametag tab only when appLayout has side-panel-collapsed class */
+#app-layout.side-panel-collapsed > #side-panel-nametag-tab { display: block; }
+
+/* LHS collapsed nametag tab — sibling of side-panel in #app-layout, mirrors RHS drawer-collapsed-nametag */
+#side-panel-nametag-tab {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  background: rgba(20, 26, 38, 0.98);
+  color: #9ca3af;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  writing-mode: vertical-lr;
+  text-orientation: mixed;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 14px 8px;
+  cursor: pointer;
+  user-select: none;
+  z-index: 111;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.2);
+  transition: background 0.15s;
+}
+#side-panel-nametag-tab:hover { background: rgba(40,48,64,1); }
+/* RHS panel label — horizontal header when expanded */
+#drawer-panel-label {
+  padding: 5px 14px 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #6b7280;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* RHS collapsed nametag tab — vertical text on right edge when drawer is closed */
+#drawer-collapsed-nametag {
+  display: none;
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  background: var(--bg, #ffffff);
+  color: var(--muted, #6b7280);
+  border: 1px solid var(--border, #e5e7eb);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 14px 8px;
+  cursor: pointer;
+  user-select: none;
+  z-index: 101;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+  transition: background 0.15s;
+}
+#drawer-collapsed-nametag:hover { background: #f3f4f6; }
 /* Bottom-pinned slot for the Expand/Panels drawer toggle */
 #side-panel-footer {
   margin-top: auto;
@@ -1818,11 +1923,6 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   overflow: hidden;
 }
 .section-hidden { display: none !important; }
-/* penalty-group / penalty-btn overrides for dark LHS mp-body context */
-.mp-body .penalty-group { margin-top: 0; flex-direction: column; gap: 2px; padding: 4px 0; }
-.mp-body .penalty-btn { background: transparent; border-color: rgba(255,255,255,.15); color: #d1d5db; font-size: 12px; padding: 5px 8px; border-radius: 4px; }
-.mp-body .penalty-btn:hover { background: rgba(255,255,255,.11); border-color: rgba(255,255,255,.3); color: #fff; }
-.mp-body .penalty-btn.active { background: rgba(242,203,0,.25); border-color: rgba(242,203,0,.6); color: #fde68a; }
 /* inputs / selects in mp-body outside of mp-sub-row */
 .mp-body input[type="number"], .mp-body input[type="text"], .mp-body select {
   background: rgba(255,255,255,.08); color: #e5e7eb;
@@ -2117,8 +2217,19 @@ body.disclaimer-visible .container {
                 toggle.type = 'button';
                 toggle.title = 'Collapse/expand side panel';
                 toggle.setAttribute('aria-label', 'Toggle side panel');
-                toggle.textContent = '\u00AB';   // «
+                toggle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>';
                 sidePanel.appendChild(toggle);
+
+                // Resize handle on right edge
+                var spResizeHandle = document.createElement('div');
+                spResizeHandle.id = 'side-panel-resize-handle';
+                sidePanel.appendChild(spResizeHandle);
+
+                // Vertical nametag strip — shown when collapsed
+                var spNametag = document.createElement('div');
+                spNametag.id = 'side-panel-nametag-tab';
+                spNametag.textContent = 'Planning & modelling';
+                // spNametag appended to appLayout after sidePanel insertion (see below)
 
                 var inner = document.createElement('div');
                 inner.id = 'side-panel-inner';
@@ -2167,6 +2278,7 @@ body.disclaimer-visible .container {
 
                 // Insert side panel and backdrop as first children of #app-layout
                 appLayout.insertBefore(sidePanel, appLayout.firstChild);
+                appLayout.insertBefore(spNametag, sidePanel.nextSibling);
                 var backdrop = document.createElement('div');
                 backdrop.id = 'side-panel-backdrop';
                 appLayout.insertBefore(backdrop, sidePanel.nextSibling);
@@ -2182,12 +2294,23 @@ body.disclaimer-visible .container {
                 // flips left: 300px → 0 and the map reflows in lockstep.
                 function setCollapsed(collapsed) {
                   appLayout.classList.toggle('side-panel-collapsed', collapsed);
+                  var mc = document.getElementById('map-column');
                   if (collapsed) {
                     sidePanel.classList.add('collapsed');
-                    toggle.textContent = '\u00BB';   // »
+                    // Clear inline styles so CSS .collapsed { width:0 } takes effect
+                    sidePanel.style.width = '';
+                    if (mc) mc.style.left = '';
                   } else {
                     sidePanel.classList.remove('collapsed');
-                    toggle.textContent = '\u00AB';   // «
+                    toggle.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>';
+                    // Restore saved resize width if any
+                    try {
+                      var sw = localStorage.getItem('resonate_side_panel_width');
+                      if (sw) {
+                        sidePanel.style.width = sw;
+                        if (mc) mc.style.left = sw;
+                      }
+                    } catch(e2) {}
                   }
                   try { localStorage.setItem(KEY, String(collapsed)); } catch (e) {}
                   nudgeMap();
@@ -2212,6 +2335,72 @@ body.disclaimer-visible .container {
                 } else if (typeof mq.addListener === 'function') {
                   mq.addListener(function(e) { if (e.matches) setCollapsed(true); });
                 }
+
+                // Wire nametag tab click to expand panel
+                spNametag.addEventListener('click', function() { setCollapsed(false); });
+
+                // ── Side-panel resize handle ───────────────────────────
+                (function initSidePanelResize() {
+                  var isDragging = false;
+                  var didDrag = false;
+                  var startX = 0;
+                  var startWidth = 0;
+                  var CLICK_THRESHOLD_PX = 5;
+                  var SP_WIDTH_KEY = 'resonate_side_panel_width';
+                  function clampWidth(px) {
+                    return Math.max(160, Math.min(Math.round(window.innerWidth * 0.42), px));
+                  }
+                  spResizeHandle.addEventListener('pointerdown', function(e) {
+                    isDragging = true;
+                    didDrag = false;
+                    startX = e.clientX;
+                    startWidth = sidePanel.getBoundingClientRect().width;
+                    try { spResizeHandle.setPointerCapture(e.pointerId); } catch(err) {}
+                    document.body.style.userSelect = 'none';
+                    e.preventDefault();
+                  });
+                  document.addEventListener('pointermove', function(e) {
+                    if (!isDragging) return;
+                    var dx = e.clientX - startX;
+                    if (!didDrag && Math.abs(dx) > CLICK_THRESHOLD_PX) {
+                      didDrag = true;
+                      spResizeHandle.classList.add('dragging');
+                      document.body.style.cursor = 'col-resize';
+                    }
+                    if (didDrag) {
+                      var newW = clampWidth(startWidth + dx);
+                      sidePanel.style.width = newW + 'px';
+                      var mc = document.getElementById('map-column');
+                      if (mc && !sidePanel.classList.contains('collapsed')) mc.style.left = newW + 'px';
+                      nudgeMap();
+                    }
+                  });
+                  function endDrag() {
+                    if (!isDragging) return;
+                    isDragging = false;
+                    spResizeHandle.classList.remove('dragging');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    if (didDrag) {
+                      try { localStorage.setItem(SP_WIDTH_KEY, sidePanel.style.width); } catch(err) {}
+                      nudgeMap();
+                    } else {
+                      setCollapsed(!sidePanel.classList.contains('collapsed'));
+                    }
+                  }
+                  document.addEventListener('pointerup', endDrag);
+                  document.addEventListener('pointercancel', endDrag);
+                  // Restore saved width
+                  try {
+                    var saved = localStorage.getItem(SP_WIDTH_KEY);
+                    if (saved) {
+                      var w = clampWidth(parseInt(saved, 10));
+                      sidePanel.style.width = w + 'px';
+                      var mc = document.getElementById('map-column');
+                      if (mc && !sidePanel.classList.contains('collapsed')) mc.style.left = w + 'px';
+                    }
+                  } catch(e) {}
+                })();
 
                 setTimeout(nudgeMap, 200);   // initial layout settle
               }
@@ -2427,10 +2616,10 @@ body.disclaimer-visible .container {
               <span>Propagation</span><span class="mp-arrow">&#9660;</span>
             </div>
             <div class="mp-body">
-              <div class="penalty-group" id="propMethodGroup">
-                <button class="penalty-btn active" data-val="simple">Simple (geometric spreading)</button>
-                <button class="penalty-btn" data-val="iso9613">ISO 9613-2:1996</button>
-                <button class="penalty-btn" data-val="concawe">CONCAWE</button>
+              <div id="propMethodGroup" style="display:flex;gap:2px;padding:2px 4px;">
+                <button class="mp-btn active" data-val="simple" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">Simple</button>
+                <button class="mp-btn" data-val="iso9613" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">ISO 9613-2</button>
+                <button class="mp-btn" data-val="concawe" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">CONCAWE</button>
               </div>
               <div id="iso9613Params" style="display:none;">
                 <div class="mp-sep"></div>
@@ -2448,13 +2637,10 @@ body.disclaimer-visible .container {
                 <div class="mp-sep"></div>
                 <div class="mp-sub-row" style="align-items:center;">
                   <span style="flex:1;color:#9ca3af;">ISO/TR 17534-3 validation</span>
-                  <button id="isoValidateBtn" onclick="runISOValidation()" style="font-size:10px;padding:2px 7px;border:1px solid #3498db;background:#3498db;color:#fff;border-radius:3px;cursor:pointer;white-space:nowrap;flex-shrink:0;">Run</button>
+                  <button id="isoValidateBtn" class="mp-btn" onclick="runISOValidation()" style="padding:2px 7px;white-space:nowrap;flex-shrink:0;">Run</button>
                 </div>
                 <div id="isoValidationResults" style="display:none;font-size:10px;max-height:200px;overflow-y:auto;padding:2px 8px;"></div>
-                <details style="padding:4px 8px;">
-                  <summary style="font-size:10px;color:#6b7280;cursor:pointer;">ISO 9613-2 implementation notes</summary>
-                  <div id="propMethodDesc" style="font-size:10px;color:#6b7280;line-height:1.5;padding-top:4px;">Select the sound propagation model. The <b>simple method</b> uses geometric spreading only (−20 log<sub>10</sub> d − 8 dB). <b>ISO 9613-2</b> adds frequency-dependent atmospheric absorption (ISO 9613-1) and ground attenuation per octave band (§7.3.1 detailed method). <b>CONCAWE</b> (Report 4/81, Manning 1981) uses empirical ground curves and meteorological category corrections.</div>
-                </details>
+                <div id="propMethodDesc" style="font-size:10px;color:#6b7280;line-height:1.5;padding:2px 8px 4px;"><b>Simple</b>: geometric spreading only. <b>ISO 9613-2</b>: atmospheric absorption + ground attenuation per octave band. <b>CONCAWE</b> (Report 4/81): empirical ground curves + meteorological corrections.</div>
               </div>
               <div id="concaweMetPanel" style="display:none;">
                 <div class="mp-sep"></div>
@@ -2516,54 +2702,48 @@ body.disclaimer-visible .container {
               <span>Custom sources</span><span class="mp-arrow">&#9660;</span>
             </div>
             <div class="mp-body">
-              <div id="customSrcBody" style="padding:4px 6px;">
-                <div style="font-size:10px;color:#9ca3af;margin-bottom:8px;">Add custom sources with name, Lw, and octave band spectrum. Appear in all source dropdowns.</div>
-                <div style="border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:8px;margin-bottom:8px;">
-                  <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;margin-bottom:6px;">
-                    <div>
-                      <div style="font-size:10px;font-weight:600;color:#9ca3af;margin-bottom:2px;">Source name</div>
-                      <input type="text" id="customSrcName" placeholder="e.g. Pump unit XYZ" style="width:100%;box-sizing:border-box;">
-                    </div>
-                    <div>
-                      <div style="font-size:10px;font-weight:600;color:#9ca3af;margin-bottom:2px;">Lw dB(A)</div>
-                      <input type="number" id="customSrcLw" step="0.1" placeholder="85" style="width:60px;">
-                    </div>
-                  </div>
-                  <div style="font-size:10px;font-weight:600;color:#9ca3af;margin-bottom:3px;">Octave bands dB(A) <span style="font-weight:400;">(blank = flat)</span></div>
-                  <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;">
-                    <div style="text-align:center;font-size:9px;color:#6b7280;">63</div>
-                    <div style="text-align:center;font-size:9px;color:#6b7280;">125</div>
-                    <div style="text-align:center;font-size:9px;color:#6b7280;">250</div>
-                    <div style="text-align:center;font-size:9px;color:#6b7280;">500</div>
-                    <div style="text-align:center;font-size:9px;color:#6b7280;">1k</div>
-                    <div style="text-align:center;font-size:9px;color:#6b7280;">2k</div>
-                    <div style="text-align:center;font-size:9px;color:#6b7280;">4k</div>
-                    <div style="text-align:center;font-size:9px;color:#6b7280;">8k</div>
-                    <input type="number" id="customSrcBand0" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                    <input type="number" id="customSrcBand1" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                    <input type="number" id="customSrcBand2" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                    <input type="number" id="customSrcBand3" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                    <input type="number" id="customSrcBand4" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                    <input type="number" id="customSrcBand5" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                    <input type="number" id="customSrcBand6" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                    <input type="number" id="customSrcBand7" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                  </div>
-                  <div style="display:flex;gap:6px;align-items:end;margin-top:6px;">
-                    <div>
-                      <div style="font-size:10px;font-weight:600;color:#9ca3af;margin-bottom:2px;">Height (m)</div>
-                      <input type="number" id="customSrcHeight" step="0.1" value="1.5" min="0" style="width:50px;">
-                    </div>
-                    <button type="button" class="mp-btn" style="flex:1;justify-content:center;border:1px solid rgba(255,255,255,.2);" onclick="addCustomSource()">Add source</button>
-                    <span id="customSrcError" style="font-size:10px;color:#f87171;display:none;"></span>
-                  </div>
+              <div id="customSrcBody">
+                <div class="mp-sub-row" style="flex-wrap:wrap;">
+                  <span>Name:</span>
+                  <input type="text" id="customSrcName" placeholder="e.g. Pump XYZ" style="flex:1;min-width:80px;">
                 </div>
+                <div class="mp-sub-row">
+                  <span>Lw:</span>
+                  <input type="number" id="customSrcLw" step="0.1" placeholder="85" style="width:52px;">
+                  <span>dB(A)</span>
+                </div>
+                <div class="mp-sep"></div>
+                <div style="padding:2px 8px;font-size:9px;color:#6b7280;display:grid;grid-template-columns:repeat(8,1fr);gap:2px;">
+                  <span style="text-align:center;">63</span><span style="text-align:center;">125</span>
+                  <span style="text-align:center;">250</span><span style="text-align:center;">500</span>
+                  <span style="text-align:center;">1k</span><span style="text-align:center;">2k</span>
+                  <span style="text-align:center;">4k</span><span style="text-align:center;">8k</span>
+                </div>
+                <div style="padding:0 8px 2px;display:grid;grid-template-columns:repeat(8,1fr);gap:2px;">
+                  <input type="number" id="customSrcBand0" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                  <input type="number" id="customSrcBand1" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                  <input type="number" id="customSrcBand2" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                  <input type="number" id="customSrcBand3" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                  <input type="number" id="customSrcBand4" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                  <input type="number" id="customSrcBand5" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                  <input type="number" id="customSrcBand6" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                  <input type="number" id="customSrcBand7" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                </div>
+                <div style="padding:1px 8px 4px;font-size:9px;color:#6b7280;">Octave bands dB(A) — leave blank for flat spectrum</div>
+                <div class="mp-sep"></div>
+                <div class="mp-sub-row">
+                  <span>Height:</span>
+                  <input type="number" id="customSrcHeight" step="0.1" value="1.5" min="0" style="width:48px;">
+                  <span>m</span>
+                  <button type="button" class="mp-btn" style="margin-left:auto;padding:3px 10px;justify-content:center;" onclick="addCustomSource()">Add</button>
+                </div>
+                <span id="customSrcError" style="font-size:10px;color:#f87171;display:none;padding:0 8px;"></span>
+                <div class="mp-sep"></div>
                 <div id="customSrcList"></div>
-                <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-                  <button type="button" class="mp-btn" style="border:1px solid rgba(255,255,255,.2);" onclick="exportCustomSources()">Export library</button>
-                  <button type="button" class="mp-btn" style="border:1px solid rgba(255,255,255,.2);" onclick="document.getElementById('customSrcImportFile').click()">Import library</button>
-                  <input type="file" id="customSrcImportFile" accept=".json,.csv" style="display:none;" onchange="importCustomSources(this)">
-                </div>
-                <div style="font-size:10px;color:#6b7280;margin-top:4px;">Import: JSON array or CSV with columns: name, lw, 63–8k, height.</div>
+                <button type="button" class="mp-btn" onclick="exportCustomSources()">Export library</button>
+                <button type="button" class="mp-btn" onclick="document.getElementById('customSrcImportFile').click()">Import library</button>
+                <input type="file" id="customSrcImportFile" accept=".json,.csv" style="display:none;" onchange="importCustomSources(this)">
+                <div style="font-size:10px;color:#6b7280;padding:2px 8px 4px;">Import: JSON array or CSV (name, lw, 63–8k, height)</div>
               </div>
             </div>
           </div>
@@ -2632,9 +2812,9 @@ body.disclaimer-visible .container {
       </div>
     </div>
 
-    <div class="grid2" style="padding-top:0;" data-section="criteria">
+    <div class="grid2" style="padding-top:0;" data-section="criteria results">
       <!-- ===== SELECTIONS CARD ===== -->
-      <div class="card span2">
+      <div class="card span2" data-section="criteria">
         <div class="card-header" style="margin-bottom:4px;" onclick="toggleCardSection('critBody','critToggleBtn')">
           <h2 style="margin:0;">Receivers &amp; criteria</h2>
           <div style="display:flex;gap:5px;align-items:center;">
@@ -3505,7 +3685,7 @@ body.disclaimer-visible .container {
       </div>
     </div>
 
-    <div class="grid2" style="padding-top:0;" data-section="results">
+    <div class="grid2" id="contribSection" style="padding-top:0;" data-section="results">
       <div class="card span2">
         <h2>Source contribution</h2>
         <div class="p">Predicted sound pressure level at each receiver from individual sources, using the selected propagation method. Levels include ground effect, atmospheric absorption, and terrain screening where applicable.</div>
@@ -3515,7 +3695,7 @@ body.disclaimer-visible .container {
     </div>
 
     <!-- Characteristic penalties / adjustments — unified per-receiver table -->
-    <div class="grid2" style="padding-top:0;" data-section="results">
+    <div class="grid2" id="charPenaltySection" style="padding-top:0;" data-section="results">
       <div class="card span2">
         <h2 id="charPenaltyHeading">Characteristic penalties</h2>
         <div class="p sa-only">Apply a <span class="tooltip">characteristic penalty<span class="tooltiptext">The presence of an annoying characteristic attracts a decibel penalty under clause 13(3) of the Noise Policy. A penalty is applied because noise with such dominant characteristics are more noticeable and annoying when compared to a constant, broadband or steady noise. For a penalty to be applied, the Noise Policy requires the characteristic to be fundamental to the nature and impact of the noise. The characteristic should dominate the overall noise impact, rather than simply be part of it. Noise characteristics include tonal, impulsive, low frequency, intermittent and modulating. Refer to <a href="https://www.epa.sa.gov.au/files/15663_guide_noise_policy_2023.pdf" target="_blank">SA EPA Noise Policy Guideline (2023)</a> for details on noise characters.</span></span> to the predicted L<sub>eq</sub> levels before comparison with criteria. The penalised level is shown in the results table.</div>
@@ -3558,7 +3738,7 @@ body.disclaimer-visible .container {
     </div>
 
 
-    <div class="grid2" data-section="results treatments">
+    <div class="grid2" id="predNoiseSection" data-section="results treatments">
       <div class="card span2">
         <h2>Predicted noise levels</h2>
       <div class="table-scroll">
@@ -6733,7 +6913,7 @@ body.disclaimer-visible .container {
   // Create drawer
   var drawerPanel = document.createElement('div');
   drawerPanel.id = 'drawer-panel';
-  drawerPanel.className = 'drawer-open';
+  drawerPanel.className = 'drawer-closed';
 
   // Phase 3: resize handle (must be first child of drawerPanel)
   var drawerResize = document.createElement('div');
@@ -6758,8 +6938,13 @@ body.disclaimer-visible .container {
     '<div id="compliance-strip"><div class="cs-empty">Place source and receivers to see compliance</div></div>' +
     '<div id="jump-nav"></div>';
 
+  var drawerPanelLabel = document.createElement('div');
+  drawerPanelLabel.id = 'drawer-panel-label';
+  drawerPanelLabel.textContent = 'Criteria & compliance';
+
   drawerPanel.appendChild(drawerResize);
   drawerPanel.appendChild(drawerToggle);
+  drawerPanel.appendChild(drawerPanelLabel);
   drawerPanel.appendChild(drawerHeader);
   drawerPanel.appendChild(drawerContent);
 
@@ -6965,7 +7150,7 @@ body.disclaimer-visible .container {
   function _insertAllGroupAnchors() {
     _insertGroupAnchor('group-setup',       document.getElementById('devInfoCard'));
     _insertGroupAnchor('group-criteria',    document.getElementById('critBody'));
-    _insertGroupAnchor('group-results',     document.getElementById('predTableDay'));
+    _insertGroupAnchor('group-results',     document.getElementById('assessmentCasesSection'));
     _insertGroupAnchor('group-treatments',  document.getElementById('recommendationsCard'));
     _insertGroupAnchor('group-export',      document.getElementById('pdfBtn'));
   }
@@ -6975,6 +7160,15 @@ body.disclaimer-visible .container {
   // ── 4. Assemble the layout ─────────────────────────────────────────
   appLayout.appendChild(mapColumn);
   appLayout.appendChild(drawerPanel);
+
+  // Collapsed nametag tab: visible on right edge when drawer is closed
+  var drawerCollapsedNametag = document.createElement('div');
+  drawerCollapsedNametag.id = 'drawer-collapsed-nametag';
+  drawerCollapsedNametag.textContent = 'Criteria & compliance';
+  drawerCollapsedNametag.addEventListener('click', function() {
+    if (typeof window._setDrawerOpen === 'function') window._setDrawerOpen(true);
+  });
+  appLayout.appendChild(drawerCollapsedNametag);
 
   // Insert into the DOM: place header and layout before #pdfArea
   var body = document.body;
@@ -7030,11 +7224,16 @@ body.disclaimer-visible .container {
     drawerPanel.classList.toggle('drawer-open', open);
     drawerPanel.classList.toggle('drawer-closed', !open);
     var icon = document.getElementById('drawer-toggle-icon');
-    if (icon) icon.innerHTML = open ? '&#9654;' : '&#9664;';
+    if (icon) icon.innerHTML = open
+      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>';
     drawerToggle.setAttribute('aria-expanded', String(open));
     // Sync the toolbar toggle label: open→"Hide assessment panel", closed→"Show assessment panel"
     var mapToggleLabel = document.getElementById('mapMaximiseBtnLabel');
     if (mapToggleLabel) mapToggleLabel.textContent = open ? 'Hide assessment panel' : 'Show assessment panel';
+    // Show/hide collapsed nametag tab
+    var cnt = document.getElementById('drawer-collapsed-nametag');
+    if (cnt) cnt.style.display = open ? 'none' : 'block';
     try { localStorage.setItem(DRAWER_KEY, open ? 'true' : 'false'); } catch(e) {}
   }
   window._setDrawerOpen = setDrawerOpen;  // Phase 2: expose for auto-scroll
@@ -19518,12 +19717,12 @@ function initPropagationMethod() {
   if (paramsDiv) paramsDiv.style.display = propagationMethod === 'iso9613' ? '' : 'none';
 
   // Set active button
-  group.querySelectorAll('.penalty-btn').forEach(function(btn) {
+  group.querySelectorAll('[data-val]').forEach(function(btn) {
     if (btn.dataset.val === savedMethod) btn.classList.add('active');
     else btn.classList.remove('active');
 
     btn.addEventListener('click', function() {
-      group.querySelectorAll('.penalty-btn').forEach(function(b) { b.classList.remove('active'); });
+      group.querySelectorAll('[data-val]').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       propagationMethod = btn.dataset.val;
       localStorage.setItem('prop_method', propagationMethod);
@@ -23530,7 +23729,7 @@ setInitialCollapseState();
     var propGroup = document.getElementById('propMethodGroup');
     if (propGroup) {
       propGroup.addEventListener('click', function(e) {
-        var btn = e.target.closest ? e.target.closest('.penalty-btn') : null;
+        var btn = e.target.closest ? e.target.closest('[data-val]') : null;
         if (btn && btn.dataset && btn.dataset.val && btn.dataset.val !== (typeof propagationMethod !== 'undefined' ? propagationMethod : '')) {
           pushState('Change propagation to ' + (btn.dataset.val === 'iso9613' ? 'ISO 9613-2' : 'Simple'));
         }
@@ -26892,18 +27091,7 @@ if (window.pdfjsLib) {
         var _placeLabel = currentMode.startsWith('source_') ? ('Place source S' + (parseInt(currentMode.replace('source_',''),10)+1)) : ('Place ' + currentMode.toUpperCase());
         window._undoPushState(_placeLabel);
       }
-      // Phase 2: auto-scroll drawer to Criteria section on receiver placement
-      if (_wasReceiverPlacement) {
-        var _dp = document.getElementById('drawer-panel');
-        if (_dp && _dp.classList.contains('drawer-closed') && typeof window._setDrawerOpen === 'function') {
-          window._setDrawerOpen(true);
-        }
-        setTimeout(function() {
-          if (typeof window._scrollDrawerTo === 'function') {
-            window._scrollDrawerTo('group-criteria');
-          }
-        }, 350);  // after drawer open transition + zone-detection render
-      }
+      // Auto-scroll removed: drawer only opens via user click on toggle/nametag
     });
 
     /* ---- mode buttons (click to select mode, click again to remove placed marker) ---- */
