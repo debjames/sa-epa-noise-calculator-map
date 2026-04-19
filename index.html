@@ -1229,9 +1229,8 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   color: #f3f4f6;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-gutter: stable;
+  /* overflow intentionally NOT set here — keeps the absolutely-positioned
+     #side-panel-toggle visible outside the panel edge when collapsed */
   display: flex;
   flex-direction: column;
   z-index: 110;
@@ -1245,14 +1244,15 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
 }
 #side-panel-inner {
   box-sizing: border-box;
-  padding: 12px 14px;          /* 12/14 breathing room on all sides */
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   flex: 1;
-  /* Force children to respect the padded content box so nothing overflows
-     or clips at the right edge (the previous min-width was for a deleted
-     width-transition use-case). */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  min-height: 0; /* allow flex child to shrink below content height */
 }
 #side-panel-inner > * { box-sizing: border-box; }
 /* Right-edge collapse/expand toggle — sticks out 14px into the map area */
