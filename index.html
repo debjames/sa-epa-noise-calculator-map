@@ -244,6 +244,7 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   box-shadow: 0 6px 16px rgba(0,0,0,.45);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  overflow-y: auto;
 }
 .mp.mp-open .mp-body { display: flex; }
 .mp-btn {
@@ -720,6 +721,59 @@ body.map-fs-active { overflow: hidden; }
 #srcFloatPanel button, #asFloatPanel button,
 #lsFloatPanel button, #bsFloatPanel button {
   border-radius:4px !important;
+}
+
+/* ── Floating objects panel ──────────────────────────────────────────── */
+#objectsFloatPanel {
+  display: none;
+  position: fixed;
+  top: 60px;
+  left: 56px;
+  width: 360px;
+  height: 480px;
+  z-index: 9999;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  flex-direction: column;
+  resize: both;
+  overflow: hidden;
+  min-width: 280px;
+  min-height: 180px;
+}
+#objectsPanelHdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(26,32,44,.92);
+  color: #f3f4f6;
+  border-radius: 10px 10px 0 0;
+  cursor: move;
+  user-select: none;
+  flex-shrink: 0;
+}
+#objectsPanelHdr .objects-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+#objectsPanelClose {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+#objectsPanelClose:hover { color: #fff; }
+#objectsPanelBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 14px 10px;
 }
 
 /* ── Floating help panel ─────────────────────────────────────────────── */
@@ -1302,6 +1356,7 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
 /* Save JPG is the only atom button with label text — hide the span
    inside the toolbar so it reads as icon-only like the others. */
 #side-panel-toolbar #mp-save-jpg .mp-hdr > span { display: none; }
+#side-panel-toolbar #mp-objects .mp-hdr > span { display: none; }
 /* Leave badge dot on the suggest button visible */
 #side-panel-toolbar #mp-suggest .mp-hdr > .mp-badge-dot { display: inline-block; }
 
@@ -1342,7 +1397,7 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   top: auto;
   left: auto;
   right: auto;
-  width: auto;
+  width: 100%;
   min-width: 0;
   max-height: none !important;
   box-shadow: none;
@@ -1353,6 +1408,8 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   padding: 8px 6px 12px 6px;
   margin-bottom: 4px;
   box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 /* Vertical spacing between buttons/rows inside an expanded section */
 #side-panel .mp-body > * + * { margin-top: 4px; }
@@ -1759,6 +1816,20 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   padding: 0;
   overflow: hidden;
 }
+.section-hidden { display: none !important; }
+/* penalty-group / penalty-btn overrides for dark LHS mp-body context */
+.mp-body .penalty-group { margin-top: 0; flex-direction: column; gap: 2px; padding: 4px 0; }
+.mp-body .penalty-btn { background: transparent; border-color: rgba(255,255,255,.15); color: #d1d5db; font-size: 12px; padding: 5px 8px; border-radius: 4px; }
+.mp-body .penalty-btn:hover { background: rgba(255,255,255,.11); border-color: rgba(255,255,255,.3); color: #fff; }
+.mp-body .penalty-btn.active { background: rgba(242,203,0,.25); border-color: rgba(242,203,0,.6); color: #fde68a; }
+/* inputs / selects in mp-body outside of mp-sub-row */
+.mp-body input[type="number"], .mp-body input[type="text"], .mp-body select {
+  background: rgba(255,255,255,.08); color: #e5e7eb;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 3px;
+  font-size: 11px; padding: 2px 4px;
+}
+/* small text / labels in mp-body */
+.mp-body .small, .mp-body label.small { color: #9ca3af; }
 
 /* Toggle button: docked to left edge of drawer */
 #drawer-toggle {
@@ -1905,7 +1976,7 @@ body.disclaimer-visible .container {
       </div>
 
       <!-- ===== DEVELOPMENT INFORMATION PANEL ===== -->
-      <div class="card span2" id="devInfoCard">
+      <div class="card span2" id="devInfoCard" data-section="setup">
         <h2>Development information</h2>
         <div style="display:flex;flex-wrap:wrap;gap:0 28px;align-items:flex-start;">
           <div style="margin-bottom:6px;">
@@ -1986,7 +2057,7 @@ body.disclaimer-visible .container {
                 return;
               }
               // Legacy floating-dropdown behaviour: mutually exclusive.
-              var all = ['mp-mapping', 'mp-tools', 'mp-modelling'];
+              var all = ['mp-mapping', 'mp-tools', 'mp-modelling', 'mp-propmethod', 'mp-customsrc'];
               all.forEach(function(pid) {
                 var p = document.getElementById(pid);
                 if (!p) return;
@@ -2059,16 +2130,16 @@ body.disclaimer-visible .container {
                 // redoBtn, saveJpgPanelBtn) — only the parent is moved.
                 var toolbar = document.createElement('div');
                 toolbar.id = 'side-panel-toolbar';
-                ['mp-help', 'mp-suggest', 'mp-undo', 'mp-redo', 'mp-save-jpg'].forEach(function(id) {
+                ['mp-help', 'mp-suggest', 'mp-objects', 'mp-undo', 'mp-redo', 'mp-save-jpg'].forEach(function(id) {
                   var el = document.getElementById(id);
                   if (el) toolbar.appendChild(el);
                 });
                 inner.appendChild(toolbar);
 
-                // Then search + 3 accordions from #mapPanelContainer → inner
+                // Then search + accordions from #mapPanelContainer → inner
                 var searchWrap = document.getElementById('mapSearchWrapper');
                 if (searchWrap) inner.appendChild(searchWrap);
-                ['mp-mapping', 'mp-tools', 'mp-modelling'].forEach(function(id) {
+                ['mp-mapping', 'mp-tools', 'mp-modelling', 'mp-propmethod', 'mp-customsrc'].forEach(function(id) {
                   var el = document.getElementById(id);
                   if (el) inner.appendChild(el);
                 });
@@ -2186,6 +2257,14 @@ body.disclaimer-visible .container {
             <div class="mp" id="mp-redo" style="pointer-events:all;">
               <div class="mp-hdr" id="redoBtn" title="Nothing to redo" style="cursor:pointer;opacity:0.4;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M21 7v6h-6"/><path d="M21 13c-2 5-6 8-11 8a9 9 0 0 1 0-18c4.5 0 8.5 2.5 10.5 6"/></svg>
+              </div>
+            </div>
+
+            <!-- Objects floating panel button -->
+            <div class="mp" id="mp-objects" style="pointer-events:all;">
+              <div class="mp-hdr" id="objectsToggleBtn" title="Objects — noise sources, barriers and receivers placed on the map" style="cursor:pointer;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 12l9-5"/><path d="M12 12v10"/><path d="M12 12L3 7"/></svg>
+                <span>Objects</span>
               </div>
             </div>
 
@@ -2341,6 +2420,153 @@ body.disclaimer-visible .container {
               </div>
             </div>
 
+          <!-- PANEL: PROPAGATION METHOD -->
+          <div class="mp" id="mp-propmethod" style="pointer-events:all;">
+            <div class="mp-hdr" onclick="toggleMapPanel('mp-propmethod')">
+              <span>Propagation</span><span class="mp-arrow">&#9660;</span>
+            </div>
+            <div class="mp-body" style="min-width:270px;">
+              <div class="penalty-group" id="propMethodGroup">
+                <button class="penalty-btn active" data-val="simple">Simple (geometric spreading)</button>
+                <button class="penalty-btn" data-val="iso9613">ISO 9613-2:1996</button>
+                <button class="penalty-btn" data-val="concawe">CONCAWE</button>
+              </div>
+              <div id="iso9613Params" style="display:none;">
+                <div class="mp-sep"></div>
+                <div class="mp-sub-row"><span>Recv height:</span><input type="number" id="isoRecvHeight" value="1.5" min="0" max="50" step="0.5" style="width:52px;"><span>m</span></div>
+                <div class="mp-sub-row">
+                  <span>Ground type:</span>
+                  <select id="isoGroundType" style="flex:1;">
+                    <option value="0">Hard (G=0)</option>
+                    <option value="0.5" selected>Mixed (G=0.5)</option>
+                    <option value="1">Soft (G=1)</option>
+                  </select>
+                </div>
+                <div class="mp-sub-row"><span>Temperature:</span><input type="number" id="isoTemp" value="10" min="-20" max="50" step="1" style="width:46px;"><span>°C</span></div>
+                <div class="mp-sub-row"><span>Humidity:</span><input type="number" id="isoHumidity" value="70" min="10" max="100" step="5" style="width:46px;"><span>%RH</span></div>
+                <div class="mp-sep"></div>
+                <div class="mp-sub-row" style="align-items:center;">
+                  <span style="flex:1;color:#9ca3af;">ISO/TR 17534-3 validation</span>
+                  <button id="isoValidateBtn" onclick="runISOValidation()" style="font-size:10px;padding:2px 7px;border:1px solid #3498db;background:#3498db;color:#fff;border-radius:3px;cursor:pointer;white-space:nowrap;flex-shrink:0;">Run</button>
+                </div>
+                <div id="isoValidationResults" style="display:none;font-size:10px;max-height:200px;overflow-y:auto;padding:2px 8px;"></div>
+                <details style="padding:4px 8px;">
+                  <summary style="font-size:10px;color:#6b7280;cursor:pointer;">ISO 9613-2 implementation notes</summary>
+                  <div id="propMethodDesc" style="font-size:10px;color:#6b7280;line-height:1.5;padding-top:4px;">Select the sound propagation model. The <b>simple method</b> uses geometric spreading only (−20 log<sub>10</sub> d − 8 dB). <b>ISO 9613-2</b> adds frequency-dependent atmospheric absorption (ISO 9613-1) and ground attenuation per octave band (§7.3.1 detailed method). <b>CONCAWE</b> (Report 4/81, Manning 1981) uses empirical ground curves and meteorological category corrections.</div>
+                </details>
+              </div>
+              <div id="concaweMetPanel" style="display:none;">
+                <div class="mp-sep"></div>
+                <div class="mp-sub-row" style="gap:10px;">
+                  <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:#d1d5db;"><input type="radio" name="concaweMetMode" value="direct" checked> Direct</label>
+                  <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:#d1d5db;"><input type="radio" name="concaweMetMode" value="computed"> Compute</label>
+                </div>
+                <div id="concaweDirectGroup">
+                  <div class="mp-sub-row">
+                    <span>Category:</span>
+                    <select id="concaweMetCatSelect" style="flex:1;">
+                      <option value="1">1 — Strong upwind</option>
+                      <option value="2">2 — Moderate upwind</option>
+                      <option value="3">3 — Light/crosswind</option>
+                      <option value="4" selected>4 — Neutral</option>
+                      <option value="5">5 — Light downwind</option>
+                      <option value="6">6 — Strong downwind</option>
+                    </select>
+                  </div>
+                </div>
+                <div id="concaweComputedGroup" style="display:none;">
+                  <div class="mp-sub-row"><span>Wind speed:</span><input type="number" id="concaweWindSpeed" value="3" min="0" max="20" step="0.5" style="width:46px;"><span>m/s</span></div>
+                  <div class="mp-sub-row"><span>Wind from:</span><input type="number" id="concaweWindDir" value="0" min="0" max="360" step="5" style="width:46px;"><span>°</span></div>
+                  <div class="mp-sub-row">
+                    <span>Time of day:</span>
+                    <select id="concaweTimeOfDay" style="flex:1;">
+                      <option value="day">Day</option>
+                      <option value="transition">Transition</option>
+                      <option value="night" selected>Night</option>
+                    </select>
+                  </div>
+                  <div id="concaweSolarGroup" style="display:none;" class="mp-sub-row">
+                    <span>Solar:</span>
+                    <select id="concaweSolarRad" style="flex:1;">
+                      <option value=">60">&gt;60 mW/cm²</option>
+                      <option value="30-60">30–60 mW/cm²</option>
+                      <option value="<30">&lt;30 mW/cm²</option>
+                    </select>
+                  </div>
+                  <div id="concaweCloudGroup" class="mp-sub-row">
+                    <span>Cloud:</span>
+                    <select id="concaweCloudCover" style="flex:1;">
+                      <option value="0-3">0–3 octas</option>
+                      <option value="4-7">4–7 octas</option>
+                      <option value="8">8 octas</option>
+                    </select>
+                  </div>
+                  <div id="concaweComputedResult" style="font-size:10px;padding:3px 8px;color:#9ca3af;">
+                    Pasquill: <strong id="concawePasquillDisplay">—</strong> | Cat: <strong id="concaweMetCatDisplay">—</strong> | Wind: <strong id="concaweVectorWindDisplay">—</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL: CUSTOM SOURCES -->
+          <div class="mp" id="mp-customsrc" style="pointer-events:all;">
+            <div class="mp-hdr" onclick="toggleMapPanel('mp-customsrc')">
+              <span>Custom sources</span><span class="mp-arrow">&#9660;</span>
+            </div>
+            <div class="mp-body" style="min-width:280px;">
+              <div id="customSrcBody" style="padding:4px 6px;">
+                <div style="font-size:10px;color:#9ca3af;margin-bottom:8px;">Add custom sources with name, Lw, and octave band spectrum. Appear in all source dropdowns.</div>
+                <div style="border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:8px;margin-bottom:8px;">
+                  <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;margin-bottom:6px;">
+                    <div>
+                      <div style="font-size:10px;font-weight:600;color:#9ca3af;margin-bottom:2px;">Source name</div>
+                      <input type="text" id="customSrcName" placeholder="e.g. Pump unit XYZ" style="width:100%;box-sizing:border-box;">
+                    </div>
+                    <div>
+                      <div style="font-size:10px;font-weight:600;color:#9ca3af;margin-bottom:2px;">Lw dB(A)</div>
+                      <input type="number" id="customSrcLw" step="0.1" placeholder="85" style="width:60px;">
+                    </div>
+                  </div>
+                  <div style="font-size:10px;font-weight:600;color:#9ca3af;margin-bottom:3px;">Octave bands dB(A) <span style="font-weight:400;">(blank = flat)</span></div>
+                  <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;">
+                    <div style="text-align:center;font-size:9px;color:#6b7280;">63</div>
+                    <div style="text-align:center;font-size:9px;color:#6b7280;">125</div>
+                    <div style="text-align:center;font-size:9px;color:#6b7280;">250</div>
+                    <div style="text-align:center;font-size:9px;color:#6b7280;">500</div>
+                    <div style="text-align:center;font-size:9px;color:#6b7280;">1k</div>
+                    <div style="text-align:center;font-size:9px;color:#6b7280;">2k</div>
+                    <div style="text-align:center;font-size:9px;color:#6b7280;">4k</div>
+                    <div style="text-align:center;font-size:9px;color:#6b7280;">8k</div>
+                    <input type="number" id="customSrcBand0" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                    <input type="number" id="customSrcBand1" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                    <input type="number" id="customSrcBand2" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                    <input type="number" id="customSrcBand3" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                    <input type="number" id="customSrcBand4" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                    <input type="number" id="customSrcBand5" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                    <input type="number" id="customSrcBand6" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                    <input type="number" id="customSrcBand7" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
+                  </div>
+                  <div style="display:flex;gap:6px;align-items:end;margin-top:6px;">
+                    <div>
+                      <div style="font-size:10px;font-weight:600;color:#9ca3af;margin-bottom:2px;">Height (m)</div>
+                      <input type="number" id="customSrcHeight" step="0.1" value="1.5" min="0" style="width:50px;">
+                    </div>
+                    <button type="button" class="mp-btn" style="flex:1;justify-content:center;border:1px solid rgba(255,255,255,.2);" onclick="addCustomSource()">Add source</button>
+                    <span id="customSrcError" style="font-size:10px;color:#f87171;display:none;"></span>
+                  </div>
+                </div>
+                <div id="customSrcList"></div>
+                <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                  <button type="button" class="mp-btn" style="border:1px solid rgba(255,255,255,.2);" onclick="exportCustomSources()">Export library</button>
+                  <button type="button" class="mp-btn" style="border:1px solid rgba(255,255,255,.2);" onclick="document.getElementById('customSrcImportFile').click()">Import library</button>
+                  <input type="file" id="customSrcImportFile" accept=".json,.csv" style="display:none;" onchange="importCustomSources(this)">
+                </div>
+                <div style="font-size:10px;color:#6b7280;margin-top:4px;">Import: JSON array or CSV with columns: name, lw, 63–8k, height.</div>
+              </div>
+            </div>
+          </div>
+
           </div>
           <!-- ── End floating panels ── -->
 
@@ -2373,23 +2599,10 @@ body.disclaimer-visible .container {
 
     </div>
 
-    <!-- ═══ Objects panel ═══ -->
-    <div class="grid2 grid-full" style="padding-top:0;" id="objectsPanelSection">
-      <div class="card" style="padding:10px 14px;">
-        <div class="card-header" onclick="toggleCardSection('objectsPanelBody','objectsPanelToggle')">
-          <h2 style="margin:0;">Objects</h2>
-          <button class="collapse-btn" id="objectsPanelToggle" title="Toggle section">&#x25BC;</button>
-        </div>
-        <div id="objectsPanelBody" style="display:none;margin-top:10px;">
-          <div id="objectsPanelContent" style="font-size:12px;">
-            <span style="color:#aaa;">No objects placed yet.</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Objects panel moved to objectsFloatPanel (LHS Objects button) -->
 
     <!-- ===== P&D CODE PROVISIONS PANEL (SA only) ===== -->
-    <div class="grid2 sa-only" id="pdcProvisionsSection" style="padding-top:0;">
+    <div class="grid2 sa-only" id="pdcProvisionsSection" style="padding-top:0;" data-section="criteria">
       <div class="card span2">
         <div class="card-header" style="margin-bottom:4px;" onclick="toggleCardSection('pdcBody','pdcToggleBtn')">
           <h2 style="margin:0;">Planning &amp; Design Code &#x2014; Interface between Land Uses</h2>
@@ -2418,7 +2631,7 @@ body.disclaimer-visible .container {
       </div>
     </div>
 
-    <div class="grid2" style="padding-top:0;">
+    <div class="grid2" style="padding-top:0;" data-section="criteria">
       <!-- ===== SELECTIONS CARD ===== -->
       <div class="card span2">
         <div class="card-header" style="margin-bottom:4px;" onclick="toggleCardSection('critBody','critToggleBtn')">
@@ -2627,7 +2840,7 @@ body.disclaimer-visible .container {
     </div>
 
     <!-- VIC-only: Area type, Background classification, Distance to zone boundary -->
-    <div class="grid2 vic-only vic-settings-only" style="padding-top:0;">
+    <div class="grid2 vic-only vic-settings-only" style="padding-top:0;" data-section="criteria">
       <div class="card span2">
         <h2>VIC assessment parameters</h2>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -2671,7 +2884,7 @@ body.disclaimer-visible .container {
     </div>
 
     <!-- NSW NPI 2017: Assessment parameters -->
-    <div class="grid2 nsw-only" style="padding-top:0;">
+    <div class="grid2 nsw-only" style="padding-top:0;" data-section="criteria">
       <div class="card span2">
         <h2>NSW assessment parameters</h2>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -2778,7 +2991,7 @@ body.disclaimer-visible .container {
     </div>
 
     <!-- SA: Derivation of noise emission criteria -->
-    <div class="grid2 sa-only" id="saDerivSection" style="padding-top:0;">
+    <div class="grid2 sa-only" id="saDerivSection" style="padding-top:0;" data-section="criteria">
       <div class="card span2">
         <h2>Derivation of noise emission criteria</h2>
         <div class="table-scroll" id="saDerivTableWrap">
@@ -2802,7 +3015,7 @@ body.disclaimer-visible .container {
     </div>
 
     <!-- NSW: Derivation of noise emission criteria -->
-    <div class="grid2 nsw-only" style="padding-top:0;">
+    <div class="grid2 nsw-only" style="padding-top:0;" data-section="criteria">
       <div class="card span2">
         <h2>Derivation of noise emission criteria</h2>
         <div class="table-scroll" id="nswDerivTableWrap">
@@ -2822,7 +3035,7 @@ body.disclaimer-visible .container {
     </div>
 
     <!-- SA: Emergency equipment criteria -->
-    <div class="grid2 sa-only" id="emergEquipSection" style="padding-top:0;display:none;">
+    <div class="grid2 sa-only" id="emergEquipSection" style="padding-top:0;display:none;" data-section="criteria">
       <div class="card span2">
         <h2>Emergency equipment criteria</h2>
         <div class="p">Criteria based on the intent of the <i>Environment Protection (Commercial &amp; Industrial) Noise Policy 2023</i>, the testing time and operation of the equipment.</div>
@@ -2836,7 +3049,7 @@ body.disclaimer-visible .container {
     </div>
 
     <!-- Music noise criteria panel (shown when Music source category is checked) -->
-    <div class="grid2" id="musicCriteriaSection" style="padding-top:0;display:none;">
+    <div class="grid2" id="musicCriteriaSection" style="padding-top:0;display:none;" data-section="criteria">
       <div class="card span2">
         <h2>Music noise criteria</h2>
         <div class="p">Music noise is assessed under <strong>DTS/DPF 4.6</strong> of the Planning and Design Code. Music from the development must not cause noise levels at <span class="pdc-sr" title="Sensitive receiver means: any use for residential purposes or land zoned primarily for residential purposes, childcare facility, educational facility, hospital, supported accommodation, or tourist accommodation.">sensitive receivers</span> to exceed the background noise level.</div>
@@ -2890,7 +3103,7 @@ body.disclaimer-visible .container {
     </div>
 
     <!-- Childcare / student noise criteria panel (shown when Childcare source category is checked) -->
-    <div class="grid2" id="childcareCriteriaSection" style="padding-top:0;display:none;">
+    <div class="grid2" id="childcareCriteriaSection" style="padding-top:0;display:none;" data-section="criteria">
       <div class="card span2">
         <h2>Childcare / student noise criteria</h2>
         <div class="p">Development incorporating childcare facilities or educational uses may require assessment against specific noise criteria. The World Health Organization (WHO) Guidelines for Community Noise (1999) recommend an outdoor L<sub>Aeq,16h</sub> level not exceeding <strong>50 dB(A)</strong> to protect the majority of people from being moderately annoyed during the daytime.</div>
@@ -2915,7 +3128,7 @@ body.disclaimer-visible .container {
     </div>
 
     <!-- SA: MBS 010 -->
-    <div class="grid2 sa-only" id="mbs010Section" style="padding-top:0;display:none;">
+    <div class="grid2 sa-only" id="mbs010Section" style="padding-top:0;display:none;" data-section="criteria">
       <div class="card span2">
         <div class="card-header" style="margin-bottom:4px;" onclick="toggleCardSection('mbs010Body','mbs010ToggleColBtn')">
           <h2 style="margin:0;">MBS 010</h2>
@@ -2972,9 +3185,10 @@ body.disclaimer-visible .container {
       </div>
     </div>
 
-    <div class="grid2" style="padding-top:0;">
+    <!-- Propagation method moved to LHS mp-propmethod panel -->
+    <div class="grid2" style="display:none;">
       <div class="card span2">
-        <h2>Propagation method</h2>
+        <h2>Propagation method (hidden — see LHS Propagation panel)</h2>
         <div class="p" id="propMethodDesc">Select the sound propagation model. The <b>simple method</b> uses geometric spreading only (−20 log<sub>10</sub> d − 8 dB). <b>ISO 9613-2</b> adds frequency-dependent atmospheric absorption (ISO 9613-1) and ground attenuation per octave band (§7.3.1 detailed method with source, receiver, and middle region contributions). <b>CONCAWE</b> (Report 4/81, Manning 1981) uses empirical ground curves and meteorological category corrections instead of ISO ground regions.</div>
         <div class="penalty-group" id="propMethodGroup">
           <button class="penalty-btn active" data-val="simple">Simple (geometric spreading)</button>
@@ -3130,10 +3344,10 @@ body.disclaimer-visible .container {
       </div>
     </div>
 
-    <!-- ═══ Custom sources panel ═══ -->
-    <div class="grid2 grid-full" style="padding-top:0;">
+    <!-- Custom sources moved to LHS mp-customsrc panel -->
+    <div class="grid2 grid-full" style="display:none;">
       <div class="card">
-        <h2>Custom sources</h2>
+        <h2>Custom sources (hidden — see LHS Custom sources panel)</h2>
         <div id="customSrcBody">
           <div class="p" style="margin:8px 0 10px;">Add custom noise sources with name, overall Lw, and octave band spectrum (A-weighted). Custom sources persist across sessions and appear in all source dropdowns.</div>
 
@@ -3204,7 +3418,7 @@ body.disclaimer-visible .container {
       </div>
     </div>
 
-    <div class="grid2 grid-full crit-day-section" style="padding-top:0;display:none;" id="legacyDaySection">
+    <div class="grid2 grid-full crit-day-section" style="padding-top:0;display:none;" id="legacyDaySection" data-section="results">
       <div class="card">
         <h2>Day situation</h2>
         <h3 style="margin:0 0 6px;font-size:13px;font-weight:600;">Noise sources – L<sub>eq</sub></h3>
@@ -3283,14 +3497,14 @@ body.disclaimer-visible .container {
     </div>
    
     <!-- ═══ Assessment cases panel ═══ -->
-    <div class="grid2" id="assessmentCasesSection" style="padding-top:0;">
+    <div class="grid2" id="assessmentCasesSection" style="padding-top:0;" data-section="results">
       <div class="card span2">
         <h2>Assessment cases</h2>
         <div id="assessmentCasesPanel"></div>
       </div>
     </div>
 
-    <div class="grid2" style="padding-top:0;">
+    <div class="grid2" style="padding-top:0;" data-section="results">
       <div class="card span2">
         <h2>Source contribution</h2>
         <div class="p">Predicted sound pressure level at each receiver from individual sources, using the selected propagation method. Levels include ground effect, atmospheric absorption, and terrain screening where applicable.</div>
@@ -3300,7 +3514,7 @@ body.disclaimer-visible .container {
     </div>
 
     <!-- Characteristic penalties / adjustments — unified per-receiver table -->
-    <div class="grid2" style="padding-top:0;">
+    <div class="grid2" style="padding-top:0;" data-section="results">
       <div class="card span2">
         <h2 id="charPenaltyHeading">Characteristic penalties</h2>
         <div class="p sa-only">Apply a <span class="tooltip">characteristic penalty<span class="tooltiptext">The presence of an annoying characteristic attracts a decibel penalty under clause 13(3) of the Noise Policy. A penalty is applied because noise with such dominant characteristics are more noticeable and annoying when compared to a constant, broadband or steady noise. For a penalty to be applied, the Noise Policy requires the characteristic to be fundamental to the nature and impact of the noise. The characteristic should dominate the overall noise impact, rather than simply be part of it. Noise characteristics include tonal, impulsive, low frequency, intermittent and modulating. Refer to <a href="https://www.epa.sa.gov.au/files/15663_guide_noise_policy_2023.pdf" target="_blank">SA EPA Noise Policy Guideline (2023)</a> for details on noise characters.</span></span> to the predicted L<sub>eq</sub> levels before comparison with criteria. The penalised level is shown in the results table.</div>
@@ -3343,7 +3557,7 @@ body.disclaimer-visible .container {
     </div>
 
 
-    <div class="grid2">
+    <div class="grid2" data-section="results treatments">
       <div class="card span2">
         <h2>Predicted noise levels</h2>
       <div class="table-scroll">
@@ -3431,7 +3645,7 @@ body.disclaimer-visible .container {
   <input type="file" id="importJsonFile" accept=".json" style="display:none;">
 
   <!-- Recommended treatments panel -->
-  <div class="card" id="recommendationsCard" style="margin-top:14px;margin-bottom:12px;display:none;">
+  <div class="card" id="recommendationsCard" style="margin-top:14px;margin-bottom:12px;" data-section="treatments">
     <div class="card-header" onclick="toggleCardSection('recommendationsBody','recommendationsCollapseBtn')">
       <h2 style="margin:0;">Recommended treatments <span style="font-size:11px;color:var(--muted);font-weight:normal;">(indicative)</span></h2>
       <button class="collapse-btn" id="recommendationsCollapseBtn" title="Expand/collapse">&#9650;</button>
@@ -6748,13 +6962,11 @@ body.disclaimer-visible .container {
     parent.insertBefore(a, insertBefore);
   }
   function _insertAllGroupAnchors() {
-    _insertGroupAnchor('group-setup',    document.getElementById('devInfoCard'));
-    _insertGroupAnchor('group-criteria', document.getElementById('critBody'));
-    // Note: #sourcePanel is normally display:none — use Custom sources panel
-    // (#customSrcBody) which is always visible and sits in the same section.
-    _insertGroupAnchor('group-sources',  document.getElementById('customSrcBody'));
-    _insertGroupAnchor('group-results',  document.getElementById('predTableDay'));
-    _insertGroupAnchor('group-export',   document.getElementById('pdfBtn'));
+    _insertGroupAnchor('group-setup',       document.getElementById('devInfoCard'));
+    _insertGroupAnchor('group-criteria',    document.getElementById('critBody'));
+    _insertGroupAnchor('group-results',     document.getElementById('predTableDay'));
+    _insertGroupAnchor('group-treatments',  document.getElementById('recommendationsCard'));
+    _insertGroupAnchor('group-export',      document.getElementById('pdfBtn'));
   }
   // Note: _insertAllGroupAnchors() is called below AFTER appLayout is attached
   // to the body, so document.getElementById() can find the moved panels.
@@ -6771,6 +6983,8 @@ body.disclaimer-visible .container {
 
   // Phase 2: insert group anchors now that moved panels are back in the document
   _insertAllGroupAnchors();
+  // Show Setup section by default; hide all other sections
+  activateSection('setup');
 
   // Rescue floating panels that live inside #pdfArea in the source HTML.
   // These are position:fixed overlays (Quick Reference and Suggested Noise
@@ -6788,7 +7002,7 @@ body.disclaimer-visible .container {
   // and Suggested Sources IIFEs (further down the file) attach their click
   // handlers during parse — moving the nodes afterwards preserves listeners.
   function _rescuePdfAreaFloatingPanels() {
-    ['helpFloatPanel', 'suggestFloatPanel'].forEach(function(id) {
+    ['helpFloatPanel', 'suggestFloatPanel', 'objectsFloatPanel'].forEach(function(id) {
       var p = document.getElementById(id);
       if (p && p.parentElement !== body) body.appendChild(p);
     });
@@ -6888,6 +7102,10 @@ body.disclaimer-visible .container {
     // Move drawer content back into .container > .sheet
     var drawerChildren = Array.from(drawerContent.children);
     drawerChildren.forEach(function(child) { sheet.appendChild(child); });
+    // Remove section-hidden classes so all panels appear in PDF capture
+    document.querySelectorAll('.section-hidden').forEach(function(el) {
+      el.classList.remove('section-hidden');
+    });
     if (mapCard) { mapCard.style.display = ''; }
     container.style.width = '1180px';
   };
@@ -6910,25 +7128,42 @@ body.disclaimer-visible .container {
     body.classList.add('drawer-layout');
     // Phase 2: re-insert group anchors (removed/reordered by PDF export)
     _insertAllGroupAnchors();
+    // Re-apply section filter (classes survive DOM move but re-apply to be safe)
+    activateSection(window._activeNavSection || 'setup');
     // Rebuild compliance strip now that data is back in place
     if (typeof updateComplianceStrip === 'function') updateComplianceStrip();
   };
 
-  // ── 8. Phase 2: Jump nav + scroll spy ──────────────────────────────
+  // ── 8. Phase 2: Section filtering + Jump nav ───────────────────────
+  function activateSection(sectionId) {
+    var dc = document.getElementById('drawer-content');
+    if (!dc) return;
+    dc.querySelectorAll('[data-section]').forEach(function(el) {
+      var sections = (el.dataset.section || '').split(' ');
+      el.classList.toggle('section-hidden', sections.indexOf(sectionId) === -1);
+    });
+    window._activeNavSection = sectionId;
+  }
+
   (function initJumpNav() {
     var nav = document.getElementById('jump-nav');
     if (!nav) return;
     var groups = [
       { id: 'group-setup',       label: 'Setup' },
       { id: 'group-criteria',    label: 'Criteria' },
-      { id: 'group-sources',     label: 'Sources' },
-      { id: 'group-results',     label: 'Results' }
+      { id: 'group-results',     label: 'Results' },
+      { id: 'group-treatments',  label: 'Recommended treatments' }
     ];
     var dc = document.getElementById('drawer-content');
 
     function scrollToAnchor(anchorId) {
       var el = document.getElementById(anchorId);
       if (!el || !dc) return;
+      if (anchorId.indexOf('group-') === 0) {
+        var sId = anchorId.replace('group-', '');
+        var known = ['setup', 'criteria', 'results', 'treatments'];
+        if (known.indexOf(sId) !== -1) activateSection(sId);
+      }
       var headerEl = document.getElementById('drawer-header');
       var hH = headerEl ? headerEl.getBoundingClientRect().height : 0;
       dc.scrollTo({ top: Math.max(0, el.offsetTop - hH - 4), behavior: 'smooth' });
@@ -6940,34 +7175,24 @@ body.disclaimer-visible .container {
       btn.type = 'button';
       btn.textContent = g.label;
       btn.setAttribute('data-target', g.id);
-      btn.addEventListener('click', function() { scrollToAnchor(g.id); });
+      btn.addEventListener('click', function() {
+        var sectionId = g.id.replace('group-', '');
+        activateSection(sectionId);
+        scrollToAnchor(g.id);
+        nav.querySelectorAll('.jump-btn').forEach(function(b) {
+          b.classList.toggle('jump-active', b === btn);
+        });
+      });
       nav.appendChild(btn);
     });
 
-    // Scroll spy
-    if (dc) {
-      var spyTick = null;
-      dc.addEventListener('scroll', function() {
-        if (spyTick) return;
-        spyTick = requestAnimationFrame(function() {
-          spyTick = null;
-          var headerEl = document.getElementById('drawer-header');
-          var hH = headerEl ? headerEl.getBoundingClientRect().height : 0;
-          var scrollTop = dc.scrollTop + hH + 10;
-          var active = null;
-          groups.forEach(function(g) {
-            var el = document.getElementById(g.id);
-            if (el && el.offsetTop <= scrollTop) active = g.id;
-          });
-          nav.querySelectorAll('.jump-btn').forEach(function(b) {
-            b.classList.toggle('jump-active', b.getAttribute('data-target') === active);
-          });
-        });
-      }, { passive: true });
-    }
+    // Mark Setup button active on initial load
+    var firstBtn = nav.querySelector('.jump-btn');
+    if (firstBtn) firstBtn.classList.add('jump-active');
 
     // Expose for auto-scroll on receiver placement
     window._scrollDrawerTo = scrollToAnchor;
+    window._activateSection = activateSection;
   })();
 
   // ── 9. Phase 3: Drawer resize handle ───────────────────────────────
@@ -13603,7 +13828,7 @@ async function generatePDFAppendix(btn) {
         if (popupPane) hideEls.push(popupPane);
         var panelsEl = document.getElementById('mapPanelContainer');
         if (panelsEl) hideEls.push(panelsEl);
-        var objPanel = document.getElementById('objectsPanelSection');
+        var objPanel = document.getElementById('objectsFloatPanel');
         if (objPanel) hideEls.push(objPanel);
         hideEls.forEach(function(el) { el.style.visibility = 'hidden'; });
 
@@ -36696,7 +36921,7 @@ if (window.pdfjsLib) {
         // Side panel
         var panelsEl = document.getElementById('mapPanelContainer');
         if (panelsEl) hideEls.push(panelsEl);
-        var objPanel = document.getElementById('objectsPanelSection');
+        var objPanel = document.getElementById('objectsFloatPanel');
         if (objPanel) hideEls.push(objPanel);
         hideEls.forEach(function(el) { el.style.visibility = 'hidden'; });
 
@@ -37270,6 +37495,19 @@ if (window.pdfjsLib) {
 </script>
 
 <!-- ─── Floating help panel ─────────────────────────────────────────── -->
+<div id="objectsFloatPanel">
+  <div id="objectsPanelHdr">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:.75;"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 12l9-5"/><path d="M12 12v10"/><path d="M12 12L3 7"/></svg>
+    <span class="objects-title">Objects</span>
+    <button id="objectsPanelClose" title="Close">&#x2715;</button>
+  </div>
+  <div id="objectsPanelBody">
+    <div id="objectsPanelContent" style="font-size:12px;">
+      <span style="color:#aaa;">No objects placed yet.</span>
+    </div>
+  </div>
+</div>
+
 <div id="helpFloatPanel">
   <div id="helpPanelHdr">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;opacity:.75;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round" stroke-width="3"/></svg>
@@ -37718,9 +37956,9 @@ if (window.pdfjsLib) {
         if (objToggle) objToggle.innerHTML = '&#x25B2;';
       }
 
-      // Scroll the Objects panel into view
-      var objSection = document.getElementById('objectsPanelSection');
-      if (objSection) objSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Show the Objects floating panel
+      var objSection = document.getElementById('objectsFloatPanel');
+      if (objSection) objSection.style.display = 'flex';
 
       showToast(added + ' source' + (added !== 1 ? 's' : '') + ' added \u2014 click Place in Objects panel to position on map', 4500);
     }
@@ -37806,6 +38044,47 @@ if (window.pdfjsLib) {
   closeBtn.addEventListener('click', function(e) {
     e.stopPropagation();
     hidePanel();
+  });
+
+  /* ── Draggable by header ─────────────────────────────────── */
+  var _drag = false, _dx = 0, _dy = 0, _px = 0, _py = 0;
+  hdr.addEventListener('mousedown', function(e) {
+    if (e.target === closeBtn || e.target.closest && e.target.closest('button')) return;
+    _drag = true;
+    _dx = e.clientX; _dy = e.clientY;
+    var r = panel.getBoundingClientRect();
+    _px = r.left; _py = r.top;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!_drag) return;
+    panel.style.left  = (_px + e.clientX - _dx) + 'px';
+    panel.style.top   = (_py + e.clientY - _dy) + 'px';
+    panel.style.right = 'auto';
+  });
+  document.addEventListener('mouseup', function() { _drag = false; });
+
+  /* ── Prevent map click-through ───────────────────────────── */
+  panel.addEventListener('click',     function(e) { e.stopPropagation(); });
+  panel.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+  panel.addEventListener('wheel',     function(e) { e.stopPropagation(); });
+})();
+
+/* ── Floating objects panel ──────────────────────────────── */
+(function() {
+  var panel     = document.getElementById('objectsFloatPanel');
+  var toggleBtn = document.getElementById('objectsToggleBtn');
+  var closeBtn  = document.getElementById('objectsPanelClose');
+  var hdr       = document.getElementById('objectsPanelHdr');
+  if (!panel || !toggleBtn || !closeBtn || !hdr) return;
+
+  toggleBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+  });
+  closeBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    panel.style.display = 'none';
   });
 
   /* ── Draggable by header ─────────────────────────────────── */

@@ -332,8 +332,24 @@ Line sources continue to work exactly as before; CoRTN roads layer on top withou
 
 The map area (inside `#map-column`) is flanked by two panels:
 
-- **Left**: `#side-panel` — a fixed 300px-wide column containing Search + Mapping/Tools/Modelling accordions + the drawer toggle. Collapsible via a right-edge button; state persists in `localStorage`. On mobile (<768px) it's an overlay with a backdrop. Injected at runtime by `_resonateSidePanelBoot()` in the inline script at [index.html:1721](../index.html:1721).
-- **Right**: `#drawer-panel` — the pre-existing 520px drawer containing the 14 domain panels (Objects, Receivers, Criteria, Noise sources, Predicted levels, Methodology, etc.). Unchanged by this refactor.
+- **Left**: `#side-panel` — a fixed 300px-wide column containing Search + Mapping/Tools/Modelling/Propagation/Custom sources accordions + Objects button + the drawer toggle. Collapsible via a right-edge button; state persists in `localStorage`. On mobile (<768px) it's an overlay with a backdrop. Injected at runtime by `_resonateSidePanelBoot()` in the inline script at [index.html:1721](../index.html:1721).
+- **Right**: `#drawer-panel` — the 520px drawer with **section-filtered** panels (Setup / Criteria / Results / Recommended treatments). Nav buttons activate sections via `activateSection(sectionId)` which toggles `.section-hidden` on `[data-section]` elements.
+
+### LHS additional panels (beyond Mapping/Tools/Modelling)
+
+- **`#mp-objects`** — Objects LHS button (no body); clicking `#objectsToggleBtn` opens `#objectsFloatPanel`, a draggable `position:fixed` overlay (same pattern as `#helpFloatPanel` / `#suggestFloatPanel`).
+- **`#mp-propmethod`** — Propagation method accordion: method toggle buttons (`#propMethodGroup`), ISO 9613-2 params (`#iso9613Params`), CONCAWE params (`#concaweMetPanel`), ISO validation runner. The old RHS Propagation method `.grid2` is kept in HTML but hidden with `style="display:none"`.
+- **`#mp-customsrc`** — Custom sources accordion containing `#customSrcBody`. The old RHS Custom sources `.grid2` is hidden with `style="display:none"`. All existing JS using `getElementById('customSrcBody')` etc. is unaffected because LHS elements appear first in DOM.
+
+### RHS drawer section filtering
+
+`activateSection(sectionId)` — defined in the layout boot script, exposed as `window._activateSection`:
+- Queries `#drawer-content [data-section]` and toggles `.section-hidden` (= `display:none !important`) on each element
+- Sections: `setup`, `criteria`, `results`, `treatments`
+- Elements with `data-section="results treatments"` appear in both Results and Recommended treatments sections
+- `window._activeNavSection` tracks the active section for restore after PDF export
+- Called on page load (default: `setup`), on nav button click, and from `_restoreDrawerLayout()` after PDF export restore
+- PDF export: `_restoreForPdfExport()` strips all `.section-hidden` classes so all panels appear in the captured output
 
 ```
 ┌─ #side-panel 300px ──┬─ #map-column (reflowed) ──┬─ #drawer-panel 520px ─┐
@@ -367,9 +383,12 @@ controls, scale bar, marker status rows, and the empty `map-guide-overlay`.
 │       │   ├── #mp-redo         — ↷ Redo
 │       │   └── #mp-save-jpg     — 📷 Save JPG (label span hidden inside toolbar)
 │       ├── #mapSearchWrapper (moved here from #mapPanelContainer)
+│       ├── #mp-objects  (LHS button → opens #objectsFloatPanel floating panel)
 │       ├── #mp-mapping (.mp accordion, moved here)
 │       ├── #mp-tools (.mp accordion, moved here)
 │       ├── #mp-modelling (.mp accordion, moved here)
+│       ├── #mp-propmethod (.mp accordion — Propagation method, moved from RHS)
+│       ├── #mp-customsrc  (.mp accordion — Custom sources, moved from RHS)
 │       └── #side-panel-footer (margin-top: auto; border-top)
 │           └── #mp-toggle-drawer (the Expand/Panels button, moved here)
 ├── #side-panel-backdrop (display: none; shown only on mobile)
