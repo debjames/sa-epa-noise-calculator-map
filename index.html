@@ -1231,6 +1231,7 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   z-index: 110;
@@ -2425,7 +2426,7 @@ body.disclaimer-visible .container {
             <div class="mp-hdr" onclick="toggleMapPanel('mp-propmethod')">
               <span>Propagation</span><span class="mp-arrow">&#9660;</span>
             </div>
-            <div class="mp-body" style="min-width:270px;">
+            <div class="mp-body">
               <div class="penalty-group" id="propMethodGroup">
                 <button class="penalty-btn active" data-val="simple">Simple (geometric spreading)</button>
                 <button class="penalty-btn" data-val="iso9613">ISO 9613-2:1996</button>
@@ -2514,7 +2515,7 @@ body.disclaimer-visible .container {
             <div class="mp-hdr" onclick="toggleMapPanel('mp-customsrc')">
               <span>Custom sources</span><span class="mp-arrow">&#9660;</span>
             </div>
-            <div class="mp-body" style="min-width:280px;">
+            <div class="mp-body">
               <div id="customSrcBody" style="padding:4px 6px;">
                 <div style="font-size:10px;color:#9ca3af;margin-bottom:8px;">Add custom sources with name, Lw, and octave band spectrum. Appear in all source dropdowns.</div>
                 <div style="border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:8px;margin-bottom:8px;">
