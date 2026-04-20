@@ -5869,8 +5869,13 @@ body.disclaimer-visible .container {
   function _buildOneAreaSource(as, idx, centre) {
     if (!as || !as.vertices || as.vertices.length < 3) return;
     var raw = as.vertices;
-    var pts = [], ys = [];
-    var midLat = 0, midLng = 0, nPts = 0;
+    var heightM = as.height_m || 0;
+
+    /* --- Step 1: Normalise user-placed vertices → {lat,lng,x,z} ---
+       Mirrors the barrier pattern: store geodetic coords alongside
+       local scene coords so the densification loop can interpolate
+       lat/lng for terrain sampling at sub-points. */
+    var userPts = [];
     for (var vi = 0; vi < raw.length; vi++) {
       var rv = raw[vi];
       var lat, lng;
@@ -5879,33 +5884,64 @@ body.disclaimer-visible .container {
       else continue;
       if (!isFinite(lat) || !isFinite(lng)) continue;
       var local = latLngToLocal(lat, lng, centre.lat, centre.lng);
-      var gy = sampleTerrainAt(lat, lng);
-      /* Per-vertex building lookup — an area source that partially
-         overlaps a building drapes over the roof on the overlap
-         side and drops to ground on the other. Correct visual. */
+      userPts.push({ lat: lat, lng: lng, x: local.x, z: local.z });
+    }
+    if (userPts.length < 3) return;
+
+    /* Drop duplicate closing vertex before densification */
+    var _last = userPts[userPts.length - 1], _first = userPts[0];
+    if (Math.abs(_last.x - _first.x) < 1e-6 && Math.abs(_last.z - _first.z) < 1e-6) {
+      userPts.pop();
+    }
+    if (userPts.length < 3) return;
+
+    /* --- Step 2: Per-point terrain sample (matches _buildOneBarrier) ---
+       _sampleTerrainMeshAt gives exact triangle-level interpolation from
+       the stored terrain grid; falls back to sampleTerrainAt if the grid
+       is not yet built (terrain off or tiles still loading). */
+    function _asSampleY(lat, lng) {
+      var tY = _sampleTerrainMeshAt(lat, lng);
+      if (tY === null) tY = sampleTerrainAt(lat, lng);
       var bY = _3dBuildingHeightAt(lat, lng);
-      var y = (gy !== null ? gy : 0) + bY + (as.height_m || 0);
-      pts.push({ x: local.x, z: local.z });
-      ys.push(y);
-      midLat += lat; midLng += lng; nPts++;
+      return (tY !== null ? tY : 0) + bY + heightM;
     }
-    if (pts.length < 3) return;
 
-    var last = pts[pts.length - 1], first = pts[0];
-    if (Math.abs(last.x - first.x) < 1e-6 && Math.abs(last.z - first.z) < 1e-6) {
-      pts.pop(); ys.pop();
+    /* --- Step 3: Edge densification at ~5 m intervals (same as barriers) ---
+       Without this, a single long edge is a straight line between two
+       sampled endpoints — terrain that rises between them clips through
+       the polygon. A polygon floor with kinks at sparse user vertices reads
+       as "flat triangles poking through ground" so densification matters
+       more here than for a thin vertical barrier wall. */
+    var densePts = [];   // {x, z, lat, lng, y}  — all edge sub-points in order
+    for (var si = 0; si < userPts.length; si++) {
+      var pA = userPts[si];
+      var pB = userPts[(si + 1) % userPts.length];
+      var segLen = Math.sqrt((pB.x - pA.x) * (pB.x - pA.x) + (pB.z - pA.z) * (pB.z - pA.z));
+      var nSteps = Math.max(1, Math.round(segLen / 5));
+      for (var step = 0; step < nSteps; step++) {
+        var tt = step / nSteps;
+        var iLat = pA.lat + tt * (pB.lat - pA.lat);
+        var iLng = pA.lng + tt * (pB.lng - pA.lng);
+        densePts.push({
+          x: pA.x + tt * (pB.x - pA.x),
+          z: pA.z + tt * (pB.z - pA.z),
+          lat: iLat, lng: iLng,
+          y: _asSampleY(iLat, iLng)
+        });
+      }
     }
-    if (pts.length < 3) return;
+    if (densePts.length < 3) return;
 
-    /* Enforce CCW winding */
-    var area = 0;
-    for (var k = 0; k < pts.length; k++) {
-      var p = pts[k], q = pts[(k + 1) % pts.length];
-      area += (p.x * q.z - q.x * p.z);
+    /* --- Step 4: Enforce CCW winding on densified outline --- */
+    var windArea = 0;
+    for (var k = 0; k < densePts.length; k++) {
+      var dp = densePts[k], dq = densePts[(k + 1) % densePts.length];
+      windArea += (dp.x * dq.z - dq.x * dp.z);
     }
-    if (area < 0) { pts.reverse(); ys.reverse(); }
+    if (windArea < 0) densePts.reverse();
 
-    var contour2D = pts.map(function(p) { return new THREE.Vector2(p.x, p.z); });
+    /* --- Step 5: Triangulate the densified 2D outline --- */
+    var contour2D = densePts.map(function(p) { return new THREE.Vector2(p.x, p.z); });
     var tri;
     try {
       tri = THREE.ShapeUtils.triangulateShape(contour2D, []);
@@ -5915,12 +5951,17 @@ body.disclaimer-visible .container {
     }
     if (!tri || tri.length === 0) return;
 
-    var N = pts.length;
+    /* --- Step 6: Build BufferGeometry with per-vertex draped Y --- */
+    var N = densePts.length;
     var positions = new Float32Array(N * 3);
+    var sumX = 0, sumY = 0, sumZ = 0;
     for (var j = 0; j < N; j++) {
-      positions[j * 3]     = pts[j].x;
-      positions[j * 3 + 1] = ys[j];
-      positions[j * 3 + 2] = pts[j].z;
+      positions[j * 3]     = densePts[j].x;
+      positions[j * 3 + 1] = densePts[j].y;
+      positions[j * 3 + 2] = densePts[j].z;
+      sumX += densePts[j].x;
+      sumY += densePts[j].y;
+      sumZ += densePts[j].z;
     }
     var indices = new Uint32Array(tri.length * 3);
     for (var t = 0; t < tri.length; t++) {
@@ -5946,16 +5987,12 @@ body.disclaimer-visible .container {
     mesh.renderOrder = 2;   // above ground zones (renderOrder 1)
     _3dSourcesGroup.add(mesh);
 
-    /* Centroid label — include any building beneath the centroid so
-       the label sits above the polygon even when it's on a rooftop. */
-    if (nPts > 0) {
-      var cLat = midLat / nPts, cLng = midLng / nPts;
-      var cL = latLngToLocal(cLat, cLng, centre.lat, centre.lng);
-      var cYsample = sampleTerrainAt(cLat, cLng);
-      var cBY = _3dBuildingHeightAt(cLat, cLng);
-      var cY = (cYsample !== null ? cYsample : 0) + cBY + (as.height_m || 0) + 4;
-      _addLabel(as.name || ('Area source ' + (idx + 1)), cL.x, cY, cL.z);
-    }
+    /* --- Step 7: Label anchored to draped centroid ---
+       Average of ALL densified edge points (not just user vertices) so
+       the anchor follows the polygon surface on sloped terrain. +4 m
+       offset above the draped average keeps the sprite above the mesh. */
+    var cX = sumX / N, cY = sumY / N, cZ = sumZ / N;
+    _addLabel(as.name || ('Area source ' + (idx + 1)), cX, cY + 4, cZ);
   }
 
   function buildAreaSources(centre) {

@@ -84,6 +84,18 @@ Prerequisite: SA assessment with source placed, 2+ receivers placed and zones de
 - [ ] **Error labels the section** — If any table capture fails, the alert message includes the section name (e.g. `"PDF appendix export failed at [receivers & criteria]: ..."`) — confirmed because `placeImage()` now sets `_pdfLabel` as its first action before `addImage` can throw.
 - [ ] **Zone map still JPEG** — Figure 1 (zone map) still captured as JPEG directly (not via `captureElement()`). Confirm by checking `[pdf-appendix] zone map` log entry shows `format: "JPEG"` or equivalent prefix.
 
+### 3D area source terrain draping
+
+- [ ] **Sloped terrain — no clipping** — Terrain enabled, place an area source on a hill slope. Open 3D Scene Viewer. Area source polygon conforms to the hill surface — no orange polygon cutting into the terrain, no floating above it.
+- [ ] **Valley drape** — Place an area source across a valley. In 3D view the polygon follows the dip without floating over the low point.
+- [ ] **Flat terrain** — Area source on flat ground → polygon is flat (terrain disabled OR all terrain at same elevation). No regression.
+- [ ] **Terrain disabled — flat behaviour** — Toggle terrain OFF, open 3D Scene Viewer. Area sources render as flat polygons at Y=0 plane. No clipping, no console errors.
+- [ ] **Terrain toggle off → on → off** — Toggle terrain off and on twice. 3D scene rebuilds correctly each time; area source polygon updates to drape and flatten as expected.
+- [ ] **Large area source** — Place an area source >50 m across on varied terrain. Edge densification (5m sub-points) means no long straight edges cutting through terrain bumps between user-placed vertices.
+- [ ] **Label above draped centroid** — After terrain draping, the area source label floats above the polygon surface, not at the flat-polygon centroid. Orbit camera to confirm.
+- [ ] **Acoustic output unchanged** — Check dB(A) prediction values before and after opening the 3D viewer. Numbers are identical — 3D rendering does not touch the propagation engine.
+- [ ] **2D map unchanged** — Area source polygon displays correctly on the 2D Leaflet map after opening and closing the 3D modal.
+
 ### Non-regression
 
 - [ ] **Generate Report unchanged** — Existing Generate Report (.docx) button still works correctly.

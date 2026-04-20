@@ -1257,7 +1257,7 @@ All Y values in the 3D scene are **relative**, not absolute ASL. A module-level 
 Where the subtraction happens:
 
 - **Terrain mesh** — directly in `finaliseTerrainMesh()`: position buffer writes `(elev - elevMin)` for each vertex. The colour ramp was already driven by `(elev - elevMin) / range`, so its output is byte-identical to pre-normalisation.
-- **`sampleTerrainAt(lat, lng)`** — subtracts `_3dReferenceElevation` before returning. Every Phase 3–4 consumer (building centroid lookup, barrier per-endpoint sampling, ground-zone per-vertex lookup, area-source per-vertex lookup) automatically gets normalised values via this one helper.
+- **`sampleTerrainAt(lat, lng)`** — subtracts `_3dReferenceElevation` before returning. Phase 3–4 consumers (building centroid lookup, barrier per-endpoint sampling, ground-zone per-vertex lookup) and the area source per-vertex lookup automatically get normalised values via this helper. Barriers and area sources also call `_sampleTerrainMeshAt` first for triangle-exact interpolation, falling back to `sampleTerrainAt`.
 - **Point sources** using `source.groundElevation_m` — subtract explicitly at the call site (this value is pre-fetched from DEM for the propagation engine, which DOES need absolute ASL, so the source of truth stays absolute and the 3D viewer does its own subtraction).
 - **Receivers** using `recvGroundElevations[key]` — same deal, subtract explicitly.
 
@@ -1481,7 +1481,7 @@ Groups are created fresh on every build (inside `buildAllSourcesAndReceivers()`)
 |---|---|---|---|
 | Point source | `SphereGeometry(0.8, 12, 8)` — same as receivers; distinguished from receivers by colour only | `MeshLambertMaterial({ color: 0xE53E3E })` | Y prefers `source.groundElevation_m` (pre-fetched), falls back to `sampleTerrainAt()` |
 | Line source | `TubeGeometry(CatmullRomCurve3, max(16, (N−1)×8), 0.5, 8)` | `MeshLambertMaterial({ color: 0xE53E3E, transparent: true, opacity: 0.9 })` | Each vertex elevated to `terrainY + height_m` |
-| Area source | `BufferGeometry` from `ShapeUtils.triangulateShape` | `MeshLambertMaterial({ color: 0xE53E3E, transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false })` | Per-vertex Y, `renderOrder: 2` (above ground zones) |
+| Area source | `BufferGeometry` from `ShapeUtils.triangulateShape` on densified outline | `MeshLambertMaterial({ color: 0xE53E3E, transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false })` | Per-vertex draped Y via `_sampleTerrainMeshAt` → `sampleTerrainAt` fallback; edges densified at ~5 m sub-intervals (same as barriers) to track intermediate terrain bumps; label anchored to draped centroid (average of densified points); `renderOrder: 2` |
 
 #### Receiver cone colours
 
