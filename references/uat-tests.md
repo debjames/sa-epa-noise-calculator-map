@@ -91,8 +91,11 @@ Prerequisite: SA assessment with source placed, 2+ receivers placed and zones de
 - [ ] **Flat terrain** — Area source on flat ground → polygon is flat (terrain disabled OR all terrain at same elevation). No regression.
 - [ ] **Terrain disabled — flat behaviour** — Toggle terrain OFF, open 3D Scene Viewer. Area sources render as flat polygons at Y=0 plane. No clipping, no console errors.
 - [ ] **Terrain toggle off → on → off** — Toggle terrain off and on twice. 3D scene rebuilds correctly each time; area source polygon updates to drape and flatten as expected.
-- [ ] **Large area source** — Place an area source >50 m across on varied terrain. Edge densification (5m sub-points) means no long straight edges cutting through terrain bumps between user-placed vertices.
-- [ ] **Label above draped centroid** — After terrain draping, the area source label floats above the polygon surface, not at the flat-polygon centroid. Orbit camera to confirm.
+- [ ] **Large area source — no interior clipping** — Place an area source >30 m across on terrain with an internal bump (e.g. a hillock inside the polygon boundary). Open 3D Scene Viewer and orbit underneath. No terrain pokes through the orange polygon from any angle — interior terrain grid cells are used directly, not large interpolated triangles.
+- [ ] **Small area source (<10 m)** — Renders correctly. No performance regression or degenerate triangles.
+- [ ] **Concave polygon (L-shape)** — No spurious triangles cross the concave notch; PiP check correctly excludes cells in the concave gap.
+- [ ] **Label above draped surface** — Label floats above the highest point of the polygon on sloped terrain (not sunk into the hillside). Orbit camera to confirm from all sides.
+- [ ] **Polygon outside terrain coverage** — Area source placed at the edge of the terrain grid (or terrain tiles not loaded) → falls back to densified-boundary triangulation, no crash, no console error.
 - [ ] **Acoustic output unchanged** — Check dB(A) prediction values before and after opening the 3D viewer. Numbers are identical — 3D rendering does not touch the propagation engine.
 - [ ] **2D map unchanged** — Area source polygon displays correctly on the 2D Leaflet map after opening and closing the 3D modal.
 

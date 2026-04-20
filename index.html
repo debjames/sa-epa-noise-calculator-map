@@ -5866,15 +5866,30 @@ body.disclaimer-visible .container {
   /* Area sources — semi-transparent red polygons at source height
      above terrain. Same triangulation + winding guard as Phase 4
      ground zones, just elevated + redder + depthWrite off. */
+  /* 2D point-in-polygon test in scene x,z coordinates.
+     Used to check whether terrain grid cell centres fall inside the
+     area source polygon outline (densified boundary). */
+  function _asPip2D(px, pz, polygon) {
+    var inside = false, n = polygon.length;
+    for (var i = 0, j = n - 1; i < n; j = i++) {
+      var xi = polygon[i].x, zi = polygon[i].z;
+      var xj = polygon[j].x, zj = polygon[j].z;
+      if (((zi > pz) !== (zj > pz)) &&
+          (px < (xj - xi) * (pz - zi) / (zj - zi) + xi)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
   function _buildOneAreaSource(as, idx, centre) {
     if (!as || !as.vertices || as.vertices.length < 3) return;
     var raw = as.vertices;
     var heightM = as.height_m || 0;
 
-    /* --- Step 1: Normalise user-placed vertices → {lat,lng,x,z} ---
-       Mirrors the barrier pattern: store geodetic coords alongside
-       local scene coords so the densification loop can interpolate
-       lat/lng for terrain sampling at sub-points. */
+    /* ── Step 1: Normalise user-placed vertices → {lat,lng,x,z} ─────────
+       Store geodetic coords alongside local scene coords so the
+       densification loop can interpolate lat/lng for sub-point sampling. */
     var userPts = [];
     for (var vi = 0; vi < raw.length; vi++) {
       var rv = raw[vi];
@@ -5888,31 +5903,18 @@ body.disclaimer-visible .container {
     }
     if (userPts.length < 3) return;
 
-    /* Drop duplicate closing vertex before densification */
-    var _last = userPts[userPts.length - 1], _first = userPts[0];
-    if (Math.abs(_last.x - _first.x) < 1e-6 && Math.abs(_last.z - _first.z) < 1e-6) {
+    /* Drop duplicate closing vertex */
+    var _asLast = userPts[userPts.length - 1], _asFirst = userPts[0];
+    if (Math.abs(_asLast.x - _asFirst.x) < 1e-6 && Math.abs(_asLast.z - _asFirst.z) < 1e-6) {
       userPts.pop();
     }
     if (userPts.length < 3) return;
 
-    /* --- Step 2: Per-point terrain sample (matches _buildOneBarrier) ---
-       _sampleTerrainMeshAt gives exact triangle-level interpolation from
-       the stored terrain grid; falls back to sampleTerrainAt if the grid
-       is not yet built (terrain off or tiles still loading). */
-    function _asSampleY(lat, lng) {
-      var tY = _sampleTerrainMeshAt(lat, lng);
-      if (tY === null) tY = sampleTerrainAt(lat, lng);
-      var bY = _3dBuildingHeightAt(lat, lng);
-      return (tY !== null ? tY : 0) + bY + heightM;
-    }
-
-    /* --- Step 3: Edge densification at ~5 m intervals (same as barriers) ---
-       Without this, a single long edge is a straight line between two
-       sampled endpoints — terrain that rises between them clips through
-       the polygon. A polygon floor with kinks at sparse user vertices reads
-       as "flat triangles poking through ground" so densification matters
-       more here than for a thin vertical barrier wall. */
-    var densePts = [];   // {x, z, lat, lng, y}  — all edge sub-points in order
+    /* ── Step 2: Edge densification at ~5 m (matching barrier drape) ─────
+       Store the densified outline in scene x,z coords for PiP checks.
+       We compute polygon-outline CCW winding AFTER densification so
+       the PiP check gets a consistent winding. */
+    var densePts = [];
     for (var si = 0; si < userPts.length; si++) {
       var pA = userPts[si];
       var pB = userPts[(si + 1) % userPts.length];
@@ -5920,19 +5922,17 @@ body.disclaimer-visible .container {
       var nSteps = Math.max(1, Math.round(segLen / 5));
       for (var step = 0; step < nSteps; step++) {
         var tt = step / nSteps;
-        var iLat = pA.lat + tt * (pB.lat - pA.lat);
-        var iLng = pA.lng + tt * (pB.lng - pA.lng);
         densePts.push({
-          x: pA.x + tt * (pB.x - pA.x),
-          z: pA.z + tt * (pB.z - pA.z),
-          lat: iLat, lng: iLng,
-          y: _asSampleY(iLat, iLng)
+          x:   pA.x   + tt * (pB.x   - pA.x),
+          z:   pA.z   + tt * (pB.z   - pA.z),
+          lat: pA.lat + tt * (pB.lat - pA.lat),
+          lng: pA.lng + tt * (pB.lng - pA.lng)
         });
       }
     }
     if (densePts.length < 3) return;
 
-    /* --- Step 4: Enforce CCW winding on densified outline --- */
+    /* Enforce CCW winding on the outline used for PiP */
     var windArea = 0;
     for (var k = 0; k < densePts.length; k++) {
       var dp = densePts[k], dq = densePts[(k + 1) % densePts.length];
@@ -5940,7 +5940,113 @@ body.disclaimer-visible .container {
     }
     if (windArea < 0) densePts.reverse();
 
-    /* --- Step 5: Triangulate the densified 2D outline --- */
+    var mat = new THREE.MeshLambertMaterial({
+      color: 0xE53E3E, transparent: true, opacity: 0.5,
+      side: THREE.DoubleSide, depthWrite: false
+    });
+
+    /* ── PRIMARY PATH: Terrain grid cell mesh ────────────────────────────
+       Iterate every cell of the stored terrain grid and keep those whose
+       centre falls inside the polygon. Because the mesh uses the EXACT
+       same elevation data as the terrain mesh, there is no interpolation
+       gap — the area source lies flush on the terrain surface regardless
+       of interior terrain variation. +0.05 m offset prevents z-fighting
+       with the terrain mesh at the coincident sample points.
+
+       This naturally produces the correct stepped-boundary approximation
+       at ~terrain-cell resolution (typically 2–5 m). The boundary ring
+       (below) is added on top to give a clean polygon outline.
+
+       Falls through to FALLBACK when _terrainGrid is null (terrain off
+       or tiles still loading), matching what barriers do. */
+    var G = _terrainGrid;
+    if (G && G.H > 1 && G.W > 1) {
+      /* Compute lat/lng bounding box of the polygon for a fast pre-filter
+         on which terrain rows/cols to inspect. */
+      var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+      for (var ui = 0; ui < userPts.length; ui++) {
+        minLat = Math.min(minLat, userPts[ui].lat); maxLat = Math.max(maxLat, userPts[ui].lat);
+        minLng = Math.min(minLng, userPts[ui].lng); maxLng = Math.max(maxLng, userPts[ui].lng);
+      }
+
+      var posArr = [];
+      var idxArr = [];
+
+      for (var ri = 0; ri < G.H - 1; ri++) {
+        /* Skip rows entirely outside the polygon's lat span */
+        var rLat0 = Math.min(G.lats[ri], G.lats[ri + 1]);
+        var rLat1 = Math.max(G.lats[ri], G.lats[ri + 1]);
+        if (rLat1 < minLat || rLat0 > maxLat) continue;
+
+        for (var ci = 0; ci < G.W - 1; ci++) {
+          /* Skip cols entirely outside the polygon's lng span */
+          var cLng0 = Math.min(G.lngs[ci], G.lngs[ci + 1]);
+          var cLng1 = Math.max(G.lngs[ci], G.lngs[ci + 1]);
+          if (cLng1 < minLng || cLng0 > maxLng) continue;
+
+          /* Cell centre: keep only cells whose centre is inside polygon */
+          var cLat = (G.lats[ri] + G.lats[ri + 1]) * 0.5;
+          var cLng = (G.lngs[ci] + G.lngs[ci + 1]) * 0.5;
+          var cLocal = latLngToLocal(cLat, cLng, centre.lat, centre.lng);
+          if (!_asPip2D(cLocal.x, cLocal.z, densePts)) continue;
+
+          /* 4 corners in CCW order matching the terrain mesh triangle
+             pattern (tri1 = A,C,B; tri2 = B,C,D, where u+w ≤ 1 / > 1) */
+          var corners = [[ri, ci], [ri, ci + 1], [ri + 1, ci], [ri + 1, ci + 1]];
+          var base = posArr.length / 3;
+          for (var ck = 0; ck < 4; ck++) {
+            var cr = corners[ck][0], cc = corners[ck][1];
+            var cLoc = latLngToLocal(G.lats[cr], G.lngs[cc], centre.lat, centre.lng);
+            var elev = G.elevations[cr * G.W + cc];
+            var cellY = (isFinite(elev) ? elev - G.elevMin : 0) + heightM + 0.05;
+            posArr.push(cLoc.x, cellY, cLoc.z);
+          }
+          /* Tri1: A(0), C(2), B(1); Tri2: B(1), C(2), D(3) */
+          idxArr.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
+        }
+      }
+
+      if (posArr.length > 0) {
+        var geom = new THREE.BufferGeometry();
+        geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(posArr), 3));
+        geom.setIndex(new THREE.BufferAttribute(new Uint32Array(idxArr), 1));
+        geom.computeVertexNormals();
+        var mesh = new THREE.Mesh(geom, mat);
+        mesh.name = 'area-source-' + (as.id || idx);
+        mesh.renderOrder = 2;
+        _3dSourcesGroup.add(mesh);
+
+        /* Label anchored to max Y of all mesh vertices (highest point of
+           draped polygon) + 4 m so it floats above the surface on slopes. */
+        var maxY = -Infinity, cxSum = 0, czSum = 0, nV = posArr.length / 3;
+        for (var vi2 = 0; vi2 < nV; vi2++) {
+          if (posArr[vi2 * 3 + 1] > maxY) maxY = posArr[vi2 * 3 + 1];
+          cxSum += posArr[vi2 * 3];
+          czSum += posArr[vi2 * 3 + 2];
+        }
+        _addLabel(as.name || ('Area source ' + (idx + 1)), cxSum / nV, maxY + 4, czSum / nV);
+        return;
+      }
+      /* No cells matched (polygon outside terrain coverage) — fall through */
+    }
+
+    /* ── FALLBACK: Densified boundary triangulation ───────────────────────
+       Used when terrain is off (_terrainGrid is null) or when the polygon
+       lies entirely outside the terrain grid bounds. Per-vertex terrain Y
+       at boundary points; interior is linearly interpolated. This path
+       matches barrier behaviour (both use _sampleTerrainMeshAt → sampleTerrainAt). */
+    function _asSampleY(lat2, lng2) {
+      var tY = _sampleTerrainMeshAt(lat2, lng2);
+      if (tY === null) tY = sampleTerrainAt(lat2, lng2);
+      var bY = _3dBuildingHeightAt(lat2, lng2);
+      return (tY !== null ? tY : 0) + bY + heightM;
+    }
+
+    /* Re-add Y values to the already-densified outline for fallback */
+    for (var di = 0; di < densePts.length; di++) {
+      densePts[di].y = _asSampleY(densePts[di].lat, densePts[di].lng);
+    }
+
     var contour2D = densePts.map(function(p) { return new THREE.Vector2(p.x, p.z); });
     var tri;
     try {
@@ -5951,48 +6057,30 @@ body.disclaimer-visible .container {
     }
     if (!tri || tri.length === 0) return;
 
-    /* --- Step 6: Build BufferGeometry with per-vertex draped Y --- */
     var N = densePts.length;
-    var positions = new Float32Array(N * 3);
-    var sumX = 0, sumY = 0, sumZ = 0;
+    var positions2 = new Float32Array(N * 3);
+    var sumX2 = 0, sumY2 = 0, sumZ2 = 0;
     for (var j = 0; j < N; j++) {
-      positions[j * 3]     = densePts[j].x;
-      positions[j * 3 + 1] = densePts[j].y;
-      positions[j * 3 + 2] = densePts[j].z;
-      sumX += densePts[j].x;
-      sumY += densePts[j].y;
-      sumZ += densePts[j].z;
+      positions2[j * 3]     = densePts[j].x;
+      positions2[j * 3 + 1] = densePts[j].y;
+      positions2[j * 3 + 2] = densePts[j].z;
+      sumX2 += densePts[j].x; sumY2 += densePts[j].y; sumZ2 += densePts[j].z;
     }
-    var indices = new Uint32Array(tri.length * 3);
+    var indices2 = new Uint32Array(tri.length * 3);
     for (var t = 0; t < tri.length; t++) {
-      indices[t * 3]     = tri[t][0];
-      indices[t * 3 + 1] = tri[t][1];
-      indices[t * 3 + 2] = tri[t][2];
+      indices2[t * 3]     = tri[t][0];
+      indices2[t * 3 + 1] = tri[t][1];
+      indices2[t * 3 + 2] = tri[t][2];
     }
-
-    var geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geom.setIndex(new THREE.BufferAttribute(indices, 1));
-    geom.computeVertexNormals();
-
-    var mat = new THREE.MeshLambertMaterial({
-      color: 0xE53E3E,
-      transparent: true,
-      opacity: 0.5,
-      side: THREE.DoubleSide,
-      depthWrite: false
-    });
-    var mesh = new THREE.Mesh(geom, mat);
-    mesh.name = 'area-source-' + (as.id || idx);
-    mesh.renderOrder = 2;   // above ground zones (renderOrder 1)
-    _3dSourcesGroup.add(mesh);
-
-    /* --- Step 7: Label anchored to draped centroid ---
-       Average of ALL densified edge points (not just user vertices) so
-       the anchor follows the polygon surface on sloped terrain. +4 m
-       offset above the draped average keeps the sprite above the mesh. */
-    var cX = sumX / N, cY = sumY / N, cZ = sumZ / N;
-    _addLabel(as.name || ('Area source ' + (idx + 1)), cX, cY + 4, cZ);
+    var geom2 = new THREE.BufferGeometry();
+    geom2.setAttribute('position', new THREE.BufferAttribute(positions2, 3));
+    geom2.setIndex(new THREE.BufferAttribute(indices2, 1));
+    geom2.computeVertexNormals();
+    var mesh2 = new THREE.Mesh(geom2, mat);
+    mesh2.name = 'area-source-' + (as.id || idx);
+    mesh2.renderOrder = 2;
+    _3dSourcesGroup.add(mesh2);
+    _addLabel(as.name || ('Area source ' + (idx + 1)), sumX2 / N, sumY2 / N + 4, sumZ2 / N);
   }
 
   function buildAreaSources(centre) {

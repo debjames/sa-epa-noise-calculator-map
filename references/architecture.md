@@ -1481,7 +1481,7 @@ Groups are created fresh on every build (inside `buildAllSourcesAndReceivers()`)
 |---|---|---|---|
 | Point source | `SphereGeometry(0.8, 12, 8)` — same as receivers; distinguished from receivers by colour only | `MeshLambertMaterial({ color: 0xE53E3E })` | Y prefers `source.groundElevation_m` (pre-fetched), falls back to `sampleTerrainAt()` |
 | Line source | `TubeGeometry(CatmullRomCurve3, max(16, (N−1)×8), 0.5, 8)` | `MeshLambertMaterial({ color: 0xE53E3E, transparent: true, opacity: 0.9 })` | Each vertex elevated to `terrainY + height_m` |
-| Area source | `BufferGeometry` from `ShapeUtils.triangulateShape` on densified outline | `MeshLambertMaterial({ color: 0xE53E3E, transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false })` | Per-vertex draped Y via `_sampleTerrainMeshAt` → `sampleTerrainAt` fallback; edges densified at ~5 m sub-intervals (same as barriers) to track intermediate terrain bumps; label anchored to draped centroid (average of densified points); `renderOrder: 2` |
+| Area source | **Primary**: `BufferGeometry` from `_terrainGrid` cell quads clipped by polygon PiP. **Fallback**: `BufferGeometry` from `ShapeUtils.triangulateShape` on densified outline | `MeshLambertMaterial({ color: 0xE53E3E, transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false })` | Primary path uses terrain grid cells (centroid PiP via `_asPip2D`) with exact grid elevations + 0.05 m offset — perfect terrain parity, no interior interpolation error. Boundary outline densified at ~5 m. Fallback used when `_terrainGrid` null (terrain off / no coverage). Label at max Y of mesh vertices + 4 m. `renderOrder: 2` |
 
 #### Receiver cone colours
 
