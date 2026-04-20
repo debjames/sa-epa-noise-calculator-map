@@ -13959,6 +13959,10 @@ async function generatePDFAppendix(btn) {
       if (_zcs.sourceParcelOutline2) _whitelistGroups.push(_zcs.sourceParcelOutline2);
       if (_zcs.isZoneOn) {
         if (_zcs.activeZoneOverlay)   _whitelistGroups.push(_zcs.activeZoneOverlay);
+        // ESRI dynamicMapLayer renders via an internal _currentImage overlay that
+        // appears as a separate entry in map._layers. Whitelist it explicitly.
+        var _esriImg = _zcs.activeZoneOverlay && _zcs.activeZoneOverlay._currentImage;
+        if (_esriImg)                 _whitelistGroups.push(_esriImg);
         if (_zcs.zoneOutlineLayer)    _whitelistGroups.push(_zcs.zoneOutlineLayer);
         if (_zcs.subzoneFeatureLayer) _whitelistGroups.push(_zcs.subzoneFeatureLayer);
       }
@@ -13991,20 +13995,32 @@ async function generatePDFAppendix(btn) {
       })(_zcs));
     }
 
-    // Diagnostic: log whitelist refs and full layer inventory before sweep.
+    // Diagnostic: log whitelist refs as flat primitives (visible without expanding in DevTools).
     if (_zcs) {
-      console.group('[pdf-appendix] whitelist diag');
-      console.log('isZoneOn:', _zcs.isZoneOn, 'isAerial:', _zcs.isAerial,
-        'activeZoneOverlay:', _zcs.activeZoneOverlay,
-        'is LayerGroup:', _zcs.activeZoneOverlay instanceof L.LayerGroup);
-      var _diagCount = 0;
-      if (_map) _map.eachLayer(function(l) {
-        _diagCount++;
-        if (_diagCount <= 30) console.log(_diagCount, l.constructor && l.constructor.name,
-          'whitelisted:', _isPdfWhitelisted(l), l);
-      });
-      console.log('total layers on map:', _diagCount);
-      console.groupEnd();
+      var _esriInnerRef = _zcs.activeZoneOverlay && _zcs.activeZoneOverlay._currentImage || null;
+      console.log('[pdf-appendix] refs | streetLayer:', !!_zcs.streetLayer,
+        '| isZoneOn:', _zcs.isZoneOn, '| isAerial:', _zcs.isAerial,
+        '| activeZoneOverlay:', !!_zcs.activeZoneOverlay,
+        '| activeZoneOverlay ctor:', _zcs.activeZoneOverlay && _zcs.activeZoneOverlay.constructor && _zcs.activeZoneOverlay.constructor.name,
+        '| _currentImage:', !!_esriInnerRef,
+        '| subzoneFeatureLayer:', !!_zcs.subzoneFeatureLayer,
+        '| zoneOutlineLayer:', !!_zcs.zoneOutlineLayer,
+        '| sourceParcelOutline:', !!_zcs.sourceParcelOutline);
+      if (_map) {
+        var _diagCount = 0;
+        _map.eachLayer(function(l) {
+          _diagCount++;
+          if (_diagCount <= 30) {
+            console.log('[pdf-appendix] layer |', l.constructor && l.constructor.name,
+              '| kept:', _isPdfWhitelisted(l),
+              '| isRef activeZone:', l === _zcs.activeZoneOverlay,
+              '| isRef _currentImage:', l === _esriInnerRef,
+              '| isRef subzone:', l === _zcs.subzoneFeatureLayer,
+              '| isRef outline:', l === _zcs.zoneOutlineLayer);
+          }
+        });
+        console.log('[pdf-appendix] total layers on map:', _diagCount);
+      }
     }
 
     // Remove every non-whitelisted Leaflet layer, recording each for restore.
@@ -14118,29 +14134,36 @@ async function generatePDFAppendix(btn) {
     _pdfRestore.forEach(function(fn) { fn(); });
 
     // ── Force-render criteria tables ──────────────────────────────────────────
-    // Call the fast table-population functions directly so all content is
-    // present regardless of which panels the user has open. These are no-ops
-    // when their prerequisite data (receivers, zones) is absent.
+    // Call render() (the orchestrator) so all criteria table cells are populated
+    // regardless of which panels the user has open. render() calls renderSADerivTable
+    // internally. Emergency and NSW derivation have their own separate paths.
     try {
-      if (typeof renderSADerivTable === 'function') renderSADerivTable();
-      if (typeof renderNSWDerivTable === 'function') renderNSWDerivTable();
-      if (typeof renderEmergencyEquipCriteria === 'function') renderEmergencyEquipCriteria();
+      if (typeof render === 'function') render();
     } catch (_renderErr) {
-      console.warn('[pdf-appendix] render pass error:', _renderErr);
+      console.warn('[pdf-appendix] render() threw:', _renderErr);
     }
-    // One rAF for DOM to settle after render
-    await new Promise(function(r) { requestAnimationFrame(r); });
+    try {
+      if (typeof renderNSWDerivTable === 'function') renderNSWDerivTable();
+    } catch (_renderErr2) {
+      console.warn('[pdf-appendix] renderNSWDerivTable threw:', _renderErr2);
+    }
+    try {
+      if (typeof renderEmergencyEquipCriteria === 'function') renderEmergencyEquipCriteria();
+    } catch (_renderErr3) {
+      console.warn('[pdf-appendix] emergency render threw:', _renderErr3);
+    }
+    // Two rAF waits: render() may schedule further paints for .table-scroll cells
+    await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
 
-    // Diagnostic: log each capture target's state before capture runs
+    // Diagnostic: log each capture target's state as flat primitives (visible without expanding)
     ['pdcBody', 'critBody', 'emergEquipTable', 'musicBgTable'].forEach(function(id) {
       var _el = document.getElementById(id);
       var _tbl = _el ? (_el.querySelector('table') || _el) : null;
-      console.log('[pdf-appendix] target', id, {
-        exists: !!_el,
-        rowCount: (_tbl && _tbl.rows) ? _tbl.rows.length : 0,
-        innerHTMLLen: _el ? _el.innerHTML.length : 0,
-        visible: _el ? window.getComputedStyle(_el).display : 'n/a'
-      });
+      console.log('[pdf-appendix] target', id,
+        '| exists:', !!_el,
+        '| rowCount:', (_tbl && _tbl.rows) ? _tbl.rows.length : 0,
+        '| innerHTMLLen:', _el ? _el.innerHTML.length : 0,
+        '| display:', _el ? window.getComputedStyle(_el).display : 'n/a');
     });
 
     // ── 2. Capture table screenshots ────────────────────────────────────────
