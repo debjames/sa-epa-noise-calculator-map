@@ -44,6 +44,46 @@ Prerequisite: SA assessment with source placed, 2+ receivers placed and zones de
 - [ ] **Page overflow** — With all three special categories active (emergency + music + childcare): content flows onto page 2 if needed.
 - [ ] **Page numbers** — Each page shows "1 / N" style page numbering centred at bottom.
 
+### Criteria tables (force-render regression guard)
+
+- [ ] **Fresh load — PDC present** — SA state, Adelaide CBD, do NOT click the Criteria nav button. Export appendix → PDC section present with populated table rows.
+- [ ] **Fresh load — criteria present** — Same fresh-load scenario → Receivers & Criteria section present with populated table.
+- [ ] **PDC SA only** — SA state, export → PDC section present. Switch to VIC, export → no PDC section. Switch to NSW, export → no PDC section.
+- [ ] **Emergency table — force-rendered** — Enable emergency + fire, do NOT open the emergency panel. Export → emergency table present with populated fire pump criteria.
+- [ ] **Panels unchanged after export** — Note which panels are open/collapsed before export. After PDF downloads, all panels remain in the same open/closed state.
+
+### Zone map content (whitelist isolation)
+
+- [ ] **Street map only — no noise overlay** — Toggle noise map ON, export appendix → Figure 1 shows street map + boundary + zones only. No noise colour gradient visible.
+- [ ] **Street map only — no contours** — Toggle noise contour lines ON, export → no contour lines in Figure 1.
+- [ ] **Street map only — no terrain** — Toggle terrain contours ON, export → no terrain in Figure 1.
+- [ ] **Street map only — no buildings** — Toggle OSM buildings ON, export → no building footprints in Figure 1.
+- [ ] **Street map only — no pins** — Add sources, receivers, barriers, export → no markers/pins in Figure 1.
+- [ ] **Forced street basemap** — Switch basemap to Aerial, export → Figure 1 shows STREET MAP tiles (CartoDB light), not satellite imagery.
+- [ ] **Basemap restored after export** — After aerial export, map returns to aerial view. After street export, map stays on street.
+- [ ] **Layers restored** — After export with noise map + contours + pins all on, all are back on the map immediately after the PDF downloads.
+- [ ] **Zone legend in capture** — Zone legend (bottom-left) and scale bar remain visible in Figure 1 image.
+- [ ] **SA zones in appendix** — SA state selected, zones toggled on → SA zone polygons appear in Figure 1.
+- [ ] **VIC zones in appendix** — VIC state selected, zones toggled on → VIC zone polygons appear in Figure 1.
+- [ ] **NSW zones in appendix** — NSW state selected, zones toggled on → NSW zone polygons appear in Figure 1.
+- [ ] **Zones off → no zones** — Zones toggled off → Figure 1 shows street map + boundary only, no zone polygons.
+- [ ] **Parcel boundary in capture** — Source placed (triggers parcel boundary API fetch) → black/white dashed boundary polygon appears in Figure 1.
+- [ ] **No parcel boundary before source placed** — No source placed → no boundary polygon in Figure 1. Export still succeeds.
+
+### Diagnostic logging (regression guard for PNG corruption fix)
+
+- [ ] **Console entries present** — On successful export, browser console shows `[pdf-appendix] receivers & criteria { format: "JPEG", dataUrlLength: ..., dataUrlPrefix: "data:image/jpeg;base64,...", aspect: ... }` and similarly for any other included sections. Length must be > 100. Note: prefix is now `data:image/jpeg` (not `data:image/png`).
+- [ ] **Named error on failure** — If export fails, alert reads `"PDF appendix export failed at [section name]: ..."` not a generic message. Trigger by temporarily breaking a capture (e.g. hiding the critBody element before export).
+- [ ] **Zero-size element skipped** — If a table element has zero width/height at capture time (e.g. collapsed section), that section returns `null` from `captureElement()` and is silently skipped in the PDF — no error thrown.
+
+### JPEG table capture (regression guard for large-PNG jsPDF failure)
+
+- [ ] **Tall criteria table — no PNG error** — NSW state, 4 receivers placed, all zones detected (maximises row count). Export appendix → no "Incomplete or corrupt PNG file" alert. PDF downloads and opens. Criteria table visible.
+- [ ] **All sections JPEG** — Open browser devtools console before export. Export appendix with PDC + criteria + emergency + music + childcare all active. Every `[pdf-appendix]` log entry shows `format: "JPEG"` and `dataUrlPrefix: "data:image/jpeg;base64,"`. No `"data:image/png"` prefix in any entry.
+- [ ] **Text readability** — Open the exported PDF at 100% zoom. Table text (column headers, receiver names, dB values) is sharp and legible — JPEG compression at quality 0.95 must not produce visible blocking artefacts on text.
+- [ ] **Error labels the section** — If any table capture fails, the alert message includes the section name (e.g. `"PDF appendix export failed at [receivers & criteria]: ..."`) — confirmed because `placeImage()` now sets `_pdfLabel` as its first action before `addImage` can throw.
+- [ ] **Zone map still JPEG** — Figure 1 (zone map) still captured as JPEG directly (not via `captureElement()`). Confirm by checking `[pdf-appendix] zone map` log entry shows `format: "JPEG"` or equivalent prefix.
+
 ### Non-regression
 
 - [ ] **Generate Report unchanged** — Existing Generate Report (.docx) button still works correctly.

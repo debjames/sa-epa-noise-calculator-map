@@ -1110,6 +1110,19 @@ These are pre-existing reservations in the Mapping panel at [`index.html:2082`](
 
 `window._restoreForPdfExport()` and `window._restoreDrawerLayout()` temporarily move content back to the original `#pdfArea > .container > .sheet` structure for html2canvas capture, then restore the drawer layout.
 
+### PDF appendix image formats (`generatePDFAppendix`)
+
+Both image capture paths in the appendix PDF use **JPEG** (not PNG):
+
+| Section | How captured | Format |
+|---|---|---|
+| Figure 1 — zone map | Leaflet map canvas via `map.getContainer()` | JPEG, direct `pdf.addImage(..., 'JPEG', ...)` |
+| All table sections (PDC, criteria, emergency, music, childcare) | `captureElement()` → `html2canvas` scale:3 → `toDataURL('image/jpeg', 0.95)` | JPEG, via `placeImage()` |
+
+PNG was used originally but jsPDF's pure-JS PNG parser (`png.js`) cannot handle very large PNGs (~10–40 MB) produced by html2canvas at scale:3 on a 1100px-wide panel. JPEG is used for all sections to avoid this.
+
+`placeImage(img, label, maxH)` auto-detects format from the data URL prefix and passes `'JPEG'` or `'PNG'` to `pdf.addImage()`. `_pdfLabel` is set inside `placeImage()` as its first action so the catch block always names the failing section.
+
 ### What stayed intact
 
 - `#mapFullscreenSidebar` and `#mapFullscreenSidebarTab` remain inside `#mapInnerWrapper` (the Objects sidebar for fullscreen mode)

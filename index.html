@@ -13868,6 +13868,7 @@ async function generatePDFAppendix(btn) {
     if (!window.html2canvas) throw new Error('html2canvas not loaded');
 
     var projNum = (document.getElementById('projectNumberInput') || {}).value || '';
+    var _pdfLabel = 'init';
 
     // ── Helper: screenshot a DOM element ────────────────────────────────────
     // Temporarily un-collapses ancestors, removes overflow clipping on
@@ -13920,9 +13921,12 @@ async function generatePDFAppendix(btn) {
         var c = await html2canvas(el, {
           scale: 3, useCORS: true, logging: false,
           backgroundColor: '#ffffff', removeContainer: true,
-          windowWidth: 1400
+          windowWidth: 1400, willReadFrequently: true
         });
-        return { dataUrl: c.toDataURL('image/png'), aspect: c.height / c.width };
+        if (!c.width || !c.height) return null;
+        var _dataUrl = c.toDataURL('image/jpeg', 0.95);
+        if (!_dataUrl || _dataUrl.length < 100 || !_dataUrl.startsWith('data:image/jpeg')) return null;
+        return { dataUrl: _dataUrl, aspect: c.height / c.width };
       } finally {
         widened.forEach(function(w) { w.el.style.minWidth = w.mw; w.el.style.width = w.w; });
         restored.reverse().forEach(function(r) {
@@ -13932,51 +13936,101 @@ async function generatePDFAppendix(btn) {
       }
     }
 
-    // ── 1. Capture zone map ────────────────────────────────────────────────
-    // Keep the user's current view (aerial/street + zone overlay) exactly
-    // as-is. Only hide objects we don't want: sources, receivers, barriers,
-    // noise map, contours. This avoids the tile-reload problem caused by
-    // _prepareZoneCapture switching base maps.
+    // ── 1. Capture zone map — whitelist-based layer isolation ─────────────
+    // Only three things must appear: street basemap + parcel boundary + zones.
+    // All other layers are removed via _map.eachLayer and restored immediately
+    // after capture. This is a whitelist approach — any future overlay is
+    // automatically excluded without needing to update this code.
     var mapEl = document.getElementById('noise-map');
     var _pdfRestore = [];
-    // Hide objects (sources, receivers, barriers) via the pins toggle
-    if (typeof _allObjVisible !== 'undefined' && _allObjVisible) {
-      var _pb = document.getElementById('pinsToggleBtn');
-      if (_pb) { _pb.click(); _pdfRestore.push(function() { var b = document.getElementById('pinsToggleBtn'); if (b && !_allObjVisible) b.click(); }); }
+
+    // Get current layer refs from the map IIFE (called at export time so
+    // dynamic refs like sourceParcelOutline reflect the current state).
+    var _zcs = (typeof window._getPdfZoneCaptureState === 'function')
+      ? window._getPdfZoneCaptureState() : null;
+
+    // Build the whitelist: layers (and their parent groups) that must stay visible.
+    // Zone layers only included when zones are currently ON.
+    // hasLayer check in _isPdfWhitelisted handles any child features that ESRI
+    // FeatureLayer / LayerGroup may add individually to map._layers.
+    var _whitelistGroups = [];
+    if (_zcs) {
+      if (_zcs.sourceParcelOutline)  _whitelistGroups.push(_zcs.sourceParcelOutline);
+      if (_zcs.sourceParcelOutline2) _whitelistGroups.push(_zcs.sourceParcelOutline2);
+      if (_zcs.isZoneOn) {
+        if (_zcs.activeZoneOverlay)   _whitelistGroups.push(_zcs.activeZoneOverlay);
+        if (_zcs.zoneOutlineLayer)    _whitelistGroups.push(_zcs.zoneOutlineLayer);
+        if (_zcs.subzoneFeatureLayer) _whitelistGroups.push(_zcs.subzoneFeatureLayer);
+      }
     }
-    // Hide noise map canvas
-    if (typeof _noiseCanvasLayer !== 'undefined' && _noiseCanvasLayer &&
-        typeof _map !== 'undefined' && _map && _map.hasLayer(_noiseCanvasLayer)) {
-      var _origNoiseOp = _noiseCanvasLayer.options.opacity || 0.8;
-      _noiseCanvasLayer.setOpacity(0);
-      _pdfRestore.push(function() { _noiseCanvasLayer.setOpacity(_origNoiseOp); });
+
+    function _isPdfWhitelisted(layer) {
+      if (_zcs && layer === _zcs.streetLayer) return true;  // basemap always
+      if (_whitelistGroups.indexOf(layer) !== -1) return true;  // direct match
+      // Parent-group check: catches child features of LayerGroup / FeatureGroup
+      for (var _gi = 0; _gi < _whitelistGroups.length; _gi++) {
+        var _wg = _whitelistGroups[_gi];
+        if (_wg && typeof _wg.hasLayer === 'function' && _wg.hasLayer(layer)) return true;
+      }
+      return false;
     }
-    // Hide compliance canvas
-    if (typeof _complianceCanvasLayer !== 'undefined' && _complianceCanvasLayer &&
-        typeof _map !== 'undefined' && _map && _map.hasLayer(_complianceCanvasLayer)) {
-      var _origCompOp = _complianceCanvasLayer.options.opacity || 0.82;
-      _complianceCanvasLayer.setOpacity(0);
-      _pdfRestore.push(function() { _complianceCanvasLayer.setOpacity(_origCompOp); });
+
+    // Force street basemap if user is currently on aerial.
+    // Push the restore BEFORE the layer sweep so it fires first on restore,
+    // re-adding the aerial layer before the overlays are stacked back on top.
+    var _basemapSwapped = false;
+    if (_zcs && _zcs.isAerial && _map) {
+      _map.removeLayer(_zcs.aerialLayer);
+      _zcs.streetLayer.addTo(_map);
+      _basemapSwapped = true;
+      _pdfRestore.push((function(cs) {
+        return function() {
+          if (_map && cs.streetLayer) _map.removeLayer(cs.streetLayer);
+          if (_map && cs.aerialLayer) cs.aerialLayer.addTo(_map);
+        };
+      })(_zcs));
     }
-    // Hide noise contour lines
-    if (typeof _noiseContourLayer !== 'undefined' && _noiseContourLayer &&
-        typeof _map !== 'undefined' && _map && _map.hasLayer(_noiseContourLayer)) {
-      _map.removeLayer(_noiseContourLayer);
-      _pdfRestore.push(function() { if (_noiseContourLayer) _noiseContourLayer.addTo(_map); });
+
+    // Diagnostic: log whitelist refs and full layer inventory before sweep.
+    if (_zcs) {
+      console.group('[pdf-appendix] whitelist diag');
+      console.log('isZoneOn:', _zcs.isZoneOn, 'isAerial:', _zcs.isAerial,
+        'activeZoneOverlay:', _zcs.activeZoneOverlay,
+        'is LayerGroup:', _zcs.activeZoneOverlay instanceof L.LayerGroup);
+      var _diagCount = 0;
+      if (_map) _map.eachLayer(function(l) {
+        _diagCount++;
+        if (_diagCount <= 30) console.log(_diagCount, l.constructor && l.constructor.name,
+          'whitelisted:', _isPdfWhitelisted(l), l);
+      });
+      console.log('total layers on map:', _diagCount);
+      console.groupEnd();
     }
-    // Hide terrain contour layer
-    if (window._terrainContourLayer && typeof _map !== 'undefined' && _map &&
-        _map.hasLayer(window._terrainContourLayer)) {
-      _map.removeLayer(window._terrainContourLayer);
-      _pdfRestore.push(function() { if (window._terrainContourLayer) window._terrainContourLayer.addTo(_map); });
+
+    // Remove every non-whitelisted Leaflet layer, recording each for restore.
+    // Collect first (avoid mutating the layer list during eachLayer iteration).
+    if (_map && _zcs) {
+      var _pdfRemovedLayers = [];
+      _map.eachLayer(function(layer) {
+        if (!_isPdfWhitelisted(layer)) _pdfRemovedLayers.push(layer);
+      });
+      _pdfRemovedLayers.forEach(function(layer) { _map.removeLayer(layer); });
+      // Restore in same order to preserve original z-stacking.
+      _pdfRemovedLayers.forEach(function(layer) {
+        (function(l) { _pdfRestore.push(function() { if (_map) _map.addLayer(l); }); })(layer);
+      });
     }
-    // Hide noise map legend (bottom-right controls)
+
+    // Hide bottom-right Leaflet controls (noise map legend DOM nodes may
+    // persist even after their underlying layers are removed).
     var _noiseLegEls = mapEl ? Array.from(mapEl.querySelectorAll('.leaflet-bottom.leaflet-right .leaflet-control')) : [];
     _noiseLegEls.forEach(function(el) { el.style.display = 'none'; });
     _pdfRestore.push(function() { _noiseLegEls.forEach(function(el) { el.style.display = ''; }); });
 
+    // Settle: 2× rAF for Leaflet reflow + base wait.
+    // Extra 400 ms if basemap was swapped to allow street tiles to load.
     await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
-    await new Promise(function(r) { setTimeout(r, 200); });
+    await new Promise(function(r) { setTimeout(r, _basemapSwapped ? 600 : 200); });
 
     var zoneImg = null;
 
@@ -14063,14 +14117,39 @@ async function generatePDFAppendix(btn) {
     // Restore all hidden layers immediately after map capture
     _pdfRestore.forEach(function(fn) { fn(); });
 
+    // ── Force-render criteria tables ──────────────────────────────────────────
+    // Call the fast table-population functions directly so all content is
+    // present regardless of which panels the user has open. These are no-ops
+    // when their prerequisite data (receivers, zones) is absent.
+    try {
+      if (typeof renderSADerivTable === 'function') renderSADerivTable();
+      if (typeof renderNSWDerivTable === 'function') renderNSWDerivTable();
+      if (typeof renderEmergencyEquipCriteria === 'function') renderEmergencyEquipCriteria();
+    } catch (_renderErr) {
+      console.warn('[pdf-appendix] render pass error:', _renderErr);
+    }
+    // One rAF for DOM to settle after render
+    await new Promise(function(r) { requestAnimationFrame(r); });
+
+    // Diagnostic: log each capture target's state before capture runs
+    ['pdcBody', 'critBody', 'emergEquipTable', 'musicBgTable'].forEach(function(id) {
+      var _el = document.getElementById(id);
+      var _tbl = _el ? (_el.querySelector('table') || _el) : null;
+      console.log('[pdf-appendix] target', id, {
+        exists: !!_el,
+        rowCount: (_tbl && _tbl.rows) ? _tbl.rows.length : 0,
+        innerHTMLLen: _el ? _el.innerHTML.length : 0,
+        visible: _el ? window.getComputedStyle(_el).display : 'n/a'
+      });
+    });
+
     // ── 2. Capture table screenshots ────────────────────────────────────────
     // A) Planning & Design Code — Interface between Land Uses (SA only)
     // Capture #pdcBody but temporarily hide the intro paragraph so only the
     // provisions table + sensitive receiver definition note are captured.
     var pdcBodyEl = document.getElementById('pdcBody');
     var pdcImg = null;
-    var pdcSection = document.getElementById('pdcProvisionsSection');
-    if (pdcSection && window.getComputedStyle(pdcSection).display !== 'none' && pdcBodyEl) {
+    if (pdcBodyEl && currentState === 'SA') {
       var pdcIntro = pdcBodyEl.querySelector('.p');
       var pdcIntroDisp = pdcIntro ? pdcIntro.style.display : '';
       if (pdcIntro) pdcIntro.style.display = 'none';
@@ -14111,13 +14190,22 @@ async function generatePDFAppendix(btn) {
     var FONT = 'helvetica';
     var y = margin;
 
-    function placeImage(img, maxH) {
+    function placeImage(img, label, maxH) {
       if (!img) return;
+      // Set label first so the outer catch always names the failing section
+      if (label) _pdfLabel = label;
+      var _isPng  = img.dataUrl && img.dataUrl.startsWith('data:image/png');
+      var _isJpeg = img.dataUrl && img.dataUrl.startsWith('data:image/jpeg');
+      if (!img.dataUrl || img.dataUrl.length < 100 || (!_isPng && !_isJpeg)) {
+        throw new Error('Invalid image data for appendix section: ' + _pdfLabel);
+      }
+      var _fmt = _isJpeg ? 'JPEG' : 'PNG';
+      console.log('[pdf-appendix]', _pdfLabel, { format: _fmt, dataUrlLength: img.dataUrl.length, dataUrlPrefix: img.dataUrl.slice(0, 40), aspect: img.aspect });
       var drawW = cW, drawH = cW * img.aspect;
       if (maxH && drawH > maxH) { drawH = maxH; drawW = drawH / img.aspect; }
       if (y + drawH > pH - margin - 8) { pdf.addPage(); y = margin; }
       var imgX = margin + (cW - drawW) / 2;
-      pdf.addImage(img.dataUrl, 'PNG', imgX, y, drawW, drawH);
+      pdf.addImage(img.dataUrl, _fmt, imgX, y, drawW, drawH);
       y += drawH + 3;
     }
 
@@ -14131,7 +14219,12 @@ async function generatePDFAppendix(btn) {
     }
 
     // ── A) Zone Map ─────────────────────────────────────────────────────────
+    _pdfLabel = 'zone map';
     if (zoneImg) {
+      if (!zoneImg.dataUrl || zoneImg.dataUrl.length < 100 || !zoneImg.dataUrl.startsWith('data:image/jpeg')) {
+        throw new Error('Invalid JPEG for appendix section: zone map');
+      }
+      console.log('[pdf-appendix]', _pdfLabel, { dataUrlLength: zoneImg.dataUrl.length, dataUrlPrefix: zoneImg.dataUrl.slice(0, 40), aspect: zoneImg.aspect });
       var imgMaxH = 90;
       var imgH = cW * zoneImg.aspect;
       var drawH = Math.min(imgH, imgMaxH);
@@ -14153,35 +14246,35 @@ async function generatePDFAppendix(btn) {
     // ── B) Planning & Design Code — Interface between Land Uses ───────────
     if (pdcImg) {
       sectionLabel('Planning & Design Code \u2014 Interface between Land Uses');
-      placeImage(pdcImg);
+      placeImage(pdcImg, 'PDC interface');
       y += 3;
     }
 
     // ── C) Receivers & Criteria ─────────────────────────────────────────────
     if (critImg) {
       sectionLabel('Receivers & Criteria');
-      placeImage(critImg);
+      placeImage(critImg, 'receivers & criteria');
       y += 3;
     }
 
     // ── C) Emergency Equipment Criteria (conditional) ───────────────────────
     if (emergImg) {
       sectionLabel('Emergency Equipment Criteria');
-      placeImage(emergImg);
+      placeImage(emergImg, 'emergency equipment');
       y += 3;
     }
 
     // ── D) Music Noise Criteria (conditional) ───────────────────────────────
     if (musicImg) {
       sectionLabel('Music Noise Criteria');
-      placeImage(musicImg);
+      placeImage(musicImg, 'music criteria');
       y += 3;
     }
 
     // ── E) Childcare / Student Criteria (conditional) ───────────────────────
     if (childImg) {
       sectionLabel('Childcare / Student Criteria');
-      placeImage(childImg);
+      placeImage(childImg, 'childcare criteria');
       y += 3;
     }
 
@@ -14203,7 +14296,7 @@ async function generatePDFAppendix(btn) {
 
   } catch (e) {
     console.error('generatePDFAppendix error:', e);
-    alert('PDF appendix export failed: ' + e.message);
+    alert('PDF appendix export failed at [' + (_pdfLabel || 'unknown') + ']: ' + e.message);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = origText || 'Save PDF'; }
   }
@@ -24671,6 +24764,22 @@ if (window.pdfjsLib) {
       if (state.compOpacity !== null && _complianceCanvasLayer) _complianceCanvasLayer.setOpacity(state.compOpacity);
       // Restore noise contour layer
       if (state.noiseContour && _noiseContourLayer && window._map) _noiseContourLayer.addTo(window._map);
+    };
+
+    /* --- PDF appendix: expose layer refs for whitelist-based zone map capture --- */
+    /* Called at export time so dynamic refs (sourceParcelOutline) are current.    */
+    window._getPdfZoneCaptureState = function() {
+      return {
+        streetLayer:         streetLayer,
+        aerialLayer:         aerialLayer,
+        isAerial:            isAerial,
+        isZoneOn:            isZoneOn,
+        activeZoneOverlay:   (typeof getActiveZoneOverlay === 'function') ? getActiveZoneOverlay() : null,
+        zoneOutlineLayer:    zoneOutlineLayer,
+        subzoneFeatureLayer: subzoneFeatureLayer,
+        sourceParcelOutline:  sourceParcelOutline,
+        sourceParcelOutline2: sourceParcelOutline2,
+      };
     };
 
     /* --- Urban Boundary toggle (VIC only — Major Urban Area polygons) --- */
