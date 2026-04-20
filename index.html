@@ -36325,6 +36325,31 @@ if (window.pdfjsLib) {
     window._rebuildNoiseScale = function() { rebuildNoiseScale(); };
     window._recomputeNoiseMap = function() { if (_noiseMapOn) debouncedRecompute(); };
     window._clearNoiseData = function() { _lastNoiseData = null; };
+    /* GIS import render hooks — called from the GIS import IIFE which runs outside this scope.
+       customBuildings and userBarriers live inside this IIFE so batch-add helpers are provided. */
+    window._gisRenderHooks = {
+      /* Batch add: push all items then render once */
+      addCustomBuildings: function(cbs) {
+        cbs.forEach(function(cb) { customBuildings.push(cb); });
+        renderCustomBuildings(); rebuildBuildingsIndex();
+      },
+      addBarriers: function(ubs) {
+        ubs.forEach(function(ub) { userBarriers.push(ub); });
+        renderUserBarriers(); rebuildBuildingsIndex();
+      },
+      /* Terrain fetch for IIFE-local elements */
+      fetchTerrainForCb: function(cb) { if (_terrainEnabled) _fetchVertexElevations(cb); },
+      fetchTerrainForUb: function(ub) { if (_terrainEnabled) _fetchVertexElevations(ub); },
+      /* Building source factory (uses CONSTRUCTION_LIBRARY inside this scope) */
+      makeBuildingSource:        function(verts, ht) { return _bsMakeDefault(verts, ht); },
+      /* Re-render helpers for globally-arrayed types */
+      renderAreaSourceLayer:     function() { renderAreaSourceLayer(); },
+      renderBuildingSourceLayer: function() { renderBuildingSourceLayer(); },
+      renderLineSourceLayer:     function() { renderLineSourceLayer(); },
+      renderLineSourceCards:     function() { renderLineSourceCards(); },
+      renderGroundZone:          function(gz) { _renderGroundZone(gz); },
+      isTerrainEnabled:          function() { return !!_terrainEnabled; }
+    };
     window._setNoiseMapOn = function(v) {
       _noiseMapOn = !!v;
       if (noiseMapBtn) noiseMapBtn.classList.toggle('active', _noiseMapOn);
@@ -40206,15 +40231,71 @@ if (window.pdfjsLib) {
 </script>
 
 <script>
-/* ── GIS Import Module (Phase 1) ─────────────────────────────────────────
-   Lazy-loads proj4 → shpjs (for .zip shapefiles) or togeojson (for .kml).
-   Returns a structured {layers, warnings} object and logs it to console.
-   No map rendering in this phase.
-──────────────────────────────────────────────────────────────────────── */
+/* ── GIS Import Module (Phase 1 + 2) ────────────────────────────────────────
+   Phase 1: Lazy-load proj4 → shpjs / togeojson; parse into {layers, warnings}.
+   Phase 2: .prj sourceCRS extraction; assignment modal; live map preview.
+──────────────────────────────────────────────────────────────────────────── */
 (function() {
   'use strict';
 
-  /* proj4 definition strings for common Australian CRSs (sourced from epsg.io) */
+  /* ── CSS injection (once) ────────────────────────────────────────────── */
+  (function() {
+    if (document.getElementById('_gisCss')) return;
+    var s = document.createElement('style');
+    s.id = '_gisCss';
+    s.textContent =
+      '#_gisBackdrop{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:9990;}' +
+      '#_gisModal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
+        'width:min(720px,96vw);max-height:80vh;display:flex;flex-direction:column;' +
+        'background:#fff;border:1px solid #e2e8f0;border-radius:10px;' +
+        'box-shadow:0 8px 32px rgba(0,0,0,.2);z-index:9991;overflow:hidden;}' +
+      '#_gisModalHdr{display:flex;align-items:center;gap:8px;padding:10px 14px;' +
+        'background:rgba(26,32,44,.92);color:#f3f4f6;border-radius:10px 10px 0 0;flex-shrink:0;}' +
+      '#_gisModalHdr span{flex:1;font-size:13px;font-weight:600;letter-spacing:.02em;}' +
+      '#_gisModalHdrClose{background:none;border:none;color:#9ca3af;font-size:16px;' +
+        'cursor:pointer;padding:0 2px;line-height:1;}' +
+      '#_gisModalHdrClose:hover{color:#fff;}' +
+      '#_gisModalBody{flex:1;overflow-y:auto;padding:12px 16px;font-size:12px;color:#374151;line-height:1.6;}' +
+      '#_gisModalFooter{padding:10px 16px;background:#f9fafb;border-top:1px solid #e5e7eb;flex-shrink:0;}' +
+      '.gis-warn{background:#fef9c3;border:1px solid #f59e0b;border-radius:4px;' +
+        'padding:8px 10px;margin-bottom:10px;font-size:11px;color:#92400e;}' +
+      '.gis-warn p{margin:2px 0;}' +
+      '.gis-layer-block{border:1px solid #e5e7eb;border-radius:6px;margin-bottom:12px;overflow:hidden;}' +
+      '.gis-layer-hdr{background:#f1f5f9;padding:7px 10px;font-size:12px;}' +
+      '.gis-layer-crs{font-weight:400;color:#6b7280;font-size:11px;}' +
+      '.gis-layer-geomsum{font-size:11px;color:#6b7280;padding:3px 10px 6px;}' +
+      '.gis-geom-block{border-top:1px solid #f0f0f0;padding:8px 10px;}' +
+      '.gis-geom-hdr{font-size:11px;font-weight:600;color:#4b5563;margin-bottom:6px;' +
+        'padding-bottom:4px;border-bottom:1px solid #f0f0f0;}' +
+      '.gis-row{display:flex;align-items:baseline;gap:6px;margin-bottom:5px;flex-wrap:wrap;}' +
+      '.gis-row>label:first-child{font-size:11px;color:#6b7280;min-width:106px;flex-shrink:0;}' +
+      '.gis-row select,.gis-row input[type=number],.gis-row input[type=text]{font-size:11px;' +
+        'padding:2px 4px;border:1px solid #d1d5db;border-radius:3px;background:#fff;color:#374151;}' +
+      '.gis-row select{max-width:280px;}' +
+      '.gis-row input[type=number]{width:58px;}' +
+      '.gis-row input[type=text]{width:120px;}' +
+      '.gis-muted{font-size:10px;color:#9ca3af;}' +
+      '.gis-radio-row{margin:3px 0 3px 112px;display:flex;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap;}' +
+      '.gis-radio-row select{font-size:11px;padding:2px 4px;border:1px solid #d1d5db;' +
+        'border-radius:3px;background:#fff;max-width:240px;}' +
+      '.gis-mov-row{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11px;}' +
+      '.gis-mov-row input{width:60px;font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px;}' +
+      '.gis-filter-wrap{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11px;color:#374151;}' +
+      '.gis-filter-wrap select,.gis-filter-wrap input[type=text]{font-size:11px;padding:2px 4px;' +
+        'border:1px solid #d1d5db;border-radius:3px;background:#fff;}' +
+      '.gis-footer-hint{font-size:11px;color:#d97706;margin-bottom:5px;display:none;}' +
+      '.gis-footer-row{display:flex;align-items:center;gap:8px;}' +
+      '.gis-footer-count{font-size:11px;color:#6b7280;flex:1;}' +
+      '.gis-btn{padding:6px 14px;font-size:12px;border-radius:4px;cursor:pointer;border:1px solid #d1d5db;}' +
+      '.gis-btn-primary{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:600;}' +
+      '.gis-btn-primary:hover:not(:disabled){background:#1d4ed8;}' +
+      '.gis-btn-primary:disabled{background:#93c5fd;border-color:#93c5fd;cursor:not-allowed;}' +
+      '.gis-btn-cancel{background:#fff;color:#374151;}' +
+      '.gis-btn-cancel:hover{background:#f3f4f6;}';
+    document.head.appendChild(s);
+  })();
+
+  /* ── Phase 1: CRS pre-registration ──────────────────────────────────── */
   var AU_CRS_DEFS = {
     'EPSG:7844':  '+proj=longlat +ellps=GRS80 +no_defs +type=crs',
     'EPSG:7853':  '+proj=utm +zone=53 +south +ellps=GRS80 +units=m +no_defs +type=crs',
@@ -40226,17 +40307,13 @@ if (window.pdfjsLib) {
     'EPSG:3577':  '+proj=aea +lat_0=0 +lon_0=132 +lat_1=-18 +lat_2=-36 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs'
   };
 
-  /* Script URL cache — resolves immediately if already injected */
   var _scriptCache = {};
-
   function loadScriptOnce(url) {
     if (_scriptCache[url]) return _scriptCache[url];
     var p = new Promise(function(resolve, reject) {
-      var existing = document.querySelector('script[src="' + url + '"]');
-      if (existing) { resolve(); return; }
+      if (document.querySelector('script[src="' + url + '"]')) { resolve(); return; }
       var s = document.createElement('script');
-      s.src = url;
-      s.onload = resolve;
+      s.src = url; s.onload = resolve;
       s.onerror = function() { reject(new Error('Failed to load: ' + url)); };
       document.head.appendChild(s);
     });
@@ -40244,24 +40321,26 @@ if (window.pdfjsLib) {
     return p;
   }
 
-  /* Register AU CRS definitions into proj4 (called once after proj4 loads) */
   function registerAuCrs() {
     if (typeof proj4 === 'undefined') return;
     Object.keys(AU_CRS_DEFS).forEach(function(code) {
-      try { proj4.defs(code, AU_CRS_DEFS[code]); } catch(e) { /* already defined */ }
+      try { proj4.defs(code, AU_CRS_DEFS[code]); } catch(e) {}
     });
   }
 
-  /* Load proj4 → register CRSs → load shpjs in order */
   var _shpjsReady = null;
   function ensureShpjs() {
     if (_shpjsReady) return _shpjsReady;
     _shpjsReady = loadScriptOnce('https://unpkg.com/proj4@2.11.0/dist/proj4.js')
-      .then(function() {
-        registerAuCrs();
-        return loadScriptOnce('https://unpkg.com/shpjs@6.1.0/dist/shp.min.js');
-      });
+      .then(function() { registerAuCrs(); return loadScriptOnce('https://unpkg.com/shpjs@6.1.0/dist/shp.min.js'); });
     return _shpjsReady;
+  }
+
+  var _jsZipReady = null;
+  function ensureJsZip() {
+    if (_jsZipReady) return _jsZipReady;
+    _jsZipReady = loadScriptOnce('https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');
+    return _jsZipReady;
   }
 
   var _togeojsonReady = null;
@@ -40271,74 +40350,47 @@ if (window.pdfjsLib) {
     return _togeojsonReady;
   }
 
-  /* ── Geometry helpers ─────────────────────────────────────────────────── */
-
-  /* Strip polygon holes — keep outer ring only */
+  /* ── Phase 1: Geometry helpers ───────────────────────────────────────── */
   function stripHoles(geom) {
-    if (geom.type === 'Polygon' && geom.coordinates.length > 1) {
+    if (geom.type === 'Polygon' && geom.coordinates.length > 1)
       return { type: 'Polygon', coordinates: [geom.coordinates[0]] };
-    }
-    if (geom.type === 'MultiPolygon') {
-      return {
-        type: 'MultiPolygon',
-        coordinates: geom.coordinates.map(function(poly) { return [poly[0]]; })
-      };
-    }
+    if (geom.type === 'MultiPolygon')
+      return { type: 'MultiPolygon', coordinates: geom.coordinates.map(function(p) { return [p[0]]; }) };
     return geom;
   }
 
-  /* Expand Multi* geometries into individual features; returns {features, hadHoles} */
   function expandFeatures(features) {
-    var out = [];
-    var hadHoles = false;
+    var out = [], hadHoles = false;
     features.forEach(function(f) {
       if (!f || !f.geometry) return;
-      var g = f.geometry;
-      var props = f.properties || {};
-
-      /* Check/strip holes before expansion */
+      var g = f.geometry, props = f.properties || {};
       if (g.type === 'Polygon' && g.coordinates && g.coordinates.length > 1) hadHoles = true;
-      if (g.type === 'MultiPolygon' && g.coordinates) {
-        g.coordinates.forEach(function(poly) { if (poly.length > 1) hadHoles = true; });
-      }
+      if (g.type === 'MultiPolygon' && g.coordinates)
+        g.coordinates.forEach(function(p) { if (p.length > 1) hadHoles = true; });
       g = stripHoles(g);
-
-      if (g.type === 'MultiPoint') {
-        g.coordinates.forEach(function(c) {
-          out.push({ type: 'Feature', geometry: { type: 'Point', coordinates: c }, properties: props });
-        });
-      } else if (g.type === 'MultiLineString') {
-        g.coordinates.forEach(function(c) {
-          out.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: c }, properties: props });
-        });
-      } else if (g.type === 'MultiPolygon') {
-        g.coordinates.forEach(function(c) {
-          out.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: c }, properties: props });
-        });
-      } else if (g.type === 'GeometryCollection' && g.geometries) {
-        g.geometries.forEach(function(subg) {
-          out.push({ type: 'Feature', geometry: subg, properties: props });
-        });
-      } else {
-        out.push({ type: 'Feature', geometry: g, properties: props });
-      }
+      if (g.type === 'MultiPoint')
+        g.coordinates.forEach(function(c) { out.push({type:'Feature',geometry:{type:'Point',coordinates:c},properties:props}); });
+      else if (g.type === 'MultiLineString')
+        g.coordinates.forEach(function(c) { out.push({type:'Feature',geometry:{type:'LineString',coordinates:c},properties:props}); });
+      else if (g.type === 'MultiPolygon')
+        g.coordinates.forEach(function(c) { out.push({type:'Feature',geometry:{type:'Polygon',coordinates:c},properties:props}); });
+      else if (g.type === 'GeometryCollection' && g.geometries)
+        g.geometries.forEach(function(sg) { out.push({type:'Feature',geometry:sg,properties:props}); });
+      else out.push({type:'Feature',geometry:g,properties:props});
     });
-    return { features: out, hadHoles: hadHoles };
+    return {features:out, hadHoles:hadHoles};
   }
-
-  /* ── Coordinate sanity check ──────────────────────────────────────────── */
 
   function collectCoords(features) {
     var all = [];
     features.forEach(function(f) {
       if (!f || !f.geometry) return;
-      var g = f.geometry;
-      function walk(coords) {
-        if (!coords || !coords.length) return;
-        if (typeof coords[0] === 'number') { all.push(coords); return; }
-        coords.forEach(walk);
+      function walk(c) {
+        if (!c || !c.length) return;
+        if (typeof c[0] === 'number') { all.push(c); return; }
+        c.forEach(walk);
       }
-      if (g.coordinates) walk(g.coordinates);
+      if (f.geometry.coordinates) walk(f.geometry.coordinates);
     });
     return all;
   }
@@ -40351,45 +40403,56 @@ if (window.pdfjsLib) {
         if (c[0] < -180 || c[0] > 180 || c[1] < -90 || c[1] > 90) outOfRange++;
       });
     });
-    if (total === 0) return { ok: true, pct: 0 };
-    return { ok: true, total: total, outOfRange: outOfRange, pct: outOfRange / total };
+    return {total:total, outOfRange:outOfRange, pct: total > 0 ? outOfRange / total : 0};
   }
 
-  /* ── Layer post-processing (expand + strip nulls) ─────────────────────── */
-
-  function processLayer(fc, name) {
-    var warnings = [];
-    var raw = (fc && fc.features) ? fc.features : [];
-
-    var nullCount = 0;
+  function processLayer(fc, name, sourceCRS) {
+    var warnings = [], raw = (fc && fc.features) ? fc.features : [], nullCount = 0;
     raw = raw.filter(function(f) {
       if (!f || !f.geometry || !f.geometry.type) { nullCount++; return false; }
       return true;
     });
-    if (nullCount > 0) warnings.push(nullCount + ' feature(s) with null/empty geometry were skipped.');
-
+    if (nullCount) warnings.push(nullCount + ' feature(s) with null/empty geometry were skipped.');
     var expanded = expandFeatures(raw);
     if (expanded.hadHoles) warnings.push('Some polygon holes were ignored (only outer rings kept).');
-
-    return { name: name, features: expanded.features, warnings: warnings };
+    return {name:name, sourceCRS: sourceCRS || null, features:expanded.features, warnings:warnings};
   }
 
-  /* ── Parsers ──────────────────────────────────────────────────────────── */
-
+  /* ── Phase 1+2 Step 1: Parsers ──────────────────────────────────────── */
   function parseZip(file) {
     return new Promise(function(resolve, reject) {
       var reader = new FileReader();
       reader.onload = function(e) {
         var buf = e.target.result;
-        ensureShpjs().then(function() {
-          return shp(buf);
-        }).then(function(result) {
-          var fcs = Array.isArray(result) ? result : [result];
-          var layers = fcs.map(function(fc) {
-            var name = (fc && fc.fileName) ? fc.fileName : file.name.replace(/\.zip$/i, '');
-            return processLayer(fc, name);
+        Promise.all([ensureJsZip(), ensureShpjs()]).then(function() {
+          return JSZip.loadAsync(buf).then(function(zip) {
+            var prjMap = {}, prjPromises = [];
+            zip.forEach(function(relPath, entry) {
+              if (relPath.toLowerCase().endsWith('.prj')) {
+                var stem = relPath.replace(/\.[^.]+$/, '').replace(/.*[\\/]/, '').toLowerCase();
+                prjPromises.push(entry.async('string').then(function(txt) { prjMap[stem] = txt; }));
+              }
+            });
+            return Promise.all(prjPromises).then(function() { return prjMap; });
           });
-          resolve(layers);
+        }).then(function(prjMap) {
+          var globalWarnings = [];
+          if (Object.keys(prjMap).length === 0)
+            globalWarnings.push('No .prj file found in archive. Coordinates assumed to be WGS84 — verify positions on map after import.');
+          return shp(buf).then(function(result) {
+            var fcs = Array.isArray(result) ? result : [result];
+            var layers = fcs.map(function(fc) {
+              var rawName = (fc && fc.fileName) ? fc.fileName : file.name.replace(/\.zip$/i, '');
+              var stem = rawName.replace(/\.[^.]+$/, '').toLowerCase();
+              var prjText = prjMap[stem] || null;
+              var sourceCRS = null;
+              if (prjText) { var m = prjText.match(/^(PROJCS|GEOGCS)\["([^"]+)"/); sourceCRS = m ? m[2] : null; }
+              var lr = processLayer(fc, rawName, sourceCRS);
+              lr.warnings = lr.warnings.concat(globalWarnings);
+              return lr;
+            });
+            resolve(layers);
+          });
         }).catch(reject);
       };
       reader.onerror = reject;
@@ -40402,19 +40465,18 @@ if (window.pdfjsLib) {
       var reader = new FileReader();
       reader.onload = function(e) {
         var parsed;
-        try { parsed = JSON.parse(e.target.result); } catch(ex) {
-          return reject(new Error('Invalid JSON: ' + ex.message));
-        }
-        if (!parsed || parsed.type !== 'FeatureCollection') {
-          return reject(new Error('GeoJSON root must be a FeatureCollection.'));
-        }
-        var warnings = [];
+        try { parsed = JSON.parse(e.target.result); } catch(ex) { return reject(new Error('Invalid JSON: ' + ex.message)); }
+        if (!parsed || parsed.type !== 'FeatureCollection') return reject(new Error('GeoJSON root must be a FeatureCollection.'));
+        var warnings = [], sourceCRS = 'EPSG:4326';
         if (parsed.crs) {
-          var crsName = (parsed.crs.properties && parsed.crs.properties.name) ? parsed.crs.properties.name : JSON.stringify(parsed.crs);
-          var wgs84 = /4326|CRS84|WGS84/i.test(crsName);
-          if (!wgs84) warnings.push('GeoJSON declares CRS "' + crsName + '" — only EPSG:4326 is supported per RFC 7946. Check that coordinates are in WGS84 longitude/latitude.');
+          var crsName = (parsed.crs.properties && parsed.crs.properties.name)
+            ? parsed.crs.properties.name
+            : (typeof parsed.crs === 'string' ? parsed.crs : JSON.stringify(parsed.crs));
+          sourceCRS = crsName;
+          if (!/4326|CRS84|WGS84/i.test(crsName))
+            warnings.push('GeoJSON declares CRS "' + crsName + '" — only EPSG:4326 is supported per RFC 7946. Check that coordinates are in WGS84 longitude/latitude.');
         }
-        var result = processLayer(parsed, file.name);
+        var result = processLayer(parsed, file.name, sourceCRS);
         result.warnings = warnings.concat(result.warnings);
         resolve([result]);
       };
@@ -40430,8 +40492,7 @@ if (window.pdfjsLib) {
         ensureTogeojson().then(function() {
           var xmlDoc = (new DOMParser()).parseFromString(e.target.result, 'text/xml');
           var fc = toGeoJSON.kml(xmlDoc);
-          var result = processLayer(fc, file.name);
-          resolve([result]);
+          resolve([processLayer(fc, file.name, 'EPSG:4326')]);
         }).catch(reject);
       };
       reader.onerror = reject;
@@ -40439,44 +40500,26 @@ if (window.pdfjsLib) {
     });
   }
 
-  /* ── Main parser dispatcher ───────────────────────────────────────────── */
-
   async function parseGisFile(file) {
     var ext = file.name.split('.').pop().toLowerCase();
-    var warnings = [];
-
     if (ext === 'kmz') {
       alert('KMZ not yet supported — please extract the .kml file from the archive first (rename to .zip, then open in QGIS or extract with 7-Zip).');
       return null;
     }
-
-    /* File size guard */
     if (file.size > 10 * 1024 * 1024) {
       if (!confirm('Large file (' + (file.size / 1048576).toFixed(1) + ' MB) — parsing may take several seconds. Continue?')) return null;
     }
-
     var layerResults;
     try {
-      if (ext === 'zip') {
-        layerResults = await parseZip(file);
-      } else if (ext === 'geojson' || ext === 'json') {
-        layerResults = await parseGeojson(file);
-      } else if (ext === 'kml') {
-        layerResults = await parseKml(file);
-      } else {
-        throw new Error('Unsupported file type: .' + ext);
-      }
-    } catch (err) {
-      alert('Error parsing file: ' + err.message);
-      return null;
-    }
+      if (ext === 'zip')                   layerResults = await parseZip(file);
+      else if (ext === 'geojson' || ext === 'json') layerResults = await parseGeojson(file);
+      else if (ext === 'kml')              layerResults = await parseKml(file);
+      else throw new Error('Unsupported file type: .' + ext);
+    } catch(err) { alert('Error parsing file: ' + err.message); return null; }
 
-    /* Collect cross-layer warnings */
-    layerResults.forEach(function(l) {
-      l.warnings.forEach(function(w) { warnings.push('[' + l.name + '] ' + w); });
-    });
+    var warnings = [];
+    layerResults.forEach(function(l) { l.warnings.forEach(function(w) { warnings.push('[' + l.name + '] ' + w); }); });
 
-    /* Coordinate sanity check */
     var sanity = coordSanityCheck(layerResults);
     if (sanity.pct > 0.10) {
       alert('Coordinates appear to be in a projected system that wasn\'t reprojected.\n\n' +
@@ -40484,118 +40527,824 @@ if (window.pdfjsLib) {
         'Check that the .prj file is included in the .zip, or reproject to WGS84 in QGIS before exporting.');
       return null;
     } else if (sanity.pct > 0) {
-      var badCount = sanity.outOfRange;
-      warnings.push(badCount + ' coordinate(s) outside valid WGS84 range were skipped (possible reprojection issue).');
-      /* Remove features whose coords are entirely out of range */
+      warnings.push(sanity.outOfRange + ' coordinate(s) outside valid WGS84 range were skipped.');
       layerResults.forEach(function(l) {
         l.features = l.features.filter(function(f) {
-          if (!f || !f.geometry || !f.geometry.coordinates) return true;
           var coords = collectCoords([f]);
-          if (!coords.length) return true;
-          var allBad = coords.every(function(c) { return c[0] < -180 || c[0] > 180 || c[1] < -90 || c[1] > 90; });
-          return !allBad;
+          return !coords.length || !coords.every(function(c) { return c[0]<-180||c[0]>180||c[1]<-90||c[1]>90; });
         });
       });
     }
 
-    /* Total feature count guards */
-    var totalFeatures = layerResults.reduce(function(s, l) { return s + l.features.length; }, 0);
-    if (totalFeatures > 1000) {
-      alert('Too many features (' + totalFeatures + '). Import is limited to 1000 features to avoid browser performance issues. Simplify or split the file before importing.');
-      return null;
-    }
-    if (totalFeatures > 300) {
-      if (!confirm(totalFeatures + ' features found across ' + layerResults.length + ' layer(s). Continuing may be slow. Proceed?')) return null;
-    }
-    if (totalFeatures === 0) {
-      alert('No valid features found in the file.');
-      return null;
-    }
+    var total = layerResults.reduce(function(s,l) { return s + l.features.length; }, 0);
+    if (total > 1000) { alert('Too many features (' + total + '). Import is limited to 1000 features. Simplify or split the file before importing.'); return null; }
+    if (total > 300 && !confirm(total + ' features found across ' + layerResults.length + ' layer(s). Continuing may be slow. Proceed?')) return null;
+    if (total === 0) { alert('No valid features found in the file.'); return null; }
 
-    /* Strip per-layer warnings (already collected above) */
-    var layers = layerResults.map(function(l) {
-      return { name: l.name, features: l.features };
-    });
-
-    return { layers: layers, warnings: warnings };
+    return { layers: layerResults.map(function(l) { return {name:l.name, sourceCRS:l.sourceCRS, features:l.features}; }), warnings:warnings };
   }
 
   /* ── Status chip ─────────────────────────────────────────────────────── */
-
   function showStatusChip(msg) {
-    var id = '_gisStatusChip';
-    var existing = document.getElementById(id);
-    if (existing) existing.remove();
-    var chip = document.createElement('div');
-    chip.id = id;
-    chip.textContent = msg;
-    chip.style.cssText = 'position:fixed;bottom:36px;right:16px;z-index:99999;' +
-      'background:rgba(30,41,59,0.92);color:#f8fafc;padding:7px 16px;' +
-      'font-size:12px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,0.28);' +
-      'pointer-events:none;white-space:nowrap;';
-    document.body.appendChild(chip);
-    return chip;
-  }
-
-  function removeStatusChip() {
     var el = document.getElementById('_gisStatusChip');
     if (el) el.remove();
+    var chip = document.createElement('div');
+    chip.id = '_gisStatusChip'; chip.textContent = msg;
+    chip.style.cssText = 'position:fixed;bottom:36px;right:16px;z-index:99999;' +
+      'background:rgba(30,41,59,0.92);color:#f8fafc;padding:7px 16px;font-size:12px;' +
+      'border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,0.28);pointer-events:none;white-space:nowrap;';
+    document.body.appendChild(chip);
+  }
+  function removeStatusChip() { var el = document.getElementById('_gisStatusChip'); if (el) el.remove(); }
+
+  /* ── Phase 2: Module state ───────────────────────────────────────────── */
+  var _gisParsed = null;
+  var _gisPreviewLayer = null;
+  var _gisModalEl = null, _gisBackdropEl = null;
+
+  /* ── Phase 2: Attribute helpers ──────────────────────────────────────── */
+  function detectAttributes(features) {
+    var keys = [], seen = {};
+    features.forEach(function(f) {
+      if (!f.properties) return;
+      Object.keys(f.properties).forEach(function(k) { if (!seen[k]) { seen[k]=true; keys.push(k); } });
+    });
+    return keys;
+  }
+  function autoDetectName(keys) {
+    var pat = ['name','title','label','id'];
+    for (var i=0; i<keys.length; i++) { var kl=keys[i].toLowerCase(); if (pat.some(function(p){return kl.indexOf(p)!==-1;})) return keys[i]; }
+    return null;
+  }
+  function autoDetectHeight(keys) {
+    var pat = ['height','hgt','h_m','elev_top','z','extrude'];
+    for (var i=0; i<keys.length; i++) { var kl=keys[i].toLowerCase(); if (pat.some(function(p){return kl.indexOf(p)!==-1;})) return keys[i]; }
+    return null;
+  }
+  function getDistinctValues(features, attrKey) {
+    var seen={}, vals=[];
+    features.forEach(function(f) {
+      if (!f.properties) return;
+      var v = f.properties[attrKey]; var vs = (v===null||v===undefined)?'':String(v);
+      if (!seen[vs]) { seen[vs]=true; vals.push(vs); }
+    });
+    return vals.sort();
+  }
+  function applyFilter(features, geomType, attrKey, attrVal) {
+    var typeMap = {points:'Point', lines:'LineString', polygons:'Polygon'};
+    var gType = typeMap[geomType];
+    var filtered = gType ? features.filter(function(f){return f.geometry&&f.geometry.type===gType;}) : features;
+    if (!attrKey) return filtered;
+    return filtered.filter(function(f) {
+      if (!f.properties) return false;
+      var v = f.properties[attrKey]; return String(v===null||v===undefined?'':v) === attrVal;
+    });
   }
 
-  /* ── Main entry point ────────────────────────────────────────────────── */
+  /* ── Phase 2: Library helpers ────────────────────────────────────────── */
+  function populateLibSel(sel, grouped) {
+    sel.innerHTML = '<option value="">-- choose --</option>';
+    if (!grouped) return;
+    Object.keys(grouped).forEach(function(grp) {
+      var og = document.createElement('optgroup'); og.label = grp;
+      (grouped[grp]||[]).forEach(function(e) {
+        var o = document.createElement('option'); o.value = e.name; o.textContent = e.name; og.appendChild(o);
+      });
+      sel.appendChild(og);
+    });
+  }
 
-  async function importGis(file) {
-    var chip = showStatusChip('Parsing ' + file.name + '\u2026');
-    var result;
+  /* ── Phase 2: Leaflet preview ────────────────────────────────────────── */
+  var PT_STYLE   = {radius:6, color:'#888', weight:1.5, fillColor:'#888', fillOpacity:0.3, interactive:false};
+  var LINE_STYLE = {color:'#888', weight:2, opacity:0.7, dashArray:'6,4', interactive:false};
+  var POLY_STYLE = {color:'#888', weight:1.5, opacity:0.7, fillColor:'#888', fillOpacity:0.15, dashArray:'4,4', interactive:false};
+
+  function featureToLeaflet(f) {
+    if (!f||!f.geometry) return null;
+    var g=f.geometry, c=g.coordinates;
     try {
-      result = await parseGisFile(file);
-    } finally {
-      removeStatusChip();
+      if (g.type==='Point')      return L.circleMarker([c[1],c[0]], PT_STYLE);
+      if (g.type==='LineString') return L.polyline(c.map(function(p){return [p[1],p[0]];}), LINE_STYLE);
+      if (g.type==='Polygon')    return L.polygon(c[0].map(function(p){return [p[1],p[0]];}), POLY_STYLE);
+    } catch(e) {}
+    return null;
+  }
+
+  function updatePreview() {
+    if (!_gisPreviewLayer || !_gisParsed) return;
+    _gisPreviewLayer.clearLayers();
+    var total = 0;
+    _gisParsed.layers.forEach(function(layer, li) {
+      ['points','lines','polygons'].forEach(function(gType) {
+        var iaEl = document.getElementById('_gIA_'+li+'_'+gType);
+        if (!iaEl || iaEl.value==='skip') return;
+        var attrEl = document.getElementById('_gFA_'+li+'_'+gType);
+        var valEl  = document.getElementById('_gFV_'+li+'_'+gType);
+        var feats  = applyFilter(layer.features, gType, attrEl&&attrEl.value||null, valEl&&valEl.value||null);
+        feats.forEach(function(f) { var lf=featureToLeaflet(f); if(lf){_gisPreviewLayer.addLayer(lf);total++;} });
+      });
+    });
+    var cnt = document.getElementById('_gisCnt');
+    if (cnt) cnt.textContent = 'Total to import: '+total+' feature'+(total!==1?'s':'');
+    _validateImport(total);
+  }
+
+  /* ── Phase 2: Validation ─────────────────────────────────────────────── */
+  function _validateImport(total) {
+    var btn  = document.getElementById('_gisImportBtn');
+    var hint = document.getElementById('_gisHint');
+    if (!btn||!_gisParsed) return;
+    var reason = '';
+    if (!reason) _gisParsed.layers.forEach(function(layer, li) {
+      ['points','lines','polygons'].forEach(function(gType) {
+        if (reason) return;
+        var iaEl = document.getElementById('_gIA_'+li+'_'+gType);
+        if (!iaEl||iaEl.value==='skip') return;
+        var v = iaEl.value;
+        var libEl = document.getElementById('_gLib_'+li+'_'+gType);
+        if ((v==='Point source'||v==='Line source'||v==='Area source') && libEl && !libEl.value)
+          { reason='Select source library for all source types to enable Import'; return; }
+        if (v==='Building source') {
+          var lpLibR  = document.getElementById('_gLpLib_'+li+'_'+gType);
+          var lpFlatR = document.getElementById('_gLpFlat_'+li+'_'+gType);
+          if (!((lpLibR&&lpLibR.checked)||(lpFlatR&&lpFlatR.checked)))
+            { reason='Select Interior Lp option for Building source'; return; }
+          if (lpLibR&&lpLibR.checked) {
+            var lpSel = document.getElementById('_gLpSel_'+li+'_'+gType);
+            if (lpSel&&!lpSel.value) { reason='Select an Interior Lp library entry'; return; }
+          }
+        }
+        if (v==='Line source') {
+          var mn = document.getElementById('_gMN_'+li+'_'+gType);
+          var ms = document.getElementById('_gMS_'+li+'_'+gType);
+          if (mn&&!mn.value) { reason='Enter movements N/hour for Line source'; return; }
+          if (ms&&!ms.value) { reason='Enter speed (km/h) for Line source'; return; }
+        }
+      });
+    });
+    if (!reason && total===0) reason='No features selected to import';
+    btn.disabled = !!reason;
+    if (hint) { hint.textContent=reason; hint.style.display=reason?'block':'none'; }
+  }
+
+  /* ── Phase 2: Modal DOM helpers ──────────────────────────────────────── */
+  function mkSel(id, opts) {
+    var sel = document.createElement('select');
+    if (id) sel.id = id;
+    opts.forEach(function(o) {
+      var el = document.createElement('option');
+      el.value = typeof o==='string'?o:o.v; el.textContent = typeof o==='string'?o:o.t;
+      sel.appendChild(el);
+    });
+    return sel;
+  }
+  function mkRow(labelText, ctrl, extras) {
+    var row = document.createElement('div'); row.className='gis-row';
+    var lbl = document.createElement('label'); lbl.textContent=labelText; row.appendChild(lbl);
+    row.appendChild(ctrl);
+    if (extras) extras.forEach(function(c){row.appendChild(c);});
+    return row;
+  }
+  function mkNum(id, val, step, min) {
+    var el = document.createElement('input'); el.type='number'; if(id)el.id=id;
+    el.value=val; if(step)el.step=step; if(min!==undefined)el.min=min; return el;
+  }
+
+  /* ── Phase 2: Per-geometry-type block ────────────────────────────────── */
+  function buildGeomBlock(li, gType, label, features, attrKeys) {
+    var uid = li+'_'+gType;
+    var div = document.createElement('div'); div.className='gis-geom-block';
+
+    var hdr = document.createElement('div'); hdr.className='gis-geom-hdr';
+    hdr.textContent='── '+label+' ('+features.length+') ──';
+    div.appendChild(hdr);
+
+    /* Import as */
+    var iaOpts = ['skip'];
+    if (gType==='points')   iaOpts.push('Point source');
+    if (gType==='lines')    iaOpts = iaOpts.concat(['Barrier','Line source']);
+    if (gType==='polygons') iaOpts = iaOpts.concat(['Custom building','Building source','Area source','Ground absorption']);
+    var iaSel = mkSel('_gIA_'+uid, iaOpts);
+    div.appendChild(mkRow('Import as:', iaSel));
+
+    /* Source library row */
+    var libRow = document.createElement('div'); libRow.id='_gLibRow_'+uid; libRow.className='gis-row'; libRow.style.display='none';
+    var libLbl = document.createElement('label'); libLbl.textContent='Source library:'; libRow.appendChild(libLbl);
+    var libSel = document.createElement('select'); libSel.id='_gLib_'+uid; libRow.appendChild(libSel);
+    div.appendChild(libRow);
+
+    /* Building source Interior Lp */
+    var lpDiv = document.createElement('div'); lpDiv.id='_gLpDiv_'+uid; lpDiv.style.display='none';
+    var lpTitleRow = document.createElement('div'); lpTitleRow.className='gis-row';
+    var lpTitleLbl = document.createElement('label'); lpTitleLbl.textContent='Interior Lp:'; lpTitleRow.appendChild(lpTitleLbl);
+    var lpMuted = document.createElement('span'); lpMuted.className='gis-muted'; lpMuted.textContent='one must be selected'; lpTitleRow.appendChild(lpMuted);
+    lpDiv.appendChild(lpTitleRow);
+
+    var lpLibRow = document.createElement('div'); lpLibRow.className='gis-radio-row';
+    var lpLibR = document.createElement('input'); lpLibR.type='radio'; lpLibR.id='_gLpLib_'+uid; lpLibR.name='_gLp_'+uid; lpLibR.value='library';
+    var lpLibLbl = document.createElement('label'); lpLibLbl.htmlFor='_gLpLib_'+uid; lpLibLbl.textContent=' Use library entry';
+    var lpSel = document.createElement('select'); lpSel.id='_gLpSel_'+uid; lpSel.style.display='none';
+    populateLibSel(lpSel, window.BUILDING_LP_LIBRARY_GROUPED||null);
+    lpLibRow.appendChild(lpLibR); lpLibRow.appendChild(lpLibLbl); lpLibRow.appendChild(lpSel);
+    lpDiv.appendChild(lpLibRow);
+
+    var lpFlatRow = document.createElement('div'); lpFlatRow.className='gis-radio-row';
+    var lpFlatR = document.createElement('input'); lpFlatR.type='radio'; lpFlatR.id='_gLpFlat_'+uid; lpFlatR.name='_gLp_'+uid; lpFlatR.value='placeholder';
+    var lpFlatLbl = document.createElement('label'); lpFlatLbl.htmlFor='_gLpFlat_'+uid; lpFlatLbl.textContent=' Use flat 75 dB placeholder — I will set per building after import';
+    lpFlatRow.appendChild(lpFlatR); lpFlatRow.appendChild(lpFlatLbl);
+    lpDiv.appendChild(lpFlatRow);
+    div.appendChild(lpDiv);
+
+    lpLibR.addEventListener('change',  function(){ lpSel.style.display='inline-block'; updatePreview(); });
+    lpFlatR.addEventListener('change', function(){ lpSel.style.display='none'; updatePreview(); });
+    lpSel.addEventListener('change', updatePreview);
+
+    /* Movements (Line source only) */
+    var movDiv = document.createElement('div'); movDiv.id='_gMovDiv_'+uid; movDiv.style.display='none';
+    var movRow2 = document.createElement('div'); movRow2.className='gis-row';
+    var movLbl  = document.createElement('label'); movLbl.textContent='Movements:';
+    var movWrap = document.createElement('div');   movWrap.className='gis-mov-row';
+    var movN = mkNum('_gMN_'+uid,'','','0'); movN.placeholder='N/hr';
+    var movS = mkNum('_gMS_'+uid,'','','1'); movS.placeholder='km/h';
+    var movP = mkNum('_gMP_'+uid,'100','1','0'); movP.max='100';
+    [document.createTextNode('N/hr: '),movN,document.createTextNode(' Speed: '),movS,
+     document.createTextNode(' km/h  Op: '),movP,document.createTextNode('%')].forEach(function(n){movWrap.appendChild(n);});
+    movRow2.appendChild(movLbl); movRow2.appendChild(movWrap); movDiv.appendChild(movRow2);
+    div.appendChild(movDiv);
+    [movN,movS,movP].forEach(function(el){el.addEventListener('input',updatePreview);});
+
+    /* Name from */
+    var nameOpts = [{v:'auto',t:'auto-detect'}].concat(attrKeys.map(function(k){return{v:k,t:k};})).concat([{v:'none',t:'none'}]);
+    var nameSel = mkSel('_gName_'+uid, nameOpts);
+    var autoN = autoDetectName(attrKeys); if (autoN) nameSel.value = autoN;
+    div.appendChild(mkRow('Name from:', nameSel));
+    nameSel.addEventListener('change', updatePreview);
+
+    /* Height from + default */
+    var htOpts = [{v:'auto',t:'auto-detect'}].concat(attrKeys.map(function(k){return{v:k,t:k};})).concat([{v:'none',t:'none'}]);
+    var htSel = mkSel('_gHt_'+uid, htOpts);
+    var autoH = autoDetectHeight(attrKeys); if (autoH) htSel.value = autoH;
+    var htDef = mkNum('_gHtDef_'+uid, gType==='points'?'1.5':gType==='lines'?'2.0':'3.0', '0.1', '0');
+    var htMuted = document.createElement('span'); htMuted.className='gis-muted'; htMuted.textContent='default (m)';
+    var htRow = mkRow('Height from:', htSel, [htDef, htMuted]);
+    htRow.id='_gHtRow_'+uid;
+    div.appendChild(htRow);
+    htSel.addEventListener('change', updatePreview);
+    htDef.addEventListener('input',  updatePreview);
+
+    /* Filter */
+    var filterDiv = document.createElement('div'); filterDiv.className='gis-row';
+    var filterLbl = document.createElement('label'); filterLbl.textContent='Filter (optional):';
+    filterDiv.appendChild(filterLbl);
+    var filterWrap = document.createElement('div'); filterWrap.className='gis-filter-wrap';
+    filterWrap.appendChild(document.createTextNode('Only where\u00a0'));
+    var attrSel = mkSel('_gFA_'+uid, [{v:'',t:'-- none --'}].concat(attrKeys.map(function(k){return{v:k,t:k};})));
+    filterWrap.appendChild(attrSel);
+    filterWrap.appendChild(document.createTextNode('\u00a0=\u00a0'));
+    var valWrap = document.createElement('span'); valWrap.id='_gFVWrap_'+uid;
+    filterWrap.appendChild(valWrap);
+    filterDiv.appendChild(filterWrap);
+    div.appendChild(filterDiv);
+
+    attrSel.addEventListener('change', function() {
+      valWrap.innerHTML = '';
+      if (!attrSel.value) { updatePreview(); return; }
+      var vals = getDistinctValues(features, attrSel.value);
+      var el;
+      if (vals.length <= 50) {
+        el = mkSel('_gFV_'+uid, [{v:'',t:'-- any --'}].concat(vals.map(function(v){return{v:v,t:v||'(blank)'};})));
+      } else {
+        el = document.createElement('input'); el.type='text'; el.id='_gFV_'+uid;
+        el.style.cssText='font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px;width:120px;';
+      }
+      valWrap.appendChild(el);
+      el.addEventListener('change', updatePreview);
+      updatePreview();
+    });
+
+    /* Wire importAs → show/hide conditional rows */
+    iaSel.addEventListener('change', function() {
+      var v = iaSel.value;
+      var showLib = v==='Point source'||v==='Line source'||v==='Area source';
+      libRow.style.display = showLib ? 'flex' : 'none';
+      if (showLib) {
+        populateLibSel(libSel,
+          v==='Point source' ? (window.SOURCE_LIBRARY_GROUPED_NON_LMAX||null) :
+          v==='Line source'  ? (window.LINE_SOURCE_LIBRARY_GROUPED||null) :
+          v==='Area source'  ? (window.AREA_SOURCE_LIBRARY_GROUPED||null) : null);
+      }
+      lpDiv.style.display  = v==='Building source' ? 'block' : 'none';
+      movDiv.style.display = v==='Line source'     ? 'block' : 'none';
+      htRow.style.display  = v==='Ground absorption' ? 'none' : 'flex';
+      updatePreview();
+    });
+    libSel.addEventListener('change', updatePreview);
+
+    return div;
+  }
+
+  /* ── Phase 2: Layer block ────────────────────────────────────────────── */
+  function buildLayerBlock(li, layer) {
+    var div = document.createElement('div'); div.className='gis-layer-block';
+    var hdr = document.createElement('div'); hdr.className='gis-layer-hdr';
+    hdr.innerHTML = 'Layer: <strong>'+layer.name+'</strong> <span class="gis-layer-crs">('+
+      (layer.sourceCRS||'no CRS')+')</span>';
+    div.appendChild(hdr);
+
+    var counts = {points:0, lines:0, polygons:0};
+    layer.features.forEach(function(f) {
+      var t = f.geometry&&f.geometry.type;
+      if (t==='Point') counts.points++;
+      else if (t==='LineString') counts.lines++;
+      else if (t==='Polygon') counts.polygons++;
+    });
+    var sumParts = [];
+    if (counts.points)   sumParts.push('Points ('+counts.points+')');
+    if (counts.lines)    sumParts.push('Lines ('+counts.lines+')');
+    if (counts.polygons) sumParts.push('Polygons ('+counts.polygons+')');
+    var sum = document.createElement('div'); sum.className='gis-layer-geomsum';
+    sum.textContent='Geometry: '+(sumParts.join(', ')||'none');
+    div.appendChild(sum);
+
+    var attrKeys = detectAttributes(layer.features);
+    var byType = {
+      points:   layer.features.filter(function(f){return f.geometry&&f.geometry.type==='Point';}),
+      lines:    layer.features.filter(function(f){return f.geometry&&f.geometry.type==='LineString';}),
+      polygons: layer.features.filter(function(f){return f.geometry&&f.geometry.type==='Polygon';})
+    };
+    if (counts.points)   div.appendChild(buildGeomBlock(li,'points',  'Points',  byType.points,  attrKeys));
+    if (counts.lines)    div.appendChild(buildGeomBlock(li,'lines',   'Lines',   byType.lines,   attrKeys));
+    if (counts.polygons) div.appendChild(buildGeomBlock(li,'polygons','Polygons',byType.polygons,attrKeys));
+    return div;
+  }
+
+  /* ── Phase 2: Gather assignments from form ───────────────────────────── */
+  function gatherAssignments() {
+    var layers = (_gisParsed?_gisParsed.layers:[]).map(function(layer, li) {
+      function readGeom(gType) {
+        var uid=li+'_'+gType;
+        var iaEl = document.getElementById('_gIA_'+uid); if (!iaEl) return null;
+        var libEl   = document.getElementById('_gLib_'+uid);
+        var lpLibR  = document.getElementById('_gLpLib_'+uid);
+        var lpFlatR = document.getElementById('_gLpFlat_'+uid);
+        var lpSel   = document.getElementById('_gLpSel_'+uid);
+        var nameEl  = document.getElementById('_gName_'+uid);
+        var htEl    = document.getElementById('_gHt_'+uid);
+        var htDefEl = document.getElementById('_gHtDef_'+uid);
+        var attrEl  = document.getElementById('_gFA_'+uid);
+        var valEl   = document.getElementById('_gFV_'+uid);
+        var movN    = document.getElementById('_gMN_'+uid);
+        var movS    = document.getElementById('_gMS_'+uid);
+        var movP    = document.getElementById('_gMP_'+uid);
+        var attrKey = attrEl&&attrEl.value?attrEl.value:null;
+        var attrVal = valEl?valEl.value:null;
+        return {
+          importAs:        iaEl.value,
+          libraryRef:      libEl?libEl.value:null,
+          interiorLpMode:  lpLibR&&lpLibR.checked?'library':lpFlatR&&lpFlatR.checked?'placeholder':null,
+          interiorLpRef:   lpSel?lpSel.value:null,
+          nameFrom:        nameEl?nameEl.value:'auto',
+          heightFrom:      htEl?htEl.value:'auto',
+          heightDefault:   htDefEl?parseFloat(htDefEl.value)||null:null,
+          filter:          {attribute:attrKey, value:attrVal},
+          movements:       movN?{nPerHour:movN.value, speedKmh:movS?movS.value:'', operatingPct:movP?movP.value:'100'}:null,
+          features:        applyFilter(layer.features, gType, attrKey, attrVal)
+        };
+      }
+      return {name:layer.name, sourceCRS:layer.sourceCRS, points:readGeom('points'), lines:readGeom('lines'), polygons:readGeom('polygons')};
+    });
+    var zEl = document.getElementById('_gisZoom');
+    return {zoomToImported:zEl?zEl.checked:true, layers:layers};
+  }
+
+  /* ── Phase 3: Execution helpers ─────────────────────────────────────── */
+
+  /* Find a library entry by name across a grouped library object */
+  function _gisLibEntry(grouped, name) {
+    if (!grouped || !name) return null;
+    var cats = Object.keys(grouped);
+    for (var i=0; i<cats.length; i++) {
+      var arr = grouped[cats[i]];
+      for (var j=0; j<arr.length; j++) { if (arr[j].name === name) return arr[j]; }
     }
+    return null;
+  }
+
+  /* GeoJSON [lng,lat] coord → [lat,lng] */
+  function _gisLL(c) { return [c[1], c[0]]; }
+
+  /* Convert a GeoJSON coordinate ring/line to [lat,lng] pairs.
+     isRing: strip duplicate closing vertex added by GeoJSON spec. */
+  function _gisVerts(coords, isRing) {
+    var v = coords.map(_gisLL);
+    if (isRing && v.length > 1) {
+      var f=v[0], l=v[v.length-1];
+      if (f[0]===l[0] && f[1]===l[1]) v.pop();
+    }
+    return v;
+  }
+
+  /* Resolve height: attribute key → numeric property value, else default */
+  function _gisHeight(feature, heightFrom, def) {
+    if (heightFrom && heightFrom !== 'auto' && heightFrom !== 'none') {
+      var v = parseFloat((feature.properties||{})[heightFrom]);
+      if (Number.isFinite(v) && v > 0) return v;
+    }
+    return (Number.isFinite(def) && def > 0) ? def : 3;
+  }
+
+  /* Resolve name: attribute key → property string, else fallback */
+  function _gisName(feature, nameFrom, fallback) {
+    if (nameFrom && nameFrom !== 'auto' && nameFrom !== 'none') {
+      var v = String(((feature.properties||{})[nameFrom]) || '').trim();
+      if (v) return v;
+    }
+    return fallback;
+  }
+
+  /* Build building-source interiorLp from assignment (library or flat 75 dB placeholder) */
+  function _gisBsInteriorLp(asgn) {
+    var bands = [63,125,250,500,1000,2000,4000,8000];
+    var lp = {};
+    ['day','eve','night'].forEach(function(p) {
+      lp[p] = { broadband: null, octave: {63:null,125:null,250:null,500:null,1000:null,2000:null,4000:null,8000:null} };
+    });
+    if (asgn.interiorLpMode === 'library') {
+      var entry = _gisLibEntry(window.BUILDING_LP_LIBRARY_GROUPED||null, asgn.interiorLpRef);
+      if (entry) {
+        ['day','eve','night'].forEach(function(p) {
+          bands.forEach(function(b) { lp[p].octave[b] = (entry.spectrum&&entry.spectrum[b]!=null)?entry.spectrum[b]:null; });
+        });
+      }
+    } else {
+      ['day','eve','night'].forEach(function(p) { lp[p].broadband = 75; });
+    }
+    return lp;
+  }
+
+  /* Rate-limited async pool (max concurrent = maxC).
+     fn(item) must return a Promise. onProgress(done, total) optional. */
+  function _gisPool(items, maxC, fn, onProgress) {
+    return new Promise(function(resolve) {
+      var idx=0, active=0, done=0, total=items.length;
+      if (!total) { resolve(); return; }
+      function next() {
+        while (active < maxC && idx < total) {
+          (function(item) {
+            active++;
+            fn(item).then(function() { active--; done++; if(onProgress) onProgress(done,total); done===total?resolve():next(); },
+                          function() { active--; done++; if(onProgress) onProgress(done,total); done===total?resolve():next(); });
+          })(items[idx++]);
+        }
+      }
+      next();
+    });
+  }
+
+  /* Abort controller for background terrain fetch */
+  var _terrainAbortCtrl = null;
+
+  /* Background terrain fetch with rate-limited pool, progress chip, abort support */
+  function _gisTerrainFetch(items) {
+    if (!items.length || !window.DEMCache) return;
+    if (_terrainAbortCtrl) _terrainAbortCtrl.aborted = true;
+    var ctrl = { aborted: false };
+    _terrainAbortCtrl = ctrl;
+    var total = items.length, failed = 0;
+    var chip = showStatusChip('Fetching terrain for imported features\u2026 0\u00a0/\u00a0' + total);
+    function setChip(text, bg) {
+      if (!chip) return;
+      chip.textContent = text;
+      if (bg) chip.style.background = bg;
+    }
+    function fetchOne(item) {
+      if (ctrl.aborted) return Promise.resolve();
+      var p;
+      if (item.type === 'pin') {
+        p = window.DEMCache.getElevation(item.el.lat, item.el.lng).then(function(elev) {
+          if (ctrl.aborted) return;
+          item.el.groundElevation_m = elev;
+          item.el.effectiveHeight_ASL = (elev!==null) ? elev+(item.el.height_m||1.5) : null;
+          if (typeof renderSourcePins === 'function') renderSourcePins();
+        });
+      } else {
+        p = _fetchVertexElevations(item.el);
+      }
+      return p.catch(function(err) {
+        failed++;
+        console.warn('[GIS import] terrain fetch failed:', item.name||'?', err);
+      });
+    }
+    _gisPool(items, 4, fetchOne, function(done) {
+      if (!ctrl.aborted) setChip('Fetching terrain for imported features\u2026 ' + done + '\u00a0/\u00a0' + total);
+    }).then(function() {
+      if (ctrl.aborted) return;
+      if (failed === 0) {
+        setChip('\u2713 Terrain fetched (' + total + '\u00a0of\u00a0' + total + ')', 'rgba(16,185,129,0.92)');
+        setTimeout(function() { if (chip&&chip.parentNode) chip.parentNode.removeChild(chip); chip=null; }, 3000);
+      } else {
+        setChip('Fetched ' + (total-failed) + '\u00a0of\u00a0' + total + ' \u2014 ' + failed + ' failed (see console)', 'rgba(180,120,20,0.92)');
+        setTimeout(function() { if (chip&&chip.parentNode) chip.parentNode.removeChild(chip); chip=null; }, 10000);
+      }
+    });
+  }
+
+  /* Main import executor — called when user clicks Import in the modal */
+  function executeImport(asgn) {
+    var H = window._gisRenderHooks || {};
+    var counts = {pointSources:0,lineSources:0,areaSources:0,buildingSources:0,
+                  customBuildings:0,barriers:0,groundZones:0};
+    var allBounds=[], terrainItems=[];
+    var hadPins=false, hadLines=false, hadAreas=false, hadBS=false, hadGZ=[];
+    var pendingCB=[], pendingBarriers=[];
+
+    /* Terrain is enabled when the render hooks say so (or when DEMCache is available
+       and the terrain button is active — checked via the hooks object which has
+       direct access to the private _terrainEnabled flag). */
+    var terrainOn = typeof H.isTerrainEnabled === 'function' ? H.isTerrainEnabled() : false;
+
+    asgn.layers.forEach(function(layer) {
+      ['points','lines','polygons'].forEach(function(gType) {
+        var g = layer[gType];
+        if (!g || g.importAs === 'skip' || !g.features || !g.features.length) return;
+        var importAs = g.importAs;
+
+        g.features.forEach(function(feature) {
+          var geom = feature.geometry; if (!geom) return;
+          var ht, name, verts;
+
+          if (importAs === 'Point source') {
+            var coord = geom.coordinates; // [lng, lat]
+            var lat = coord[1], lng = coord[0];
+            ht   = _gisHeight(feature, g.heightFrom, g.heightDefault != null ? g.heightDefault : 1.5);
+            name = _gisName(feature, g.nameFrom, 'Imported source ' + (counts.pointSources + 1));
+            var entry = _gisLibEntry(window.SOURCE_LIBRARY_GROUPED_NON_LMAX||{}, g.libraryRef);
+            var lwVal = entry ? entry.lw : null;
+            var spec  = entry && entry.spectrum ? entry.spectrum.slice() : null;
+            var pin = {
+              id: _newPinId(), name: name, lat: lat, lng: lng,
+              lw: {day:lwVal, eve:lwVal, night:lwVal}, lw_max: null,
+              spectrum: {day:spec?spec.slice():null, eve:spec?spec.slice():null, night:spec?spec.slice():null},
+              spectrum_max: null, height_m: ht, buildingHeight_m: 0,
+              groundElevation_m: null,
+              operatingPct: {day:100,eve:100,night:100},
+              numUnits: {day:1,eve:1,night:1,lmax:1},
+              activeInPeriod: {day:true,eve:true,night:true,lmax:false},
+              _userEdited: {eve:false,night:false}
+            };
+            sourcePins.push(pin);
+            counts.pointSources++; hadPins = true;
+            allBounds.push([lat, lng]);
+            if (terrainOn) terrainItems.push({type:'pin', el:pin, name:name});
+
+          } else if (importAs === 'Line source') {
+            verts = _gisVerts(geom.coordinates, false);
+            ht    = _gisHeight(feature, g.heightFrom, g.heightDefault != null ? g.heightDefault : 2.0);
+            name  = _gisName(feature, g.nameFrom, 'Imported line source ' + (counts.lineSources + 1));
+            var lsEntry = _gisLibEntry(window.LINE_SOURCE_LIBRARY_GROUPED||{}, g.libraryRef);
+            var movN = g.movements ? (parseFloat(g.movements.nPerHour)||0) : 0;
+            var movS = g.movements ? (parseFloat(g.movements.speedKmh)||0) : 0;
+            var movP = g.movements ? (parseFloat(g.movements.operatingPct)||100) : 100;
+            var newLs = {
+              id: 'ls_' + (++_lsIdCtr), name: name, vertices: verts,
+              libraryEntry: lsEntry || null, height_m: ht,
+              movements: {day:{N:movN,speed:movS,operatingPct:movP},
+                          eve:{N:movN,speed:movS,operatingPct:movP},
+                          night:{N:movN,speed:movS,operatingPct:movP}},
+              lw_m_base: {day:null,eve:null,night:null},
+              spectrum_m_base: {day:null,eve:null,night:null},
+              manualOverride: {day:false,eve:false,night:false},
+              manualLwm: {day:null,eve:null,night:null},
+              manualSpectrum: {day:null,eve:null,night:null},
+              activeInPeriod: {day:true,eve:true,night:true},
+              _userEdited: {eve:false,night:false}
+            };
+            lineSources.push(newLs);
+            counts.lineSources++; hadLines = true;
+            verts.forEach(function(v) { allBounds.push(v); });
+            if (terrainOn) terrainItems.push({type:'poly', el:newLs, name:name});
+
+          } else if (importAs === 'Area source') {
+            verts = _gisVerts(geom.coordinates[0], true);
+            ht    = _gisHeight(feature, g.heightFrom, g.heightDefault != null ? g.heightDefault : 0.5);
+            name  = _gisName(feature, g.nameFrom, 'Imported area source ' + (counts.areaSources + 1));
+            var asEntry = _gisLibEntry(window.AREA_SOURCE_LIBRARY_GROUPED||{}, g.libraryRef);
+            var newAs = {
+              id: 'as_' + (++_asIdCtr), name: name, vertices: verts, height_m: ht,
+              lwMode: 'per_m2',
+              lwValue: {day:null,eve:null,night:null}, spectrum: {day:null,eve:null,night:null},
+              activeInPeriod: {day:true,eve:true,night:true},
+              operatingPct: {day:100,eve:100,night:100}, quantity: {day:1,eve:1,night:1},
+              manualOverride: {day:false,eve:false,night:false},
+              libraryEntry: asEntry || null, _userEdited: {eve:false,night:false}
+            };
+            areaSources.push(newAs);
+            counts.areaSources++; hadAreas = true;
+            verts.forEach(function(v) { allBounds.push(v); });
+            if (terrainOn) terrainItems.push({type:'poly', el:newAs, name:name});
+
+          } else if (importAs === 'Building source') {
+            verts = _gisVerts(geom.coordinates[0], true);
+            ht    = _gisHeight(feature, g.heightFrom, g.heightDefault != null ? g.heightDefault : 6.0);
+            name  = _gisName(feature, g.nameFrom, 'Imported building source ' + (counts.buildingSources + 1));
+            var newBs = H.makeBuildingSource ? H.makeBuildingSource(verts, ht) : null;
+            if (!newBs) return;
+            newBs.name = name;
+            newBs.lpSource = (g.interiorLpMode === 'library') ? 'octave' : 'broadband';
+            newBs.lpLibraryEntry = (g.interiorLpMode === 'library') ? (g.interiorLpRef||null) : null;
+            newBs.interiorLp = _gisBsInteriorLp(g);
+            buildingSources.push(newBs);
+            counts.buildingSources++; hadBS = true;
+            verts.forEach(function(v) { allBounds.push(v); });
+            if (terrainOn) terrainItems.push({type:'poly', el:newBs, name:name});
+
+          } else if (importAs === 'Custom building') {
+            verts = _gisVerts(geom.coordinates[0], true);
+            ht    = _gisHeight(feature, g.heightFrom, g.heightDefault != null ? g.heightDefault : 3.0);
+            name  = _gisName(feature, g.nameFrom, 'Imported building ' + (counts.customBuildings + 1));
+            var newCb = {
+              id: 'custom_' + Date.now() + '_' + counts.customBuildings,
+              name: name, polygon: verts, baseHeightM: 0, heightM: ht,
+              isCustom: true, userHeightOverride: true
+            };
+            pendingCB.push(newCb);
+            counts.customBuildings++;
+            verts.forEach(function(v) { allBounds.push(v); });
+            if (terrainOn) terrainItems.push({type:'poly', el:newCb, name:name});
+
+          } else if (importAs === 'Barrier') {
+            verts = _gisVerts(geom.coordinates, false);
+            ht    = _gisHeight(feature, g.heightFrom, g.heightDefault != null ? g.heightDefault : 2.0);
+            name  = _gisName(feature, g.nameFrom, 'Imported barrier ' + (counts.barriers + 1));
+            var newUb = {
+              id: 'barrier_' + Date.now() + '_' + counts.barriers,
+              name: name, vertices: verts, heightM: ht, baseHeightM: 0, suppressed: false
+            };
+            pendingBarriers.push(newUb);
+            counts.barriers++;
+            verts.forEach(function(v) { allBounds.push(v); });
+            if (terrainOn) terrainItems.push({type:'poly', el:newUb, name:name});
+
+          } else if (importAs === 'Ground absorption') {
+            verts = _gisVerts(geom.coordinates[0], true);
+            name  = _gisName(feature, g.nameFrom, 'Imported ground zone ' + (counts.groundZones + 1));
+            var gz = { id: 'gz_' + (++_gzIdCtr), name: name, g: 0.5, vertices: verts };
+            _groundZones.push(gz);
+            counts.groundZones++; hadGZ.push(gz);
+            verts.forEach(function(v) { allBounds.push(v); });
+            if (terrainOn) terrainItems.push({type:'poly', el:gz, name:name});
+          }
+        });
+      });
+    });
+
+    var total = counts.pointSources + counts.lineSources + counts.areaSources +
+                counts.buildingSources + counts.customBuildings + counts.barriers + counts.groundZones;
+    if (!total) { closeModal(); return; }
+
+    /* Remove preview layer (no longer needed — real elements now on map) */
+    if (_gisPreviewLayer && window._map) { window._map.removeLayer(_gisPreviewLayer); _gisPreviewLayer=null; }
+
+    /* Batch render — one call per layer type touched */
+    if (hadPins     && typeof renderSourcePins === 'function')   renderSourcePins();
+    if (hadLines    && H.renderLineSourceLayer)  { H.renderLineSourceLayer(); if(H.renderLineSourceCards) H.renderLineSourceCards(); }
+    if (hadAreas    && H.renderAreaSourceLayer)  H.renderAreaSourceLayer();
+    if (hadBS       && H.renderBuildingSourceLayer) H.renderBuildingSourceLayer();
+    if (pendingCB.length     && H.addCustomBuildings) H.addCustomBuildings(pendingCB);
+    if (pendingBarriers.length && H.addBarriers)      H.addBarriers(pendingBarriers);
+    if (hadGZ.length && H.renderGroundZone)      hadGZ.forEach(function(gz) { H.renderGroundZone(gz); });
+
+    if (typeof render === 'function') render();
+    if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+    if (typeof window._undoPushState === 'function') window._undoPushState('GIS import: ' + total + ' elements');
+
+    /* Zoom to imported features */
+    if (asgn.zoomToImported && allBounds.length && window._map) {
+      try { window._map.fitBounds(allBounds, {padding:[50,50]}); } catch(e) {}
+    }
+
+    /* Toast summary */
+    var parts=[];
+    if (counts.pointSources)    parts.push(counts.pointSources   + ' point source'    + (counts.pointSources>1?'s':''));
+    if (counts.lineSources)     parts.push(counts.lineSources    + ' line source'     + (counts.lineSources>1?'s':''));
+    if (counts.areaSources)     parts.push(counts.areaSources    + ' area source'     + (counts.areaSources>1?'s':''));
+    if (counts.buildingSources) parts.push(counts.buildingSources+ ' building source' + (counts.buildingSources>1?'s':''));
+    if (counts.customBuildings) parts.push(counts.customBuildings+ ' custom building' + (counts.customBuildings>1?'s':''));
+    if (counts.barriers)        parts.push(counts.barriers       + ' barrier'         + (counts.barriers>1?'s':''));
+    if (counts.groundZones)     parts.push(counts.groundZones    + ' ground zone'     + (counts.groundZones>1?'s':''));
+    if (typeof showToast === 'function') showToast('Imported ' + total + ': ' + parts.join(', '), 6000);
+
+    /* Background terrain fetch — non-blocking */
+    if (terrainItems.length) _gisTerrainFetch(terrainItems);
+  }
+
+  /* ── Phase 2: Open/close modal ───────────────────────────────────────── */
+  function closeModal() {
+    if (_gisPreviewLayer && window._map) { window._map.removeLayer(_gisPreviewLayer); _gisPreviewLayer=null; }
+    if (_gisModalEl)   { if (_gisModalEl._keyH) document.removeEventListener('keydown',_gisModalEl._keyH,true); _gisModalEl.remove();   _gisModalEl=null; }
+    if (_gisBackdropEl){ _gisBackdropEl.remove(); _gisBackdropEl=null; }
+  }
+
+  function openAssignmentModal(parsed) {
+    _gisParsed = parsed;
+    closeModal();
+
+    if (window._map && typeof L !== 'undefined')
+      _gisPreviewLayer = L.featureGroup().addTo(window._map);
+
+    /* Backdrop */
+    var bd = document.createElement('div'); bd.id='_gisBackdrop';
+    bd.addEventListener('click', closeModal); document.body.appendChild(bd); _gisBackdropEl=bd;
+
+    /* Modal container */
+    var modal = document.createElement('div'); modal.id='_gisModal';
+    modal.addEventListener('click', function(e){e.stopPropagation();}); _gisModalEl=modal;
+
+    /* Header */
+    var hdr = document.createElement('div'); hdr.id='_gisModalHdr';
+    var hdrTxt = document.createElement('span'); hdrTxt.textContent='Import GIS features';
+    var closeBtn = document.createElement('button'); closeBtn.id='_gisModalHdrClose';
+    closeBtn.innerHTML='&#x2715;'; closeBtn.title='Close'; closeBtn.addEventListener('click',closeModal);
+    hdr.appendChild(hdrTxt); hdr.appendChild(closeBtn); modal.appendChild(hdr);
+
+    /* Body */
+    var body = document.createElement('div'); body.id='_gisModalBody';
+    if (parsed.warnings&&parsed.warnings.length) {
+      var warn = document.createElement('div'); warn.className='gis-warn';
+      parsed.warnings.forEach(function(w){ var p=document.createElement('p'); p.textContent='\u26A0 '+w; warn.appendChild(p); });
+      body.appendChild(warn);
+    }
+    parsed.layers.forEach(function(layer,li){ body.appendChild(buildLayerBlock(li,layer)); });
+    modal.appendChild(body);
+
+    /* Footer */
+    var footer = document.createElement('div'); footer.id='_gisModalFooter';
+    var hint = document.createElement('div'); hint.id='_gisHint'; hint.className='gis-footer-hint'; footer.appendChild(hint);
+    var footRow = document.createElement('div'); footRow.className='gis-footer-row';
+
+    var zoomLbl = document.createElement('label');
+    zoomLbl.style.cssText='font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;';
+    var zoomChk = document.createElement('input'); zoomChk.type='checkbox'; zoomChk.id='_gisZoom'; zoomChk.checked=true;
+    zoomLbl.appendChild(zoomChk); zoomLbl.appendChild(document.createTextNode('\u00a0Zoom to imported'));
+    footRow.appendChild(zoomLbl);
+
+    var cnt = document.createElement('span'); cnt.id='_gisCnt'; cnt.className='gis-footer-count';
+    cnt.textContent='Total to import: 0 features'; footRow.appendChild(cnt);
+
+    var cancelBtn = document.createElement('button'); cancelBtn.className='gis-btn gis-btn-cancel';
+    cancelBtn.textContent='Cancel'; cancelBtn.addEventListener('click',closeModal); footRow.appendChild(cancelBtn);
+
+    var importBtn = document.createElement('button'); importBtn.id='_gisImportBtn';
+    importBtn.className='gis-btn gis-btn-primary'; importBtn.textContent='Import'; importBtn.disabled=true;
+    importBtn.addEventListener('click', function() {
+      var asgn = gatherAssignments();
+      /* Dismiss modal overlay (keep preview — executeImport clears it) */
+      if (_gisModalEl._keyH) document.removeEventListener('keydown',_gisModalEl._keyH,true);
+      _gisModalEl.remove(); _gisModalEl=null;
+      _gisBackdropEl.remove(); _gisBackdropEl=null;
+      executeImport(asgn);
+    });
+    footRow.appendChild(importBtn);
+    footer.appendChild(footRow); modal.appendChild(footer);
+    document.body.appendChild(modal);
+
+    /* Escape key — capture phase so it fires before other Esc handlers */
+    function onKey(e){ if(e.key==='Escape'){ e.stopPropagation(); closeModal(); document.removeEventListener('keydown',onKey,true); } }
+    document.addEventListener('keydown', onKey, true); modal._keyH=onKey;
+
+    updatePreview();
+  }
+
+  /* ── Main entry ──────────────────────────────────────────────────────── */
+  async function importGis(file) {
+    var chip = showStatusChip('Parsing '+file.name+'\u2026');
+    var result;
+    try { result = await parseGisFile(file); } finally { removeStatusChip(); }
     if (!result) return;
-
-    console.log('[GIS Import] Parsed structure:', result);
-    if (result.warnings.length) console.warn('[GIS Import] Warnings:', result.warnings);
-
-    var totalFeatures = result.layers.reduce(function(s, l) { return s + l.features.length; }, 0);
-    alert(
-      'Parsed ' + totalFeatures + ' feature' + (totalFeatures !== 1 ? 's' : '') +
-      ' across ' + result.layers.length + ' layer' + (result.layers.length !== 1 ? 's' : '') + '.\n\n' +
-      result.layers.map(function(l) { return '\u2022 ' + l.name + ': ' + l.features.length + ' features'; }).join('\n') +
-      (result.warnings.length ? '\n\nWarnings: ' + result.warnings.length + ' (see console)' : '') +
-      '\n\nSee console for full details. (Phase 2 will add the assignment UI.)'
-    );
+    var total = result.layers.reduce(function(s,l){return s+l.features.length;},0);
+    if (total > 0) openAssignmentModal(result);
+    else alert('No valid features found in the file.');
   }
 
   /* ── Wire file input ─────────────────────────────────────────────────── */
-
-  document.addEventListener('DOMContentLoaded', function() {
+  function wireInput() {
     var input = document.getElementById('gisFileInput');
-    if (!input) return;
+    if (!input||input._gisWired) return;
+    input._gisWired=true;
     input.addEventListener('change', function(e) {
-      var file = e.target.files && e.target.files[0];
-      if (!file) return;
-      input.value = '';
-      importGis(file);
+      var file=e.target.files&&e.target.files[0]; if(!file) return;
+      input.value=''; importGis(file);
     });
-  });
+  }
+  document.addEventListener('DOMContentLoaded', wireInput);
+  wireInput();
 
-  /* The input may already exist if DOMContentLoaded already fired */
-  (function() {
-    var input = document.getElementById('gisFileInput');
-    if (input && !input._gisWired) {
-      input._gisWired = true;
-      input.addEventListener('change', function(e) {
-        var file = e.target.files && e.target.files[0];
-        if (!file) return;
-        input.value = '';
-        importGis(file);
-      });
-    }
-  })();
-
-  window.importGis = importGis;
-  window.parseGisFile = parseGisFile;
+  /* Namespace: single entry point. Old globals removed.
+     NOTE: If a second modal (e.g. methodology) opens while the GIS import
+     modal is open, the Escape capture handler will close the GIS import modal
+     first. This is acceptable in v1 since no two modals can open concurrently
+     in the current UI — revisit if multi-modal flows are added. */
+  window._gisImport = { importGis: importGis, parseGisFile: parseGisFile, closeModal: closeModal };
 
 })();
 </script>

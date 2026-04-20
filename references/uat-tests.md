@@ -997,3 +997,78 @@ Prerequisite: Phase 2 validation scenario already entered (AADT 23600, Speed 60,
 179. **Noise map hBar terrain-aware** — Enable Terrain on a hilly site. Draw a barrier. Run the noise map. The contours on the leeward side of the barrier should show increased screening compared to the flat-terrain result (terrain elevation adds to effective barrier height when the barrier is on raised ground).
 
 180. **No console errors** — After the full per-vertex terrain walkthrough (167–179) the console has zero errors and zero new warnings.
+
+## GIS Import (Phases 1–3)
+
+### Phase 1 — Parser
+
+181. **Toolbar button present** — "Import GIS file…" button visible at the top of Group 2 in the Tools▼ dropdown. Clicking it triggers a file picker.
+
+182. **Shapefile reprojection (GDA2020 MGA Zone 55)** — Import `Public Buildings.zip` (or any MGA55 shapefile). Features appear in South Australia / Victoria, not off the coast of Africa. `layer.sourceCRS` = `"GDA2020_MGA_Zone_55"`.
+
+183. **GeoJSON import** — Import a `.geojson` file with polygon features. Features parse correctly; `sourceCRS` defaults to `'EPSG:4326'`.
+
+184. **KML import** — Import a `.kml` file with placemarks/polygons. Features parse; `sourceCRS = 'EPSG:4326'`.
+
+185. **Coordinate sanity guard** — A file with >10% coordinates outside ±180/±90 is rejected with an alert. A file with 1–10% bad coords imports with a warning.
+
+186. **Large file confirm** — A GeoJSON with 350 features triggers a confirmation dialog before proceeding.
+
+187. **Hole-stripping warning** — Import `Public Buildings.zip`; the warnings banner in the modal shows the polygon-holes warning.
+
+### Phase 2 — Assignment modal
+
+188. **Modal styling** — Modal matches Quick Reference panel: dark header `rgba(26,32,44,.92)`, `border-radius:10px`, closes on backdrop click, × button, Escape key.
+
+189. **CRS in layer header** — Layer header shows `(GDA2020_MGA_Zone_55)` after importing `Public Buildings.zip`.
+
+190. **Polygon options correct** — Import a polygon layer; Import as options are: skip, Custom building, Building source, Area source, Ground absorption.
+
+191. **Line options correct** — Import a line layer; Import as options are: skip, Barrier, Line source.
+
+192. **Point options correct** — Import a point layer; Import as options are: skip, Point source.
+
+193. **Library enforcement** — Set to Area source without choosing a library → Import button disabled. Choose library → Import button enabled.
+
+194. **Building source Lp enforcement** — Set to Building source without choosing Lp option → Import button disabled. Select flat placeholder radio → Import button enabled. Select library radio → button disabled until library entry chosen.
+
+195. **Live preview** — Set any geom type to a non-skip value → dashed grey shapes appear on map. Footer shows correct feature count. Cancel/Escape → preview removed.
+
+196. **Attribute filter** — Import a mixed shapefile. Set filter attribute = TYPE, value = "building" → only building features in preview count.
+
+197. **Zoom checkbox** — Zoom to imported checkbox is checked by default.
+
+### Phase 3 — Element creation
+
+198. **Custom building import** — Import 87 polygons as Custom buildings → 87 custom building polygons appear on map, each clickable with an edit panel, `heightM` = 3 (default). Preview layer removed after import.
+
+199. **Area source import** — Import polygons as Area sources with library "Light vehicle movements" → `areaSources[]` contains entries with `libraryEntry.name = "Light vehicle movements"`, vertices in `[lat,lng]` order, first coordinate in correct AU range. Elements appear on map with correct styling.
+
+200. **Point source import** — Import a point as Point source with library → `sourcePins[]` entry has correct lat/lng, `lw.day` from library, `spectrum.day` from library. Element appears on map as a source marker.
+
+201. **Barrier import** — Import line features as Barriers → barrier polylines appear on map with correct styling (solid, not dashed), `heightM` from default or attribute.
+
+202. **Building source — flat placeholder** — Import polygon as Building source with flat placeholder → `lpSource = 'broadband'`, `interiorLp.day.broadband = 75`, `defaultConstruction` present.
+
+203. **Building source — library** — Import polygon as Building source with library entry → `lpSource = 'octave'`, `lpLibraryEntry` = entry name, `interiorLp.day.octave` bands populated from library spectrum.
+
+204. **Name from attribute** — Import with Name from = "NAME" attribute → element name matches feature property value.
+
+205. **Height from attribute** — Import with Height from = "HEIGHT" attribute and feature has `HEIGHT = 8` → element height = 8.
+
+206. **Toast summary** — After importing 87 custom buildings, toast shows "Imported 87: 87 custom buildings" for ~6 s.
+
+207. **Zoom to imported** — With zoom checkbox checked, map bounds fit to imported features after import.
+
+208. **Save/load round-trip** — Import area sources and custom buildings. Save Assessment JSON. Reload. Elements reconstruct identically with same ids, names, vertices, library references.
+
+209. **Background terrain (if terrain enabled)** — Enable terrain. Import 10+ elements. Import UI completes immediately. A progress chip "Fetching terrain… 0/N" appears bottom-right, counting up. Elements render immediately with `groundElevation_m = null`; values populate as terrain resolves.
+
+210. **Terrain rate limit** — With terrain enabled, import 20+ elements. In the network panel, no more than 4 WCS requests in-flight simultaneously.
+
+211. **Terrain abort on re-import** — Start terrain-heavy import, then immediately start a second import. First terrain fetch aborts; second chip replaces first. No console errors.
+
+212. **Namespace** — `window.importGis` and `window.parseGisFile` are `undefined`. `window._gisImport.importGis` is a function. Toolbar button still imports correctly.
+
+213. **No console errors** — After all GIS import tests, console has zero errors.
+

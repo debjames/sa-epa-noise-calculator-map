@@ -1,5 +1,97 @@
 # Architecture
 
+## GIS Import
+
+Single-file module (inline `<script>` at end of `index.html`, wrapped in an IIFE). Entry point: `window._gisImport.importGis(file)`, wired to `#gisFileInput` change event. `window._gisImport.parseGisFile(file)` exposed for testing.
+
+### External libraries (CDN, lazy-loaded)
+
+| Library | Version | Purpose |
+|---|---|---|
+| proj4.js | 2.11.0 | CRS reprojection (loaded first; AU CRS defs registered before shpjs) |
+| shpjs | 6.1.0 | Shapefile `.zip` → GeoJSON (uses global `proj4` for `.prj`-driven reprojection) |
+| JSZip | 3.10.1 | Reads `.prj` files from zip before passing to shpjs |
+| @mapbox/togeojson | 0.16.0 | KML → GeoJSON |
+
+All four libraries loaded via `loadScriptOnce(url)` (Promise-caching, loads each URL once). Load order dependency: proj4 → `registerAuCrs()` → shpjs (sequential). JSZip loaded in parallel.
+
+### AU CRS pre-registration
+
+Eight EPSG codes registered into `proj4` before shpjs loads:
+
+| EPSG | Name |
+|---|---|
+| 7844 | GDA2020 geographic |
+| 7853–7855 | GDA2020 MGA zones 53–55 |
+| 28353–28355 | GDA94 MGA zones 53–55 |
+| 3577 | GDA94 Australian Albers |
+
+### Parse pipeline
+
+`parseGisFile(file)` dispatches by extension:
+- `.zip` → JSZip extracts `.prj` files (keyed by shapefile stem), then `shp(buf)` parses all shapefiles; CRS name extracted from `.prj` via regex `/^(PROJCS|GEOGCS)\["([^"]+)"/`
+- `.geojson`/`.json` → JSON.parse; `sourceCRS` from `crs.properties.name` or `'EPSG:4326'`
+- `.kml` → togeojson; `sourceCRS = 'EPSG:4326'`
+- `.kmz` → alert and abort
+
+Post-parse: Multi* geometry expansion, polygon hole stripping (outer ring only), null geometry filtering. Coordinate sanity check: >10% outside ±180/±90 → abort; 1–10% → skip bad features with warning.
+
+Each layer returned as `{name, sourceCRS, features, warnings}`.
+
+### Assignment modal
+
+`openAssignmentModal(parsed)` builds the per-layer assignment UI. For each layer × geometry type (points / lines / polygons):
+- **Import as** select with geometry-appropriate options
+- **Source library** select (conditionally shown for Point/Line/Area source)
+- **Interior Lp** section for Building source (flat 75 dB placeholder or library entry)
+- **Movements** row for Line source (N/hr, speed km/h, operating %)
+- **Name from** / **Height from** selects (auto-detect or attribute key)
+- **Filter by attribute** (optional; dropdown ≤50 values, text input >50)
+
+Live dashed-grey Leaflet preview layer (`_gisPreviewLayer`) updated on every form change. Import button disabled until all required fields filled (`_validateImport`). Escape key registered in capture phase.
+
+### Execution (`executeImport`)
+
+Iterates `asgn.layers[].{points,lines,polygons}` where `importAs !== 'skip'`. Converts GeoJSON `[lng,lat]` → `[lat,lng]`; strips polygon closing vertex. Elements pushed to global arrays then batch-rendered:
+
+| importAs | Target array | Render call |
+|---|---|---|
+| Point source | `sourcePins[]` | `renderSourcePins()` |
+| Line source | `lineSources[]` | `H.renderLineSourceLayer()` + `H.renderLineSourceCards()` |
+| Area source | `areaSources[]` | `H.renderAreaSourceLayer()` |
+| Building source | `buildingSources[]` | `H.renderBuildingSourceLayer()` |
+| Custom building | `customBuildings[]` (IIFE-local) | `H.addCustomBuildings(batch)` |
+| Barrier | `userBarriers[]` (IIFE-local) | `H.addBarriers(batch)` |
+| Ground absorption | `_groundZones[]` | `H.renderGroundZone(gz)` per zone |
+
+`render()` + `window._recomputeNoiseMap()` called after all renders. `window._undoPushState('GIS import: N elements')` records one undo entry for the whole import.
+
+### Cross-IIFE hooks (`window._gisRenderHooks`)
+
+Set by the map IIFE to expose IIFE-local functions to the GIS IIFE:
+
+| Hook | Purpose |
+|---|---|
+| `addCustomBuildings(cbs[])` | Batch push + `renderCustomBuildings()` + `rebuildBuildingsIndex()` |
+| `addBarriers(ubs[])` | Batch push + `renderUserBarriers()` + `rebuildBuildingsIndex()` |
+| `makeBuildingSource(verts, ht)` | Calls `_bsMakeDefault(verts, ht)` (uses `CONSTRUCTION_LIBRARY`) |
+| `renderAreaSourceLayer()` | Delegates to IIFE-local function |
+| `renderBuildingSourceLayer()` | Delegates to IIFE-local function |
+| `renderLineSourceLayer/Cards()` | Delegates to IIFE-local functions |
+| `renderGroundZone(gz)` | Delegates to `_renderGroundZone(gz)` |
+| `isTerrainEnabled()` | Returns `!!_terrainEnabled` |
+| `fetchTerrainForCb/Ub(el)` | Calls `_fetchVertexElevations(el)` if terrain enabled |
+
+### Background terrain fetch
+
+`_gisTerrainFetch(items[])` — rate-limited async pool (max 4 concurrent). Each item is `{type:'pin'|'poly', el, name}`. Source pins use `DEMCache.getElevation(lat, lng)` → sets `pin.groundElevation_m` + `pin.effectiveHeight_ASL`. Polygon/line/building objects use `_fetchVertexElevations(el)`. AbortController pattern: new import aborts previous in-flight fetch. Progress chip bottom-right, turns green on full success, amber on partial failure (10 s).
+
+### Namespace
+
+`window._gisImport = {importGis, parseGisFile, closeModal}` — single entry point. `window.importGis` / `window.parseGisFile` removed.
+
+> **Modal-stack note**: Escape capture handler closes the GIS modal first. In v1 no other modal opens concurrently, so this is safe. Revisit if multi-modal flows are added.
+
 ## Right-click Context Menu
 
 All user-editable map layers expose a floating context menu on right-click. The menu is built by the shared `_showMapCtxMenu(cx, cy, items[])` function (defined near line 34350 in `index.html`) and positioned to stay within the viewport.
