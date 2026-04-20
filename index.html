@@ -2063,13 +2063,13 @@ body.disclaimer-visible .container {
         <input type="text" id="projectNumberInput"
           placeholder="Project #"
           autocomplete="off"
-          style="width:120px;flex-shrink:0;box-sizing:border-box;border:none;border-bottom:2px solid #e5e7eb;background:transparent;font-size:18px;font-weight:700;color:#64748b;padding:6px 2px 4px;outline:none;font-family:inherit;"
+          style="width:100px;flex-shrink:0;box-sizing:border-box;border:none;border-bottom:1px solid #e5e7eb;background:transparent;font-size:12px;font-weight:600;color:#64748b;padding:3px 2px 2px;outline:none;font-family:inherit;"
           onfocus="this.style.borderBottomColor='#2563eb';"
           onblur="this.style.borderBottomColor='#e5e7eb';">
         <input type="text" id="projectNameInput"
           placeholder="Project name"
           autocomplete="off"
-          style="flex:1;min-width:0;box-sizing:border-box;border:none;border-bottom:2px solid #e5e7eb;background:transparent;font-size:18px;font-weight:700;color:#1e293b;padding:6px 2px 4px;outline:none;font-family:inherit;"
+          style="flex:1;min-width:0;box-sizing:border-box;border:none;border-bottom:1px solid #e5e7eb;background:transparent;font-size:12px;font-weight:600;color:#1e293b;padding:3px 2px 2px;outline:none;font-family:inherit;"
           onfocus="this.style.borderBottomColor='#2563eb';"
           onblur="this.style.borderBottomColor='#e5e7eb';">
         <button type="button" id="uploadProposalBtn" title="Upload a Resonate proposal PDF to auto-fill project number and name" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;padding:7px 10px;background:rgba(26,32,44,.9);color:#f3f4f6;border:none;border-radius:7px;font-size:12px;font-weight:600;letter-spacing:.02em;line-height:14px;white-space:nowrap;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.4);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);" onmouseover="this.style.background='rgba(45,55,72,.95)'" onmouseout="this.style.background='rgba(26,32,44,.9)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload proposal</button>
@@ -2108,10 +2108,6 @@ body.disclaimer-visible .container {
       <div class="card span2" id="mapCard">
         <div class="card-header">
           <h2 style="margin:0;">Map</h2>
-          <button id="mapMaximiseBtn" onclick="toggleMapFullscreen()" title="Maximise map to full screen — E or Esc to exit">
-            <svg id="mapMaximiseBtnIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
-            <span id="mapMaximiseBtnLabel">Show assessment panel</span>
-          </button>
         </div>
         <div class="p" id="mapDescPara">Click the map to place the <strong>noise source</strong> and up to <strong>4 receiver</strong> locations. Straight-line distances are calculated automatically and entered in the table below. Markers can be dragged to fine-tune positions.</div>
 
@@ -6828,36 +6824,7 @@ body.disclaimer-visible .container {
   // Move mapInnerWrapper into map-column (contains map, toolbars, fullscreen sidebar)
   mapColumn.appendChild(mapInnerWrapper);
 
-  // Phase 4 / toolbar-row refactor: Repurpose the old #mapMaximiseBtn
-  // (originally inside the hidden #mapCard) as the Expand/Panels toggle
-  // at the end of the toolbar row. Build a .mp/.mp-hdr wrapper so it
-  // visually matches the other toolbar buttons.
-  var mapMaximiseBtn = document.getElementById('mapMaximiseBtn');
   var mapPanelContainer = mapInnerWrapper.querySelector('#mapPanelContainer');
-  var drawerExpandMp = null;
-  if (mapMaximiseBtn && mapPanelContainer) {
-    mapMaximiseBtn.removeAttribute('onclick');
-    drawerExpandMp = document.createElement('div');
-    drawerExpandMp.className = 'mp';
-    drawerExpandMp.id = 'mp-toggle-drawer';
-    drawerExpandMp.style.pointerEvents = 'all';
-    var drawerExpandHdr = document.createElement('div');
-    drawerExpandHdr.className = 'mp-hdr';
-    drawerExpandHdr.id = 'drawerPanelBtn';
-    drawerExpandHdr.title = 'Toggle side panel (E)';
-    drawerExpandHdr.style.cursor = 'pointer';
-    // Move the existing SVG icon + label span into the new .mp-hdr wrapper
-    var icon = document.getElementById('mapMaximiseBtnIcon');
-    var label = document.getElementById('mapMaximiseBtnLabel');
-    if (icon) drawerExpandHdr.appendChild(icon);
-    if (label) drawerExpandHdr.appendChild(label);
-    drawerExpandMp.appendChild(drawerExpandHdr);
-    drawerExpandHdr.addEventListener('click', function() {
-      if (typeof window.toggleMapFullscreen === 'function') window.toggleMapFullscreen();
-    });
-    // Delete the now-empty original button element
-    if (mapMaximiseBtn.parentNode) mapMaximiseBtn.parentNode.removeChild(mapMaximiseBtn);
-  }
 
   // Build the search wrapper and insert it into the toolbar row directly
   // (instead of as a separate left-side overlay).
@@ -6897,8 +6864,7 @@ body.disclaimer-visible .container {
       { id: 'mp-undo' },
       { id: 'mp-redo' },
       { id: 'mp-modelling' },
-      { id: 'mp-save-jpg' },
-      { el: drawerExpandMp }
+      { id: 'mp-save-jpg' }
     ];
     toolbarOrder.forEach(function(item) {
       var el = item.el || (item.id ? mapPanelContainer.querySelector('#' + item.id) : null);
@@ -7228,9 +7194,6 @@ body.disclaimer-visible .container {
       ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>'
       : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>';
     drawerToggle.setAttribute('aria-expanded', String(open));
-    // Sync the toolbar toggle label: open→"Hide assessment panel", closed→"Show assessment panel"
-    var mapToggleLabel = document.getElementById('mapMaximiseBtnLabel');
-    if (mapToggleLabel) mapToggleLabel.textContent = open ? 'Hide assessment panel' : 'Show assessment panel';
     // Show/hide collapsed nametag tab
     var cnt = document.getElementById('drawer-collapsed-nametag');
     if (cnt) cnt.style.display = open ? 'none' : 'block';
