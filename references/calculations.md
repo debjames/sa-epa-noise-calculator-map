@@ -93,6 +93,34 @@ spectrum) the 1 kHz band value `terrBands[4]` is used as the
 representative broadband terrain IL — same behaviour as the earlier
 single-ridge code.
 
+## DEM Cache — `DEMCache.sampleRaster`
+
+`sampleRaster(tile, lat, lng)` reads elevation from a cached WCS GeoTIFF
+raster tile. As of April 2026 it uses **bilinear interpolation** across the
+four surrounding DEM pixels:
+
+```
+fy = (tile.north − lat) / latSpan × tile.height   // fractional row (0 = N)
+fx = (lng − tile.west) / lngSpan × tile.width      // fractional col (0 = W)
+z  = bilinear(v00, v10, v01, v11, dx, dy)
+```
+
+If any of the four corners is nodata (value ≤ `WCS_NODATA = −999`), the
+function returns the nearest valid corner rather than propagating nodata
+through the interpolation weights.
+
+Prior to this fix, `sampleRaster` used `Math.round()` (nearest-neighbor),
+which caused ±10 m positional snapping and visible staircase steps on terrain
+contour lines.
+
+### Terrain contour rendering
+
+`generateTerrainContours()` builds a merged elevation grid from all cached
+LiDAR (solid) and SRTM-fallback (dashed) tiles, runs marching squares to
+trace iso-elevation segments, chains segments into polylines, and applies
+**`chaikinSmooth(chain, 3)`** before adding to the Leaflet map — matching
+the 3-iteration convention used by the noise map and CoRTN contour renderers.
+
 ## CoRTN Road Traffic Noise
 
 Implements UK DoT *Calculation of Road Traffic Noise* (1988) with Australian

@@ -7655,16 +7655,47 @@ body.disclaimer-visible .container {
 
   function storePt(lat, lng, elev) { _ptCache[rk(lat, lng)] = elev; }
 
-  // Sample elevation from a WCS raster tile at (lat, lng) — bilinear nearest
+  // Sample elevation from a WCS raster tile at (lat, lng) — bilinear interpolation
   function sampleRaster(tile, lat, lng) {
     var b = tile.bounds;
     if (lat < b.south || lat > b.north || lng < b.west || lng > b.east) return null;
     var latSpan = b.north - b.south, lngSpan = b.east - b.west;
     if (latSpan <= 0 || lngSpan <= 0) return null;
-    var row = Math.min(tile.height - 1, Math.max(0, Math.round((b.north - lat) / latSpan * tile.height)));
-    var col = Math.min(tile.width  - 1, Math.max(0, Math.round((lng - b.west) / lngSpan * tile.width)));
-    var v = tile.raster[row * tile.width + col];
-    return (v > WCS_NODATA && isFinite(v)) ? v : null;
+
+    // Fractional pixel coords; row 0 = north edge, col 0 = west edge
+    var fy = (b.north - lat) / latSpan * tile.height;
+    var fx = (lng - b.west) / lngSpan * tile.width;
+
+    var y0 = Math.max(0, Math.floor(fy));
+    var y1 = Math.min(tile.height - 1, y0 + 1);
+    var x0 = Math.max(0, Math.floor(fx));
+    var x1 = Math.min(tile.width  - 1, x0 + 1);
+    var dy = fy - y0, dx = fx - x0;
+
+    function rv(r, c) {
+      var z = tile.raster[r * tile.width + c];
+      return (z > WCS_NODATA && isFinite(z)) ? z : null;
+    }
+    var v00 = rv(y0, x0), v10 = rv(y0, x1);
+    var v01 = rv(y1, x0), v11 = rv(y1, x1);
+
+    // If any corner is nodata, return the nearest valid corner rather than
+    // letting the nodata propagate through the interpolation weights
+    if (v00 === null || v10 === null || v01 === null || v11 === null) {
+      var corners = [
+        { v: v00, d: dy * dy       + dx * dx       },
+        { v: v10, d: dy * dy       + (1-dx)*(1-dx) },
+        { v: v01, d: (1-dy)*(1-dy) + dx * dx       },
+        { v: v11, d: (1-dy)*(1-dy) + (1-dx)*(1-dx) }
+      ].filter(function(c) { return c.v !== null; });
+      if (corners.length === 0) return null;
+      corners.sort(function(a, b) { return a.d - b.d; });
+      return corners[0].v;
+    }
+
+    var z0 = v00 * (1 - dx) + v10 * dx;
+    var z1 = v01 * (1 - dx) + v11 * dx;
+    return z0 * (1 - dy) + z1 * dy;
   }
 
   function findWCSTileForPoint(lat, lng) {
@@ -20335,7 +20366,8 @@ function initPropagationMethod() {
         }
 
         chains.forEach(function(chain) {
-          var polyline = L.polyline(chain, {
+          var smoothed = (typeof window.chaikinSmooth === 'function') ? window.chaikinSmooth(chain, 3) : chain;
+          var polyline = L.polyline(smoothed, {
             color: '#8B7355', weight: isMajor ? 2 : 1,
             opacity: isMajor ? lineStyle.majorOpacity : lineStyle.minorOpacity,
             dashArray: lineStyle.dashArray || null,
@@ -20344,8 +20376,8 @@ function initPropagationMethod() {
           if (window._terrainContourLayer) window._terrainContourLayer.addLayer(polyline);
 
           // Label major contours at chain midpoint
-          if (isMajor && chain.length >= 4) {
-            var mid = chain[Math.floor(chain.length / 2)];
+          if (isMajor && smoothed.length >= 4) {
+            var mid = smoothed[Math.floor(smoothed.length / 2)];
             var label = L.marker(mid, {
               pane: 'terrainContourPane', interactive: false,
               icon: L.divIcon({
@@ -34760,6 +34792,7 @@ if (window.pdfjsLib) {
       }
       return points;
     }
+    window.chaikinSmooth = chaikinSmooth;  // exposed for generateTerrainContours scope
 
     /** Marching squares contour tracing + Chaikin smoothing */
     function generateContourLines(data) {
