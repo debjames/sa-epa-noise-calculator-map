@@ -1,5 +1,36 @@
 # Architecture
 
+## Right-click Context Menu
+
+All user-editable map layers expose a floating context menu on right-click. The menu is built by the shared `_showMapCtxMenu(cx, cy, items[])` function (defined near line 34350 in `index.html`) and positioned to stay within the viewport.
+
+### Shared helpers (defined above `_showMapCtxMenu`)
+
+| Helper | Purpose |
+|---|---|
+| `_ctxActivateMoveMode()` | Sets `_moveMode = true` and updates `#moveGeomBtn` active state |
+| `_ctxFlashMarker(marker)` | Blinks a `L.marker` 3× via `setOpacity` over ~900 ms |
+| `_ctxFlashPolyLayer(layer)` | Temporarily doubles weight/fillOpacity of a polyline or polygon, then restores original style |
+| `_ctxStartShapeEdit(layer, opts)` | Generic shape-edit-bar launcher: enables `layer.editing`, appends the floating "Editing: … Save / Cancel" bar to the map container, wires up Escape and the two buttons, calls `opts.afterSave(layer)` on save |
+
+### Menu items per object type
+
+| Object type | Edit | Edit shape | Move | Duplicate | Delete |
+|---|---|---|---|---|---|
+| Point source | ✓ (`openSrcPanel`) | — | ✓ (flash marker) | ✓ | ✓ |
+| Receiver (r1–r4) | ✓ (opens popup) | — | ✓ (flash marker) | — | ✓ (`removeMarker`) |
+| Line source | ✓ (`openLsPanel`) | ✓ | ✓ (move mode + flash) | ✓ | ✓ |
+| Area source | ✓ (`openAsPanel`) | ✓ | ✓ (move mode + flash) | ✓ | ✓ |
+| Building source | ✓ (`openBsPanel`) | ✓ | ✓ (move mode + flash) | ✓ | ✓ |
+| Barrier | ✓ (`openBarrierPanel`) | ✓ | ✓ (move mode + flash `_line`) | ✓ | ✓ |
+| Custom building | ✓ (`openBuildingPanel`) | ✓ | ✓ (move mode + flash `_polygon`) | ✓ | ✓ |
+| Ground zone | ✓ (`openGroundZonePanel`) | ✓ | ✓ (move mode + flash `_polygon`) | ✓ | ✓ |
+| OSM building | — | — | — | — | — |
+
+Edit shape uses `_ctxStartShapeEdit` with `isPolyline: true` for barriers and line sources (flat `getLatLngs()` array), and `isPolyline: false` for all polygon types (`getLatLngs()[0]` ring).
+
+Menu closes on: action chosen, click outside, Escape, map pan/zoom (handled by existing `_hideMapCtxMenu` infrastructure).
+
 ## CoRTN Road Traffic Sources (`cortnRoads[]`) — Phases 1–5
 
 Dedicated source type for UK CoRTN (Calculation of Road Traffic Noise) with Australian adjustments. Completely independent of `lineSources[]` — different inputs (AADT/speed/%CV/gradient) and different calculation method.

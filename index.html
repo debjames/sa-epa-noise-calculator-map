@@ -2485,6 +2485,8 @@ body.disclaimer-visible .container {
                 <button class="mp-btn" id="moveGeomBtn" title="Move mode: click to activate, then drag any barrier, building, or source to reposition it. Click again to exit."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg> Move</button>
                 <div class="mp-sep"></div>
                 <!-- Group 2: Site elements -->
+                <button class="mp-btn" id="gisImportBtn" title="Import shapefile (.zip), GeoJSON, or KML file" onclick="document.getElementById('gisFileInput').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Import GIS file&hellip;</button>
+                <input type="file" id="gisFileInput" accept=".zip,.geojson,.json,.kml" style="display:none;">
                 <button class="mp-btn" id="sitePlanOverlayBtn" title="Upload a site plan image or PDF and position it as a map overlay (PDF: page 1 rendered as image; address auto-detected)" onclick="soOpenPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Site plan overlay</button>
                 <input type="file" id="soFileInput" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" style="display:none;">
                 <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map (N)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building<span class="mp-kbd">N</span></button>
@@ -27110,6 +27112,13 @@ if (window.pdfjsLib) {
             L.DomEvent.preventDefault(e);
             var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
             _showMapCtxMenu(cx, cy, [
+              { id: 'edit', label: 'Edit', icon: '\u270f', action: function() {
+                  if (typeof openSrcPanel === 'function') openSrcPanel(capturedSi, cx, cy);
+              }},
+              { id: 'move', label: 'Move', icon: '\u2922', action: function() {
+                  _ctxFlashMarker(markers[capturedMode]);
+              }},
+              'sep',
               { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
                   if (sourcePins.length >= 20) { showToast('Maximum 20 sources reached.'); return; }
                   var orig = sourcePins[capturedSi];
@@ -27157,6 +27166,26 @@ if (window.pdfjsLib) {
           .addTo(map);
         /* Auto-open popup immediately on user placement (not on load from JSON) */
         if (_autoOpenRecvPopup) m.openPopup();
+        /* Right-click context menu for receivers (no Duplicate — fixed r1–r4 slots) */
+        m.on('contextmenu', (function(capturedMode, capturedM) {
+          return function(e) {
+            L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
+            var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
+            _showMapCtxMenu(cx, cy, [
+              { id: 'edit', label: 'Edit', icon: '\u270f', action: function() {
+                  if (capturedM && capturedM.openPopup) capturedM.openPopup();
+              }},
+              { id: 'move', label: 'Move', icon: '\u2922', action: function() {
+                  _ctxFlashMarker(capturedM);
+              }},
+              'sep',
+              { id: 'del', label: 'Delete', icon: '\ud83d\uddd1', cls: 'ctx-danger', action: function() {
+                  removeMarker(capturedMode);
+              }}
+            ]);
+          };
+        })(mode, m));
       }
 
       markers[mode] = m;
@@ -29627,17 +29656,34 @@ if (window.pdfjsLib) {
             L.DomEvent.preventDefault(e);
             var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
             _showMapCtxMenu(cx, cy, [
+              { id: 'edit', label: 'Edit', icon: '\u270f', action: function() {
+                  if (typeof openBarrierPanel === 'function') openBarrierPanel(capturedUb.id, cx, cy);
+              }},
+              { id: 'editshape', label: 'Edit shape', icon: '\u25b3', action: function() {
+                  if (typeof closeBarrierPanel === 'function') closeBarrierPanel();
+                  _ctxStartShapeEdit(capturedUb._line, {
+                    name: capturedUb.name || 'Barrier', accent: '#4CAF50', isPolyline: true, drawBtnId: 'drawBarrierBtn',
+                    afterSave: function(layer) {
+                      capturedUb.vertices = layer.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+                      capturedUb.vertexElevations = null;
+                      if (_terrainEnabled) _fetchVertexElevations(capturedUb);
+                      renderUserBarriers(); rebuildBuildingsIndex();
+                      if (typeof render === 'function') render();
+                      if (typeof window._undoPushState === 'function') window._undoPushState('Edit barrier shape ' + (capturedUb.name || 'Barrier'));
+                    }
+                  });
+              }},
+              { id: 'move', label: 'Move', icon: '\u2922', action: function() {
+                  _ctxActivateMoveMode(); _ctxFlashPolyLayer(capturedUb._line);
+              }},
+              'sep',
               { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
                   var newUb = JSON.parse(JSON.stringify(capturedUb));
                   newUb.id = 'barrier_' + Date.now();
                   newUb.name = (capturedUb.name || 'Barrier') + ' (copy)';
-                  // Offset vertices by ~2m
-                  newUb.vertices = capturedUb.vertices.map(function(v) {
-                    return [v[0] - 0.00002, v[1] + 0.00002];
-                  });
+                  newUb.vertices = capturedUb.vertices.map(function(v) { return [v[0] - 0.00002, v[1] + 0.00002]; });
                   userBarriers.push(newUb);
-                  renderUserBarriers();
-                  rebuildBuildingsIndex();
+                  renderUserBarriers(); rebuildBuildingsIndex();
                   if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate barrier ' + newUb.name);
               }},
               'sep',
@@ -29646,10 +29692,8 @@ if (window.pdfjsLib) {
                   var _delBarCtx = 'Delete barrier ' + (capturedUb.name || 'Barrier');
                   var idx = userBarriers.indexOf(capturedUb);
                   if (idx !== -1) userBarriers.splice(idx, 1);
-                  map.closePopup();
-                  _selectedBarrier = null;
-                  renderUserBarriers();
-                  rebuildBuildingsIndex();
+                  map.closePopup(); _selectedBarrier = null;
+                  renderUserBarriers(); rebuildBuildingsIndex();
                   if (typeof window._undoPushState === 'function') window._undoPushState(_delBarCtx);
               }}
             ]);
@@ -29722,19 +29766,36 @@ if (window.pdfjsLib) {
             L.DomEvent.preventDefault(e);
             var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
             _showMapCtxMenu(cx, cy, [
+              { id: 'edit', label: 'Edit', icon: '\u270f', action: function() {
+                  if (typeof openBuildingPanel === 'function') openBuildingPanel(capturedCb.id, cx, cy);
+              }},
+              { id: 'editshape', label: 'Edit shape', icon: '\u25b3', action: function() {
+                  if (typeof closeBuildingPanel === 'function') closeBuildingPanel();
+                  _ctxStartShapeEdit(capturedCb._polygon, {
+                    name: capturedCb.name || 'Building', accent: '#465a78', isPolyline: false,
+                    afterSave: function(layer) {
+                      capturedCb.polygon = layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+                      capturedCb.vertexElevations = null;
+                      if (_terrainEnabled) _fetchVertexElevations(capturedCb);
+                      renderCustomBuildings(); rebuildBuildingsIndex();
+                      if (typeof render === 'function') render();
+                      if (typeof window._undoPushState === 'function') window._undoPushState('Edit building shape ' + (capturedCb.name || 'Building'));
+                    }
+                  });
+              }},
+              { id: 'move', label: 'Move', icon: '\u2922', action: function() {
+                  _ctxActivateMoveMode(); _ctxFlashPolyLayer(capturedCb._polygon);
+              }},
+              'sep',
               { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
                   var newCb = JSON.parse(JSON.stringify(capturedCb));
                   newCb.id = 'custom_' + Date.now();
                   newCb.name = (capturedCb.name || 'Custom building') + ' (copy)';
-                  // Offset polygon vertices by ~2m
-                  newCb.polygon = capturedCb.polygon.map(function(v) {
-                    return [v[0] - 0.00002, v[1] + 0.00002];
-                  });
-                  newCb.vertexElevations = null; // invalidate — vertices shifted
+                  newCb.polygon = capturedCb.polygon.map(function(v) { return [v[0] - 0.00002, v[1] + 0.00002]; });
+                  newCb.vertexElevations = null;
                   customBuildings.push(newCb);
                   if (_terrainEnabled) _fetchVertexElevations(newCb);
-                  renderCustomBuildings();
-                  rebuildBuildingsIndex();
+                  renderCustomBuildings(); rebuildBuildingsIndex();
                   if (typeof render === 'function') render();
                   if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate building ' + newCb.name);
               }},
@@ -29743,9 +29804,7 @@ if (window.pdfjsLib) {
                   var _delCbLabel = 'Delete ' + (capturedCb.name || 'Custom building');
                   var idx = customBuildings.indexOf(capturedCb);
                   if (idx !== -1) customBuildings.splice(idx, 1);
-                  map.closePopup();
-                  renderCustomBuildings();
-                  rebuildBuildingsIndex();
+                  map.closePopup(); renderCustomBuildings(); rebuildBuildingsIndex();
                   if (typeof render === 'function') render();
                   if (typeof window._undoPushState === 'function') window._undoPushState(_delCbLabel);
               }}
@@ -30207,14 +30266,32 @@ if (window.pdfjsLib) {
           L.DomEvent.preventDefault(e);
           var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
           _showMapCtxMenu(cx, cy, [
+            { id: 'edit', label: 'Edit', icon: '\u270f', action: function() {
+                if (typeof openGroundZonePanel === 'function') openGroundZonePanel(capturedGz.id, cx, cy);
+            }},
+            { id: 'editshape', label: 'Edit shape', icon: '\u25b3', action: function() {
+                if (typeof closeGroundZonePanel === 'function') closeGroundZonePanel();
+                _ctxStartShapeEdit(capturedGz._polygon, {
+                  name: capturedGz.name || 'Ground zone', accent: _gzBorderColor(capturedGz.g), isPolyline: false,
+                  afterSave: function(layer) {
+                    capturedGz.vertices = layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+                    _renderGroundZone(capturedGz);
+                    if (typeof render === 'function') render();
+                    if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                    if (typeof window._undoPushState === 'function') window._undoPushState('Edit ground zone shape ' + (capturedGz.name || 'Ground zone'));
+                  }
+                });
+            }},
+            { id: 'move', label: 'Move', icon: '\u2922', action: function() {
+                _ctxActivateMoveMode(); _ctxFlashPolyLayer(capturedGz._polygon);
+            }},
+            'sep',
             { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
                 var newGz = {
                   id: 'gz_' + (++_gzIdCtr),
                   name: (capturedGz.name || 'Ground absorption') + ' (copy)',
                   g: capturedGz.g,
-                  vertices: capturedGz.vertices.map(function(v) {
-                    return [v[0] - 0.00002, v[1] + 0.00002];
-                  })
+                  vertices: capturedGz.vertices.map(function(v) { return [v[0] - 0.00002, v[1] + 0.00002]; })
                 };
                 _groundZones.push(newGz);
                 _renderGroundZone(newGz);
@@ -30888,12 +30965,34 @@ if (window.pdfjsLib) {
             L.DomEvent.preventDefault(e);
             var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
             _showMapCtxMenu(cx, cy, [
+              { id: 'edit', label: 'Edit', icon: '\u270f', action: function() {
+                  if (typeof openAsPanel === 'function') openAsPanel(capturedAs.id, cx, cy);
+              }},
+              { id: 'editshape', label: 'Edit shape', icon: '\u25b3', action: function() {
+                  if (typeof closeAsPanel === 'function') closeAsPanel();
+                  _ctxStartShapeEdit(capturedAs._poly, {
+                    name: capturedAs.name || 'Area source', accent: '#d97706', isPolyline: false,
+                    afterSave: function(layer) {
+                      capturedAs.vertices = layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+                      capturedAs.vertexElevations = null;
+                      if (_terrainEnabled) _fetchVertexElevations(capturedAs);
+                      renderAreaSourceLayer();
+                      if (typeof render === 'function') render();
+                      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                      if (typeof window._undoPushState === 'function') window._undoPushState('Edit area source shape ' + (capturedAs.name || 'Area source'));
+                    }
+                  });
+              }},
+              { id: 'move', label: 'Move', icon: '\u2922', action: function() {
+                  _ctxActivateMoveMode(); _ctxFlashPolyLayer(capturedAs._poly);
+              }},
+              'sep',
               { id: 'dup', label: 'Duplicate', icon: '\u29c9', action: function() {
                   var newAs = JSON.parse(JSON.stringify(capturedAs));
                   newAs.id = 'as_' + (++_asIdCtr);
                   newAs.name = (capturedAs.name || 'Area source') + ' (copy)';
                   newAs.vertices = capturedAs.vertices.map(function(v) { return [v[0] - 0.00005, v[1] + 0.00005]; });
-                  newAs.vertexElevations = null; // invalidate — vertices shifted
+                  newAs.vertexElevations = null;
                   areaSources.push(newAs);
                   if (_terrainEnabled) _fetchVertexElevations(newAs);
                   renderAreaSourceLayer();
@@ -31548,6 +31647,27 @@ if (window.pdfjsLib) {
             L.DomEvent.stopPropagation(e); L.DomEvent.preventDefault(e);
             var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
             _showMapCtxMenu(cx, cy, [
+              { id:'edit', label:'Edit', icon:'\u270f', action:function() {
+                if (typeof openBsPanel==='function') openBsPanel(capturedBs.id, cx, cy);
+              }},
+              { id:'editshape', label:'Edit shape', icon:'\u25b3', action:function() {
+                if (typeof closeBsPanel==='function') closeBsPanel();
+                _ctxStartShapeEdit(capturedBs._poly, {
+                  name: capturedBs.name||'Building source', accent: '#7c3aed', isPolyline: false,
+                  afterSave: function(layer) {
+                    capturedBs.vertices = layer.getLatLngs()[0].map(function(ll){return[ll.lat,ll.lng];});
+                    capturedBs.vertexElevations = null;
+                    renderBuildingSourceLayer();
+                    if (typeof render==='function') render();
+                    if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                    if (typeof window._undoPushState==='function') window._undoPushState('Edit building source shape '+(capturedBs.name||'Building source'));
+                  }
+                });
+              }},
+              { id:'move', label:'Move', icon:'\u2922', action:function() {
+                _ctxActivateMoveMode(); _ctxFlashPolyLayer(capturedBs._poly);
+              }},
+              'sep',
               { id:'dup', label:'Duplicate', icon:'\u29c9', action:function() {
                 var nb = JSON.parse(JSON.stringify(capturedBs, function(k,v){ return k==='_poly'?undefined:v; }));
                 nb.id = 'bs_' + (++_bsIdCtr);
@@ -33182,18 +33302,37 @@ if (window.pdfjsLib) {
             L.DomEvent.preventDefault(e);
             var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
             _showMapCtxMenu(cx, cy, [
+              { id: 'edit', label: 'Edit', icon: '\u270f', action: function() {
+                  if (typeof openLsPanel === 'function') openLsPanel(capturedLs.id, cx, cy);
+              }},
+              { id: 'editshape', label: 'Edit shape', icon: '\u25b3', action: function() {
+                  if (typeof closeLsPanel === 'function') closeLsPanel();
+                  _ctxStartShapeEdit(capturedLs._poly, {
+                    name: capturedLs.name || 'Line source', accent: '#d32f2f', isPolyline: true, drawBtnId: 'drawLineSourceBtn',
+                    afterSave: function(layer) {
+                      capturedLs.vertices = layer.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+                      capturedLs.vertexElevations = null;
+                      if (_terrainEnabled) _fetchVertexElevations(capturedLs);
+                      renderLineSourceLayer(); renderLineSourceCards();
+                      if (typeof render === 'function') render();
+                      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                      if (typeof window._undoPushState === 'function') window._undoPushState('Edit line source shape ' + (capturedLs.name || 'Line source'));
+                    }
+                  });
+              }},
+              { id: 'move', label: 'Move', icon: '\u2922', action: function() {
+                  _ctxActivateMoveMode(); _ctxFlashPolyLayer(capturedLs._poly);
+              }},
+              'sep',
               { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
                   var newLs = JSON.parse(JSON.stringify(capturedLs));
                   newLs.id = 'ls_' + (++_lsIdCtr);
                   newLs.name = (capturedLs.name || 'Line source') + ' (copy)';
-                  newLs.vertices = capturedLs.vertices.map(function(v) {
-                    return [v[0] - 0.00002, v[1] + 0.00002];
-                  });
-                  newLs.vertexElevations = null; // invalidate — vertices shifted
+                  newLs.vertices = capturedLs.vertices.map(function(v) { return [v[0] - 0.00002, v[1] + 0.00002]; });
+                  newLs.vertexElevations = null;
                   lineSources.push(newLs);
                   if (_terrainEnabled) _fetchVertexElevations(newLs);
-                  renderLineSourceLayer();
-                  renderLineSourceCards();
+                  renderLineSourceLayer(); renderLineSourceCards();
                   if (typeof render === 'function') render();
                   if (window._recomputeNoiseMap) window._recomputeNoiseMap();
                   if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate line source ' + newLs.name);
@@ -33203,8 +33342,7 @@ if (window.pdfjsLib) {
                   var _delLsLabel = 'Delete ' + (capturedLs.name || 'Line source');
                   var idx = lineSources.indexOf(capturedLs);
                   if (idx !== -1) lineSources.splice(idx, 1);
-                  renderLineSourceLayer();
-                  renderLineSourceCards();
+                  renderLineSourceLayer(); renderLineSourceCards();
                   if (typeof render === 'function') render();
                   if (window._recomputeNoiseMap) window._recomputeNoiseMap();
                   if (typeof window._undoPushState === 'function') window._undoPushState(_delLsLabel);
@@ -33519,8 +33657,11 @@ if (window.pdfjsLib) {
           };
         })(cr));
 
-        // Right-click context menu: Duplicate + Delete
-        polyBase.on('contextmenu', (function(capturedCr) {
+        // Store layer ref for Edit shape / Move flash
+        cr._polyBase = polyBase;
+
+        // Right-click context menu
+        polyBase.on('contextmenu', (function(capturedCr, capturedPolyBase) {
           return function(e) {
             if (_drawingActive || _cortnDrawHandler) return;
             L.DomEvent.stopPropagation(e);
@@ -33531,13 +33672,27 @@ if (window.pdfjsLib) {
               { id: 'edit', label: 'Edit', icon: '✎', action: function() {
                   openCortnPanel(capturedCr.id);
               }},
+              { id: 'editshape', label: 'Edit shape', icon: '\u25b3', action: function() {
+                  if (typeof closeCortnPanel === 'function') closeCortnPanel();
+                  _ctxStartShapeEdit(capturedPolyBase, {
+                    name: capturedCr.name || 'CoRTN road', accent: '#1565C0', isPolyline: true,
+                    afterSave: function(layer) {
+                      capturedCr.vertices = layer.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; });
+                      renderCortnRoadLayer();
+                      if (window._recomputeCortnMap) window._recomputeCortnMap();
+                      if (typeof window._undoPushState === 'function') window._undoPushState('Edit CoRTN road shape ' + (capturedCr.name || 'Road'));
+                    }
+                  });
+              }},
+              { id: 'move', label: 'Move', icon: '\u2922', action: function() {
+                  _ctxActivateMoveMode(); _ctxFlashPolyLayer(capturedPolyBase);
+              }},
+              'sep',
               { id: 'dup', label: 'Duplicate', icon: '⧉', action: function() {
                   var newCr = JSON.parse(JSON.stringify(capturedCr));
                   newCr.id = 'cortn_' + (++_cortnIdCtr);
                   newCr.name = (capturedCr.name || 'Road') + ' (copy)';
-                  newCr.vertices = capturedCr.vertices.map(function(v) {
-                    return [v[0] - 0.00002, v[1] + 0.00002];
-                  });
+                  newCr.vertices = capturedCr.vertices.map(function(v) { return [v[0] - 0.00002, v[1] + 0.00002]; });
                   cortnRoads.push(newCr);
                   renderCortnRoadLayer();
                   if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate CoRTN road ' + newCr.name);
@@ -33554,11 +33709,22 @@ if (window.pdfjsLib) {
               }}
             ]);
           };
-        })(cr));
+        })(cr, polyBase));
         // Bind same context menu to centre line
         polyCentre.on('contextmenu', function(e) {
           polyBase.fire('contextmenu', e);
         });
+
+        // Whole-road drag support (drag polyBase; polyCentre syncs on re-render after drop)
+        _attachMoveDrag(polyBase, null,
+          function() { return cr.vertices; },
+          function(v) { cr.vertices = v; },
+          function() {
+            renderCortnRoadLayer();
+            if (window._recomputeCortnMap) window._recomputeCortnMap();
+            if (typeof window._undoPushState === 'function') window._undoPushState('Move CoRTN road ' + (cr.name || 'Road'));
+          }
+        );
 
         // Short-ID label at midpoint (R1, R2, ...)
         var midPt = _cortnPolylineMidpoint(cr.vertices);
@@ -34267,6 +34433,79 @@ if (window.pdfjsLib) {
       renderLineSourceLayer();
       renderLineSourceCards();
     };
+
+    /* ═══ Context menu action helpers ═══ */
+
+    function _ctxActivateMoveMode() {
+      if (_drawingActive) return;
+      if (!_moveMode) {
+        _moveMode = true;
+        var mb = document.getElementById('moveGeomBtn');
+        if (mb) mb.classList.add('active');
+      }
+    }
+
+    function _ctxFlashMarker(marker) {
+      if (!marker) return;
+      var on = true, count = 0;
+      var iv = setInterval(function() {
+        marker.setOpacity(on ? 0.2 : 1); on = !on;
+        if (++count >= 5) { clearInterval(iv); marker.setOpacity(1); }
+      }, 180);
+    }
+
+    function _ctxFlashPolyLayer(layer) {
+      if (!layer) return;
+      var origOpts = {
+        weight: layer.options.weight, opacity: layer.options.opacity,
+        fillOpacity: layer.options.fillOpacity, color: layer.options.color,
+        dashArray: layer.options.dashArray
+      };
+      layer.setStyle({ weight: Math.max((origOpts.weight || 2) * 2.5, 8), opacity: 1,
+        fillOpacity: Math.min((origOpts.fillOpacity || 0.25) * 2.5, 0.85) });
+      setTimeout(function() { try { layer.setStyle(origOpts); } catch(e) {} }, 850);
+    }
+
+    /* Generic shape-edit bar launcher used by the context menu "Edit shape" action.
+       opts: { name, accent, isPolyline, drawBtnId, afterSave(layer) } */
+    function _ctxStartShapeEdit(layer, opts) {
+      if (!layer || !layer.editing || _drawingActive) return;
+      var stale = document.getElementById('shapeEditBar');
+      if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+      _drawingActive = true;
+      layer.editing.enable();
+      var drawBtn = opts.drawBtnId ? document.getElementById(opts.drawBtnId) : null;
+      if (drawBtn) drawBtn.classList.add('active');
+      var origV = opts.isPolyline
+        ? layer.getLatLngs().map(function(ll) { return [ll.lat, ll.lng]; })
+        : layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+      var eb = document.createElement('div');
+      eb.id = 'shapeEditBar';
+      eb.style.cssText = 'position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;border:1.5px solid ' + opts.accent + ';border-radius:6px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.18);pointer-events:all;white-space:nowrap;';
+      eb.innerHTML = '<span style="color:' + opts.accent + ';font-weight:600;">Editing: ' + escapeHTML(opts.name || 'Object') + '</span>' +
+        '<span style="color:#666;font-size:11px;">Drag vertices</span>' +
+        '<button id="ctxShapeEditSave" style="padding:3px 12px;font-size:12px;background:' + opts.accent + ';color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save</button>' +
+        '<button id="ctxShapeEditCancel" style="padding:3px 10px;font-size:12px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer;">Cancel</button>';
+      var mc = map.getContainer(); mc.style.position = 'relative'; mc.appendChild(eb);
+      function _rmCtxBar() { var b = document.getElementById('shapeEditBar'); if (b && b.parentNode) b.parentNode.removeChild(b); }
+      function _finishCtxEdit(save) {
+        if (layer.editing) layer.editing.disable();
+        _drawingActive = false;
+        if (drawBtn) drawBtn.classList.remove('active');
+        document.removeEventListener('keydown', _ctxEscH);
+        _rmCtxBar();
+        if (save) { opts.afterSave(layer); }
+        else { layer.setLatLngs(opts.isPolyline ? origV : [origV]); }
+      }
+      function _ctxEscH(ev) { if (ev.key === 'Escape') { ev.stopPropagation(); _finishCtxEdit(false); } }
+      document.addEventListener('keydown', _ctxEscH);
+      setTimeout(function() {
+        var sb = document.getElementById('ctxShapeEditSave');
+        var cb2 = document.getElementById('ctxShapeEditCancel');
+        if (sb) sb.addEventListener('click', function() { _finishCtxEdit(true); });
+        if (cb2) cb2.addEventListener('click', function() { _finishCtxEdit(false); });
+      }, 50);
+    }
 
     /* ═══ Right-click context menu infrastructure ═══ */
     var _ctxMenuEl = document.getElementById('mapCtxMenu');
@@ -39963,6 +40202,401 @@ if (window.pdfjsLib) {
         e.preventDefault(); break;
     }
   });
+})();
+</script>
+
+<script>
+/* ── GIS Import Module (Phase 1) ─────────────────────────────────────────
+   Lazy-loads proj4 → shpjs (for .zip shapefiles) or togeojson (for .kml).
+   Returns a structured {layers, warnings} object and logs it to console.
+   No map rendering in this phase.
+──────────────────────────────────────────────────────────────────────── */
+(function() {
+  'use strict';
+
+  /* proj4 definition strings for common Australian CRSs (sourced from epsg.io) */
+  var AU_CRS_DEFS = {
+    'EPSG:7844':  '+proj=longlat +ellps=GRS80 +no_defs +type=crs',
+    'EPSG:7853':  '+proj=utm +zone=53 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    'EPSG:7854':  '+proj=utm +zone=54 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    'EPSG:7855':  '+proj=utm +zone=55 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    'EPSG:28353': '+proj=utm +zone=53 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
+    'EPSG:28354': '+proj=utm +zone=54 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
+    'EPSG:28355': '+proj=utm +zone=55 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
+    'EPSG:3577':  '+proj=aea +lat_0=0 +lon_0=132 +lat_1=-18 +lat_2=-36 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs'
+  };
+
+  /* Script URL cache — resolves immediately if already injected */
+  var _scriptCache = {};
+
+  function loadScriptOnce(url) {
+    if (_scriptCache[url]) return _scriptCache[url];
+    var p = new Promise(function(resolve, reject) {
+      var existing = document.querySelector('script[src="' + url + '"]');
+      if (existing) { resolve(); return; }
+      var s = document.createElement('script');
+      s.src = url;
+      s.onload = resolve;
+      s.onerror = function() { reject(new Error('Failed to load: ' + url)); };
+      document.head.appendChild(s);
+    });
+    _scriptCache[url] = p;
+    return p;
+  }
+
+  /* Register AU CRS definitions into proj4 (called once after proj4 loads) */
+  function registerAuCrs() {
+    if (typeof proj4 === 'undefined') return;
+    Object.keys(AU_CRS_DEFS).forEach(function(code) {
+      try { proj4.defs(code, AU_CRS_DEFS[code]); } catch(e) { /* already defined */ }
+    });
+  }
+
+  /* Load proj4 → register CRSs → load shpjs in order */
+  var _shpjsReady = null;
+  function ensureShpjs() {
+    if (_shpjsReady) return _shpjsReady;
+    _shpjsReady = loadScriptOnce('https://unpkg.com/proj4@2.11.0/dist/proj4.js')
+      .then(function() {
+        registerAuCrs();
+        return loadScriptOnce('https://unpkg.com/shpjs@6.1.0/dist/shp.min.js');
+      });
+    return _shpjsReady;
+  }
+
+  var _togeojsonReady = null;
+  function ensureTogeojson() {
+    if (_togeojsonReady) return _togeojsonReady;
+    _togeojsonReady = loadScriptOnce('https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js');
+    return _togeojsonReady;
+  }
+
+  /* ── Geometry helpers ─────────────────────────────────────────────────── */
+
+  /* Strip polygon holes — keep outer ring only */
+  function stripHoles(geom) {
+    if (geom.type === 'Polygon' && geom.coordinates.length > 1) {
+      return { type: 'Polygon', coordinates: [geom.coordinates[0]] };
+    }
+    if (geom.type === 'MultiPolygon') {
+      return {
+        type: 'MultiPolygon',
+        coordinates: geom.coordinates.map(function(poly) { return [poly[0]]; })
+      };
+    }
+    return geom;
+  }
+
+  /* Expand Multi* geometries into individual features; returns {features, hadHoles} */
+  function expandFeatures(features) {
+    var out = [];
+    var hadHoles = false;
+    features.forEach(function(f) {
+      if (!f || !f.geometry) return;
+      var g = f.geometry;
+      var props = f.properties || {};
+
+      /* Check/strip holes before expansion */
+      if (g.type === 'Polygon' && g.coordinates && g.coordinates.length > 1) hadHoles = true;
+      if (g.type === 'MultiPolygon' && g.coordinates) {
+        g.coordinates.forEach(function(poly) { if (poly.length > 1) hadHoles = true; });
+      }
+      g = stripHoles(g);
+
+      if (g.type === 'MultiPoint') {
+        g.coordinates.forEach(function(c) {
+          out.push({ type: 'Feature', geometry: { type: 'Point', coordinates: c }, properties: props });
+        });
+      } else if (g.type === 'MultiLineString') {
+        g.coordinates.forEach(function(c) {
+          out.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: c }, properties: props });
+        });
+      } else if (g.type === 'MultiPolygon') {
+        g.coordinates.forEach(function(c) {
+          out.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: c }, properties: props });
+        });
+      } else if (g.type === 'GeometryCollection' && g.geometries) {
+        g.geometries.forEach(function(subg) {
+          out.push({ type: 'Feature', geometry: subg, properties: props });
+        });
+      } else {
+        out.push({ type: 'Feature', geometry: g, properties: props });
+      }
+    });
+    return { features: out, hadHoles: hadHoles };
+  }
+
+  /* ── Coordinate sanity check ──────────────────────────────────────────── */
+
+  function collectCoords(features) {
+    var all = [];
+    features.forEach(function(f) {
+      if (!f || !f.geometry) return;
+      var g = f.geometry;
+      function walk(coords) {
+        if (!coords || !coords.length) return;
+        if (typeof coords[0] === 'number') { all.push(coords); return; }
+        coords.forEach(walk);
+      }
+      if (g.coordinates) walk(g.coordinates);
+    });
+    return all;
+  }
+
+  function coordSanityCheck(layers) {
+    var total = 0, outOfRange = 0;
+    layers.forEach(function(l) {
+      collectCoords(l.features).forEach(function(c) {
+        total++;
+        if (c[0] < -180 || c[0] > 180 || c[1] < -90 || c[1] > 90) outOfRange++;
+      });
+    });
+    if (total === 0) return { ok: true, pct: 0 };
+    return { ok: true, total: total, outOfRange: outOfRange, pct: outOfRange / total };
+  }
+
+  /* ── Layer post-processing (expand + strip nulls) ─────────────────────── */
+
+  function processLayer(fc, name) {
+    var warnings = [];
+    var raw = (fc && fc.features) ? fc.features : [];
+
+    var nullCount = 0;
+    raw = raw.filter(function(f) {
+      if (!f || !f.geometry || !f.geometry.type) { nullCount++; return false; }
+      return true;
+    });
+    if (nullCount > 0) warnings.push(nullCount + ' feature(s) with null/empty geometry were skipped.');
+
+    var expanded = expandFeatures(raw);
+    if (expanded.hadHoles) warnings.push('Some polygon holes were ignored (only outer rings kept).');
+
+    return { name: name, features: expanded.features, warnings: warnings };
+  }
+
+  /* ── Parsers ──────────────────────────────────────────────────────────── */
+
+  function parseZip(file) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var buf = e.target.result;
+        ensureShpjs().then(function() {
+          return shp(buf);
+        }).then(function(result) {
+          var fcs = Array.isArray(result) ? result : [result];
+          var layers = fcs.map(function(fc) {
+            var name = (fc && fc.fileName) ? fc.fileName : file.name.replace(/\.zip$/i, '');
+            return processLayer(fc, name);
+          });
+          resolve(layers);
+        }).catch(reject);
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function parseGeojson(file) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var parsed;
+        try { parsed = JSON.parse(e.target.result); } catch(ex) {
+          return reject(new Error('Invalid JSON: ' + ex.message));
+        }
+        if (!parsed || parsed.type !== 'FeatureCollection') {
+          return reject(new Error('GeoJSON root must be a FeatureCollection.'));
+        }
+        var warnings = [];
+        if (parsed.crs) {
+          var crsName = (parsed.crs.properties && parsed.crs.properties.name) ? parsed.crs.properties.name : JSON.stringify(parsed.crs);
+          var wgs84 = /4326|CRS84|WGS84/i.test(crsName);
+          if (!wgs84) warnings.push('GeoJSON declares CRS "' + crsName + '" — only EPSG:4326 is supported per RFC 7946. Check that coordinates are in WGS84 longitude/latitude.');
+        }
+        var result = processLayer(parsed, file.name);
+        result.warnings = warnings.concat(result.warnings);
+        resolve([result]);
+      };
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  }
+
+  function parseKml(file) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        ensureTogeojson().then(function() {
+          var xmlDoc = (new DOMParser()).parseFromString(e.target.result, 'text/xml');
+          var fc = toGeoJSON.kml(xmlDoc);
+          var result = processLayer(fc, file.name);
+          resolve([result]);
+        }).catch(reject);
+      };
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  }
+
+  /* ── Main parser dispatcher ───────────────────────────────────────────── */
+
+  async function parseGisFile(file) {
+    var ext = file.name.split('.').pop().toLowerCase();
+    var warnings = [];
+
+    if (ext === 'kmz') {
+      alert('KMZ not yet supported — please extract the .kml file from the archive first (rename to .zip, then open in QGIS or extract with 7-Zip).');
+      return null;
+    }
+
+    /* File size guard */
+    if (file.size > 10 * 1024 * 1024) {
+      if (!confirm('Large file (' + (file.size / 1048576).toFixed(1) + ' MB) — parsing may take several seconds. Continue?')) return null;
+    }
+
+    var layerResults;
+    try {
+      if (ext === 'zip') {
+        layerResults = await parseZip(file);
+      } else if (ext === 'geojson' || ext === 'json') {
+        layerResults = await parseGeojson(file);
+      } else if (ext === 'kml') {
+        layerResults = await parseKml(file);
+      } else {
+        throw new Error('Unsupported file type: .' + ext);
+      }
+    } catch (err) {
+      alert('Error parsing file: ' + err.message);
+      return null;
+    }
+
+    /* Collect cross-layer warnings */
+    layerResults.forEach(function(l) {
+      l.warnings.forEach(function(w) { warnings.push('[' + l.name + '] ' + w); });
+    });
+
+    /* Coordinate sanity check */
+    var sanity = coordSanityCheck(layerResults);
+    if (sanity.pct > 0.10) {
+      alert('Coordinates appear to be in a projected system that wasn\'t reprojected.\n\n' +
+        Math.round(sanity.pct * 100) + '% of coordinates are outside valid WGS84 range.\n\n' +
+        'Check that the .prj file is included in the .zip, or reproject to WGS84 in QGIS before exporting.');
+      return null;
+    } else if (sanity.pct > 0) {
+      var badCount = sanity.outOfRange;
+      warnings.push(badCount + ' coordinate(s) outside valid WGS84 range were skipped (possible reprojection issue).');
+      /* Remove features whose coords are entirely out of range */
+      layerResults.forEach(function(l) {
+        l.features = l.features.filter(function(f) {
+          if (!f || !f.geometry || !f.geometry.coordinates) return true;
+          var coords = collectCoords([f]);
+          if (!coords.length) return true;
+          var allBad = coords.every(function(c) { return c[0] < -180 || c[0] > 180 || c[1] < -90 || c[1] > 90; });
+          return !allBad;
+        });
+      });
+    }
+
+    /* Total feature count guards */
+    var totalFeatures = layerResults.reduce(function(s, l) { return s + l.features.length; }, 0);
+    if (totalFeatures > 1000) {
+      alert('Too many features (' + totalFeatures + '). Import is limited to 1000 features to avoid browser performance issues. Simplify or split the file before importing.');
+      return null;
+    }
+    if (totalFeatures > 300) {
+      if (!confirm(totalFeatures + ' features found across ' + layerResults.length + ' layer(s). Continuing may be slow. Proceed?')) return null;
+    }
+    if (totalFeatures === 0) {
+      alert('No valid features found in the file.');
+      return null;
+    }
+
+    /* Strip per-layer warnings (already collected above) */
+    var layers = layerResults.map(function(l) {
+      return { name: l.name, features: l.features };
+    });
+
+    return { layers: layers, warnings: warnings };
+  }
+
+  /* ── Status chip ─────────────────────────────────────────────────────── */
+
+  function showStatusChip(msg) {
+    var id = '_gisStatusChip';
+    var existing = document.getElementById(id);
+    if (existing) existing.remove();
+    var chip = document.createElement('div');
+    chip.id = id;
+    chip.textContent = msg;
+    chip.style.cssText = 'position:fixed;bottom:36px;right:16px;z-index:99999;' +
+      'background:rgba(30,41,59,0.92);color:#f8fafc;padding:7px 16px;' +
+      'font-size:12px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,0.28);' +
+      'pointer-events:none;white-space:nowrap;';
+    document.body.appendChild(chip);
+    return chip;
+  }
+
+  function removeStatusChip() {
+    var el = document.getElementById('_gisStatusChip');
+    if (el) el.remove();
+  }
+
+  /* ── Main entry point ────────────────────────────────────────────────── */
+
+  async function importGis(file) {
+    var chip = showStatusChip('Parsing ' + file.name + '\u2026');
+    var result;
+    try {
+      result = await parseGisFile(file);
+    } finally {
+      removeStatusChip();
+    }
+    if (!result) return;
+
+    console.log('[GIS Import] Parsed structure:', result);
+    if (result.warnings.length) console.warn('[GIS Import] Warnings:', result.warnings);
+
+    var totalFeatures = result.layers.reduce(function(s, l) { return s + l.features.length; }, 0);
+    alert(
+      'Parsed ' + totalFeatures + ' feature' + (totalFeatures !== 1 ? 's' : '') +
+      ' across ' + result.layers.length + ' layer' + (result.layers.length !== 1 ? 's' : '') + '.\n\n' +
+      result.layers.map(function(l) { return '\u2022 ' + l.name + ': ' + l.features.length + ' features'; }).join('\n') +
+      (result.warnings.length ? '\n\nWarnings: ' + result.warnings.length + ' (see console)' : '') +
+      '\n\nSee console for full details. (Phase 2 will add the assignment UI.)'
+    );
+  }
+
+  /* ── Wire file input ─────────────────────────────────────────────────── */
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var input = document.getElementById('gisFileInput');
+    if (!input) return;
+    input.addEventListener('change', function(e) {
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      input.value = '';
+      importGis(file);
+    });
+  });
+
+  /* The input may already exist if DOMContentLoaded already fired */
+  (function() {
+    var input = document.getElementById('gisFileInput');
+    if (input && !input._gisWired) {
+      input._gisWired = true;
+      input.addEventListener('change', function(e) {
+        var file = e.target.files && e.target.files[0];
+        if (!file) return;
+        input.value = '';
+        importGis(file);
+      });
+    }
+  })();
+
+  window.importGis = importGis;
+  window.parseGisFile = parseGisFile;
+
 })();
 </script>
 
