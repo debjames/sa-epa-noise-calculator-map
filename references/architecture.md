@@ -1649,3 +1649,12 @@ spot checks, K5 with elevated source, and gamma interpolation checks.
 `window.testConcaweK4()` — prints K4 direct lookup table for all 6
 categories, Pasquill class tests, met category tests, and full-chain
 vector wind test.
+
+## Terrain Contour Helpers (`index.html`)
+
+Functions defined at top-level script scope, adjacent to `generateTerrainContours()`.
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `gaussianSmoothGrid(grid, width, height, sigma)` | `(Float32Array, number, number, number) → Float32Array` | Separable 1D Gaussian smooth over a flat elevation grid. Returns a new array; input is not mutated. Uses normalised convolution so NaN (no-coverage) cells don't propagate. Called on `ctGridLidar` and `ctGridSrtm` before marching squares in `generateTerrainContours`. Controlled by `TERRAIN_CONTOUR_SMOOTH_SIGMA` (default 1.5 grid cells). |
+| `generateTerrainContours()` | `() → void` | Builds merged LiDAR + SRTM elevation grids from `DEMCache`, applies Gaussian pre-smooth, runs marching squares, applies Chaikin smoothing, and adds polylines to `_terrainContourLayer`. |

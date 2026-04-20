@@ -116,10 +116,25 @@ contour lines.
 ### Terrain contour rendering
 
 `generateTerrainContours()` builds a merged elevation grid from all cached
-LiDAR (solid) and SRTM-fallback (dashed) tiles, runs marching squares to
-trace iso-elevation segments, chains segments into polylines, and applies
-**`chaikinSmooth(chain, 3)`** before adding to the Leaflet map — matching
-the 3-iteration convention used by the noise map and CoRTN contour renderers.
+LiDAR (solid) and SRTM-fallback (dashed) tiles, then:
+
+1. **Gaussian pre-smooth** — `gaussianSmoothGrid(grid, W, H, 1.5)` is applied
+   to the raw elevation grid before marching squares. This is a separable 1D
+   Gaussian (horizontal pass then vertical pass) with σ = 1.5 grid cells and
+   radius = ceil(3σ) = 5. Normalised convolution excludes NaN (no-coverage)
+   cells from both the weighted sum and weight denominator, so coverage
+   boundaries don't propagate artefacts. The smoothed grid is used for contour
+   tracing only — the raw `ctGridLidar`/`ctGridSrtm` arrays are not mutated and
+   `sampleRaster` (used for source/receiver elevations in ISO 9613-2 geometry)
+   is completely unaffected. This step suppresses false linear "ridges" at
+   LiDAR survey footprint seams that would otherwise be faithfully traced by
+   marching squares.
+
+2. **Marching squares** — traces iso-elevation segments across the smoothed grid.
+
+3. **Chaikin smoothing** — `chaikinSmooth(chain, 3)` is applied to each
+   polyline chain before adding to the Leaflet map — matching the 3-iteration
+   convention used by the noise map and CoRTN contour renderers.
 
 ## CoRTN Road Traffic Noise
 

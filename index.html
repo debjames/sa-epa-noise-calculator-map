@@ -20160,6 +20160,62 @@ function initPropagationMethod() {
   // ── Terrain contour lines ────────────────────────────────────────────────
   // _terrainContourOn declared at top level (line ~4841) for save/load access
 
+  // Gaussian sigma (grid-cell units) applied to terrain contour elevation grids
+  // before marching squares.  Smooths LiDAR survey seam artefacts for
+  // visualisation only — sampleRaster (used for source/receiver elevations) is
+  // unaffected.  Set to 0 to disable.
+  var TERRAIN_CONTOUR_SMOOTH_SIGMA = 1.5;
+
+  // Separable Gaussian smooth over a flat Float32 grid.
+  // Uses normalised convolution so NaN cells (no-coverage) are excluded from
+  // both the weighted sum and the weight denominator — prevents NaN propagation
+  // and handles tile-coverage boundaries gracefully.
+  function gaussianSmoothGrid(grid, width, height, sigma) {
+    var radius = Math.max(1, Math.ceil(3 * sigma));
+    var kSize  = 2 * radius + 1;
+
+    // Build kernel weights normalised to sum = 1
+    var kernel = new Array(kSize);
+    var kSum = 0;
+    for (var ki = 0; ki < kSize; ki++) {
+      var d = ki - radius;
+      kernel[ki] = Math.exp(-(d * d) / (2 * sigma * sigma));
+      kSum += kernel[ki];
+    }
+    for (var kn = 0; kn < kSize; kn++) kernel[kn] /= kSum;
+
+    var tmp = new Float32Array(width * height);
+    var out = new Float32Array(width * height);
+
+    // Horizontal pass: grid → tmp
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        var wsum = 0, vsum = 0;
+        for (var k = -radius; k <= radius; k++) {
+          var xi = Math.max(0, Math.min(width - 1, x + k));
+          var v  = grid[y * width + xi];
+          if (isFinite(v)) { var w = kernel[k + radius]; vsum += w * v; wsum += w; }
+        }
+        tmp[y * width + x] = wsum > 0 ? vsum / wsum : NaN;
+      }
+    }
+
+    // Vertical pass: tmp → out
+    for (var y2 = 0; y2 < height; y2++) {
+      for (var x2 = 0; x2 < width; x2++) {
+        var wsum2 = 0, vsum2 = 0;
+        for (var k2 = -radius; k2 <= radius; k2++) {
+          var yi = Math.max(0, Math.min(height - 1, y2 + k2));
+          var v2 = tmp[yi * width + x2];
+          if (isFinite(v2)) { var w2 = kernel[k2 + radius]; vsum2 += w2 * v2; wsum2 += w2; }
+        }
+        out[y2 * width + x2] = wsum2 > 0 ? vsum2 / wsum2 : NaN;
+      }
+    }
+
+    return out;
+  }
+
   function generateTerrainContours() {
     if (window._terrainContourLayer) window._terrainContourLayer.clearLayers();
     if (!_terrainContourOn || !_terrainEnabled) return;
@@ -20393,12 +20449,21 @@ function initPropagationMethod() {
       });
     }
 
+    // Apply Gaussian pre-smooth to contour grids only (visualisation artefact
+    // suppression — does not affect sampleRaster or acoustic calculations).
+    var ctGridLidarSmoothed = TERRAIN_CONTOUR_SMOOTH_SIGMA > 0
+      ? gaussianSmoothGrid(ctGridLidar, W, H, TERRAIN_CONTOUR_SMOOTH_SIGMA)
+      : ctGridLidar;
+    var ctGridSrtmSmoothed = TERRAIN_CONTOUR_SMOOTH_SIGMA > 0
+      ? gaussianSmoothGrid(ctGridSrtm,  W, H, TERRAIN_CONTOUR_SMOOTH_SIGMA)
+      : ctGridSrtm;
+
     // LiDAR tiles → solid brown contours (5m accuracy)
     if (lidarTiles.length > 0)
-      renderContours(ctGridLidar, { majorOpacity: 0.65, minorOpacity: 0.40 });
+      renderContours(ctGridLidarSmoothed, { majorOpacity: 0.65, minorOpacity: 0.40 });
     // SRTM fallback tiles → dashed brown contours (30m accuracy)
     if (srtmTiles.length > 0)
-      renderContours(ctGridSrtm,  { majorOpacity: 0.55, minorOpacity: 0.30, dashArray: '5, 5' });
+      renderContours(ctGridSrtmSmoothed,  { majorOpacity: 0.55, minorOpacity: 0.30, dashArray: '5, 5' });
 
     if (window._map && window._terrainContourLayer && !window._map.hasLayer(window._terrainContourLayer))
       window._terrainContourLayer.addTo(window._map);
