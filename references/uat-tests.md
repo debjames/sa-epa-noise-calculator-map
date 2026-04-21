@@ -1072,3 +1072,134 @@ Prerequisite: Phase 2 validation scenario already entered (AADT 23600, Speed 60,
 
 213. **No console errors** — After all GIS import tests, console has zero errors.
 
+
+
+## Scenario Comparison — Phase 1: Infrastructure & Management
+
+Prerequisite: any assessment loaded. Terrain and compliance strip state not required but recommended for full round-trip.
+
+1. **Modal opens empty** — Click Scenarios → modal opens showing header "Scenarios", "Save current state as scenario…" button, and "No scenarios saved yet." hint text. No console errors.
+
+2. **Save first scenario** — Click "Save current state as scenario…" → enter "Base Case" → click OK. Modal list shows exactly one entry: "Base Case" with a formatted timestamp (e.g. "21 Apr 2026, 2:14 pm"). "No scenarios saved yet." text is gone.
+
+3. **Second scenario, newest-first sort** — Save a second scenario "Option A". Modal list shows Option A **above** Base Case (newest-first). Both entries display name and timestamp.
+
+4. **Rename** — Click Rename on "Option A" → enter "With Barrier" → click OK. List entry updates in-place to "With Barrier". Timestamp unchanged. No new entry created.
+
+5. **Delete with confirm** — Click Delete on "With Barrier" → confirm dialog shows `Delete scenario "With Barrier"?`. Confirm → entry removed. List shows only "Base Case".
+
+6. **Delete cancel** — Click Delete on "Base Case" → cancel dialog. List still shows "Base Case".
+
+7. **JSON export — structure** — Save Assessment to JSON. Open file. Confirm `data._scenarios` is an array with one entry. Confirm `state` is a **plain object** (not a JSON string). Confirm `stripData` is an array.
+
+8. **Round-trip — fresh load** — Fresh tab → Load Assessment JSON → open Scenarios modal → "Base Case" present with the **original** timestamp from step 2.
+
+9. **Undo isolation** — Save a scenario, then press Ctrl+Z repeatedly. Scenario is **still present** in the list (not undone). Undo affects map state only.
+
+10. **Esc closes** — With modal open, press Escape. Modal closes. Focus returns to Scenarios button.
+
+11. **Backdrop click closes** — With modal open, click the dark backdrop outside the modal box. Modal closes.
+
+12. **Inner click does not close** — With modal open, click inside the white modal box (not on a button). Modal stays open.
+
+13. **Tab focus trap** — With modal open, Tab/Shift+Tab cycles through modal controls only. No focus escapes to the page behind the modal.
+
+14. **Focus restored** — After closing the modal (by any method), focus returns to the Scenarios button.
+
+15. **Schema version skip** — Edit a saved JSON: set `schemaVersion: 99` on one scenario. Load assessment. Open Scenarios modal — that scenario is absent. Browser console shows a warning containing the scenario name and schema version numbers. Other scenarios (with `schemaVersion: 1`) load normally.
+
+16. **Rapid-save uniqueness** — Write a console test: save 5 scenarios within 1 second. Open JSON → confirm all 5 `id` values are unique strings (no Date.now() collision).
+
+17. **Phase 3 stub** — When ≥2 scenarios exist, a stub line "Comparison available in Phase 3." appears below the list.
+
+18. **Empty name rejected** — Click "Save current state as scenario…" → enter empty string or whitespace → OK. Alert fires ("Scenario name cannot be empty."). No entry added to list.
+
+19. **Rename — cancel / empty** — Rename prompt: click Cancel → no change. Enter blank → no change. Only non-empty names are accepted.
+
+20. **No console errors** — Across all steps above, no console errors or warnings (except the intentional schema-version warn in step 15).
+
+## Scenario Comparison — Phase 2: Restore & Overwrite
+
+Prerequisite: Phase 1 tests pass. Two scenarios saved: "Base Case" (no barrier) and "With Barrier" (barrier placed).
+
+1. **Restore replaces canvas** — Restore "Base Case" → modal closes → barrier absent from map. No console errors.
+
+2. **Toast on Restore** — After restoring, a toast appears reading "Restored \u201CBase Case\u201D \u2014 press Ctrl+Z to undo". Toast fades after ~5 seconds.
+
+3. **Ctrl+Z after Restore** — After restoring "Base Case", press Ctrl+Z. Canvas reverts to the With Barrier state (pre-restore canvas was pushed to undo stack by restoreScenario).
+
+4. **Update overwrites in-place** — Move a receiver. Click Update on "With Barrier" → confirm. Scenario list shows same name, same position in list, but refreshed timestamp. Toast shows "Updated \u201CWith Barrier\u201D".
+
+5. **Restore reflects Update** — Restore "With Barrier" → receiver is in the moved position (proves the updated state was stored, not the original).
+
+6. **Update undo isolation** — After clicking Update, press Ctrl+Z. Undo steps back to the canvas action before the Update (e.g. receiver move), NOT through the Update itself.
+
+7. **Rename undo isolation** — Rename a scenario, then Ctrl+Z. Canvas steps back through map edits, not through the rename.
+
+8. **Delete undo isolation** — Delete a scenario, then Ctrl+Z. Canvas steps back through map edits, not through the delete.
+
+9. **Restore is the only undo-tracked scenario action** — Only Restore pushes an undo entry. Save, Update, Rename, Delete do not.
+
+10. **Rapid toasts** — Fire Restore three times in quick succession. Only the most recent toast is visible (prior toast removed on each call via showToast replacement behaviour).
+
+11. **Toast non-blocking** — While toast is visible, clicking map controls works normally (pointer-events:none on toast).
+
+12. **Update cancel** — Click Update → cancel confirm dialog. Scenario timestamp and state unchanged.
+
+13. **Restore pre-terrain state** — Save a scenario before enabling terrain, then enable terrain, then Restore the pre-terrain scenario. Canvas updates cleanly; no console errors.
+
+14. **Button layout wraps** — Narrow the browser window until the modal is at its minimum width. All four buttons (Update, Restore, Rename, Delete) remain accessible (flex-wrap prevents overflow).
+
+15. **Button order** — In the modal, confirm button order left-to-right: Update, Restore, Rename, Delete.
+
+16. **Restore bold** — Restore button has bold text (font-weight:700) to signal its destructive character.
+
+17. **No console errors** — Across all steps above, no console errors.
+
+## Scenario Comparison \u2014 Phase 3: Comparison Table
+
+Prerequisite: Phase 1+2 tests pass. Two or more scenarios saved with receivers placed and compliance strip populated (run calculation first).
+
+1. **Hidden below 2 scenarios** \u2014 With 1 scenario, Compare section is absent from modal.
+
+2. **Visible at 2+ scenarios** \u2014 With 2+ scenarios: Compare section shows "Compare scenarios" heading, Baseline select, Include checkboxes (all checked), and table.
+
+3. **Default baseline is oldest** \u2014 Baseline select defaults to the scenario with the earliest timestamp. Table baseline column matches that scenario name.
+
+4. **Baseline checkbox locked** \u2014 The checkbox for the current baseline scenario is checked and disabled; all others are enabled.
+
+5. **Manual \u0394 spot-check** \u2014 Note R1 Day pred from compliance strip for scenario A (baseline) = X and scenario B = Y. Table shows B column: Y and \u0394 = (Y \u2212 X) with correct sign. Negatives use U+2212 (\u2212), not a hyphen.
+
+6. **\u03940 renders as (�0)** \u2014 Where pred is identical across baseline and a comparison scenario, cell shows pred then "(�0)".
+
+7. **Lmax rows present** \u2014 Receivers with Lmax data in at least one included scenario show a Lmax row (label "Lmax").
+
+8. **Unplaced receiver absent** \u2014 A receiver with placed=false in ALL included scenarios has no rows in the table.
+
+9. **Receiver placed in only one scenario** \u2014 Row present; comparison column for the scenario without that receiver shows \u2014 (no colour class); \u0394 omitted where baseline has no data.
+
+10. **Colour per own crit** \u2014 Each comparison cell is coloured cs-ok/cs-bad based on that scenario\u2019s own crit value, not the baseline\u2019s.
+
+11. **Crit column uncoloured** \u2014 Crit column has no cs-ok/cs-bad background; values match baseline crit where available.
+
+12. **Receiver striping** \u2014 Alternating receiver groups have subtly different row backgrounds (\u2060#f8fafc vs white).
+
+13. **Change baseline** \u2014 Change Baseline select to a different scenario. Table re-renders: new baseline column shows pred only (no \u0394); old baseline column now shows pred + \u0394 vs new baseline. Scenario list above the Compare section does not re-render (scroll position preserved).
+
+14. **New baseline checkbox auto-locked** \u2014 After changing baseline, the new baseline\u2019s checkbox is checked+disabled; the previous baseline\u2019s checkbox is re-enabled.
+
+15. **Uncheck a non-baseline scenario** \u2014 Uncheck a comparison scenario. Its column disappears; baseline and other columns unaffected. Table re-renders without full modal rebuild.
+
+16. **Delete a scenario \u2014 fewer than 2 remain** \u2014 Delete until 1 scenario remains. Compare section disappears from modal (hidden by renderScenariosModal guard).
+
+17. **Delete with 2+ remaining** \u2014 Delete a non-baseline scenario while \u22652 remain. Table re-renders cleanly; no JS error.
+
+18. **Delete baseline scenario** \u2014 Delete the current baseline while \u22652 others remain. Section re-renders; new default baseline resolves to oldest surviving scenario.
+
+19. **Save\u2192Load resets compare selection** \u2014 Save Assessment with 2+ scenarios and a non-default baseline. Reload. Open Scenarios modal. Baseline defaults to oldest (not the one previously selected). Expected by design (\u0394compareSelection is UI-only).
+
+20. **No horizontal scroll at \u22651280px** \u2014 With 4 scenarios � 4 receivers � 4 periods at \u22651280px viewport width, the table fits without horizontal scrollbar.
+
+21. **Horizontal overflow on narrow viewport** \u2014 Narrow browser to 600px. Table gets a horizontal scrollbar inside the modal; modal itself does not overflow viewport.
+
+22. **No console errors** \u2014 Across all steps above, no JS errors.

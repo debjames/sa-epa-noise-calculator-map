@@ -92,6 +92,58 @@ Set by the map IIFE to expose IIFE-local functions to the GIS IIFE:
 
 > **Modal-stack note**: Escape capture handler closes the GIS modal first. In v1 no other modal opens concurrently, so this is safe. Revisit if multi-modal flows are added.
 
+## Scenario Comparison (Phase 1)
+
+Named snapshots of assessment state saved within the current session and persisted through Save/Load Assessment JSON.
+
+### Data structure
+
+`window._scenarios` — array reference exposed from the save/load IIFE. Each entry:
+
+```js
+{
+  id:            'sc_<timestamp>_<random6>',   // collision-resistant
+  name:          'Base Case',
+  timestamp:     '<ISO 8601>',
+  schemaVersion: 1,
+  state:         {},   // parsed object from _serialiseState() — NOT a JSON string
+  stripData:     []    // deep-cloned copy of window._stripData at capture time
+}
+```
+
+`window.SCENARIO_SCHEMA_VERSION = 1` — used for forward-compatibility checks on load.
+
+### Save/load JSON
+
+Serialised as `data._scenarios` (array of scenario objects). `state` is stored as a plain object (not a JSON string). `stripData` is deep-cloned at export time. On load, scenarios with `schemaVersion` newer than `SCENARIO_SCHEMA_VERSION` are skipped with a `console.warn`; all others are deep-copied and pushed to `_scenarios[]`. The current canvas state is NOT auto-applied from any scenario — it comes from the file root as normal.
+
+### Toolbar button
+
+`#scenariosBtn` — `.pdf-btn` class, appended after `#shareAssessmentBtn` in the Save/Load row.
+
+### Scenarios IIFE
+
+Separate `<script>` block immediately after the save/load IIFE. Provides:
+
+| Function | Purpose |
+|---|---|
+| `_generateScenarioId()` | `'sc_' + Date.now() + '_' + random6` |
+| `saveScenario()` | Prompt for name, capture `_serialiseState()` + deep-copy `_stripData`, push to `window._scenarios` |
+| `restoreScenario(id)` | Push current canvas onto undo stack, call `_loadAssessment(scenario.state)` (parsed object, no re-parse), close modal, toast with Ctrl+Z hint |
+| `updateScenario(id)` | Confirm dialog, overwrite `state`/`stripData`/`timestamp` in-place (id/name/schemaVersion unchanged), re-render modal, toast; **no** undo push |
+| `renameScenario(id)` | Prompt with current name, update in-place |
+| `deleteScenario(id)` | Confirm dialog, splice from array |
+| `showScenariosModal()` | Reset `_compareSelection`, build backdrop+box (mirrors `showMethodologyModal` pattern, max-width 900px), Esc listener, backdrop-click closes, Tab/Shift+Tab focus trap, call `renderScenariosModal()` |
+| `closeScenariosModal()` | Remove backdrop, remove listeners, restore focus to `#scenariosBtn` |
+| `renderScenariosModal()` | Rebuild inner HTML: header, Save button, list sorted newest-first (name + timestamp + `[Update] [Restore] [Rename] [Delete]` with flex-wrap); when ≥2 scenarios also renders Compare section (Baseline select, Include checkboxes, `#scenarioCompareTable`), wires select/checkbox change handlers, calls `renderComparisonTable()` |
+| `renderComparisonTable()` | Resolves baseline (explicit → oldest → first) and included cols; baseline first then remaining in `_scenarios` order. Receiver rows: first-seen order across included stripData, placed=true in at least one col. Periods D/E/N/Lmax; skips rows with no numeric pred. Baseline col: pred + cs-ok/cs-bad vs own crit. Comparison cols: pred + signed Δ (U+2212) vs baseline pred, cell colour vs own crit. Crit col: uncoloured, prefers baseline crit. Receiver groups alternately striped. Writes into `#scenarioCompareTable` only. |
+
+`_compareSelection = {baselineId, includedIds}` — UI-only, internal closure, resets on modal reopen, never persisted to JSON.
+
+`window._showScenariosModal` and `window._closeScenariosModal` exposed globally. Save/update/rename/delete do **not** push to the undo stack. Restore is the **only** scenario action that pushes to the undo stack (by design — it replaces canvas state).
+
+Toast notifications use the existing app-wide `showToast(msg, durationMs)` helper (line 14541). No custom toast added.
+
 ## Right-click Context Menu
 
 All user-editable map layers expose a floating context menu on right-click. The menu is built by the shared `_showMapCtxMenu(cx, cy, items[])` function (defined near line 34350 in `index.html`) and positioned to stay within the viewport.

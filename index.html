@@ -2053,6 +2053,7 @@ body.disclaimer-visible .container {
     <button class="pdf-btn" id="generateReportBtn" type="button" style="display:none">Generate Report</button>
     <button class="pdf-btn" id="savePdfBtn" type="button" title="Export A4 criteria appendix PDF for acoustic reports" onclick="generatePDFAppendix(this)">Save PDF</button>
     <button class="pdf-btn" id="shareAssessmentBtn" type="button" title="Generate a read-only link to share this assessment with a client">Share Assessment</button>
+    <button class="pdf-btn" id="scenariosBtn" type="button" title="Save and compare named scenario snapshots">Scenarios</button>
   </div>
 
   <div class="sheet">
@@ -21903,6 +21904,10 @@ setInitialCollapseState();
    JSON Export / Import — Save & Load assessment state
    ══════════════════════════════════════════════════════════════ */
 (function() {
+  /* Scenario snapshots — each entry: { id, name, timestamp, schemaVersion, state, stripData } */
+  var _scenarios = [];
+  var SCENARIO_SCHEMA_VERSION = 1;
+
   document.addEventListener('DOMContentLoaded', function() {
 
     /* ── EXPORT ── */
@@ -22303,6 +22308,22 @@ setInitialCollapseState();
         // Address bar text
         var searchInp = document.getElementById('mapSearchInput');
         if (searchInp && searchInp.value) data.addressText = searchInp.value;
+
+        // Scenario snapshots — each carries a full serialised state.
+        // N scenarios means roughly N+1× baseline file size; if this
+        // becomes an issue an export-time toggle can exclude them.
+        if (_scenarios.length > 0) {
+          data._scenarios = _scenarios.map(function(s) {
+            return {
+              id:            s.id,
+              name:          s.name,
+              timestamp:     s.timestamp,
+              schemaVersion: s.schemaVersion,
+              state:         s.state,
+              stripData:     JSON.parse(JSON.stringify(s.stripData))
+            };
+          });
+        }
 
         // Download — use Save File picker if available, else fallback
         var json = JSON.stringify(data, null, 2);
@@ -22942,6 +22963,34 @@ setInitialCollapseState();
     }
 
     function loadAssessment(data) {
+      // 0. Restore scenario snapshots BEFORE any other state.
+      //    Scenarios are listed but NOT auto-applied; current state
+      //    is still restored from the file root as normal.
+      if (Array.isArray(data._scenarios)) {
+        _scenarios.length = 0;
+        data._scenarios.map(function(s) {
+          if (typeof s.schemaVersion === 'number' &&
+              s.schemaVersion > SCENARIO_SCHEMA_VERSION) {
+            console.warn('Skipping scenario "' + (s.name || '?') +
+              '" — schema v' + s.schemaVersion +
+              ' newer than supported v' + SCENARIO_SCHEMA_VERSION);
+            return null;
+          }
+          return {
+            id:            s.id || window._generateScenarioId(),
+            name:          s.name || 'Scenario',
+            timestamp:     s.timestamp || '',
+            schemaVersion: (typeof s.schemaVersion === 'number') ? s.schemaVersion : 1,
+            state:         s.state || {},
+            stripData:     Array.isArray(s.stripData)
+                             ? JSON.parse(JSON.stringify(s.stripData)) : []
+          };
+        }).filter(function(s) { return s !== null; })
+          .forEach(function(s) { _scenarios.push(s); });
+      } else {
+        _scenarios.length = 0;
+      }
+
       // 1. Set state
       if (data.currentState && typeof switchToState === 'function') {
         switchToState(data.currentState);
@@ -23633,6 +23682,583 @@ setInitialCollapseState();
     window._loadAssessment = loadAssessment;
 
   });
+
+  // Expose scenario state so the scenarios IIFE (separate script block) can access them
+  window._scenarios = _scenarios;
+  window.SCENARIO_SCHEMA_VERSION = SCENARIO_SCHEMA_VERSION;
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   Scenario Comparison — Phase 1+2: save / list / rename / delete
+   / restore (undo-safe) / update (overwrite).
+   Phase 3: side-by-side comparison table (not yet implemented).
+   ══════════════════════════════════════════════════════════════ */
+(function() {
+  'use strict';
+
+  var _scenModalEl  = null;   // backdrop DOM node while modal is open
+  var _scenEscHandler   = null;
+  var _scenFocusHandler = null;
+  var _scenPrevFocus    = null;
+
+  // UI-only compare selection — resets on modal reopen, never persisted to JSON
+  var _compareSelection = {
+    baselineId:  null,   // scenario id, or null → resolves to oldest
+    includedIds: null    // array of ids, or null → all scenarios
+  };
+
+  function _generateScenarioId() {
+    // Date.now() alone collides in rapid/automated flows — append random suffix.
+    return 'sc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  }
+  window._generateScenarioId = _generateScenarioId;
+
+  function _formatScenarioTimestamp(iso) {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleString(undefined, {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: 'numeric', minute: '2-digit'
+      });
+    } catch (e) { return iso; }
+  }
+
+  function saveScenario() {
+    var name = prompt('Name this scenario:');
+    if (name === null) return;
+    name = name.trim();
+    if (!name) { alert('Scenario name cannot be empty.'); return; }
+
+    var raw    = window._serialiseState ? window._serialiseState() : '{}';
+    var parsed = JSON.parse(raw);
+    var strip  = JSON.parse(JSON.stringify(window._stripData || []));
+
+    window._scenarios.push({
+      id:            _generateScenarioId(),
+      name:          name,
+      timestamp:     new Date().toISOString(),
+      schemaVersion: window.SCENARIO_SCHEMA_VERSION || 1,
+      state:         parsed,
+      stripData:     strip
+    });
+
+    renderScenariosModal();
+    // Must NOT push to undo stack
+  }
+
+  function deleteScenario(id) {
+    var idx = window._scenarios.findIndex(function(s) { return s.id === id; });
+    if (idx === -1) return;
+    var sc = window._scenarios[idx];
+    if (!confirm('Delete scenario "' + sc.name + '"?')) return;
+    window._scenarios.splice(idx, 1);
+    renderScenariosModal();
+    // Must NOT push to undo stack
+  }
+
+  function renameScenario(id) {
+    var idx = window._scenarios.findIndex(function(s) { return s.id === id; });
+    if (idx === -1) return;
+    var sc = window._scenarios[idx];
+    var newName = prompt('Rename scenario:', sc.name);
+    if (newName === null) return;
+    newName = newName.trim();
+    if (!newName) return;
+    sc.name = newName;
+    renderScenariosModal();
+    // Must NOT push to undo stack
+  }
+
+  function restoreScenario(id) {
+    var scenario = window._scenarios.find(function(s) { return s.id === id; });
+    if (!scenario) return;
+
+    // Push current canvas state so Ctrl+Z returns here
+    if (typeof window._undoPushState === 'function') {
+      window._undoPushState('Restore scenario: ' + scenario.name);
+    }
+
+    // state is already a parsed object (Phase 1 stores JSON.parse result)
+    window._loadAssessment(scenario.state);
+
+    closeScenariosModal();
+    if (typeof showToast === 'function') {
+      showToast('Restored \u201c' + scenario.name + '\u201d \u2014 press Ctrl+Z to undo', 5000);
+    }
+  }
+
+  function updateScenario(id) {
+    var scenario = window._scenarios.find(function(s) { return s.id === id; });
+    if (!scenario) return;
+    if (!confirm('Overwrite scenario \u201c' + scenario.name + '\u201d with current state?')) return;
+
+    var raw = window._serialiseState ? window._serialiseState() : '{}';
+    scenario.state     = JSON.parse(raw);
+    scenario.stripData = JSON.parse(JSON.stringify(window._stripData || []));
+    scenario.timestamp = new Date().toISOString();
+    // id, name, schemaVersion unchanged
+
+    renderScenariosModal();
+    if (typeof showToast === 'function') {
+      showToast('Updated \u201c' + scenario.name + '\u201d', 3000);
+    }
+    // Must NOT push to undo stack
+  }
+
+  function renderScenariosModal() {
+    if (!_scenModalEl) return;
+    var box = _scenModalEl.querySelector('#scenModalBox');
+    if (!box) return;
+
+    var scenarios = window._scenarios || [];
+    // Sort newest first
+    var sorted = scenarios.slice().sort(function(a, b) {
+      return (b.timestamp || '').localeCompare(a.timestamp || '');
+    });
+
+    var html = '';
+
+    // Header row
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">';
+    html += '<h2 style="margin:0;font-size:16px;font-weight:700;color:var(--text,#111);">Scenarios</h2>';
+    html += '<button id="scenModalClose" type="button" aria-label="Close scenarios" style="' +
+      'width:24px;height:24px;padding:0;border:none;background:transparent;' +
+      'font-size:20px;line-height:1;color:#9ca3af;cursor:pointer;border-radius:4px;">\u00d7</button>';
+    html += '</div>';
+
+    // Save button
+    html += '<button id="scenSaveBtn" type="button" class="pdf-btn" style="width:100%;margin-bottom:14px;">' +
+      'Save current state as scenario\u2026</button>';
+
+    if (sorted.length === 0) {
+      html += '<p style="color:var(--muted,#6b7280);font-size:13px;margin:0;">No scenarios saved yet.</p>';
+    } else {
+      html += '<ul style="list-style:none;margin:0;padding:0;">';
+      sorted.forEach(function(sc) {
+        html += '<li style="display:flex;align-items:center;justify-content:space-between;' +
+          'padding:8px 10px;margin-bottom:6px;border:1px solid var(--border,#e5e7eb);' +
+          'border-radius:6px;background:var(--bg,#fff);">';
+        html += '<span style="font-size:13px;color:var(--text,#111);flex:1;min-width:0;">' +
+          '<strong style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+          _escapeHtml(sc.name) + '</strong>' +
+          '<span style="font-size:11px;color:var(--muted,#6b7280);">' +
+          _formatScenarioTimestamp(sc.timestamp) + '</span>' +
+          '</span>';
+        html += '<span style="display:flex;flex-wrap:wrap;gap:6px;margin-left:10px;flex-shrink:0;">';
+        html += '<button type="button" data-scen-update="' + _escapeAttr(sc.id) + '" ' +
+          'class="pdf-btn" style="font-size:11px;padding:3px 10px;margin:0;">Update</button>';
+        html += '<button type="button" data-scen-restore="' + _escapeAttr(sc.id) + '" ' +
+          'class="pdf-btn" style="font-size:11px;padding:3px 10px;margin:0;font-weight:700;">Restore</button>';
+        html += '<button type="button" data-scen-rename="' + _escapeAttr(sc.id) + '" ' +
+          'class="pdf-btn" style="font-size:11px;padding:3px 10px;margin:0;">Rename</button>';
+        html += '<button type="button" data-scen-delete="' + _escapeAttr(sc.id) + '" ' +
+          'class="pdf-btn" style="font-size:11px;padding:3px 10px;margin:0;color:#dc2626;">' +
+          'Delete</button>';
+        html += '</span>';
+        html += '</li>';
+      });
+      html += '</ul>';
+
+      if (sorted.length >= 2) {
+        // Resolve baseline for initial render — oldest scenario by default
+        var baselineOptions = scenarios.slice().sort(function(a, b) {
+          return (a.timestamp || '').localeCompare(b.timestamp || '');
+        });
+        var resolvedBaselineId = _compareSelection.baselineId ||
+                                 (baselineOptions[0] ? baselineOptions[0].id : null);
+
+        html += '<div id="scenCompareSection" style="margin-top:16px;border-top:1px solid var(--border,#e5e7eb);padding-top:14px;">';
+        html += '<h3 style="margin:0 0 10px;font-size:14px;font-weight:700;color:var(--text,#111);">Compare scenarios</h3>';
+
+        // Baseline selector
+        html += '<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">';
+        html += '<label style="font-size:12px;color:var(--text,#111);white-space:nowrap;font-weight:600;">Baseline:</label>';
+        html += '<select id="scenBaselineSel" style="flex:1;font-size:12px;padding:3px 6px;border:1px solid var(--border,#e5e7eb);border-radius:4px;">';
+        baselineOptions.forEach(function(sc) {
+          var selAttr = (sc.id === resolvedBaselineId) ? ' selected' : '';
+          html += '<option value="' + _escapeAttr(sc.id) + '"' + selAttr + '>' + _escapeHtml(sc.name) + '</option>';
+        });
+        html += '</select>';
+        html += '</div>';
+
+        // Include checkboxes
+        html += '<div style="margin-bottom:10px;">';
+        html += '<span style="font-size:12px;font-weight:600;color:var(--text,#111);">Include:</span>';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">';
+        sorted.forEach(function(sc) {
+          var isBase = sc.id === resolvedBaselineId;
+          var isIncl = !_compareSelection.includedIds ||
+                       _compareSelection.includedIds.indexOf(sc.id) !== -1;
+          var chk  = (isBase || isIncl) ? ' checked' : '';
+          var dis  = isBase ? ' disabled' : '';
+          html += '<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">';
+          html += '<input type="checkbox" data-scen-include="' + _escapeAttr(sc.id) + '"' + chk + dis + '>';
+          html += _escapeHtml(sc.name) + '</label>';
+        });
+        html += '</div></div>';
+
+        // Comparison table — populated by renderComparisonTable()
+        html += '<div id="scenarioCompareTable"></div>';
+        html += '</div>';
+      }
+    }
+
+    box.innerHTML = html;
+
+    // Wire close button
+    var closeBtn = box.querySelector('#scenModalClose');
+    if (closeBtn) {
+      closeBtn.addEventListener('mouseover', function() {
+        closeBtn.style.color = '#374151'; closeBtn.style.background = 'rgba(0,0,0,0.06)';
+      });
+      closeBtn.addEventListener('mouseout', function() {
+        closeBtn.style.color = '#9ca3af'; closeBtn.style.background = 'transparent';
+      });
+      closeBtn.addEventListener('click', function(e) { e.stopPropagation(); closeScenariosModal(); });
+    }
+
+    // Wire save button
+    var saveBtn = box.querySelector('#scenSaveBtn');
+    if (saveBtn) saveBtn.addEventListener('click', saveScenario);
+
+    // Wire all per-scenario action buttons via delegation
+    box.addEventListener('click', function(e) {
+      var updateId  = e.target.getAttribute('data-scen-update');
+      if (updateId)  { updateScenario(updateId);  return; }
+      var restoreId = e.target.getAttribute('data-scen-restore');
+      if (restoreId) { restoreScenario(restoreId); return; }
+      var renameId  = e.target.getAttribute('data-scen-rename');
+      if (renameId)  { renameScenario(renameId);   return; }
+      var deleteId  = e.target.getAttribute('data-scen-delete');
+      if (deleteId)  { deleteScenario(deleteId);   return; }
+    });
+
+    // Wire baseline select — updates table only, not full modal
+    var baselineSel = box.querySelector('#scenBaselineSel');
+    if (baselineSel) {
+      baselineSel.addEventListener('change', function() {
+        var newId = this.value;
+        // Update checkbox states: re-enable old baseline, disable new one
+        box.querySelectorAll('[data-scen-include]').forEach(function(cb) {
+          var cbId = cb.getAttribute('data-scen-include');
+          if (cbId === newId) {
+            cb.checked = true;
+            cb.disabled = true;
+          } else {
+            cb.disabled = false;
+          }
+        });
+        _compareSelection.baselineId = newId;
+        // Ensure new baseline is always included
+        if (_compareSelection.includedIds && _compareSelection.includedIds.indexOf(newId) === -1) {
+          _compareSelection.includedIds.push(newId);
+        }
+        renderComparisonTable();
+      });
+    }
+
+    // Wire include checkboxes — updates table only
+    box.querySelectorAll('[data-scen-include]').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        var id = this.getAttribute('data-scen-include');
+        if (!_compareSelection.includedIds) {
+          _compareSelection.includedIds = (window._scenarios || []).map(function(s) { return s.id; });
+        }
+        if (this.checked) {
+          if (_compareSelection.includedIds.indexOf(id) === -1) _compareSelection.includedIds.push(id);
+        } else {
+          _compareSelection.includedIds = _compareSelection.includedIds.filter(function(i) { return i !== id; });
+        }
+        renderComparisonTable();
+      });
+    });
+
+    // Initial comparison table render
+    if ((window._scenarios || []).length >= 2) renderComparisonTable();
+  }
+
+  function renderComparisonTable() {
+    if (!_scenModalEl) return;
+    var tableDiv = document.getElementById('scenarioCompareTable');
+    if (!tableDiv) return;
+
+    var scenarios = window._scenarios || [];
+    if (scenarios.length < 2) { tableDiv.innerHTML = ''; return; }
+
+    // 1. Resolve baseline: explicit id → oldest by timestamp → first
+    var baseline;
+    if (_compareSelection.baselineId) {
+      baseline = scenarios.find(function(s) { return s.id === _compareSelection.baselineId; });
+    }
+    if (!baseline) {
+      baseline = scenarios.slice().sort(function(a, b) {
+        return (a.timestamp || '').localeCompare(b.timestamp || '');
+      })[0] || scenarios[0];
+    }
+
+    // 2. Resolve included: explicit list → all
+    var included;
+    if (_compareSelection.includedIds) {
+      included = scenarios.filter(function(s) {
+        return _compareSelection.includedIds.indexOf(s.id) !== -1;
+      });
+    } else {
+      included = scenarios.slice();
+    }
+    if (included.indexOf(baseline) === -1) included.unshift(baseline);
+
+    // Baseline first, then remaining in original _scenarios order
+    var nonBaseline = scenarios.filter(function(s) {
+      return s !== baseline && included.indexOf(s) !== -1;
+    });
+    var cols = [baseline].concat(nonBaseline);
+
+    // 3. Receiver list — first-seen order across all included scenarios;
+    //    keep only receivers placed=true in at least one included scenario
+    var rcvIds = [], rcvSeen = {};
+    cols.forEach(function(sc) {
+      (sc.stripData || []).forEach(function(r) {
+        if (r && r.id && !rcvSeen[r.id]) { rcvSeen[r.id] = true; rcvIds.push(r.id); }
+      });
+    });
+    rcvIds = rcvIds.filter(function(rcvId) {
+      return cols.some(function(sc) {
+        var r = (sc.stripData || []).find(function(x) { return x && x.id === rcvId; });
+        return r && r.placed === true;
+      });
+    });
+
+    if (!rcvIds.length) {
+      tableDiv.innerHTML = '<p style="font-size:12px;color:var(--muted,#6b7280);margin:8px 0;">No placed receivers in any selected scenario.</p>';
+      return;
+    }
+
+    // 4. Period definitions
+    var periods = [
+      { key: 'day',   lbl: 'D' },
+      { key: 'eve',   lbl: 'E' },
+      { key: 'night', lbl: 'N' },
+      { key: 'lmax',  lbl: 'Lmax' }
+    ];
+
+    // Helpers
+    function findRcv(sc, rcvId) {
+      return (sc.stripData || []).find(function(x) { return x && x.id === rcvId; }) || null;
+    }
+    function isNum(v) { return typeof v === 'number' && isFinite(v); }
+
+    // 5. Build table
+    var TH = 'font-size:11px;font-weight:600;color:#6b7280;padding:5px 8px;text-align:center;' +
+             'border-bottom:2px solid var(--border,#e5e7eb);white-space:nowrap;';
+    var TD = 'font-size:12px;padding:4px 8px;text-align:center;' +
+             'border-bottom:1px solid var(--border,#e5e7eb);';
+
+    var html = '<div style="overflow-x:auto;margin-top:8px;">';
+    html += '<table style="width:100%;border-collapse:collapse;">';
+
+    // Header
+    html += '<thead><tr>';
+    html += '<th style="' + TH + 'text-align:left;">Receiver</th>';
+    html += '<th style="' + TH + '">Per.</th>';
+    html += '<th style="' + TH + '">' + _escapeHtml(baseline.name) +
+            '<br><span style="font-size:10px;font-weight:400;color:#9ca3af;">pred</span></th>';
+    nonBaseline.forEach(function(sc) {
+      html += '<th style="' + TH + '">' + _escapeHtml(sc.name) +
+              '<br><span style="font-size:10px;font-weight:400;color:#9ca3af;">pred (\u0394)</span></th>';
+    });
+    html += '<th style="' + TH + '">Crit</th>';
+    html += '</tr></thead><tbody>';
+
+    // Rows
+    var stripe = false;
+    rcvIds.forEach(function(rcvId) {
+      var rowBg = stripe ? 'background:#f8fafc;' : '';
+      stripe = !stripe;
+
+      periods.forEach(function(p) {
+        // Skip row if no included scenario has numeric pred for this receiver/period
+        var anyData = cols.some(function(sc) {
+          var r = findRcv(sc, rcvId);
+          return r && r.placed && r[p.key] && isNum(r[p.key].pred);
+        });
+        if (!anyData) return;
+
+        // Receiver display name — prefer baseline, then first col with a name
+        var rcvName = '';
+        for (var ci = 0; ci < cols.length; ci++) {
+          var rr = findRcv(cols[ci], rcvId);
+          if (rr && rr.name) { rcvName = rr.name; break; }
+        }
+        if (!rcvName) rcvName = rcvId;
+
+        html += '<tr style="' + rowBg + '">';
+        html += '<td style="' + TD + 'text-align:left;font-weight:600;color:var(--text,#111);">' +
+                _escapeHtml(rcvName) + '</td>';
+        html += '<td style="' + TD + 'color:#6b7280;">' + p.lbl + '</td>';
+
+        // Baseline cell
+        var bRcv   = findRcv(baseline, rcvId);
+        var bPred  = (bRcv && bRcv.placed && bRcv[p.key]) ? bRcv[p.key].pred : null;
+        var bCrit  = (bRcv && bRcv[p.key]) ? bRcv[p.key].crit : null;
+        if (isNum(bPred)) {
+          var bPredR = Math.round(bPred);
+          var bCritR = isNum(bCrit) ? Math.round(bCrit) : null;
+          var bCls   = (isNum(bCritR)) ? (bPredR <= bCritR ? 'cs-cell cs-ok' : 'cs-cell cs-bad') : '';
+          html += '<td class="' + bCls + '" style="' + TD + '">' + bPredR + '</td>';
+        } else {
+          html += '<td style="' + TD + 'color:#9ca3af;">\u2014</td>';
+        }
+
+        // Comparison cells
+        nonBaseline.forEach(function(sc) {
+          var scRcv  = findRcv(sc, rcvId);
+          var scPred = (scRcv && scRcv.placed && scRcv[p.key]) ? scRcv[p.key].pred : null;
+          var scCrit = (scRcv && scRcv[p.key]) ? scRcv[p.key].crit : null;
+          if (isNum(scPred)) {
+            var scPredR = Math.round(scPred);
+            var scCritR = isNum(scCrit) ? Math.round(scCrit) : null;
+            var scCls   = (isNum(scCritR)) ? (scPredR <= scCritR ? 'cs-cell cs-ok' : 'cs-cell cs-bad') : '';
+            var deltaStr = '';
+            if (isNum(bPred)) {
+              var d = Math.round(scPred) - Math.round(bPred);
+              if (d === 0)      deltaStr = ' (\u00b10)';
+              else if (d > 0)   deltaStr = ' (+' + d + ')';
+              else              deltaStr = ' (\u2212' + Math.abs(d) + ')';
+            }
+            html += '<td class="' + scCls + '" style="' + TD + '">' + scPredR +
+                    '<span style="color:#6b7280;font-size:10px;">' + deltaStr + '</span></td>';
+          } else {
+            html += '<td style="' + TD + 'color:#9ca3af;">\u2014</td>';
+          }
+        });
+
+        // Crit cell — prefer baseline's crit; fallback to first included col with data
+        var critVal = null;
+        if (isNum(bCrit)) {
+          critVal = Math.round(bCrit);
+        } else {
+          for (var ci2 = 0; ci2 < cols.length; ci2++) {
+            var rr2 = findRcv(cols[ci2], rcvId);
+            if (rr2 && rr2[p.key] && isNum(rr2[p.key].crit)) {
+              critVal = Math.round(rr2[p.key].crit);
+              break;
+            }
+          }
+        }
+        html += '<td style="' + TD + 'font-weight:600;color:var(--text,#111);">' +
+                (critVal !== null ? critVal : '\u2014') + '</td>';
+
+        html += '</tr>';
+      });
+    });
+
+    html += '</tbody></table></div>';
+    tableDiv.innerHTML = html;
+  }
+
+  function _escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function _escapeAttr(str) {
+    return String(str).replace(/"/g, '&quot;');
+  }
+
+  function _getFocusableEls() {
+    if (!_scenModalEl) return [];
+    return Array.from(_scenModalEl.querySelectorAll(
+      'button:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
+    )).filter(function(el) { return el.offsetParent !== null; });
+  }
+
+  function showScenariosModal() {
+    if (_scenModalEl) closeScenariosModal();
+
+    // Reset compare selection so each open starts from defaults
+    _compareSelection.baselineId  = null;
+    _compareSelection.includedIds = null;
+
+    _scenPrevFocus = document.activeElement;
+
+    var backdrop = document.createElement('div');
+    backdrop.id = 'scenariosModalBackdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    backdrop.setAttribute('aria-label', 'Scenarios');
+    backdrop.style.cssText =
+      'position:fixed;inset:0;z-index:10000;' +
+      'background:rgba(0,0,0,0.5);' +
+      'display:flex;align-items:flex-start;justify-content:center;' +
+      'padding:40px 20px;overflow-y:auto;';
+
+    var box = document.createElement('div');
+    box.id = 'scenModalBox';
+    box.style.cssText =
+      'position:relative;background:var(--bg,#ffffff);' +
+      'max-width:900px;width:100%;max-height:85vh;' +
+      'overflow-y:auto;border-radius:8px;' +
+      'border:1px solid var(--border,#e5e7eb);' +
+      'box-shadow:0 8px 32px rgba(0,0,0,0.18);' +
+      'padding:18px 22px 22px;';
+
+    backdrop.addEventListener('click', function(e) {
+      if (e.target === backdrop) closeScenariosModal();
+    });
+
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    _scenModalEl = backdrop;
+
+    renderScenariosModal();
+
+    _scenEscHandler = function(e) {
+      if (e.key === 'Escape' && _scenModalEl) {
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        closeScenariosModal();
+      }
+    };
+    document.addEventListener('keydown', _scenEscHandler, true);
+
+    // Tab focus trap
+    _scenFocusHandler = function(e) {
+      if (!_scenModalEl) return;
+      if (e.key !== 'Tab') return;
+      var els = _getFocusableEls();
+      if (!els.length) return;
+      var first = els[0], last = els[els.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', _scenFocusHandler, true);
+
+    // Focus first element
+    setTimeout(function() {
+      var els = _getFocusableEls();
+      if (els.length) els[0].focus();
+    }, 0);
+  }
+
+  function closeScenariosModal() {
+    if (_scenEscHandler)   { document.removeEventListener('keydown', _scenEscHandler, true);   _scenEscHandler = null; }
+    if (_scenFocusHandler) { document.removeEventListener('keydown', _scenFocusHandler, true); _scenFocusHandler = null; }
+    if (_scenModalEl) { _scenModalEl.remove(); _scenModalEl = null; }
+    if (_scenPrevFocus) { try { _scenPrevFocus.focus(); } catch (e) {} _scenPrevFocus = null; }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('scenariosBtn');
+    if (btn) btn.addEventListener('click', showScenariosModal);
+  });
+
+  window._showScenariosModal  = showScenariosModal;
+  window._closeScenariosModal = closeScenariosModal;
 })();
 </script>
 
