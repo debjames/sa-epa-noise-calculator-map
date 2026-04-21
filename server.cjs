@@ -4,7 +4,8 @@ const path = require('path');
 const root = __dirname;
 
 http.createServer((req, res) => {
-  const fp = path.join(root, req.url === '/' ? 'index.html' : req.url.slice(1));
+  const urlPath = req.url.split('?')[0];
+  const fp = path.join(root, urlPath === '/' ? 'index.html' : urlPath.slice(1));
   fs.readFile(fp, (e, d) => {
     if (e) { res.writeHead(404); res.end('Not found'); return; }
     const ext = path.extname(fp).slice(1);
