@@ -24266,6 +24266,240 @@ setInitialCollapseState();
 
 <script>
 /* ══════════════════════════════════════════════════════════════
+   Source Library — Submit entry modal (Phase 3)
+   Exposes: window.showSubmitSourceModal(prefill?)
+   prefill: optional {hz_63..hz_8000, data_type, category, description}
+   ══════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  var A_WEIGHTS = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
+  var BANDS     = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+  var DATA_TYPES = ['Lp, dB(Z)', 'Lw, dB(A)', 'Lw/m, dB(A)', 'Lw/m\u00b2, dB(A)'];
+
+  var _modalEl    = null;
+  var _escHandler = null;
+  var _prevFocus  = null;
+
+  function _computeDbA(vals) {
+    var sum = 0, any = false;
+    for (var i = 0; i < 8; i++) {
+      if (vals[i] === null || !isFinite(vals[i])) continue;
+      sum += Math.pow(10, (vals[i] + A_WEIGHTS[i]) / 10);
+      any = true;
+    }
+    return any ? Math.round(10 * Math.log10(sum)) / 10 : null;
+  }
+
+  function _getBandValues() {
+    return BANDS.map(function (b) {
+      var el = document.getElementById('slm-hz-' + b);
+      if (!el || !el.value.trim()) return null;
+      var v = parseFloat(el.value);
+      return isFinite(v) ? v : null;
+    });
+  }
+
+  function _updateDbAPreview() {
+    var el = document.getElementById('slm-dba-preview');
+    if (!el) return;
+    var dba = _computeDbA(_getBandValues());
+    el.textContent = dba !== null ? dba.toFixed(1) + ' dB(A)' : '\u2014';
+  }
+
+  function _close() {
+    if (!_modalEl) return;
+    document.removeEventListener('keydown', _escHandler, true);
+    document.body.removeChild(_modalEl);
+    _modalEl = null; _escHandler = null;
+    if (_prevFocus && _prevFocus.focus) _prevFocus.focus();
+    _prevFocus = null;
+  }
+
+  function showSubmitSourceModal(prefill) {
+    if (_modalEl) _close();
+    _prevFocus  = document.activeElement;
+    prefill = prefill || {};
+
+    var FS = 'width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;box-sizing:border-box;';
+    var LS = 'display:block;font-size:11px;color:#555;margin-bottom:3px;font-weight:600;';
+    var RS = 'margin-bottom:12px;';
+
+    function _v(key) { return String(prefill[key] != null ? prefill[key] : ''); }
+
+    var h = '';
+    // Header
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+    h += '<h3 style="margin:0;font-size:15px;font-weight:700;color:#111;">Submit to source library</h3>';
+    h += '<button id="slm-close" style="background:none;border:none;cursor:pointer;font-size:20px;color:#6b7280;line-height:1;padding:2px 6px;" title="Close">&times;</button>';
+    h += '</div>';
+    // Name
+    h += '<div style="' + RS + '">';
+    h += '<label style="' + LS + '">Name <span style="color:#b91c1c;">*</span></label>';
+    h += '<input id="slm-name" type="text" style="' + FS + '" placeholder="e.g. Gymnasium \u2014 general sporting activity">';
+    h += '</div>';
+    // Data type + Category
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;' + RS + '">';
+    h += '<div><label style="' + LS + '">Data type <span style="color:#b91c1c;">*</span></label>';
+    h += '<select id="slm-data-type" style="' + FS + '">';
+    h += '<option value="">-- select --</option>';
+    DATA_TYPES.forEach(function (dt) {
+      h += '<option value="' + dt + '"' + (prefill.data_type === dt ? ' selected' : '') + '>' + dt + '</option>';
+    });
+    h += '</select></div>';
+    h += '<div><label style="' + LS + '">Category <span style="color:#b91c1c;">*</span></label>';
+    h += '<input id="slm-category" type="text" style="' + FS + '" value="' + _v('category') + '" placeholder="e.g. Music, People, HVAC"></div>';
+    h += '</div>';
+    // Octave bands
+    h += '<div style="' + RS + '">';
+    h += '<label style="' + LS + '">Octave band levels (dB) <span style="color:#b91c1c;">*</span></label>';
+    h += '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;">';
+    BANDS.forEach(function (b) {
+      var lbl = b >= 1000 ? (b / 1000) + 'k' : String(b);
+      var val = _v('hz_' + b);
+      h += '<div style="text-align:center;">';
+      h += '<div style="font-size:10px;color:#888;margin-bottom:2px;">' + lbl + '</div>';
+      h += '<input id="slm-hz-' + b + '" type="number" step="0.1" value="' + val + '"';
+      h += ' style="' + FS + 'text-align:center;padding:3px 2px;">';
+      h += '</div>';
+    });
+    h += '</div>';
+    h += '<div style="margin-top:6px;font-size:11px;color:#6b7280;">A-weighted total: <b id="slm-dba-preview">\u2014</b></div>';
+    h += '</div>';
+    // Description
+    h += '<div style="' + RS + '">';
+    h += '<label style="' + LS + '">Description <span style="color:#9ca3af;font-weight:400;">(optional)</span></label>';
+    h += '<input id="slm-description" type="text" style="' + FS + '" value="' + _v('description') + '">';
+    h += '</div>';
+    // Citation + Added by
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;' + RS + '">';
+    h += '<div><label style="' + LS + '">Source citation <span style="color:#9ca3af;font-weight:400;">(optional)</span></label>';
+    h += '<input id="slm-citation" type="text" style="' + FS + '" placeholder="e.g. ISO 1234:2020"></div>';
+    h += '<div><label style="' + LS + '">Added by <span style="color:#9ca3af;font-weight:400;">(optional)</span></label>';
+    h += '<input id="slm-added-by" type="text" style="' + FS + '" placeholder="Name or organisation"></div>';
+    h += '</div>';
+    // Status
+    h += '<div id="slm-status" style="display:none;padding:8px 12px;border-radius:4px;font-size:12px;margin-bottom:12px;"></div>';
+    // Buttons
+    h += '<div style="display:flex;justify-content:flex-end;gap:8px;">';
+    h += '<button id="slm-cancel" style="padding:6px 16px;background:#f3f4f6;border:1px solid #ddd;border-radius:5px;cursor:pointer;font-size:12px;">Cancel</button>';
+    h += '<button id="slm-submit" style="padding:6px 16px;background:#6d28d9;color:#fff;border:1px solid #5b21b6;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;">Submit</button>';
+    h += '</div>';
+
+    var backdrop = document.createElement('div');
+    backdrop.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.5);display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;';
+    backdrop.addEventListener('click', function (e) { if (e.target === backdrop) _close(); });
+
+    var box = document.createElement('div');
+    box.style.cssText = 'position:relative;background:#fff;max-width:540px;width:100%;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 8px 32px rgba(0,0,0,0.18);padding:20px 24px 24px;';
+    box.innerHTML = h;
+
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    _modalEl = backdrop;
+
+    // Live dB(A) preview
+    BANDS.forEach(function (b) {
+      var inp = document.getElementById('slm-hz-' + b);
+      if (inp) inp.addEventListener('input', _updateDbAPreview);
+    });
+    _updateDbAPreview();
+
+    document.getElementById('slm-close').addEventListener('click', _close);
+    document.getElementById('slm-cancel').addEventListener('click', _close);
+    document.getElementById('slm-submit').addEventListener('click', _handleSubmit);
+
+    _escHandler = function (e) {
+      if (e.key === 'Escape' && _modalEl) { e.stopPropagation(); _close(); }
+    };
+    document.addEventListener('keydown', _escHandler, true);
+
+    setTimeout(function () {
+      var el = document.getElementById('slm-name');
+      if (el) el.focus();
+    }, 50);
+  }
+
+  function _handleSubmit() {
+    var nameEl    = document.getElementById('slm-name');
+    var typeEl    = document.getElementById('slm-data-type');
+    var catEl     = document.getElementById('slm-category');
+    var descEl    = document.getElementById('slm-description');
+    var citEl     = document.getElementById('slm-citation');
+    var addedEl   = document.getElementById('slm-added-by');
+    var statusEl  = document.getElementById('slm-status');
+    var submitBtn = document.getElementById('slm-submit');
+
+    function _status(msg, err) {
+      statusEl.textContent = msg;
+      statusEl.style.display = 'block';
+      statusEl.style.background  = err ? '#fee2e2' : '#dcfce7';
+      statusEl.style.color       = err ? '#991b1b' : '#166534';
+      statusEl.style.border      = err ? '1px solid #fca5a5' : '1px solid #86efac';
+    }
+
+    var name     = nameEl  ? nameEl.value.trim()  : '';
+    var dataType = typeEl  ? typeEl.value          : '';
+    var category = catEl   ? catEl.value.trim()    : '';
+
+    if (!name)     { _status('Name is required.',      true); if (nameEl)  nameEl.focus();  return; }
+    if (!dataType) { _status('Data type is required.', true); if (typeEl)  typeEl.focus();  return; }
+    if (!category) { _status('Category is required.',  true); if (catEl)   catEl.focus();   return; }
+
+    var bandVals = _getBandValues();
+    if (bandVals.every(function (v) { return v === null; })) {
+      _status('At least one octave band value is required.', true);
+      return;
+    }
+
+    if (!window.SourceLibrary) {
+      _status('Source library not available.', true);
+      return;
+    }
+
+    var dba = _computeDbA(bandVals);
+
+    var fields = {
+      name:               name,
+      data_type:          dataType,
+      category:           category,
+      description:        descEl    ? descEl.value.trim()    : '',
+      source_citation:    citEl     ? citEl.value.trim()     : '',
+      source_description: '',
+      added_by:           addedEl   ? addedEl.value.trim()   : '',
+      hz_63:   bandVals[0] !== null ? bandVals[0] : '',
+      hz_125:  bandVals[1] !== null ? bandVals[1] : '',
+      hz_250:  bandVals[2] !== null ? bandVals[2] : '',
+      hz_500:  bandVals[3] !== null ? bandVals[3] : '',
+      hz_1000: bandVals[4] !== null ? bandVals[4] : '',
+      hz_2000: bandVals[5] !== null ? bandVals[5] : '',
+      hz_4000: bandVals[6] !== null ? bandVals[6] : '',
+      hz_8000: bandVals[7] !== null ? bandVals[7] : '',
+      dba:     dba !== null ? dba : ''
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting\u2026';
+    _status('Submitting\u2026', false);
+
+    window.SourceLibrary.submitNewSource(fields).then(function (result) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit';
+      if (result.ok) {
+        _status('\u2713 ' + (result.message || 'Submitted successfully.'), false);
+        setTimeout(_close, 2200);
+      } else {
+        _status('\u2717 ' + (result.message || 'Submission failed.'), true);
+      }
+    });
+  }
+
+  window.showSubmitSourceModal = showSubmitSourceModal;
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
    UNDO / REDO — state-snapshot history manager
    Captures full assessment JSON before/after each user action.
    API: window._undoPushState(label), window._undoRestoring flag.
@@ -32645,6 +32879,9 @@ if (window.pdfjsLib) {
       h += '<input id="bs-lib-combo" type="text" placeholder="Search library\u2026" autocomplete="off" value="' + escapeHTML(bs.lpLibraryEntry || '') + '" style="width:100%;padding:5px 8px;font-size:12px;border:1px solid #ddd;border-radius:4px;box-sizing:border-box;">';
       h += '<div id="bs-lib-dropdown" style="position:absolute;top:100%;left:0;right:0;max-height:160px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-top:none;border-radius:0 0 4px 4px;z-index:200;display:none;box-shadow:0 4px 8px rgba(0,0,0,0.1);"></div>';
       h += '</div>';
+      h += '<div style="text-align:right;margin:-6px 0 10px;">';
+      h += '<button id="bs-lib-submit" style="background:none;border:none;cursor:pointer;font-size:11px;color:#6d28d9;text-decoration:underline;padding:0;" title="Submit a new entry to the online source library">Submit to library\u2026</button>';
+      h += '</div>';
 
       // Interior levels per period
       h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin-bottom:6px;">Interior Noise Levels</div>';
@@ -33075,6 +33312,27 @@ if (window.pdfjsLib) {
             window.SourceLibrary.loadSourceLibrary().then(function() {
               showToast('Source library updated.', 2500);
             });
+          });
+        }
+
+        var bsLibSubmitBtn = panel.querySelector('#bs-lib-submit');
+        if (bsLibSubmitBtn) {
+          bsLibSubmitBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            // Pre-fill with current day-period octave band Lp values if present
+            var prefill = { data_type: 'Lp, dB(Z)' };
+            var hasVals = false;
+            [63, 125, 250, 500, 1000, 2000, 4000, 8000].forEach(function(b) {
+              var inp = document.getElementById('bs_day_lp_' + b);
+              if (inp && inp.value.trim()) {
+                prefill['hz_' + b] = parseFloat(inp.value);
+                hasVals = true;
+              }
+            });
+            if (!hasVals) prefill = { data_type: 'Lp, dB(Z)' };
+            if (typeof window.showSubmitSourceModal === 'function') {
+              window.showSubmitSourceModal(prefill);
+            }
           });
         }
       }
