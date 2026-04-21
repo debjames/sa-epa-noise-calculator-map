@@ -32637,7 +32637,10 @@ if (window.pdfjsLib) {
       h += '</div>';
 
       // Interior Lp library dropdown (searchable combo)
-      h += '<label style="font-size:11px;color:#666;display:block;margin:4px 0 3px;">Interior Lp library:</label>';
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0 3px;">';
+      h += '<label style="font-size:11px;color:#666;">Interior Lp library:</label>';
+      h += '<button class="crit-refresh-btn" id="bs-lib-refresh" title="Refresh from online source library">&#x21BB;</button>';
+      h += '</div>';
       h += '<div style="position:relative;margin-bottom:10px;">';
       h += '<input id="bs-lib-combo" type="text" placeholder="Search library\u2026" autocomplete="off" value="' + escapeHTML(bs.lpLibraryEntry || '') + '" style="width:100%;padding:5px 8px;font-size:12px;border:1px solid #ddd;border-radius:4px;box-sizing:border-box;">';
       h += '<div id="bs-lib-dropdown" style="position:absolute;top:100%;left:0;right:0;max-height:160px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-top:none;border-radius:0 0 4px 4px;z-index:200;display:none;box-shadow:0 4px 8px rgba(0,0,0,0.1);"></div>';
@@ -33000,19 +33003,17 @@ if (window.pdfjsLib) {
         function _buildBsLpDropdown(q) {
           bsLibDrop.innerHTML = '';
           var hasAny = false;
-          var lib = window.BUILDING_LP_LIBRARY_GROUPED || BUILDING_LP_LIBRARY_GROUPED;
-          var groups = Object.keys(lib);
-          for (var gi = 0; gi < groups.length; gi++) {
-            var grp = groups[gi];
-            var items = (lib[grp] || []).filter(function(s) {
+
+          function _renderGroup(grp, items) {
+            var filtered = items.filter(function(s) {
               return !q || s.name.toLowerCase().indexOf(q) !== -1;
             });
-            if (!items.length) continue;
+            if (!filtered.length) return;
             var hdr = document.createElement('div');
             hdr.textContent = grp;
             hdr.style.cssText = 'padding:4px 8px 2px;font-size:10px;font-weight:bold;color:#888;background:#f5f5f5;text-transform:uppercase;letter-spacing:0.5px;pointer-events:none;';
             bsLibDrop.appendChild(hdr);
-            items.forEach(function(entry) {
+            filtered.forEach(function(entry) {
               var item = document.createElement('div');
               item.textContent = entry.name;
               item.style.cssText = 'padding:4px 8px 4px 14px;font-size:12px;cursor:pointer;border-bottom:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
@@ -33028,6 +33029,30 @@ if (window.pdfjsLib) {
             });
             hasAny = true;
           }
+
+          // Existing hardcoded / Supabase library
+          var lib = window.BUILDING_LP_LIBRARY_GROUPED || BUILDING_LP_LIBRARY_GROUPED;
+          Object.keys(lib).forEach(function(grp) { _renderGroup(grp, lib[grp] || []); });
+
+          // Google Sheets library — adapt hz_* keys to spectrum object expected by _applyBsLpEntry
+          if (window.SourceLibrary) {
+            var slGrouped = window.SourceLibrary.getGroupedLibraryForSourceType('building');
+            Object.keys(slGrouped).forEach(function(grp) {
+              var adapted = (slGrouped[grp] || []).map(function(row) {
+                return {
+                  name: row.name,
+                  category: row.category,
+                  lp_dba: row.lp_dba,
+                  spectrum: {
+                    63: row.hz_63, 125: row.hz_125, 250: row.hz_250, 500: row.hz_500,
+                    1000: row.hz_1000, 2000: row.hz_2000, 4000: row.hz_4000, 8000: row.hz_8000
+                  }
+                };
+              });
+              _renderGroup(grp, adapted);
+            });
+          }
+
           bsLibDrop.style.display = hasAny ? 'block' : 'none';
         }
         bsLibCombo.addEventListener('input', function() {
@@ -33039,6 +33064,19 @@ if (window.pdfjsLib) {
         bsLibCombo.addEventListener('blur', function() {
           setTimeout(function() { bsLibDrop.style.display = 'none'; }, 150);
         });
+
+        var bsLibRefreshBtn = panel.querySelector('#bs-lib-refresh');
+        if (bsLibRefreshBtn) {
+          bsLibRefreshBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (!window.SourceLibrary) return;
+            showToast('Refreshing source library\u2026', 2000);
+            try { localStorage.removeItem('sourceLibraryCache_v1'); } catch (err) {}
+            window.SourceLibrary.loadSourceLibrary().then(function() {
+              showToast('Source library updated.', 2500);
+            });
+          });
+        }
       }
 
       // ── Interior Lp + active + pct per period ────────────────────────────
