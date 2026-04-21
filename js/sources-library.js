@@ -22,7 +22,7 @@
 
   var CSV_URL       = 'https://docs.google.com/spreadsheets/d/1GW8J6YDlXD77nzBgDPbn8-RTHduoKW2jftYuIK_54c0/gviz/tq?tqx=out:csv&sheet=Sources';
   var WRITE_URL     = 'https://script.google.com/macros/s/AKfycbyxbCdzGeQMHn6G-jEkp2HrTYqa0V_CS3KC5811e6nb2RIa6CvUpbxsu-8PPKVIJlxH/exec';
-  var CACHE_KEY     = 'sourceLibraryCache_v1';
+  var CACHE_KEY     = 'sourceLibraryCache_v2';
   var CACHE_TTL_MS  = 60 * 60 * 1000; // 1 hour
   var FETCH_TIMEOUT = 8000;
   var FALLBACK_URL  = 'data/sources-fallback.json';
@@ -30,10 +30,12 @@
   // Maps a Sheet "Data type" value to the source panel context keys used by
   // getLibraryForSourceType / getGroupedLibraryForSourceType.
   var DATA_TYPE_APPLICABILITY = {
-    'Lp, dB(Z)':    ['building'],
-    'Lw, dB(A)':    ['point'],
-    'Lw/m, dB(A)':  ['line'],
-    'Lw/m\u00b2, dB(A)': ['area']
+    'Lp, dB(Z)':       ['building'],
+    'Lw, dB(Z)':       ['point'],
+    'Lw/m, dB(Z)/m':   ['line'],
+    'Lw/m\u00b2, dB(Z)/m\u00b2': ['area'],
+    'Transmission Loss': [],
+    'Insertion Loss':    []
   };
 
   var _cachedRows = null;   // in-memory cache; null until first load

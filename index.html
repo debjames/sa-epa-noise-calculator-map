@@ -2027,7 +2027,7 @@ body.disclaimer-visible .container {
 <script src="library-loader.js?v=1"></script>
 <script src="supabase-admin.js?v=1"></script>
 <!-- Google Sheets source reference library (Phases 1-3) -->
-<script src="js/sources-library.js?v=2"></script>
+<script src="js/sources-library.js?v=3"></script>
 </head>
 <body>
 
@@ -33718,6 +33718,17 @@ if (window.pdfjsLib) {
         });
         libOpts += '</optgroup>';
       });
+      if (window.SourceLibrary) {
+        var _slLineGrouped = window.SourceLibrary.getGroupedLibraryForSourceType('line');
+        Object.keys(_slLineGrouped).forEach(function(cat) {
+          libOpts += '<optgroup label="' + escapeHTML(cat) + ' (Library)">';
+          _slLineGrouped[cat].forEach(function(row) {
+            var sel = (ls.libraryEntry && ls.libraryEntry.name === row.name) ? ' selected' : '';
+            libOpts += '<option value="' + escapeHTML(row.name) + '"' + sel + '>' + escapeHTML(row.name) + '</option>';
+          });
+          libOpts += '</optgroup>';
+        });
+      }
 
       function periodBlock(pKey, pLabel) {
         var mvt = (ls.movements && ls.movements[pKey]) || { N:1, speed:10, operatingPct:100 };
@@ -33930,6 +33941,22 @@ if (window.pdfjsLib) {
         } else {
           var found = null;
           LINE_SOURCE_LIBRARY.forEach(function(e) { if (e.name === selName) found = e; });
+          if (!found && window.SourceLibrary) {
+            window.SourceLibrary.getLibraryForSourceType('line').forEach(function(row) {
+              if (row.name === selName) {
+                found = {
+                  name: row.name,
+                  category: row.category,
+                  lw_m_dba: row.lp_dba,
+                  spectrum_unweighted: {
+                    63: row.hz_63, 125: row.hz_125, 250: row.hz_250, 500: row.hz_500,
+                    1000: row.hz_1000, 2000: row.hz_2000, 4000: row.hz_4000, 8000: row.hz_8000
+                  },
+                  height_m: 0.5
+                };
+              }
+            });
+          }
           if (found) {
             ls.libraryEntry = found;
             if (!ls._nameManuallyEdited) {
