@@ -30,12 +30,12 @@
   // Maps a Sheet "Data type" value to the source panel context keys used by
   // getLibraryForSourceType / getGroupedLibraryForSourceType.
   var DATA_TYPE_APPLICABILITY = {
-    'Lp, dB(Z)':       ['building'],
-    'Lw, dB(Z)':       ['point'],
-    'Lw/m, dB(Z)/m':   ['line'],
-    'Lw/m\u00b2, dB(Z)/m\u00b2': ['area'],
-    'Transmission Loss': [],
-    'Insertion Loss':    []
+    'Lp, dB(Z)':              ['building_interior'],
+    'Lw, dB(Z)':              ['point', 'area'],
+    'Lw/m, dB(Z)/m':         ['line'],
+    'Lw/m\u00b2, dB(Z)/m\u00b2': [],
+    'Transmission Loss':       ['building_facade'],
+    'Insertion Loss':          []
   };
 
   var _cachedRows = null;   // in-memory cache; null until first load

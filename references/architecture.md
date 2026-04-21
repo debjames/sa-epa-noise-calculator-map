@@ -639,19 +639,71 @@ The Save JPG button was the only atom with a text label (`<span>Save JPG</span>`
 - `#map-column.left` is locked to `0` regardless of `.side-panel-collapsed` — the panel overlays, never pushes
 - Atom buttons live inside the side panel now, so nothing needs to shift on mobile
 
-## Supabase-backed noise source + Rw library
+## Google Sheets source library (sole active source)
+
+**Status (2026-04-22): Supabase disabled. Google Sheets is the sole active library.**
+
+`js/sources-library.js` (IIFE, loaded in `<head>`) exposes `window.SourceLibrary`. All five source-type dropdowns route exclusively through it. Supabase script tags are commented out.
+
+### DATA_TYPE_APPLICABILITY mapping
+
+| Sheet "Data type" | Panel context key(s) |
+|---|---|
+| `Lw, dB(Z)` | `'point'`, `'area'` |
+| `Lw/m, dB(Z)/m` | `'line'` |
+| `Lp, dB(Z)` | `'building_interior'` |
+| `Transmission Loss` | `'building_facade'` |
+| `Insertion Loss` | *(none — reserved)* |
+
+### In-memory variables (all populated from SourceLibrary, not hardcoded)
+
+| Variable | Shape (per record) | Populated by |
+|---|---|---|
+| `SOURCE_LIBRARY_GROUPED` | `{name, lw, spectrum[8], height}` | `rebuildSourceLibraries()` — pulls `'point'` context |
+| `SOURCE_LIBRARY_GROUPED_NON_LMAX` | same, excluding Lmax entries | derived from above |
+| `LINE_SOURCE_LIBRARY_GROUPED` | `{name, category, lw_m_dba, spectrum_unweighted{63..8000}, height_m}` | `rebuildLineSourceGrouped()` — pulls `'line'` context |
+| `AREA_SOURCE_LIBRARY_GROUPED` | `{name, category, lw_m2_dba, spectrum_unweighted{63..8000}, height_m}` | `rebuildAreaSourceGrouped()` — pulls `'area'` context |
+| `BUILDING_LP_LIBRARY_GROUPED` | `{name, category, lp_dba, spectrum{63..8000}}` | `rebuildBuildingLpGrouped()` — pulls `'building_interior'` context |
+| `CONSTRUCTION_LIBRARY` | `{walls:[...], roof:[...], openings:[...]}` each `{name, rw, octaveR{63..8000}}` | **Hardcoded** — no Sheet equivalent |
+
+`LINE_SOURCE_LIBRARY`, `AREA_SOURCE_LIBRARY`, `BUILDING_LP_LIBRARY` are declared as empty `[]` (kept for backward compatibility with any external references).
 
 ### Loading pipeline
 
-Four hard-coded libraries in [index.html](../index.html) are the *offline snapshot*:
+`_sourceLibBoot` IIFE (in `index.html`, replaces the old `_resonateLibBoot`) calls:
+```
+SourceLibrary.loadSourceLibrary().then(() => rebuildAllLibraries())
+```
 
-| Variable | Where | Record count | Shape (per record) |
-|---|---|---|---|
-| `SOURCE_LIBRARY_GROUPED` | ~line 5210 | 98 (grouped by category) | `{name, lw, spectrum[8], height}` |
-| `LINE_SOURCE_LIBRARY` | ~line 5692 | 10 | `{name, category, spectrum_unweighted{63..8000}, lw_m_dba, height_m}` |
-| `AREA_SOURCE_LIBRARY` | ~line 5790 | 5 | same shape as line sources but `lw_m2_dba` |
-| `BUILDING_LP_LIBRARY` | ~line 6646 | 12 (grouped by category) | `{name, category, lp_dba, spectrum{63..8000}}` — interior Lp inside a building, not Lw |
-| `CONSTRUCTION_LIBRARY` | ~line 5747 | 13 (walls/roof/openings) | `{name, rw, octaveR{63..8000}}` nested under 3 kind keys |
+`SourceLibrary.loadSourceLibrary()` implements stale-while-revalidate:
+- If fresh cache in `localStorage` (`sourceLibraryCache_v2`, TTL 1 hour) → resolves immediately
+- If stale cache → resolves with stale data, revalidates Sheet in background
+- If no cache → fetches from Google Sheets CSV, falls back to `data/sources-fallback.json`
+
+### rebuildAllLibraries()
+
+Calls all five rebuild functions in order, each pulling from `SourceLibrary.getGroupedLibraryForSourceType(context)`:
+
+1. `rebuildSourceLibraries()` — `'point'` → `SOURCE_LIBRARY_GROUPED` + derived flat/lmax variants
+2. `rebuildLineSourceGrouped()` — `'line'` → `LINE_SOURCE_LIBRARY_GROUPED`
+3. `rebuildAreaSourceGrouped()` — `'area'` → `AREA_SOURCE_LIBRARY_GROUPED`
+4. `rebuildBuildingLpGrouped()` — `'building_interior'` → `BUILDING_LP_LIBRARY_GROUPED`
+5. `rebuildConstructionGrouped()` — reads `CONSTRUCTION_LIBRARY` (hardcoded, unchanged)
+
+### Submit new source
+
+`window.showSubmitSourceModal()` opens a validated form that POSTs form-encoded data to the Apps Script endpoint (CORS-safe). On success, `localStorage.removeItem('sourceLibraryCache_v2')` invalidates the cache so the next dropdown open picks up the new row.
+
+### Files
+
+| File | Purpose |
+|---|---|
+| [js/sources-library.js](../js/sources-library.js) | IIFE — fetch, cache, API (`loadSourceLibrary`, `getGroupedLibraryForSourceType`, `submitNewSource`) |
+| [data/sources-fallback.json](../data/sources-fallback.json) | 650-row offline fallback (mirrors live Sheet as of 2026-04-22) |
+
+### Previously: Supabase-backed library (disabled 2026-04-22)
+
+Four hardcoded libraries were the offline snapshot; `library-loader.js` fetched live data from Supabase `reference_noise_sources` / `reference_constructions`; `supabase-admin.js` provided magic-link CRUD. All three script tags are now commented out. `CONSTRUCTION_LIBRARY` (Rw data) remains hardcoded as no Sheet equivalent exists.
 
 On DOMContentLoaded the boot IIFE in index.html calls `window.ResonateLib.load()`, which is defined in [library-loader.js](../library-loader.js). The loader:
 

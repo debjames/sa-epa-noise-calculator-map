@@ -1,5 +1,49 @@
 # UAT Tests
 
+## Google Sheets Source Library
+
+Prerequisite: Page loaded with network access so `SourceLibrary.status` becomes `'live'`.
+
+### Library load
+
+- [ ] **SourceLibrary loads** — Open browser console; confirm `[SourceLibrary] Loaded N entries from Sheet.` log (first load) or `Revalidated N entries` (stale cache refresh). No errors.
+- [ ] **Status is live** — `window.SourceLibrary.status === 'live'` in console.
+- [ ] **No Supabase** — `window.ResonateLib` is `undefined`. No 404s for `library-loader.js`, `supabase-config.js`, or `supabase-admin.js` in Network tab.
+
+### Point source dropdown
+
+- [ ] **Library populated** — Place a point source, open its panel. The "Library" dropdown contains optgroups (e.g. "Mechanical units", "Trucks", etc.) with entries from the Sheet.
+- [ ] **Selecting entry pre-fills** — Choose a library entry → the Lw field and octave-band spectrum update. Height updates to 1.5 m.
+- [ ] **No hardcoded fallback entries** — Entries match exactly what's in the Google Sheet (not the old hardcoded list).
+
+### Line source dropdown
+
+- [ ] **Library populated** — Place a line source, open its panel. The library select contains optgroups from the Sheet (`Lw/m, dB(Z)/m` entries, e.g. "Trucks" category).
+- [ ] **Selecting entry pre-fills** — Choose an entry → `lw_m_base` and `spectrum_m_base` update for all periods; height updates.
+- [ ] **No duplicate optgroups** — Entries appear once (not duplicated as "X" and "X (Library)").
+
+### Area source dropdown
+
+- [ ] **Library populated** — Place an area source, open its panel. The library select shows optgroups with Sheet entries.
+- [ ] **Selecting entry pre-fills** — Choose an entry → Lw/m² field, spectrum bands, and height update for all periods.
+
+### Building source — Interior Lp
+
+- [ ] **Library populated** — Open a building source panel, type in the Interior Lp search box. Entries from the Sheet appear (`Lp, dB(Z)` type).
+- [ ] **Selecting entry pre-fills** — Choose an entry → octave-band Lp inputs update.
+- [ ] **No duplicate entries** — Each entry appears once (old hardcoded + SourceLibrary duplicates eliminated).
+
+### Save / load round-trip with library entry
+
+- [ ] **Save with library entry** — Assign a library entry to a line or area source. Save Assessment JSON.
+- [ ] **Load restores entry** — Load the saved JSON. The library entry is resolved from `LINE_SOURCE_LIBRARY_GROUPED` / `AREA_SOURCE_LIBRARY_GROUPED` (Sheet-backed), not from the old flat arrays.
+
+### Submit new source
+
+- [ ] **Submit link present** — Building source panel shows "Submit to library…" link.
+- [ ] **Modal opens** — Click it → modal appears with name, data type, category, octave-band inputs, dB(A) preview, source citation fields.
+- [ ] **dB(A) auto-calculates** — Enter octave-band values → dB(A) preview updates in real time.
+
 ## PDF Appendix Export
 
 Prerequisite: SA assessment with source placed, 2+ receivers placed and zones detected. Project number set to "A123456".
@@ -1170,7 +1214,7 @@ Prerequisite: Phase 1+2 tests pass. Two or more scenarios saved with receivers p
 
 5. **Manual \u0394 spot-check** \u2014 Note R1 Day pred from compliance strip for scenario A (baseline) = X and scenario B = Y. Table shows B column: Y and \u0394 = (Y \u2212 X) with correct sign. Negatives use U+2212 (\u2212), not a hyphen.
 
-6. **\u03940 renders as (�0)** \u2014 Where pred is identical across baseline and a comparison scenario, cell shows pred then "(�0)".
+6. **\u03940 renders as (�0)** \u2014 Where pred is identical across baseline and a comparison scenario, cell shows pred then "(�0)".
 
 7. **Lmax rows present** \u2014 Receivers with Lmax data in at least one included scenario show a Lmax row (label "Lmax").
 
@@ -1198,7 +1242,7 @@ Prerequisite: Phase 1+2 tests pass. Two or more scenarios saved with receivers p
 
 19. **Save\u2192Load resets compare selection** \u2014 Save Assessment with 2+ scenarios and a non-default baseline. Reload. Open Scenarios modal. Baseline defaults to oldest (not the one previously selected). Expected by design (\u0394compareSelection is UI-only).
 
-20. **No horizontal scroll at \u22651280px** \u2014 With 4 scenarios � 4 receivers � 4 periods at \u22651280px viewport width, the table fits without horizontal scrollbar.
+20. **No horizontal scroll at \u22651280px** \u2014 With 4 scenarios � 4 receivers � 4 periods at \u22651280px viewport width, the table fits without horizontal scrollbar.
 
 21. **Horizontal overflow on narrow viewport** \u2014 Narrow browser to 600px. Table gets a horizontal scrollbar inside the modal; modal itself does not overflow viewport.
 

@@ -2022,12 +2022,13 @@ body.disclaimer-visible .container {
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" crossorigin="anonymous"/>
-<!-- Supabase-backed noise source library: config + loader + admin (all are no-ops if config is missing) -->
+<!-- ─── SUPABASE (disabled 2026-04-22) ────────────────────────────────────────
 <script src="supabase-config.js?v=1" onerror="console.info('[ResonateLib] supabase-config.js not present — offline snapshot only.')"></script>
 <script src="library-loader.js?v=1"></script>
 <script src="supabase-admin.js?v=1"></script>
-<!-- Google Sheets source reference library (Phases 1-3) -->
-<script src="js/sources-library.js?v=3"></script>
+──────────────────────────────────────────────────────────────────────────── -->
+<!-- Google Sheets source reference library (sole active source) -->
+<script src="js/sources-library.js?v=4"></script>
 </head>
 <body>
 
@@ -9119,6 +9120,10 @@ function getNSWModifyingFactors() {
 
 /* ===== End NSW constants & tables ===== */
 
+// ─── SUPABASE (disabled 2026-04-22) ─ hardcoded point source data below is ───
+// immediately overwritten by rebuildSourceLibraries() which pulls from Google
+// Sheets (SourceLibrary). This declaration is retained only as a fallback
+// during the brief parse phase before any SourceLibrary data is available.
 var SOURCE_LIBRARY_GROUPED = {
   "Mechanical units": [
     {"name":"Small exhaust fan (toilet, garbage room)—Lw 60 dB(A)","lw":60.4,"spectrum":[37,43,48,53,56,54,51,43],"height":1},
@@ -9315,19 +9320,35 @@ function _saveCustomSources() {
   localStorage.setItem('customSources', JSON.stringify(_customSources));
 }
 
-/** Rebuild all library derivatives (call after custom sources change) */
+/** Rebuild all library derivatives (call after custom sources change or SourceLibrary load) */
 var SOURCE_LIBRARY_ALL, SOURCE_LIBRARY, SOURCE_LIBRARY_LMAX;
 var SOURCE_LIBRARY_GROUPED_NON_LMAX, SOURCE_LIBRARY_GROUPED_LMAX;
 
 function rebuildSourceLibraries() {
-  // Inject/update custom group
+  // Populate from Google Sheets (sole active source) — replaces hardcoded data
+  var baseGrouped = {};
+  if (window.SourceLibrary) {
+    var _slGrouped = window.SourceLibrary.getGroupedLibraryForSourceType('point');
+    Object.keys(_slGrouped).forEach(function(cat) {
+      baseGrouped[cat] = (_slGrouped[cat] || []).map(function(row) {
+        return {
+          name: row.name,
+          lw: row.lp_dba,
+          spectrum: [row.hz_63, row.hz_125, row.hz_250, row.hz_500,
+                     row.hz_1000, row.hz_2000, row.hz_4000, row.hz_8000],
+          height: 1.5
+        };
+      });
+    });
+  }
+  // Inject custom sources (persisted in localStorage)
   if (_customSources.length > 0) {
-    SOURCE_LIBRARY_GROUPED['Custom sources'] = _customSources.map(function(s) {
+    baseGrouped['Custom sources'] = _customSources.map(function(s) {
       return {name: s.name, lw: s.lw, spectrum: s.spectrum, height: s.height || 1.5};
     });
-  } else {
-    delete SOURCE_LIBRARY_GROUPED['Custom sources'];
   }
+  SOURCE_LIBRARY_GROUPED = baseGrouped;
+  window.SOURCE_LIBRARY_GROUPED = baseGrouped;
   SOURCE_LIBRARY_ALL = flattenGrouped(SOURCE_LIBRARY_GROUPED);
   SOURCE_LIBRARY = SOURCE_LIBRARY_ALL.filter(s => !/lmax/i.test(String(s.name)));
   SOURCE_LIBRARY_LMAX = SOURCE_LIBRARY_ALL.filter(s => /lmax/i.test(String(s.name)));
@@ -10263,47 +10284,29 @@ if (document.location.search.indexOf('cortn_validate') !== -1) {
   try { _cortnRunValidation(); } catch (e) { console.warn('[CoRTN validation] error:', e); }
 }
 
-var LINE_SOURCE_LIBRARY = [
-  { name: 'Small truck driving slowly', category: 'Trucks',
-    spectrum_unweighted: {63:66,125:65,250:62,500:61,1000:61,2000:59,4000:52,8000:42},
-    lw_m_dba: 65, height_m: 1.5 },
-  { name: 'Small truck exhaust', category: 'Trucks',
-    spectrum_unweighted: {63:58,125:57,250:54,500:53,1000:53,2000:51,4000:44,8000:34},
-    lw_m_dba: 57, height_m: 3.6 },
-  { name: 'Medium truck driving slowly', category: 'Trucks',
-    spectrum_unweighted: {63:69,125:68,250:65,500:64,1000:64,2000:62,4000:55,8000:45},
-    lw_m_dba: 68, height_m: 1.5 },
-  { name: 'Medium truck exhaust', category: 'Trucks',
-    spectrum_unweighted: {63:61,125:60,250:57,500:56,1000:56,2000:54,4000:47,8000:37},
-    lw_m_dba: 60, height_m: 3.6 },
-  { name: 'Large truck driving slowly', category: 'Trucks',
-    spectrum_unweighted: {63:72,125:71,250:68,500:67,1000:67,2000:65,4000:58,8000:48},
-    lw_m_dba: 71, height_m: 1.0 },
-  { name: 'Large truck exhaust', category: 'Trucks',
-    spectrum_unweighted: {63:64,125:63,250:60,500:59,1000:59,2000:57,4000:50,8000:40},
-    lw_m_dba: 63, height_m: 3.6 },
-  { name: 'Car driving slowly < 30 km/h', category: 'Light vehicles',
-    spectrum_unweighted: {63:55,125:49,250:45,500:43,1000:43,2000:39,4000:35,8000:32},
-    lw_m_dba: 47, height_m: 0.5 },
-  { name: 'Electric forklift - driving', category: 'Industrial',
-    spectrum_unweighted: {63:46,125:46,250:46,500:46,1000:46,2000:46,4000:46,8000:46},
-    lw_m_dba: 53, height_m: 1.0 },
-  { name: 'Gas forklift - driving', category: 'Industrial',
-    spectrum_unweighted: {63:70,125:64,250:60,500:58,1000:58,2000:54,4000:50,8000:47},
-    lw_m_dba: 62, height_m: 1.0 },
-  { name: 'Diesel forklift - driving', category: 'Industrial',
-    spectrum_unweighted: {63:70,125:64,250:60,500:58,1000:58,2000:54,4000:50,8000:47},
-    lw_m_dba: 62, height_m: 1.0 }
-];
+// ─── SUPABASE (disabled 2026-04-22) — hardcoded line source data removed ─────
+// LINE_SOURCE_LIBRARY_GROUPED is populated from Google Sheets via rebuildLineSourceGrouped().
+var LINE_SOURCE_LIBRARY = [];
 var LINE_SOURCE_LIBRARY_GROUPED = {};
 function rebuildLineSourceGrouped() {
   LINE_SOURCE_LIBRARY_GROUPED = {};
+  if (window.SourceLibrary) {
+    var _slGrouped = window.SourceLibrary.getGroupedLibraryForSourceType('line');
+    Object.keys(_slGrouped).forEach(function(cat) {
+      LINE_SOURCE_LIBRARY_GROUPED[cat] = (_slGrouped[cat] || []).map(function(row) {
+        return {
+          name: row.name, category: row.category,
+          lw_m_dba: row.lp_dba,
+          spectrum_unweighted: {
+            63: row.hz_63, 125: row.hz_125, 250: row.hz_250, 500: row.hz_500,
+            1000: row.hz_1000, 2000: row.hz_2000, 4000: row.hz_4000, 8000: row.hz_8000
+          },
+          height_m: 0.5
+        };
+      });
+    });
+  }
   window.LINE_SOURCE_LIBRARY_GROUPED = LINE_SOURCE_LIBRARY_GROUPED;
-  (window.LINE_SOURCE_LIBRARY || []).forEach(function(e) {
-    var cat = e.category || 'Other';
-    if (!LINE_SOURCE_LIBRARY_GROUPED[cat]) LINE_SOURCE_LIBRARY_GROUPED[cat] = [];
-    LINE_SOURCE_LIBRARY_GROUPED[cat].push(e);
-  });
 }
 rebuildLineSourceGrouped();
 
@@ -10373,32 +10376,29 @@ var _asIdCtr = 0;
 var _asPanel = null;
 var _asPanelId = null;
 
-var AREA_SOURCE_LIBRARY = [
-  { name: 'Light vehicle movements',            category: 'Car parks',
-    spectrum_unweighted: {63:55,125:49,250:45,500:43,1000:43,2000:39,4000:35,8000:32},
-    lw_m2_dba: 47, height_m: 0.5 },
-  { name: 'Car park with trolley collection',   category: 'Car parks',
-    spectrum_unweighted: {63:58,125:52,250:48,500:46,1000:46,2000:42,4000:38,8000:35},
-    lw_m2_dba: 50, height_m: 0.5 },
-  { name: 'Restaurant/cafe outdoor area',       category: 'Outdoor dining',
-    spectrum_unweighted: {63:60,125:57,250:55,500:53,1000:51,2000:48,4000:44,8000:40},
-    lw_m2_dba: 55, height_m: 1.2 },
-  { name: 'General loading/unloading activity', category: 'Loading / Industrial',
-    spectrum_unweighted: {63:72,125:68,250:65,500:63,1000:61,2000:58,4000:54,8000:50},
-    lw_m2_dba: 65, height_m: 1.5 },
-  { name: 'General construction activity',      category: 'Construction',
-    spectrum_unweighted: {63:77,125:73,250:70,500:68,1000:66,2000:63,4000:59,8000:55},
-    lw_m2_dba: 70, height_m: 2.0 }
-];
+// ─── SUPABASE (disabled 2026-04-22) — hardcoded area source data removed ─────
+// AREA_SOURCE_LIBRARY_GROUPED is populated from Google Sheets via rebuildAreaSourceGrouped().
+var AREA_SOURCE_LIBRARY = [];
 var AREA_SOURCE_LIBRARY_GROUPED = {};
 function rebuildAreaSourceGrouped() {
   AREA_SOURCE_LIBRARY_GROUPED = {};
+  if (window.SourceLibrary) {
+    var _slGrouped = window.SourceLibrary.getGroupedLibraryForSourceType('area');
+    Object.keys(_slGrouped).forEach(function(cat) {
+      AREA_SOURCE_LIBRARY_GROUPED[cat] = (_slGrouped[cat] || []).map(function(row) {
+        return {
+          name: row.name, category: row.category,
+          lw_m2_dba: row.lp_dba,
+          spectrum_unweighted: {
+            63: row.hz_63, 125: row.hz_125, 250: row.hz_250, 500: row.hz_500,
+            1000: row.hz_1000, 2000: row.hz_2000, 4000: row.hz_4000, 8000: row.hz_8000
+          },
+          height_m: 0.5
+        };
+      });
+    });
+  }
   window.AREA_SOURCE_LIBRARY_GROUPED = AREA_SOURCE_LIBRARY_GROUPED;
-  (window.AREA_SOURCE_LIBRARY || []).forEach(function(e) {
-    var cat = e.category || 'Other';
-    if (!AREA_SOURCE_LIBRARY_GROUPED[cat]) AREA_SOURCE_LIBRARY_GROUPED[cat] = [];
-    AREA_SOURCE_LIBRARY_GROUPED[cat].push(e);
-  });
 }
 rebuildAreaSourceGrouped();
 
@@ -10408,105 +10408,62 @@ rebuildAreaSourceGrouped();
 // converted to radiated Lw through the wall/roof construction (Rw) by the
 // existing building-source calculation pipeline. Values are dB at the standard
 // 8 octave bands; lp_dba is the A-weighted broadband level for display only.
-var BUILDING_LP_LIBRARY = [
-  { name: 'Gymnasium \u2014 general sporting activity', category: 'Recreation', lp_dba: 85,
-    spectrum: {63:72, 125:75, 250:78, 500:80, 1000:82, 2000:79, 4000:74, 8000:68} },
-  { name: 'Gymnasium \u2014 amplified music event',     category: 'Recreation', lp_dba: 95,
-    spectrum: {63:88, 125:90, 250:92, 500:93, 1000:91, 2000:88, 4000:82, 8000:75} },
-  { name: 'Restaurant / caf\u00e9 \u2014 dining',        category: 'Hospitality', lp_dba: 75,
-    spectrum: {63:58, 125:62, 250:66, 500:70, 1000:72, 2000:69, 4000:63, 8000:55} },
-  { name: 'Bar / pub \u2014 live music',                 category: 'Hospitality', lp_dba: 95,
-    spectrum: {63:88, 125:90, 250:92, 500:93, 1000:91, 2000:88, 4000:82, 8000:75} },
-  { name: 'Nightclub \u2014 amplified music',            category: 'Hospitality', lp_dba: 100,
-    spectrum: {63:93, 125:95, 250:97, 500:98, 1000:96, 2000:93, 4000:87, 8000:80} },
-  { name: 'Workshop \u2014 light manufacturing',         category: 'Industrial', lp_dba: 90,
-    spectrum: {63:77, 125:80, 250:83, 500:85, 1000:87, 2000:84, 4000:78, 8000:72} },
-  { name: 'Workshop \u2014 heavy manufacturing',         category: 'Industrial', lp_dba: 95,
-    spectrum: {63:82, 125:85, 250:88, 500:90, 1000:92, 2000:89, 4000:83, 8000:77} },
-  { name: 'Warehouse \u2014 forklift operations',        category: 'Industrial', lp_dba: 85,
-    spectrum: {63:72, 125:75, 250:78, 500:80, 1000:82, 2000:79, 4000:73, 8000:67} },
-  { name: 'Childcare centre \u2014 indoor play',         category: 'Childcare',  lp_dba: 80,
-    spectrum: {63:60, 125:65, 250:70, 500:75, 1000:77, 2000:74, 4000:68, 8000:60} },
-  { name: 'Church \u2014 amplified service',             category: 'Community',  lp_dba: 85,
-    spectrum: {63:78, 125:80, 250:82, 500:83, 1000:81, 2000:78, 4000:72, 8000:65} },
-  { name: 'Office \u2014 open plan',                     category: 'Commercial', lp_dba: 65,
-    spectrum: {63:50, 125:54, 250:57, 500:60, 1000:62, 2000:59, 4000:53, 8000:45} },
-  { name: 'Supermarket \u2014 general',                  category: 'Commercial', lp_dba: 70,
-    spectrum: {63:55, 125:59, 250:62, 500:65, 1000:67, 2000:64, 4000:58, 8000:50} }
-];
+// ─── SUPABASE (disabled 2026-04-22) — hardcoded building Lp data removed ─────
+// BUILDING_LP_LIBRARY_GROUPED is populated from Google Sheets via rebuildBuildingLpGrouped().
+var BUILDING_LP_LIBRARY = [];
 var BUILDING_LP_LIBRARY_GROUPED = {};
 function rebuildBuildingLpGrouped() {
   BUILDING_LP_LIBRARY_GROUPED = {};
+  if (window.SourceLibrary) {
+    var _slGrouped = window.SourceLibrary.getGroupedLibraryForSourceType('building_interior');
+    Object.keys(_slGrouped).forEach(function(cat) {
+      BUILDING_LP_LIBRARY_GROUPED[cat] = (_slGrouped[cat] || []).map(function(row) {
+        return {
+          name: row.name, category: row.category,
+          lp_dba: row.lp_dba,
+          spectrum: {
+            63: row.hz_63, 125: row.hz_125, 250: row.hz_250, 500: row.hz_500,
+            1000: row.hz_1000, 2000: row.hz_2000, 4000: row.hz_4000, 8000: row.hz_8000
+          }
+        };
+      });
+    });
+  }
   window.BUILDING_LP_LIBRARY_GROUPED = BUILDING_LP_LIBRARY_GROUPED;
-  (window.BUILDING_LP_LIBRARY || []).forEach(function(e) {
-    var cat = e.category || 'Other';
-    if (!BUILDING_LP_LIBRARY_GROUPED[cat]) BUILDING_LP_LIBRARY_GROUPED[cat] = [];
-    BUILDING_LP_LIBRARY_GROUPED[cat].push(e);
-  });
 }
 rebuildBuildingLpGrouped();
 
-// ── Unified library rebuild + Supabase hot-swap wiring ────────────────────────
+// ── Unified library rebuild wiring ────────────────────────────────────────────
 window.rebuildAllLibraries = function rebuildAllLibraries() {
-  try { rebuildSourceLibraries(); } catch(e) { console.warn('[ResonateLib] rebuildSourceLibraries failed:', e); }
-  try { rebuildLineSourceGrouped(); } catch(e) { console.warn('[ResonateLib] rebuildLineSourceGrouped failed:', e); }
-  try { rebuildAreaSourceGrouped(); } catch(e) { console.warn('[ResonateLib] rebuildAreaSourceGrouped failed:', e); }
-  try { rebuildBuildingLpGrouped(); } catch(e) { console.warn('[ResonateLib] rebuildBuildingLpGrouped failed:', e); }
-  try { rebuildConstructionGrouped(); } catch(e) { console.warn('[ResonateLib] rebuildConstructionGrouped failed:', e); }
+  try { rebuildSourceLibraries(); } catch(e) { console.warn('[SourceLib] rebuildSourceLibraries failed:', e); }
+  try { rebuildLineSourceGrouped(); } catch(e) { console.warn('[SourceLib] rebuildLineSourceGrouped failed:', e); }
+  try { rebuildAreaSourceGrouped(); } catch(e) { console.warn('[SourceLib] rebuildAreaSourceGrouped failed:', e); }
+  try { rebuildBuildingLpGrouped(); } catch(e) { console.warn('[SourceLib] rebuildBuildingLpGrouped failed:', e); }
+  try { rebuildConstructionGrouped(); } catch(e) { console.warn('[SourceLib] rebuildConstructionGrouped failed:', e); }
   if (typeof refreshAllSourceDropdowns === 'function') {
-    try { refreshAllSourceDropdowns(); } catch(e) { console.warn('[ResonateLib] refreshAllSourceDropdowns failed:', e); }
+    try { refreshAllSourceDropdowns(); } catch(e) { console.warn('[SourceLib] refreshAllSourceDropdowns failed:', e); }
   }
 };
-// Expose the hard-coded initial libraries on window so library-loader can
-// replace them cleanly. (var at top-level already attaches to window, this is
-// belt-and-braces for clarity and in case any inner scope shadows them.)
-window.SOURCE_LIBRARY_GROUPED = SOURCE_LIBRARY_GROUPED;
-window.LINE_SOURCE_LIBRARY    = LINE_SOURCE_LIBRARY;
-window.AREA_SOURCE_LIBRARY    = AREA_SOURCE_LIBRARY;
-window.BUILDING_LP_LIBRARY    = BUILDING_LP_LIBRARY;
-window.CONSTRUCTION_LIBRARY   = CONSTRUCTION_LIBRARY;
 
-// Kick off Supabase fetch (async, non-blocking). Falls back to snapshot on
-// error, missing config, or timeout. Runs after DOM is ready so the status
-// badge element exists.
-(function _resonateLibBoot() {
-  function relocateBadge() {
-    // The .h1 element is hidden (legacy header layout); the real visible
-    // header is .header-title inside #app-header. Physically move the badge
-    // there so it's actually visible to the user.
-    var badge = document.getElementById('resonateLibBadge');
-    if (!badge) return;
-    var headerTitle = document.querySelector('#app-header .header-title');
-    if (headerTitle && badge.parentElement !== headerTitle) {
-      headerTitle.appendChild(badge);
-    }
+window.CONSTRUCTION_LIBRARY = CONSTRUCTION_LIBRARY;
+
+// ─── SUPABASE (disabled 2026-04-22) ─────────────────────────────────────────
+// (function _resonateLibBoot() { ... Supabase ResonateLib.load() wiring ... })();
+// ─────────────────────────────────────────────────────────────────────────────
+
+// After Google Sheets SourceLibrary loads, rebuild all library derivatives so
+// every dropdown reflects Sheet data without requiring a page reload.
+(function _sourceLibBoot() {
+  function rebuild() {
+    if (typeof window.rebuildAllLibraries === 'function') window.rebuildAllLibraries();
   }
-  function start() {
-    relocateBadge();
-    if (window.ResonateLib && typeof window.ResonateLib.load === 'function') {
-      if (typeof window.ResonateLib._updateBadge === 'function') window.ResonateLib._updateBadge();
-      window.ResonateLib.load().then(function(live) {
-        if (live) {
-          // After Supabase data replaces the libraries, re-sync the local
-          // module-scope references to whatever window.* now holds, so code
-          // using unqualified names still sees the fresh data.
-          SOURCE_LIBRARY_GROUPED = window.SOURCE_LIBRARY_GROUPED;
-          LINE_SOURCE_LIBRARY    = window.LINE_SOURCE_LIBRARY;
-          AREA_SOURCE_LIBRARY    = window.AREA_SOURCE_LIBRARY;
-          BUILDING_LP_LIBRARY    = window.BUILDING_LP_LIBRARY;
-          CONSTRUCTION_LIBRARY   = window.CONSTRUCTION_LIBRARY;
-          // NOTE: do NOT run normalizeSourceLibraryNames() here. DB names are
-          // canonical — mutating them would break save/load lookups and defeat
-          // the admin UI's "what you type is what you see" contract.
-          window.rebuildAllLibraries();
-        }
-      });
-    }
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
-  } else {
-    start();
+  if (window.SourceLibrary && typeof window.SourceLibrary.loadSourceLibrary === 'function') {
+    window.SourceLibrary.loadSourceLibrary().then(function() {
+      rebuild();
+      if (typeof refreshAllSourceDropdowns === 'function') {
+        try { refreshAllSourceDropdowns(); } catch(e) {}
+      }
+    });
   }
 })();
 
@@ -31555,7 +31512,11 @@ if (window.pdfjsLib) {
       if (libSel) libSel.addEventListener('change', function() {
         var selName = this.value;
         var found = null;
-        if (selName) AREA_SOURCE_LIBRARY.forEach(function(e) { if (e.name === selName) found = e; });
+        if (selName) {
+          Object.values(AREA_SOURCE_LIBRARY_GROUPED).forEach(function(arr) {
+            arr.forEach(function(e) { if (e.name === selName && !found) found = e; });
+          });
+        }
         as.libraryEntry = found || null;
         if (found) {
           if (!as._nameManuallyEdited) {
@@ -33267,28 +33228,9 @@ if (window.pdfjsLib) {
             hasAny = true;
           }
 
-          // Existing hardcoded / Supabase library
+          // Building Lp library (from Google Sheets via BUILDING_LP_LIBRARY_GROUPED)
           var lib = window.BUILDING_LP_LIBRARY_GROUPED || BUILDING_LP_LIBRARY_GROUPED;
           Object.keys(lib).forEach(function(grp) { _renderGroup(grp, lib[grp] || []); });
-
-          // Google Sheets library — adapt hz_* keys to spectrum object expected by _applyBsLpEntry
-          if (window.SourceLibrary) {
-            var slGrouped = window.SourceLibrary.getGroupedLibraryForSourceType('building');
-            Object.keys(slGrouped).forEach(function(grp) {
-              var adapted = (slGrouped[grp] || []).map(function(row) {
-                return {
-                  name: row.name,
-                  category: row.category,
-                  lp_dba: row.lp_dba,
-                  spectrum: {
-                    63: row.hz_63, 125: row.hz_125, 250: row.hz_250, 500: row.hz_500,
-                    1000: row.hz_1000, 2000: row.hz_2000, 4000: row.hz_4000, 8000: row.hz_8000
-                  }
-                };
-              });
-              _renderGroup(grp, adapted);
-            });
-          }
 
           bsLibDrop.style.display = hasAny ? 'block' : 'none';
         }
@@ -33708,7 +33650,7 @@ if (window.pdfjsLib) {
       var coordStr = midPt ? midPt.lat.toFixed(5) + ', ' + midPt.lng.toFixed(5) : '—';
       var heightVal = ls.height_m || ls.heightM || 1.5;
 
-      // Library selector options
+      // Library selector options (from Google Sheets via LINE_SOURCE_LIBRARY_GROUPED)
       var libOpts = '<option value="">— Custom / manual —</option>';
       Object.keys(LINE_SOURCE_LIBRARY_GROUPED).forEach(function(cat) {
         libOpts += '<optgroup label="' + escapeHTML(cat) + '">';
@@ -33718,17 +33660,6 @@ if (window.pdfjsLib) {
         });
         libOpts += '</optgroup>';
       });
-      if (window.SourceLibrary) {
-        var _slLineGrouped = window.SourceLibrary.getGroupedLibraryForSourceType('line');
-        Object.keys(_slLineGrouped).forEach(function(cat) {
-          libOpts += '<optgroup label="' + escapeHTML(cat) + ' (Library)">';
-          _slLineGrouped[cat].forEach(function(row) {
-            var sel = (ls.libraryEntry && ls.libraryEntry.name === row.name) ? ' selected' : '';
-            libOpts += '<option value="' + escapeHTML(row.name) + '"' + sel + '>' + escapeHTML(row.name) + '</option>';
-          });
-          libOpts += '</optgroup>';
-        });
-      }
 
       function periodBlock(pKey, pLabel) {
         var mvt = (ls.movements && ls.movements[pKey]) || { N:1, speed:10, operatingPct:100 };
@@ -33940,23 +33871,9 @@ if (window.pdfjsLib) {
           ls.libraryEntry = null;
         } else {
           var found = null;
-          LINE_SOURCE_LIBRARY.forEach(function(e) { if (e.name === selName) found = e; });
-          if (!found && window.SourceLibrary) {
-            window.SourceLibrary.getLibraryForSourceType('line').forEach(function(row) {
-              if (row.name === selName) {
-                found = {
-                  name: row.name,
-                  category: row.category,
-                  lw_m_dba: row.lp_dba,
-                  spectrum_unweighted: {
-                    63: row.hz_63, 125: row.hz_125, 250: row.hz_250, 500: row.hz_500,
-                    1000: row.hz_1000, 2000: row.hz_2000, 4000: row.hz_4000, 8000: row.hz_8000
-                  },
-                  height_m: 0.5
-                };
-              }
-            });
-          }
+          Object.values(LINE_SOURCE_LIBRARY_GROUPED).forEach(function(arr) {
+            arr.forEach(function(e) { if (e.name === selName && !found) found = e; });
+          });
           if (found) {
             ls.libraryEntry = found;
             if (!ls._nameManuallyEdited) {
@@ -35305,7 +35222,9 @@ if (window.pdfjsLib) {
           _userEdited: { eve: false, night: false }
         };
         if (as.libraryEntry && as.libraryEntry.name) {
-          AREA_SOURCE_LIBRARY.forEach(function(e) { if (e.name === as.libraryEntry.name) obj.libraryEntry = e; });
+          Object.values(window.AREA_SOURCE_LIBRARY_GROUPED || {}).forEach(function(arr) {
+            arr.forEach(function(e) { if (e.name === as.libraryEntry.name) obj.libraryEntry = e; });
+          });
         }
         if (as.id) {
           var num = parseInt((as.id + '').replace('as_', ''));
@@ -35370,8 +35289,8 @@ if (window.pdfjsLib) {
           };
           // Resolve libraryEntry reference
           if (obj.libraryEntry && obj.libraryEntry.name) {
-            LINE_SOURCE_LIBRARY.forEach(function(e) {
-              if (e.name === obj.libraryEntry.name) obj.libraryEntry = e;
+            Object.values(window.LINE_SOURCE_LIBRARY_GROUPED || {}).forEach(function(arr) {
+              arr.forEach(function(e) { if (e.name === obj.libraryEntry.name) obj.libraryEntry = e; });
             });
           }
         }
@@ -41695,7 +41614,7 @@ if (window.pdfjsLib) {
     var lpLibR = document.createElement('input'); lpLibR.type='radio'; lpLibR.id='_gLpLib_'+uid; lpLibR.name='_gLp_'+uid; lpLibR.value='library';
     var lpLibLbl = document.createElement('label'); lpLibLbl.htmlFor='_gLpLib_'+uid; lpLibLbl.textContent=' Use library entry';
     var lpSel = document.createElement('select'); lpSel.id='_gLpSel_'+uid; lpSel.style.display='none';
-    populateLibSel(lpSel, window.BUILDING_LP_LIBRARY_GROUPED||null);
+    populateLibSel(lpSel, window.BUILDING_LP_LIBRARY_GROUPED||{});
     lpLibRow.appendChild(lpLibR); lpLibRow.appendChild(lpLibLbl); lpLibRow.appendChild(lpSel);
     lpDiv.appendChild(lpLibRow);
 
@@ -41780,9 +41699,9 @@ if (window.pdfjsLib) {
       libRow.style.display = showLib ? 'flex' : 'none';
       if (showLib) {
         populateLibSel(libSel,
-          v==='Point source' ? (window.SOURCE_LIBRARY_GROUPED_NON_LMAX||null) :
-          v==='Line source'  ? (window.LINE_SOURCE_LIBRARY_GROUPED||null) :
-          v==='Area source'  ? (window.AREA_SOURCE_LIBRARY_GROUPED||null) : null);
+          v==='Point source' ? (window.SOURCE_LIBRARY_GROUPED_NON_LMAX||{}) :
+          v==='Line source'  ? (window.LINE_SOURCE_LIBRARY_GROUPED||{}) :
+          v==='Area source'  ? (window.AREA_SOURCE_LIBRARY_GROUPED||{}) : {});
       }
       lpDiv.style.display  = v==='Building source' ? 'block' : 'none';
       movDiv.style.display = v==='Line source'     ? 'block' : 'none';
