@@ -338,7 +338,7 @@ async function runBuild(zonesDir, overlaysDir) {
     const lk = k.toLowerCase();
     return lk.includes('anef') || lk.includes('anr') || lk.includes('contour') ||
            lk.includes('exposure') || lk.includes('level');
-  }) || null;
+  }) || 'value';  // 'value' field contains ANEF level ("ANEF 20" etc) in PDCodeOverlays
 
   const zDFC = disc.zones?.field_value_counts || {};
   const preferredZoneFields = ['name', 'zone_name', 'ZONE_NAME', 'NAME', 'zone', 'ZONE', 'label'];
