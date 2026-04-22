@@ -1,5 +1,41 @@
 # UAT Tests
 
+## Suggested Noise Sources (💡) — Facility-Group Multi-Source
+
+### No PDF loaded — all facilities visible
+- [ ] **Open 💡 panel without any PDF** — Panel shows a "No PDF loaded — showing all facility groups" note plus all 10 facility groups collapsed. The "Add selected sources" button is visible.
+- [ ] **All 10 facilities present** — Car park, Loading dock, Office / Commercial, Generator / Plant room, Function / Hospitality, Fast food / Drive-through, Car wash, Service station, Industrial / Warehouse, Childcare.
+- [ ] **Expand a facility** — Click a facility row to expand; child sources listed with type badge (coloured: blue=point, yellow=line, green=area, purple=building).
+- [ ] **TODO badges** — "Unloading activity" in Loading dock shows orange TODO. "Children (10 children 2–3 yrs)" in Childcare shows orange TODO.
+- [ ] **Parent checkbox toggles children** — Uncheck a facility's parent checkbox → all its child checkboxes uncheck. Re-check parent → all re-check.
+- [ ] **Child checkbox propagates indeterminate** — Uncheck one child → parent shows indeterminate state. Uncheck all → parent unchecked. Check all → parent fully checked.
+
+### PDF keyword matching
+- [ ] **"loading bay and office"** — Upload PDF containing those words. Panel shows Loading dock (4 sources: area, line, line, area) and Office / Commercial (2 sources: point, point) as matched (open), all other facilities under "Other facilities (no keyword match)" collapsed.
+- [ ] **"car wash and vacuum station"** — Car wash facility matched (4 sources: vacuum point, car wash auto point, car driving slowly line, car idling point).
+- [ ] **"McDonald's drive-through"** — Fast food / Drive-through matched (3 sources: speaker box point, patrons area, car idling area).
+- [ ] **"industrial factory warehouse"** — Industrial / Warehouse matched (5 sources: forklift area, truck movements line, truck exhaust line, unloading area, warehouse shell building).
+- [ ] **No match** — Upload PDF with no facility keywords. Panel shows "No matching facility types detected" note + all facilities listed under "All facilities (no keyword matches)".
+
+### Library audit console report
+- [ ] **Console report on PDF scan** — After uploading any PDF, console shows `[SuggestedSources] Library audit` block listing every source as `EXISTS` (with library entry name) or `STUB (TODO)` or `MISSING`.
+- [ ] **Confirmed stubs** — "Unloading activity" and "Children (10 children 2–3 yrs)" logged as `STUB (TODO)`.
+
+### Add selected — source types
+- [ ] **Add 3 items (point + line + area)** — Check 3 sources of different types, click "Add selected". Exactly 3 sources created: correct type appears in Objects panel (point shows "Place" button; line/area appear on map as polygon/polyline at map centre).
+- [ ] **Point source Lw pre-filled** — Added point source (e.g. Medium condenser) has Lw pre-filled if library entry was found (EXISTS). Lw is null if library miss.
+- [ ] **Line source lw_m_base pre-filled** — Added line source has `lw_m_base.day` set from `lw_m_dba` if library entry found.
+- [ ] **Area source lwValue pre-filled** — Added area source has `lwValue.day` set from `lw_m2_dba` if library entry found.
+- [ ] **Building source Lp pre-filled** — Add warehouse shell from Industrial/Warehouse group. Building source added with `interiorLp.day.broadband` populated from the warehouse library entry's `lp_dba`.
+- [ ] **Stub toast warning** — When any TODO-flagged source is added, toast includes "TODO placeholder Lw — confirm values before predicting".
+- [ ] **No source created for deselected items** — Uncheck 2 items, click Add. Only checked items created.
+
+### Save/load round-trip
+- [ ] **Round-trip preserves suggested sources** — Add sources via 💡 panel (including one stub). Save Assessment JSON. Reload from JSON. All sources present with same names, Lw values (or null for stubs), and `_libName` fields.
+- [ ] **Building source round-trip** — Warehouse shell added via 💡 panel saves/loads with its vertices and `interiorLp` data intact; prediction at a receiver produces the same result before and after round-trip.
+
+---
+
 ## Google Sheets Source Library
 
 Prerequisite: Page loaded with network access so `SourceLibrary.status` becomes `'live'`.

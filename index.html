@@ -1043,6 +1043,50 @@ body.map-fs-active { overflow: hidden; }
   color: #374151;
   font-size: 12px;
   line-height: 1.4;
+  flex: 1;
+}
+.suggest-type-badge {
+  font-size: 10px;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.suggest-type-badge.type-line     { background: #fef9c3; color: #854d0e; }
+.suggest-type-badge.type-area     { background: #dcfce7; color: #166534; }
+.suggest-type-badge.type-building { background: #f3e8ff; color: #6b21a8; }
+.suggest-todo-badge {
+  font-size: 10px;
+  background: #fed7aa;
+  color: #c2410c;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.suggest-parent-cb {
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #1e293b;
+}
+.suggest-other-hdr {
+  padding: 6px 14px;
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 600;
+  background: #f3f4f6;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+.suggest-no-pdf-note {
+  padding: 8px 14px 0;
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
 }
 /* Badge dot */
 .mp-badge-dot {
@@ -11834,7 +11878,9 @@ let detectedAusState = null; // e.g. 'SA','VIC','NSW','QLD','WA','TAS','NT','ACT
 
 /** Cadastral parcel boundary query endpoints by Australian state */
 const PARCEL_API_URLS = {
-  SA:  'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/Survey_Map/MapServer/3/query',
+  // SA: Survey_Map decommissioned with CurrentPDC_wmas. Replacement URL TBD.
+  // null = skip parcel lookup; MBS 010 falls back to marker-point distances.
+  SA:  null,
   VIC: 'https://plan-gis.mapshare.vic.gov.au/arcgis/rest/services/Planning/VicPlan_PropertyAndParcel/MapServer/4/query',
   NSW: 'https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Cadastre/MapServer/9/query',
   QLD: 'https://spatial-gis.information.qld.gov.au/arcgis/rest/services/PlanningCadastre/LandParcelPropertyFramework/MapServer/4/query'
@@ -25406,7 +25452,11 @@ if (window.pdfjsLib) {
     };
 
     /* ==== SAPPA Zoning Integration ==== */
-    var SAPPA_BASE = 'https://location.sa.gov.au/server6/rest/services/ePlanningPublic/CurrentPDC_wmas/MapServer';
+    // SA Gov migrated from ePlanningPublic/CurrentPDC_wmas (decommissioned) to
+    // ePlanning/CurrentZones (zones) and ePlanning/CurrentOverlays (overlays).
+    // Layer IDs restart from 0 in each new service.
+    var SAPPA_BASE = 'https://location.sa.gov.au/server6/rest/services/ePlanning/CurrentZones/MapServer';
+    var SAPPA_OVERLAYS_BASE = 'https://location.sa.gov.au/server6/rest/services/ePlanning/CurrentOverlays/MapServer';
 
     /* --- Zone colour lookup (approximate P&D Code colours) --- */
     /* Colours sourced from SAPPA MapServer layer 114 renderer symbology */
@@ -25494,10 +25544,8 @@ if (window.pdfjsLib) {
     var isZoneOn = false;
     try {
       if (typeof L.esri !== 'undefined' && L.esri.dynamicMapLayer) {
-        /* Zones only as raster (layer 114) */
         zoningOverlay = L.esri.dynamicMapLayer({
           url: SAPPA_BASE,
-          layers: [114],
           opacity: 0.35,
           useCors: true
         });
@@ -25505,7 +25553,7 @@ if (window.pdfjsLib) {
       /* Zone outlines as vector feature layer (no fill, just borders) */
       if (typeof L.esri !== 'undefined' && L.esri.featureLayer) {
         zoneOutlineLayer = L.esri.featureLayer({
-          url: SAPPA_BASE + '/114',
+          url: SAPPA_BASE + '/0',
           style: function() {
             return {
               color: '#444',
@@ -25522,7 +25570,7 @@ if (window.pdfjsLib) {
       /* Subzones as vector feature layer with distinct styling */
       if (typeof L.esri !== 'undefined' && L.esri.featureLayer) {
         subzoneFeatureLayer = L.esri.featureLayer({
-          url: SAPPA_BASE + '/113',
+          url: SAPPA_BASE + '/1',
           style: function() {
             return {
               color: '#7c3aed',
@@ -25576,10 +25624,10 @@ if (window.pdfjsLib) {
       if (geom === lastHoverQuery) return;
       lastHoverQuery = geom;
 
-      var zoneUrl = SAPPA_BASE + '/114/query?geometry=' + geom +
+      var zoneUrl = SAPPA_BASE + '/0/query?geometry=' + geom +
         '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
         '&outFields=name&returnGeometry=false&f=json';
-      var subzoneUrl = SAPPA_BASE + '/113/query?geometry=' + geom +
+      var subzoneUrl = SAPPA_BASE + '/1/query?geometry=' + geom +
         '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects' +
         '&outFields=name&returnGeometry=false&f=json';
 
@@ -25633,7 +25681,7 @@ if (window.pdfjsLib) {
       var lngPad = (b.getEast() - b.getWest()) * 0.10;
       var env = (b.getWest() + lngPad) + ',' + (b.getSouth() + latPad) + ',' + (b.getEast() - lngPad) + ',' + (b.getNorth() - latPad);
 
-      var zoneUrl = SAPPA_BASE + '/114/query?geometry=' + encodeURIComponent(env) +
+      var zoneUrl = SAPPA_BASE + '/0/query?geometry=' + encodeURIComponent(env) +
         '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326' +
         '&spatialRel=esriSpatialRelIntersects&outFields=name&returnGeometry=false&f=json';
 
@@ -25934,8 +25982,8 @@ if (window.pdfjsLib) {
     var mbs010Toggle = document.getElementById('mbs010ToggleBtn');
 
     var MBS010_OVERLAY_CFG = [
-      { id: 39, name: 'Noise and Air Emissions', color: '#b04030', fill: 'rgba(200,120,100,0.25)', weight: 1.5 },
-      { id: 27, name: 'Aircraft Noise Exposure (ANEF)', color: '#005ce6', fill: 'rgba(0,92,230,0.15)', weight: 1.5 }
+      { id: 0, name: 'Noise and Air Emissions', color: '#b04030', fill: 'rgba(200,120,100,0.25)', weight: 1.5 },
+      { id: 1, name: 'Aircraft Noise Exposure (ANEF)', color: '#005ce6', fill: 'rgba(0,92,230,0.15)', weight: 1.5 }
     ];
 
     /* ANR contour colours matching SAPPA legend (light to dark) */
@@ -25947,7 +25995,7 @@ if (window.pdfjsLib) {
       var env = bounds.getWest() + ',' + bounds.getSouth() + ',' + bounds.getEast() + ',' + bounds.getNorth();
 
       MBS010_OVERLAY_CFG.forEach(function(cfg) {
-        var url = SAPPA_BASE + '/' + cfg.id + '/query' +
+        var url = SAPPA_OVERLAYS_BASE + '/' + cfg.id + '/query' +
           '?geometry=' + encodeURIComponent(env) +
           '&geometryType=esriGeometryEnvelope&inSR=4326' +
           '&spatialRel=esriSpatialRelIntersects' +
@@ -26082,8 +26130,8 @@ if (window.pdfjsLib) {
         L.DomEvent.disableScrollPropagation(div);
 
         var layerGroups = [
-          { key: 39, label: 'Noise & Air Emissions', color: '#b04030' },
-          { key: 27, label: 'ANEF', color: '#005ce6' },
+          { key: 0, label: 'Noise & Air Emissions', color: '#b04030' },
+          { key: 1, label: 'ANEF', color: '#005ce6' },
           { key: 'anr', label: 'ANR Contours', color: '#FFAB66' },
           { key: 'road_type_a.geojson', label: 'Type A Road', color: '#ffbebe' },
           { key: 'road_type_b.geojson', label: 'Type B Road', color: '#ffebaf' },
@@ -26157,12 +26205,12 @@ if (window.pdfjsLib) {
     /* --- Query SAPPA for zone/subzone at a lat/lng point --- */
     function queryZoningAtPoint(lat, lng) {
       var geom = lng + ',' + lat;
-      var zoneUrl = SAPPA_BASE + '/114/query' +
+      var zoneUrl = SAPPA_BASE + '/0/query' +
         '?geometry=' + geom +
         '&geometryType=esriGeometryPoint&inSR=4326' +
         '&spatialRel=esriSpatialRelIntersects' +
         '&outFields=name&returnGeometry=false&f=json';
-      var subzoneUrl = SAPPA_BASE + '/113/query' +
+      var subzoneUrl = SAPPA_BASE + '/1/query' +
         '?geometry=' + geom +
         '&geometryType=esriGeometryPoint&inSR=4326' +
         '&spatialRel=esriSpatialRelIntersects' +
@@ -26891,8 +26939,8 @@ if (window.pdfjsLib) {
       // Query ANEF + Noise overlay first, then conditionally load road/rail
       var _mbsTriggered = false;
 
-      // 1. Aircraft Noise Exposure (layer 27)
-      var anefPromise = fetchWithRetry(SAPPA_BASE + '/27/query?geometry=' + geom + ptParams + '&outFields=name,value')
+      // 1. Aircraft Noise Exposure (layer 1 in CurrentOverlays)
+      var anefPromise = fetchWithRetry(SAPPA_OVERLAYS_BASE + '/1/query?geometry=' + geom + ptParams + '&outFields=name,value')
         .then(function(data) {
           var anefVals = [];
           if (data.features) {
@@ -26928,8 +26976,8 @@ if (window.pdfjsLib) {
           return anefVals.length > 0;
         }).catch(function() { setMBS('mbs_anef', '—'); setMBS('mbs_anr', '—'); return false; });
 
-      // 2. Noise and Air Emissions (layer 39)
-      var noisePromise = fetchWithRetry(SAPPA_BASE + '/39/query?geometry=' + geom + ptParams + '&outFields=name,description')
+      // 2. Noise and Air Emissions (layer 0 in CurrentOverlays)
+      var noisePromise = fetchWithRetry(SAPPA_OVERLAYS_BASE + '/0/query?geometry=' + geom + ptParams + '&outFields=name,description')
         .then(function(data) {
           var inOverlay = data.features && data.features.length > 0;
           if (inOverlay) {
@@ -26955,7 +27003,7 @@ if (window.pdfjsLib) {
         }
         loadRoadRailMixed();
         // Mixed land use areas — query zone then check DATA for land use classification
-        fetchWithRetry(SAPPA_BASE + '/114/query?geometry=' + geom + ptParams + '&outFields=name')
+        fetchWithRetry(SAPPA_BASE + '/0/query?geometry=' + geom + ptParams + '&outFields=name')
           .then(function(data) {
             if (data.features && data.features.length) {
               var zoneName = data.features[0].attributes.name || '';
@@ -39366,232 +39414,469 @@ if (window.pdfjsLib) {
    ═══════════════════════════════════════════════════════════════════════ */
 (function() {
 
-  /* ── Keyword → suggested sources rules ───────────────────────────── */
-  var _SUGGEST_RULES = [
-    { label: 'Car park',
-      keywords: [/car[\s-]?park/i, /\bcarpark\b/i, /\bparking\b/i],
-      sources: ['Car / vehicle movements'] },
-
-    { label: 'Loading dock',
-      keywords: [/loading[\s-]?dock/i, /loading[\s-]?bay/i, /loading[\s-]?area/i],
-      sources: ['Truck movements', 'Refrigerated truck movements'] },
-
-    { label: 'Office / commercial / building',
-      keywords: [/\boffice\b/i, /\bcommercial\b/i, /\bbuilding\b/i],
-      sources: ['External mechanical plant — air conditioning, extraction fans'] },
-
-    { label: 'Generator / plant room',
-      keywords: [/\bgenerator\b/i, /fire[\s-]?pump/i, /plant[\s-]?room/i, /\bgenset\b/i, /\bemergency\b/i],
-      sources: ['Generator', 'Fire pump'] },
-
-    { label: 'Function / venue / hospitality',
-      keywords: [/\bfunction\b/i, /\bpub\b/i, /\bbar\b/i, /\bhotel\b/i, /\brestaurant\b/i,
-                 /\bentertainment\b/i, /\bvenue\b/i, /\breception\b/i, /\bpavilion\b/i,
-                 /\bhall\b/i, /\bevent\b/i, /\bclub\b/i, /\btavern\b/i, /\bbrewery\b/i,
-                 /\bwinery\b/i, /cellar[\s-]?door/i, /\bbistro\b/i, /\bcafe\b/i,
-                 /\bcafé\b/i, /\bballroom\b/i, /\bauditorium\b/i,
-                 /community[\s-]?cent(?:re|er)/i, /\bRSL\b/, /\bbowling\b/i,
-                 /sports[\s-]?club/i, /beer[\s-]?garden/i, /rooftop[\s-]?bar/i,
-                 /\bnightclub\b/i, /\bbandroom\b/i, /live[\s-]?music/i],
-      sources: ['Music noise', 'Patrons', 'External mechanical plant — air conditioning, extraction fans'] },
-
-    { label: 'Fast food / drive-through',
-      keywords: [/fast[\s-]?food/i, /drive[\s-]?through/i, /\btakeaway\b/i,
-                 /mcdonald/i, /\bkfc\b/i, /hungry[\s-]?jack/i],
-      sources: ['Refrigerated trucks', 'Speaker box', 'Outdoor patrons', 'Car movements',
-                'External mechanical plant — refrigeration, air conditioning, extraction fans'] },
-
-    { label: 'Car wash',
-      keywords: [/car[\s-]?wash/i, /\bcarwash\b/i],
-      sources: ['Car wash', 'Dog wash', 'Vacuum', 'Car movements',
-                'External mechanical plant — refrigeration, air conditioning, extraction fans'] },
-
-    { label: 'Service station / petrol',
-      keywords: [/\bpetrol\b/i, /service[\s-]?station/i, /\bfuel\b/i, /\bservo\b/i],
-      sources: ['Truck movements', 'Vacuum', 'Car movements',
-                'External mechanical plant — refrigeration, air conditioning, extraction fans'] },
-
-    { label: 'Industrial / warehouse / factory',
-      keywords: [/\bindustrial\b/i, /\bwarehouse\b/i, /\bfactory\b/i,
-                 /\bmanufacturing\b/i, /\bstorage\b/i],
-      sources: ['Warehouse activity', 'Forklifts', 'Truck movements', 'Car movements',
-                'External mechanical plant — air conditioning, extraction fans'] },
-
-    { label: 'Childcare / kindergarten',
-      keywords: [/childcare/i, /child[\s-]?care/i, /kindergarten/i, /daycare/i,
-                 /early[\s-]?learning/i, /preschool/i],
-      sources: ['Children', 'Car movements',
-                'External mechanical plant — air conditioning, extraction fans'] }
+  /* ── Facility-group → multi-source mapping ───────────────────────────
+   * keywords: case-insensitive substring match against PDF text.
+   * sources[].type: 'point' | 'line' | 'area' | 'building'
+   * sources[].searchName: fragment searched in the relevant library
+   * sources[].defaultName: label shown in panel and used as source name
+   * sources[].isStub: true = known missing from library (Lw = null)    */
+  var FACILITY_SUGGESTIONS = [
+    { id: 'car_park', label: 'Car park',
+      keywords: ['car park', 'parking'],
+      sources: [
+        { type: 'area', searchName: 'car idling', defaultName: 'Car park \u2014 car idling' }
+      ]
+    },
+    { id: 'loading_dock', label: 'Loading dock',
+      keywords: ['loading bay', 'loading area'],
+      sources: [
+        { type: 'area', searchName: 'electric forklift',    defaultName: 'Forklift movements' },
+        { type: 'line', searchName: 'medium truck',         defaultName: 'Medium truck movements' },
+        { type: 'line', searchName: 'medium truck exhaust', defaultName: 'Medium truck exhaust' },
+        { type: 'area', searchName: 'unloading',            defaultName: 'Unloading activity', isStub: true }
+      ]
+    },
+    { id: 'office_commercial', label: 'Office / Commercial',
+      keywords: ['office', 'building'],
+      sources: [
+        { type: 'point', searchName: 'condenser',   defaultName: 'Medium condenser' },
+        { type: 'point', searchName: 'exhaust fan', defaultName: 'Medium exhaust fan' }
+      ]
+    },
+    { id: 'generator_plant', label: 'Generator / Plant room',
+      keywords: ['generator', 'genset', 'fire pump'],
+      sources: [
+        { type: 'point', searchName: 'generator',         defaultName: 'Generator engine' },
+        { type: 'point', searchName: 'generator exhaust', defaultName: 'Generator exhaust' },
+        { type: 'point', searchName: 'fire pump',          defaultName: 'Fire pump' }
+      ]
+    },
+    { id: 'function_venue', label: 'Function / Hospitality',
+      keywords: ['pub', 'bar', 'venue', 'nightclub'],
+      sources: [
+        { type: 'point', searchName: 'condenser',   defaultName: 'Medium condenser' },
+        { type: 'point', searchName: 'exhaust fan', defaultName: 'Medium exhaust fan' },
+        { type: 'point', searchName: 'music noise', defaultName: 'Music noise ambient DJ L10' },
+        { type: 'area',  searchName: 'patron',       defaultName: 'Patrons (outdoor)' }
+      ]
+    },
+    { id: 'fast_food', label: 'Fast food / Drive-through',
+      keywords: ['drive-through', 'mcdonald', 'kfc'],
+      sources: [
+        { type: 'point', searchName: 'speaker box', defaultName: 'Speaker box' },
+        { type: 'area',  searchName: 'patron',       defaultName: 'Patrons (outdoor)' },
+        { type: 'area',  searchName: 'car idling',   defaultName: 'Car idling' }
+      ]
+    },
+    { id: 'car_wash', label: 'Car wash',
+      keywords: ['car wash', 'vacuum'],
+      sources: [
+        { type: 'point', searchName: 'vacuum',            defaultName: 'Vacuum' },
+        { type: 'point', searchName: 'car wash',           defaultName: 'Car wash auto' },
+        { type: 'line',  searchName: 'car driving slowly', defaultName: 'Car driving slowly' },
+        { type: 'point', searchName: 'car idling',         defaultName: 'Car idling' }
+      ]
+    },
+    { id: 'service_station', label: 'Service station',
+      keywords: ['petrol', 'servo', 'fuel'],
+      sources: [
+        { type: 'line',  searchName: 'large truck',         defaultName: 'Large truck movements' },
+        { type: 'line',  searchName: 'large truck exhaust', defaultName: 'Large truck exhaust' },
+        { type: 'point', searchName: 'vacuum',              defaultName: 'Vacuum' },
+        { type: 'area',  searchName: 'car idling',          defaultName: 'Car idling' },
+        { type: 'point', searchName: 'condenser',           defaultName: 'Medium condenser' },
+        { type: 'point', searchName: 'exhaust fan',         defaultName: 'Medium exhaust fan' }
+      ]
+    },
+    { id: 'industrial_warehouse', label: 'Industrial / Warehouse',
+      keywords: ['industrial', 'warehouse', 'factory'],
+      sources: [
+        { type: 'area',     searchName: 'electric forklift',    defaultName: 'Electric forklift movements' },
+        { type: 'line',     searchName: 'medium truck',         defaultName: 'Medium truck movements' },
+        { type: 'line',     searchName: 'medium truck exhaust', defaultName: 'Medium truck exhaust' },
+        { type: 'area',     searchName: 'unloading',            defaultName: 'Unloading activity', isStub: true },
+        { type: 'building', searchName: 'warehouse',            defaultName: 'Warehouse shell' }
+      ]
+    },
+    { id: 'childcare', label: 'Childcare',
+      keywords: ['childcare', 'kindergarten', 'preschool'],
+      sources: [
+        { type: 'area',  searchName: 'car idling',  defaultName: 'Car park \u2014 car idling' },
+        { type: 'area',  searchName: 'children',    defaultName: 'Children (10 children 2\u20133 yrs)', isStub: true },
+        { type: 'point', searchName: 'condenser',   defaultName: 'Medium condenser' },
+        { type: 'point', searchName: 'exhaust fan', defaultName: 'Medium exhaust fan' }
+      ]
+    }
   ];
 
-  /* Explicit name → library-name-fragment lookup for auto-populating Lw */
-  var _LIB_HINT = {
-    'Speaker box':             'Speaker box',
-    'Generator':               'Enclosed Generator Set',
-    'Fire pump':               'Firepump',
-    'Car movements':           'Car driving slowly',
-    'Truck movements':         'Medium truck idling',
-    'Refrigerated trucks':     'Refrigerated truck condenser (small/medium truck)',
-    'Refrigerated truck movements': 'Refrigerated truck condenser (small/medium truck)',
-    'External mechanical plant — air conditioning, extraction fans':
-                               'Condenser\u2014small single fan outdoor unit',
-    'External mechanical plant — refrigeration, air conditioning, extraction fans':
-                               'Refrigeration Condenser (High Fan Speed)'
-  };
+  /* ── Library lookup helpers ──────────────────────────────────────── */
+  function _flatLib(grouped) {
+    var flat = [];
+    if (!grouped || typeof grouped !== 'object') return flat;
+    Object.keys(grouped).forEach(function(k) {
+      var arr = grouped[k];
+      if (Array.isArray(arr)) arr.forEach(function(e) { flat.push(e); });
+    });
+    return flat;
+  }
+
+  function _findLibByType(searchName, type) {
+    var sLow = searchName.toLowerCase();
+    var entries;
+    if (type === 'point') {
+      entries = (typeof SOURCE_LIBRARY_ALL !== 'undefined') ? SOURCE_LIBRARY_ALL : [];
+    } else if (type === 'line') {
+      entries = _flatLib(typeof LINE_SOURCE_LIBRARY_GROUPED !== 'undefined' ? LINE_SOURCE_LIBRARY_GROUPED : {});
+    } else if (type === 'area') {
+      entries = _flatLib(typeof AREA_SOURCE_LIBRARY_GROUPED !== 'undefined' ? AREA_SOURCE_LIBRARY_GROUPED : {});
+    } else if (type === 'building') {
+      entries = _flatLib(typeof BUILDING_LP_LIBRARY_GROUPED !== 'undefined' ? BUILDING_LP_LIBRARY_GROUPED : {});
+    } else {
+      return null;
+    }
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].name && entries[i].name.toLowerCase().indexOf(sLow) !== -1) return entries[i];
+    }
+    return null;
+  }
+
+  /* ── Console audit: EXISTS vs STUB for each libraryKey ──────────── */
+  function _auditLibrary() {
+    var lines = ['[SuggestedSources] Library audit (2026-04):'];
+    FACILITY_SUGGESTIONS.forEach(function(fac) {
+      fac.sources.forEach(function(src) {
+        var lib = src.isStub ? null : _findLibByType(src.searchName, src.type);
+        var status = src.isStub ? 'STUB (TODO)' : (lib ? 'EXISTS     ' : 'MISSING    ');
+        var libNote = lib ? (', lib entry: "' + lib.name + '"') : '';
+        lines.push('  [' + status + '] ' + fac.label + ' / ' + src.defaultName
+          + ' (' + src.type + ', search="' + src.searchName + '"' + libNote + ')');
+      });
+    });
+    console.info(lines.join('\n'));
+  }
 
   /* ── Global state ─────────────────────────────────────────────────── */
-  window._pdfSuggestedGroups = null; // null = no PDF yet
+  window._pdfSuggestedGroups = null; // null = no PDF; array = PDF scanned
 
   /* ── Scan PDF text for keyword matches ────────────────────────────── */
   window._soPdfScanSources = function(text) {
+    var textLow = (text || '').toLowerCase();
     var matches = [];
-    _SUGGEST_RULES.forEach(function(rule) {
-      var hit = null;
-      rule.keywords.some(function(kw) {
-        var m = text.match(kw);
-        if (m) { hit = m[0]; return true; }
+    FACILITY_SUGGESTIONS.forEach(function(fac) {
+      var hitKw = null;
+      fac.keywords.some(function(kw) {
+        if (textLow.indexOf(kw.toLowerCase()) !== -1) { hitKw = kw; return true; }
         return false;
       });
-      if (hit) matches.push({ label: rule.label, matched: hit, sources: rule.sources.slice() });
+      if (hitKw) matches.push({ id: fac.id, label: fac.label, matchedKeyword: hitKw });
     });
     window._pdfSuggestedGroups = matches;
     _updateSuggestPanel();
-    // Badge dot
     var dot = document.getElementById('suggestBadgeDot');
     if (dot) dot.style.display = matches.length > 0 ? '' : 'none';
+    _auditLibrary();
   };
+
+  /* ── Build HTML for one facility block ───────────────────────────── */
+  function _facilityHtml(fac, fi, matchedKw, isOpen) {
+    var pcbId = 'sgpcb_' + fi;
+    var summaryInner =
+      '<input type="checkbox" class="suggest-parent-cb" id="' + pcbId + '"'
+      + ' data-pfac="' + fi + '" checked onclick="event.stopPropagation();">'
+      + '<span class="suggest-arrow">&#9654;</span>'
+      + '<label for="' + pcbId + '" onclick="event.stopPropagation();"'
+      + ' style="flex:1;cursor:pointer;">' + escapeHTML(fac.label) + '</label>';
+    if (matchedKw) {
+      summaryInner += '<span class="suggest-kw-tag" title="Matched keyword">'
+        + escapeHTML(matchedKw) + '</span>';
+    }
+
+    var sourcesHtml = '';
+    fac.sources.forEach(function(src, si) {
+      var lib     = src.isStub ? null : _findLibByType(src.searchName, src.type);
+      var isTodo  = src.isStub || !lib;
+      var cbId    = 'sgcb_' + fi + '_' + si;
+      sourcesHtml +=
+        '<div class="suggest-src-item">'
+        + '<input type="checkbox" id="' + cbId + '" data-fac="' + fi
+        + '" data-src="' + si + '" data-stub="' + (isTodo ? '1' : '0') + '" checked>'
+        + '<label for="' + cbId + '">' + escapeHTML(src.defaultName) + '</label>'
+        + '<span class="suggest-type-badge type-' + src.type + '">' + src.type + '</span>'
+        + (isTodo ? '<span class="suggest-todo-badge" title="Library entry not confirmed \u2014 Lw placeholder">TODO</span>' : '')
+        + '</div>';
+    });
+
+    return '<details' + (isOpen ? ' open' : '') + '>'
+      + '<summary>' + summaryInner + '</summary>'
+      + '<div class="suggest-sources-list">' + sourcesHtml + '</div>'
+      + '</details>';
+  }
 
   /* ── Render panel content ─────────────────────────────────────────── */
   function _updateSuggestPanel() {
-    var groups   = window._pdfSuggestedGroups;
-    var emptyEl  = document.getElementById('suggestEmptyState');
-    var grpCont  = document.getElementById('suggestGroupsContainer');
-    var footer   = document.getElementById('suggestPanelFooter');
+    var groups  = window._pdfSuggestedGroups;
+    var emptyEl = document.getElementById('suggestEmptyState');
+    var grpCont = document.getElementById('suggestGroupsContainer');
+    var footer  = document.getElementById('suggestPanelFooter');
     if (!emptyEl || !grpCont || !footer) return;
 
+    /* No PDF — show all facilities with note */
     if (groups === null) {
-      emptyEl.innerHTML = 'No PDF uploaded yet.<br>Upload a site plan via <b>Tools &rarr; Site plan overlay</b>.';
+      emptyEl.innerHTML = 'No PDF loaded \u2014 showing all facility groups.<br>'
+        + '<small>Upload a site plan via <b>Tools &rarr; Site plan overlay</b> to auto-detect.</small>';
       emptyEl.style.display = '';
-      grpCont.style.display = 'none';
-      footer.style.display  = 'none';
-      return;
-    }
-    if (groups.length === 0) {
-      emptyEl.textContent = 'No matching features detected in the PDF.';
-      emptyEl.style.display = '';
-      grpCont.style.display = 'none';
-      footer.style.display  = 'none';
+      var allHtml = '';
+      FACILITY_SUGGESTIONS.forEach(function(fac, fi) {
+        allHtml += _facilityHtml(fac, fi, null, false);
+      });
+      grpCont.innerHTML = allHtml;
+      grpCont.style.display = '';
+      footer.style.display  = '';
+      _bindParentCheckboxes();
       return;
     }
 
-    emptyEl.style.display = 'none';
-    grpCont.style.display = '';
-    footer.style.display  = '';
+    /* PDF scanned — build matched / other sets */
+    var matchedIds = {};
+    groups.forEach(function(g) { matchedIds[g.id] = g.matchedKeyword; });
+    var hasMatches = groups.length > 0;
+
+    if (!hasMatches) {
+      emptyEl.textContent = 'No matching facility types detected in the PDF.';
+      emptyEl.style.display = '';
+    } else {
+      emptyEl.style.display = 'none';
+    }
 
     var html = '';
-    groups.forEach(function(grp, gi) {
-      html += '<details>';
-      html += '<summary>';
-      html += '<span class="suggest-arrow">&#9654;</span>';
-      html += '<span>' + escapeHTML(grp.label) + '</span>';
-      html += '<span class="suggest-kw-tag">detected</span>';
-      html += '</summary>';
-      html += '<div class="suggest-sources-list">';
-      grp.sources.forEach(function(src, si) {
-        var cbId = 'sgcb_' + gi + '_' + si;
-        html += '<div class="suggest-src-item">';
-        html += '<input type="checkbox" id="' + cbId + '" data-grp="' + gi + '" data-src="' + si + '" checked>';
-        html += '<label for="' + cbId + '">' + escapeHTML(src) + '</label>';
-        html += '</div>';
-      });
-      html += '</div></details>';
+    /* Matched facilities — open */
+    FACILITY_SUGGESTIONS.forEach(function(fac, fi) {
+      if (!matchedIds[fac.id]) return;
+      html += _facilityHtml(fac, fi, matchedIds[fac.id], true);
     });
-    grpCont.innerHTML = html;
-  }
-
-  /* ── Add selected sources to the source list ─────────────────────── */
-  function _suggestAddSelected() {
-    var groups = window._pdfSuggestedGroups;
-    if (!groups || !groups.length) return;
-
-    var checked = document.querySelectorAll('#suggestGroupsContainer input[type="checkbox"]:checked');
-    if (!checked.length) { showToast('No sources selected.', 2500); return; }
-
-    var libAll = (typeof SOURCE_LIBRARY_ALL !== 'undefined') ? SOURCE_LIBRARY_ALL : [];
-
-    function _findLib(name) {
-      var hint = _LIB_HINT[name];
-      if (!hint) return null;
-      var hLow = hint.toLowerCase();
-      var found = null;
-      libAll.some(function(entry) {
-        if (entry.name.toLowerCase().indexOf(hLow) !== -1) { found = entry; return true; }
-        return false;
-      });
-      return found;
+    /* Non-matched — collapsed under "Other facilities" */
+    var otherHtml = '';
+    FACILITY_SUGGESTIONS.forEach(function(fac, fi) {
+      if (matchedIds[fac.id]) return;
+      otherHtml += _facilityHtml(fac, fi, null, false);
+    });
+    if (otherHtml) {
+      html += '<details>'
+        + '<summary style="padding:7px 14px;font-size:11px;color:#6b7280;font-weight:500;'
+        + 'background:#f9fafb;list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;">'
+        + '<span class="suggest-arrow">&#9654;</span>'
+        + (hasMatches ? 'Other facilities (no keyword match)' : 'All facilities (no keyword matches)')
+        + '</summary>'
+        + otherHtml + '</details>';
     }
 
-    var added = 0;
+    grpCont.innerHTML = html;
+    grpCont.style.display = '';
+    footer.style.display  = '';
+    _bindParentCheckboxes();
+  }
+
+  /* ── Wire parent-checkbox ↔ children ─────────────────────────────── */
+  function _bindParentCheckboxes() {
+    var grpCont = document.getElementById('suggestGroupsContainer');
+    if (!grpCont) return;
+    /* Parent toggles all children */
+    grpCont.querySelectorAll('.suggest-parent-cb').forEach(function(pcb) {
+      pcb.addEventListener('change', function() {
+        var fi = pcb.getAttribute('data-pfac');
+        grpCont.querySelectorAll('input[data-fac="' + fi + '"]').forEach(function(c) {
+          c.checked = pcb.checked;
+        });
+      });
+    });
+    /* Child change → update parent indeterminate state */
+    grpCont.querySelectorAll('input[data-fac]').forEach(function(ccb) {
+      ccb.addEventListener('change', function() {
+        var fi  = ccb.getAttribute('data-fac');
+        var pcb = grpCont.querySelector('.suggest-parent-cb[data-pfac="' + fi + '"]');
+        if (!pcb) return;
+        var siblings = grpCont.querySelectorAll('input[data-fac="' + fi + '"]');
+        var n = 0;
+        siblings.forEach(function(s) { if (s.checked) n++; });
+        pcb.indeterminate = n > 0 && n < siblings.length;
+        if (!pcb.indeterminate) pcb.checked = (n === siblings.length);
+      });
+    });
+  }
+
+  /* ── Add selected sources to the map ─────────────────────────────── */
+  function _suggestAddSelected() {
+    var grpCont = document.getElementById('suggestGroupsContainer');
+    if (!grpCont) return;
+    var checked = grpCont.querySelectorAll('input[data-fac]:checked');
+    if (!checked.length) { showToast('No sources selected.', 2500); return; }
+
+    /* Default placement: map centre, offset each source slightly */
+    var ctr = (window._map && typeof window._map.getCenter === 'function')
+              ? window._map.getCenter() : { lat: -33.87, lng: 151.21 };
+    var delta = 0.0003;   // ~30 m between sources
+    var d2    = 0.00018;  // ~20 m polygon side for area sources
+    var bd    = 0.00013;  // ~14 m polygon side for building sources
+    var api   = window._toolboxApi || {};
+    var idx   = 0;
+    var added = 0, stubAdded = 0;
+
     checked.forEach(function(cb) {
-      var gi  = parseInt(cb.getAttribute('data-grp'), 10);
-      var si  = parseInt(cb.getAttribute('data-src'), 10);
-      var grp = groups[gi];
-      if (!grp) return;
-      var srcName = grp.sources[si];
-      if (!srcName) return;
+      var fi     = parseInt(cb.getAttribute('data-fac'), 10);
+      var si     = parseInt(cb.getAttribute('data-src'), 10);
+      var isTodo = cb.getAttribute('data-stub') === '1';
+      var fac    = FACILITY_SUGGESTIONS[fi];
+      if (!fac) return;
+      var srcDef = fac.sources[si];
+      if (!srcDef) return;
 
-      var lib = _findLib(srcName);
-      var pin = {
-        id: (typeof _newPinId === 'function') ? _newPinId() : ('src-' + Math.random().toString(36).slice(2,6)),
-        name: srcName,
-        lat: null, lng: null,
-        lw: { day: null, eve: null, night: null },
-        lw_max: null,
-        spectrum: { day: null, eve: null, night: null },
-        spectrum_max: null,
-        height_m: 1.5,
-        buildingHeight_m: 0,
-        groundElevation_m: null,
-        operatingPct: { day: 100, eve: 100, night: 100 },
-        numUnits: { day: 1, eve: 1, night: 1, lmax: 1 },
-        activeInPeriod: { day: true, eve: true, night: true, lmax: false }
-      };
+      var lib = srcDef.isStub ? null : _findLibByType(srcDef.searchName, srcDef.type);
+      if (isTodo) stubAdded++;
 
-      if (lib) {
-        pin._libName = lib.name;                                   // remembered for detail panel pre-fill
-        pin.lw       = { day: lib.lw, eve: lib.lw, night: lib.lw };
-        var sp       = lib.spectrum ? lib.spectrum.slice() : null;
-        pin.spectrum = { day: sp ? sp.slice() : null, eve: sp ? sp.slice() : null, night: sp ? sp.slice() : null };
-        pin.height_m = lib.height || 1.5;
+      /* Stagger placement so sources don't all stack at the same point */
+      var lat = ctr.lat + (idx % 4) * delta;
+      var lng = ctr.lng + Math.floor(idx / 4) * delta;
+      idx++;
+
+      /* ── Point source ─────────────────────────────────────────────── */
+      if (srcDef.type === 'point') {
+        var sp = (lib && lib.spectrum) ? lib.spectrum.slice() : null;
+        var pin = {
+          id: (typeof _newPinId === 'function') ? _newPinId()
+              : ('src-' + Math.random().toString(36).slice(2, 6)),
+          name: srcDef.defaultName,
+          lat: null, lng: null,
+          lw:       { day: lib ? lib.lw : null, eve: lib ? lib.lw : null, night: lib ? lib.lw : null },
+          lw_max:   null,
+          spectrum: { day: sp ? sp.slice() : null, eve: sp ? sp.slice() : null, night: sp ? sp.slice() : null },
+          spectrum_max: null,
+          height_m:     lib ? (lib.height || 1.5) : 1.5,
+          buildingHeight_m: 0,
+          groundElevation_m: null,
+          operatingPct:  { day: 100, eve: 100, night: 100 },
+          numUnits:      { day: 1, eve: 1, night: 1, lmax: 1 },
+          activeInPeriod: { day: true, eve: true, night: true, lmax: false },
+          _libName:  lib ? lib.name : null,
+          _stubTodo: isTodo || undefined
+        };
+        sourcePins.push(pin);
+
+      /* ── Line source ──────────────────────────────────────────────── */
+      } else if (srcDef.type === 'line') {
+        var newLs = {
+          id:       'ls_' + (++_lsIdCtr),
+          name:     srcDef.defaultName,
+          vertices: [[lat, lng], [lat, lng + delta]],
+          libraryEntry: lib ? lib.name : null,
+          height_m: lib ? (lib.height_m || 0.5) : 0.5,
+          movements: {
+            day:   { N: 1, speed: 10, operatingPct: 100 },
+            eve:   { N: 1, speed: 10, operatingPct: 100 },
+            night: { N: 1, speed: 10, operatingPct: 100 }
+          },
+          lw_m_base:       { day: lib ? lib.lw_m_dba : null,
+                             eve: lib ? lib.lw_m_dba : null,
+                             night: lib ? lib.lw_m_dba : null },
+          spectrum_m_base: { day: lib ? lib.spectrum_unweighted : null,
+                             eve: lib ? lib.spectrum_unweighted : null,
+                             night: lib ? lib.spectrum_unweighted : null },
+          manualOverride: { day: false, eve: false, night: false },
+          manualLwm:      { day: null, eve: null, night: null },
+          manualSpectrum: { day: null, eve: null, night: null },
+          activeInPeriod: { day: true, eve: true, night: true },
+          _userEdited:    { eve: false, night: false },
+          _libName:  lib ? lib.name : null,
+          _stubTodo: isTodo || undefined
+        };
+        lineSources.push(newLs);
+        if (api.renderLineSourceLayer) api.renderLineSourceLayer();
+        if (api.renderLineSourceCards) api.renderLineSourceCards();
+
+      /* ── Area source ──────────────────────────────────────────────── */
+      } else if (srcDef.type === 'area') {
+        var asVerts = [[lat, lng], [lat + d2, lng], [lat + d2, lng + d2], [lat, lng + d2]];
+        var newAs = {
+          id:       'as_' + (++_asIdCtr),
+          name:     srcDef.defaultName,
+          vertices: asVerts,
+          height_m: lib ? (lib.height_m || 0.5) : 0.5,
+          lwMode:   'per_m2',
+          lwValue:  { day: lib ? lib.lw_m2_dba : null,
+                      eve: lib ? lib.lw_m2_dba : null,
+                      night: lib ? lib.lw_m2_dba : null },
+          spectrum: { day: lib ? lib.spectrum_unweighted : null,
+                      eve: lib ? lib.spectrum_unweighted : null,
+                      night: lib ? lib.spectrum_unweighted : null },
+          activeInPeriod: { day: true, eve: true, night: true },
+          operatingPct:   { day: 100, eve: 100, night: 100 },
+          quantity:       { day: 1, eve: 1, night: 1 },
+          manualOverride: { day: false, eve: false, night: false },
+          libraryEntry:   lib ? lib.name : null,
+          _userEdited:    { eve: false, night: false },
+          _libName:  lib ? lib.name : null,
+          _stubTodo: isTodo || undefined
+        };
+        areaSources.push(newAs);
+        if (api.renderAreaSourceLayer) api.renderAreaSourceLayer();
+
+      /* ── Building source ──────────────────────────────────────────── */
+      } else if (srcDef.type === 'building') {
+        if (!api.makeBuildingSource) return;
+        var bsVerts = [[lat, lng], [lat + bd, lng], [lat + bd, lng + bd], [lat, lng + bd]];
+        var newBs = api.makeBuildingSource(bsVerts, 6);
+        if (!newBs) return;
+        newBs.name    = srcDef.defaultName;
+        newBs._libName = lib ? lib.name : null;
+        newBs._stubTodo = isTodo || undefined;
+        /* Pre-fill interior Lp from building library */
+        if (lib && lib.spectrum) {
+          var oct = lib.spectrum;
+          function _band(b) {
+            var v = oct[b];
+            return (v != null) ? v : (oct[String(b)] != null ? oct[String(b)] : null);
+          }
+          var fillOct = { 63: _band(63), 125: _band(125), 250: _band(250), 500: _band(500),
+                          1000: _band(1000), 2000: _band(2000), 4000: _band(4000), 8000: _band(8000) };
+          ['day', 'eve', 'night'].forEach(function(p) {
+            newBs.interiorLp[p] = { broadband: lib.lp_dba, octave: fillOct };
+          });
+        }
+        buildingSources.push(newBs);
+        if (api.renderBuildingSourceLayer) api.renderBuildingSourceLayer();
       }
 
-      sourcePins.push(pin);
       added++;
     });
 
     if (added > 0) {
-      // Update the Objects panel (the visible source list)
       if (typeof window._renderObjectList === 'function') window._renderObjectList();
-
-      // Expand the Objects panel body if it's collapsed
-      var objBody = document.getElementById('objectsPanelBody');
+      /* Expand Objects panel */
+      var objBody   = document.getElementById('objectsPanelBody');
       var objToggle = document.getElementById('objectsPanelToggle');
       if (objBody && objBody.style.display === 'none') {
         objBody.style.display = 'block';
         if (objToggle) objToggle.innerHTML = '&#x25B2;';
       }
-
-      // Show the Objects floating panel
       var objSection = document.getElementById('objectsFloatPanel');
       if (objSection) objSection.style.display = 'flex';
 
-      showToast(added + ' source' + (added !== 1 ? 's' : '') + ' added \u2014 click Place in Objects panel to position on map', 4500);
+      var msg = added + ' source' + (added !== 1 ? 's' : '') + ' added';
+      if (stubAdded > 0) {
+        msg += ' \u2014 \u26a0\ufe0f ' + stubAdded + ' source'
+          + (stubAdded !== 1 ? 's have' : ' has')
+          + ' TODO placeholder Lw (confirm values before predicting)';
+      }
+      msg += '. Reposition on map as needed.';
+      showToast(msg, 6000);
     }
   }
 
-  /* ── Register Add button BEFORE any guard that might return early ─── */
+  /* ── Register Add button ──────────────────────────────────────────── */
   var addBtn = document.getElementById('suggestAddBtn');
   if (addBtn) addBtn.addEventListener('click', _suggestAddSelected);
+
+  /* ── Initial render (no PDF) ─────────────────────────────────────── */
+  _updateSuggestPanel();
 
   /* ── Panel toggle / close ─────────────────────────────────────────── */
   var panel     = document.getElementById('suggestFloatPanel');
