@@ -10327,48 +10327,32 @@ var _bsPanel = null, _bsPanelId = null, _bsDrawHandler = null, _drawingBuildingS
 var BS_OCTAVE_BANDS = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
 var BS_A_WEIGHTS    = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
 
-var CONSTRUCTION_LIBRARY = {
-  walls: [
-    { name: 'Colorbond steel (single skin)', rw: 25,
-      octaveR: {63:12,125:15,250:18,500:22,1000:25,2000:28,4000:30,8000:28} },
-    { name: 'Double skin insulated metal wall', rw: 35,
-      octaveR: {63:18,125:22,250:28,500:32,1000:35,2000:38,4000:40,8000:38} },
-    { name: '200mm concrete block', rw: 45,
-      octaveR: {63:30,125:33,250:38,500:42,1000:45,2000:48,4000:50,8000:48} },
-    { name: '150mm precast concrete', rw: 42,
-      octaveR: {63:28,125:30,250:35,500:40,1000:42,2000:45,4000:47,8000:45} },
-    { name: 'Lightweight timber frame', rw: 30,
-      octaveR: {63:15,125:18,250:22,500:28,1000:30,2000:33,4000:35,8000:33} }
-  ],
-  roof: [
-    { name: 'Metal deck (single skin)', rw: 20,
-      octaveR: {63:10,125:12,250:15,500:18,1000:20,2000:23,4000:25,8000:23} },
-    { name: 'Metal deck with insulation', rw: 30,
-      octaveR: {63:16,125:20,250:24,500:28,1000:30,2000:33,4000:35,8000:33} },
-    { name: 'Concrete slab roof', rw: 45,
-      octaveR: {63:30,125:33,250:38,500:42,1000:45,2000:48,4000:50,8000:48} }
-  ],
-  openings: [
-    { name: 'Roller door (steel)', rw: 15,
-      octaveR: {63:8,125:10,250:12,500:14,1000:15,2000:18,4000:20,8000:18} },
-    { name: 'Louvre (open)', rw: 5,
-      octaveR: {63:3,125:4,250:5,500:5,1000:5,2000:5,4000:5,8000:5} },
-    { name: 'Louvre (with attenuator)', rw: 15,
-      octaveR: {63:8,125:10,250:12,500:14,1000:15,2000:18,4000:20,8000:18} },
-    { name: 'Single glazed window (6mm)', rw: 28,
-      octaveR: {63:15,125:18,250:22,500:26,1000:28,2000:30,4000:32,8000:28} },
-    { name: 'Open door/window', rw: 0,
-      octaveR: {63:0,125:0,250:0,500:0,1000:0,2000:0,4000:0,8000:0} }
-  ]
-};
+// ─── CONSTRUCTION_LIBRARY (Google Sheets only — 2026-04-22) ──────────────────
+// Populated exclusively from SourceLibrary 'Transmission Loss' rows.
+// No hardcoded fallback — arrays start empty until SourceLibrary loads.
+var CONSTRUCTION_LIBRARY = { walls: [], roof: [], openings: [] };
 var CONSTRUCTION_LIBRARY_GROUPED = {};
 function rebuildConstructionGrouped() {
-  var lib = window.CONSTRUCTION_LIBRARY || { walls: [], roof: [], openings: [] };
-  CONSTRUCTION_LIBRARY_GROUPED = {
-    'Walls':    lib.walls    || [],
-    'Roof':     lib.roof     || [],
-    'Openings': lib.openings || []
-  };
+  var tlEntries = [];
+  if (window.SourceLibrary) {
+    var tlRows = window.SourceLibrary.getLibraryForSourceType('building_facade');
+    tlEntries = tlRows.map(function(row) {
+      return {
+        name: row.name,
+        octaveR: {
+          63: row.hz_63, 125: row.hz_125, 250: row.hz_250, 500: row.hz_500,
+          1000: row.hz_1000, 2000: row.hz_2000, 4000: row.hz_4000, 8000: row.hz_8000
+        }
+      };
+    });
+  }
+  CONSTRUCTION_LIBRARY.walls    = tlEntries;
+  CONSTRUCTION_LIBRARY.roof     = tlEntries;
+  CONSTRUCTION_LIBRARY.openings = tlEntries;
+  window.CONSTRUCTION_LIBRARY   = CONSTRUCTION_LIBRARY;
+  CONSTRUCTION_LIBRARY_GROUPED  = tlEntries.length > 0
+    ? { 'Building Materials': tlEntries }
+    : {};
   window.CONSTRUCTION_LIBRARY_GROUPED = CONSTRUCTION_LIBRARY_GROUPED;
 }
 rebuildConstructionGrouped();
@@ -32570,13 +32554,13 @@ if (window.pdfjsLib) {
     }
     window.closeBsPanel = closeBsPanel;
 
-    function _bsConsOptions(selectedName, categories) {
+    function _bsConsOptions(selectedName) {
       var opts = '<option value="">— Custom / manual —</option>';
-      categories.forEach(function(cat) {
+      Object.keys(CONSTRUCTION_LIBRARY_GROUPED).forEach(function(cat) {
         opts += '<optgroup label="' + escapeHTML(cat) + '">';
-        CONSTRUCTION_LIBRARY_GROUPED[cat].forEach(function(e) {
+        (CONSTRUCTION_LIBRARY_GROUPED[cat] || []).forEach(function(e) {
           var sel = selectedName === e.name ? ' selected' : '';
-          opts += '<option value="' + escapeHTML(e.name) + '"' + sel + '>' + escapeHTML(e.name) + ' — Rw ' + e.rw + ' dB</option>';
+          opts += '<option value="' + escapeHTML(e.name) + '"' + sel + '>' + escapeHTML(e.name) + '</option>';
         });
         opts += '</optgroup>';
       });
@@ -32725,7 +32709,7 @@ if (window.pdfjsLib) {
       // Construction select
       h += '<select class="bs-wall-cons-sel" data-wall="' + wallIdx + '" style="width:100%;padding:3px 5px;border:1px solid #ddd;border-radius:4px;font-size:11px;margin-bottom:4px;">';
       if (!hasOverride) h += '<option value="">(Default construction)</option>';
-      h += _bsConsOptions(cons.name || '', ['Walls', 'Openings']);
+      h += _bsConsOptions(cons.name || '');
       h += '</select>';
       // SVG diagram
       h += '<div class="bs-wall-svg" data-wall="' + wallIdx + '" style="margin:5px 0;">' + _bsWallFaceSVG(len, wallHt, cons, elements) + '</div>';
@@ -32767,7 +32751,7 @@ if (window.pdfjsLib) {
       h += '<label style="font-size:9px;color:#6b7280;text-align:center;">X\u00a0(m)<br><input type="number" class="bs-roof-el-x" data-el="' + ei + '" placeholder="0" value="' + x + '" step="0.1" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
       h += '<label style="font-size:9px;color:#6b7280;text-align:center;">Y\u00a0(m)<br><input type="number" class="bs-roof-el-y" data-el="' + ei + '" placeholder="0" value="' + y + '" step="0.1" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
       h += '<select class="bs-roof-el-sel" data-el="' + ei + '" style="font-size:10px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;">';
-      h += _bsConsOptions(el.construction ? el.construction.name : '', ['Openings', 'Roof']);
+      h += _bsConsOptions(el.construction ? el.construction.name : '');
       h += '</select>';
       h += '<button class="bs-del-roof-el" data-el="' + ei + '" style="font-size:10px;padding:2px 6px;cursor:pointer;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;color:#b91c1c;">\u2715</button>';
       h += '</div>';
@@ -32868,7 +32852,7 @@ if (window.pdfjsLib) {
       // Default wall construction
       h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin:10px 0 6px;">Wall Construction (Default)</div>';
       h += '<select id="bsDefWallSel" style="width:100%;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-bottom:4px;">';
-      h += _bsConsOptions(defWallName, ['Walls']);
+      h += _bsConsOptions(defWallName);
       h += '</select>';
       h += '<div id="bsDefWallOctave">' + _bsOctaveRRow('bs_defwall', bs.defaultConstruction, true) + '</div>';
       h += '<label style="font-size:11px;display:flex;align-items:center;gap:4px;margin-top:4px;"><input type="checkbox" id="bsDefWallManual"> Manual R values</label>';
@@ -32879,7 +32863,7 @@ if (window.pdfjsLib) {
       h += '<label style="font-size:11px;display:flex;align-items:center;gap:4px;margin-bottom:6px;"><input type="checkbox" id="bsRoofEnabled"' + (roofEnabled?' checked':'') + '> Roof radiates noise</label>';
       h += '<div id="bsRoofSection" style="' + (roofEnabled?'':'opacity:0.4;pointer-events:none;') + '">';
       h += '<select id="bsRoofSel" style="width:100%;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-bottom:4px;">';
-      h += _bsConsOptions(roofName, ['Roof']);
+      h += _bsConsOptions(roofName);
       h += '</select>';
       h += '<div id="bsRoofOctave">' + _bsOctaveRRow('bs_roof', bs.roofConstruction, true) + '</div>';
       h += '<label style="font-size:11px;display:flex;align-items:center;gap:4px;margin-top:4px;"><input type="checkbox" id="bsRoofManual"> Manual R values</label>';
@@ -32915,7 +32899,7 @@ if (window.pdfjsLib) {
       h += '<button class="bs-del-override" data-wall="' + i + '" style="font-size:10px;padding:1px 6px;cursor:pointer;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;color:#b91c1c;">Remove</button>';
       h += '</div>';
       h += '<select class="bs-facade-sel" data-wall="' + i + '" style="width:100%;padding:3px 5px;border:1px solid #ddd;border-radius:4px;font-size:11px;margin-bottom:3px;">';
-      h += _bsConsOptions(overr.name||'', ['Walls','Openings']);
+      h += _bsConsOptions(overr.name||'');
       h += '</select>';
       h += '<div class="bs-facade-octave" data-wall="' + i + '">' + _bsOctaveRRow('bs_wall_'+i, overr, true) + '</div>';
       // Sub-elements
@@ -32938,7 +32922,7 @@ if (window.pdfjsLib) {
       h += '<label style="font-size:9px;color:#6b7280;text-align:center;">X\u00a0(m)<br><input type="number" class="bs-el-x" data-wall="' + wallIdx + '" data-el="' + elIdx + '" placeholder="0" value="' + elX + '" step="0.1" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
       h += '<label style="font-size:9px;color:#6b7280;text-align:center;">Y\u00a0(m)<br><input type="number" class="bs-el-y" data-wall="' + wallIdx + '" data-el="' + elIdx + '" placeholder="0" value="' + elY + '" step="0.1" style="width:100%;font-size:11px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;"></label>';
       h += '<select class="bs-el-sel" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="font-size:10px;padding:1px 2px;border:1px solid #ddd;border-radius:2px;">';
-      h += _bsConsOptions(el.construction ? el.construction.name : '', ['Openings', 'Walls']);
+      h += _bsConsOptions(el.construction ? el.construction.name : '');
       h += '</select>';
       h += '<button class="bs-del-element" data-wall="' + wallIdx + '" data-el="' + elIdx + '" style="font-size:10px;padding:2px 6px;cursor:pointer;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;color:#b91c1c;">\u2715</button>';
       h += '</div>';
