@@ -2073,6 +2073,8 @@ body.disclaimer-visible .container {
 ──────────────────────────────────────────────────────────────────────────── -->
 <!-- Google Sheets source reference library (sole active source) -->
 <script src="js/sources-library.js?v=4"></script>
+<!-- PlanSA zone category map (display only — populated post-discover run) -->
+<script src="js/zone-categories.js?v=1"></script>
 </head>
 <body>
 
@@ -2513,6 +2515,11 @@ body.disclaimer-visible .container {
                 <button class="mp-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial<span class="mp-kbd">I</span></button>
                 <button class="mp-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastral<span class="mp-kbd">D</span></button>
                 <button class="mp-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Urban area<span class="mp-kbd">U</span></button>
+                <div class="mp-sep"></div>
+                <div style="font-size:9px;color:rgba(255,255,255,0.45);padding:1px 8px 2px;text-transform:uppercase;letter-spacing:0.05em;">Planning layers (display only)</div>
+                <button class="mp-btn" id="planningZonesBtn" title="Show PlanSA zones (display only \u2014 does not affect SA criteria; SAPPA API is the source of truth)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="2" width="9" height="9"/><rect x="13" y="2" width="9" height="9"/><rect x="2" y="13" width="9" height="9"/><rect x="13" y="13" width="9" height="9"/></svg> Zones (PlanSA)</button>
+                <button class="mp-btn" id="planningNoiseBtn" title="Show Noise &amp; Air Emissions overlay (display only \u2014 refer to SA EPA Noise Policy for criteria)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg> Noise &amp; Air Emissions</button>
+                <button class="mp-btn" id="planningAircraftBtn" title="Show Aircraft Noise (ANEF) overlay (display only \u2014 refer to AS 2021 for building design requirements)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg> Aircraft Noise (ANEF)</button>
               </div>
             </div>
 
@@ -22117,6 +22124,8 @@ setInitialCollapseState();
 
         // Buildings layer toggle
         data.buildingsOn = window._getBuildingsOn ? window._getBuildingsOn() : true;
+        // Planning layers (display only — no calc impact)
+        data.planningLayers = window._getPlanningLayers ? window._getPlanningLayers() : { zones: false, noiseAirEmissions: false, aircraftNoise: false };
         data.noiseMapOn = window._getNoiseMapOn ? window._getNoiseMapOn() : false;
         data.noiseMapPeriod = window._getNoiseMapPeriod ? window._getNoiseMapPeriod() : 'day';
         data.lmaxMethod = window._getLmaxMethod ? window._getLmaxMethod() : 'simple';
@@ -23483,6 +23492,15 @@ setInitialCollapseState();
       if (data.buildingsOn !== undefined && window._setBuildingsOn) {
         window._setBuildingsOn(data.buildingsOn);
       }
+      // 15c. Planning layers (display only — default false if key absent)
+      if (window._setPlanningLayers) {
+        var pl = data.planningLayers || {};
+        window._setPlanningLayers({
+          zones:             !!pl.zones,
+          noiseAirEmissions: !!pl.noiseAirEmissions,
+          aircraftNoise:     !!pl.aircraftNoise,
+        });
+      }
       // Noise map settings — always reset grid size to Auto on load (never restore a fine saved grid)
       if (window._setNoiseMapGridSize) window._setNoiseMapGridSize('auto');
       if (data.noiseMapPeriod && window._setNoiseMapPeriod) {
@@ -24644,6 +24662,8 @@ setInitialCollapseState();
 
       // Map settings (don't restore noise map — expensive; always false)
       data.buildingsOn      = window._getBuildingsOn      ? window._getBuildingsOn()      : true;
+      // Planning layers (display only — no calc impact)
+      data.planningLayers = window._getPlanningLayers ? window._getPlanningLayers() : { zones: false, noiseAirEmissions: false, aircraftNoise: false };
       data.noiseMapOn       = false;
       data.noiseMapPeriod   = window._getNoiseMapPeriod   ? window._getNoiseMapPeriod()   : 'day';
       data.lmaxMethod       = window._getLmaxMethod       ? window._getLmaxMethod()       : 'simple';
@@ -25243,6 +25263,8 @@ if (window.pdfjsLib) {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/protomaps-leaflet@4.0.1/dist/protomaps-leaflet.min.js" crossorigin="anonymous"></script>
 <script>
 (function () {
   'use strict';
@@ -25538,12 +25560,16 @@ if (window.pdfjsLib) {
     }
 
     /* --- Visual zoning overlay (esri-leaflet) --- */
+    // SA: SAPPA ArcGIS REST API (CurrentZones/CurrentOverlays) is authentication-restricted
+    // and not publicly accessible cross-origin. Overlay layers disabled until SA Gov
+    // publishes a public endpoint. VIC and NSW overlays are unaffected.
+    var SAPPA_API_UNAVAILABLE = true;
     var zoningOverlay = null;
     var subzoneFeatureLayer = null;
     var zoneOutlineLayer = null;
     var isZoneOn = false;
     try {
-      if (typeof L.esri !== 'undefined' && L.esri.dynamicMapLayer) {
+      if (!SAPPA_API_UNAVAILABLE && typeof L.esri !== 'undefined' && L.esri.dynamicMapLayer) {
         zoningOverlay = L.esri.dynamicMapLayer({
           url: SAPPA_BASE,
           opacity: 0.35,
@@ -25551,7 +25577,7 @@ if (window.pdfjsLib) {
         });
       }
       /* Zone outlines as vector feature layer (no fill, just borders) */
-      if (typeof L.esri !== 'undefined' && L.esri.featureLayer) {
+      if (!SAPPA_API_UNAVAILABLE && typeof L.esri !== 'undefined' && L.esri.featureLayer) {
         zoneOutlineLayer = L.esri.featureLayer({
           url: SAPPA_BASE + '/0',
           style: function() {
@@ -25568,7 +25594,7 @@ if (window.pdfjsLib) {
         });
       }
       /* Subzones as vector feature layer with distinct styling */
-      if (typeof L.esri !== 'undefined' && L.esri.featureLayer) {
+      if (!SAPPA_API_UNAVAILABLE && typeof L.esri !== 'undefined' && L.esri.featureLayer) {
         subzoneFeatureLayer = L.esri.featureLayer({
           url: SAPPA_BASE + '/1',
           style: function() {
@@ -25736,7 +25762,11 @@ if (window.pdfjsLib) {
       zoneToggle.addEventListener('click', function() {
         var overlay = getActiveZoneOverlay();
         if (!overlay) {
-          alert('Zoning overlay could not be loaded. Zone auto-detection still works when placing markers.');
+          if (currentState === 'SA') {
+            alert('SA zone overlay unavailable \u2014 the SAPPA ArcGIS REST API has changed and now requires authentication.\n\nUse SAPPA directly to view zones: https://sappa.plan.sa.gov.au/\n\nSelect zones manually using the \u270f edit button on each receiver.');
+          } else {
+            alert('Zoning overlay could not be loaded.');
+          }
           return;
         }
         if (isZoneOn) {
@@ -26204,6 +26234,9 @@ if (window.pdfjsLib) {
 
     /* --- Query SAPPA for zone/subzone at a lat/lng point --- */
     function queryZoningAtPoint(lat, lng) {
+      if (SAPPA_API_UNAVAILABLE) {
+        return Promise.resolve({ zone: null, subzone: null, apiUnavailable: true });
+      }
       var geom = lng + ',' + lat;
       var zoneUrl = SAPPA_BASE + '/0/query' +
         '?geometry=' + geom +
@@ -26361,7 +26394,10 @@ if (window.pdfjsLib) {
           if (statusEl) {
             var sub2 = statusEl.querySelector('.zone-status-label');
             if (sub2) {
-              if (result.zone) {
+              if (result.apiUnavailable) {
+                sub2.textContent = 'SAPPA unavailable \u2014 select zone manually \u270f';
+                sub2.style.color = '#d97706';
+              } else if (result.zone) {
                 var label = result.zone;
                 if (result.subzone) label += ' / ' + result.subzone;
                 if (!key) label += ' (no match)';
@@ -26456,6 +26492,21 @@ if (window.pdfjsLib) {
     function querySAPPAOverlays(mode, latlng) {
       if (currentState !== 'SA') return;
       if (!isSourceMode(mode)) return;
+
+      // SAPPA overlay API is authentication-restricted — show advisory and skip queries.
+      if (SAPPA_API_UNAVAILABLE) {
+        var unavailMsg = 'Check SAPPA \u2192 sappa.plan.sa.gov.au';
+        ['mbs_anef','mbs_anr','mbs_noise','mbs_mixed'].forEach(function(id) { setMBS(id, unavailMsg); });
+        clearDynamicRows();
+        var roadsPh = document.getElementById('mbs_roads_placeholder');
+        var railPh = document.getElementById('mbs_rail_placeholder');
+        if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = unavailMsg; roadsPh.cells[2].textContent = '—'; roadsPh.cells[3].textContent = '—'; }
+        if (railPh) { railPh.style.display = ''; railPh.cells[1].textContent = unavailMsg; railPh.cells[2].textContent = '—'; railPh.cells[3].textContent = '—'; }
+        var secMixed = document.getElementById('mbs_sec_mixed');
+        if (secMixed) secMixed.textContent = '—';
+        return;
+      }
+
       var geom = latlng.lng + ',' + latlng.lat;
       var ptParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
 
@@ -38917,6 +38968,364 @@ if (window.pdfjsLib) {
 })();
 </script>
 
+<!-- ══ PlanSA Planning Layers — display only, no calculation impact ══════ -->
+<script>
+(function () {
+  'use strict';
+
+  /* ── State ──────────────────────────────────────────────────────────────── */
+  var _planZonesOn    = false;
+  var _planNoiseOn    = false;
+  var _planAircraftOn = false;
+
+  /* ── Layer cache (lazy-init on first toggle-on) ─────────────────────────── */
+  var _zonesLayer    = null;  // protomaps-leaflet layer
+  var _noiseLayer    = null;  // L.geoJSON
+  var _aircraftLayer = null;  // L.geoJSON
+
+  /* ── Legend + attribution state ─────────────────────────────────────────── */
+  var _zonesLegendCtrl  = null;
+  var _hasUnknownZone   = false;
+  var _metadataDate     = null;   // fetched from data/metadata.json on first use
+  var _planAttrAdded    = false;
+  var PLAN_ATTR         = '\u00a9 Govt of SA (DHUD), CC-BY\u00a04.0 \u2014 planning data as at {date}';
+
+  /* ANEF contour colours.
+     Keys must match anef_contour property values as they appear in the GeoJSON.
+     If the discover run reveals values like "ANEF 20" rather than "20", update
+     the normaliseAnef() helper below. */
+  var ANEF_STYLES = {
+    '20': { fill: '#fff5b3', opacity: 0.20 },
+    '25': { fill: '#ffd18c', opacity: 0.25 },
+    '30': { fill: '#ff9a5a', opacity: 0.30 },
+    '35': { fill: '#f06040', opacity: 0.35 },
+    '40': { fill: '#b02020', opacity: 0.40 },
+  };
+
+  /* Strip leading non-numeric prefix ("ANEF 30" → "30", "30" → "30") */
+  function normaliseAnef(val) {
+    if (val === null || val === undefined) return '';
+    var s = String(val).trim();
+    var m = s.match(/(\d+)/);
+    return m ? m[1] : s;
+  }
+
+  function anefStyle(feature) {
+    var contour = normaliseAnef((feature.properties || {}).anef_contour);
+    var cfg     = ANEF_STYLES[contour];
+    if (!cfg) {
+      return { color: '#ff00ff', weight: 1, opacity: 0.6, fillColor: '#ff00ff', fillOpacity: 0.40 };
+    }
+    var darker = shadeHex(cfg.fill, -40);
+    return { color: darker, weight: 1, opacity: 0.7, fillColor: cfg.fill, fillOpacity: cfg.opacity };
+  }
+
+  /* Darken a hex colour by `amount` (0–255) */
+  function shadeHex(hex, amount) {
+    var n = parseInt(hex.replace('#',''), 16);
+    var r = Math.max(0, Math.min(255, ((n >> 16) & 0xff) + amount));
+    var g = Math.max(0, Math.min(255, ((n >>  8) & 0xff) + amount));
+    var b = Math.max(0, Math.min(255, ((n      ) & 0xff) + amount));
+    return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+  }
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ── Fetch metadata date once ────────────────────────────────────────────── */
+  function fetchMetadata() {
+    if (_metadataDate !== null) return;
+    _metadataDate = '';  // mark as attempted
+    fetch('./data/metadata.json')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(meta) {
+        if (!meta || !meta.fetched_utc) return;
+        var d = new Date(meta.fetched_utc);
+        if (isNaN(d.getTime())) return;
+        _metadataDate = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+        if (_planAttrAdded) updateAttribution();
+      })
+      .catch(function() {});
+  }
+
+  function getAttrString() {
+    return PLAN_ATTR.replace('{date}', _metadataDate || '—');
+  }
+
+  function updateAttribution() {
+    var m = window._map;
+    if (!m || !m.attributionControl) return;
+    if (_planAttrAdded) m.attributionControl.removeAttribution(PLAN_ATTR.replace('{date}', _metadataDate || '—'));
+    var anyOn = _planZonesOn || _planNoiseOn || _planAircraftOn;
+    if (anyOn) {
+      m.attributionControl.addAttribution(getAttrString());
+      _planAttrAdded = true;
+    } else {
+      _planAttrAdded = false;
+    }
+  }
+
+  /* ── Zones PMTiles layer (protomaps-leaflet) ─────────────────────────────── */
+  function buildZonesLayer() {
+    if (!window.protomapsL) {
+      console.warn('[PlanSA] protomaps-leaflet not loaded — Zones layer unavailable');
+      return null;
+    }
+    var ZC = window.ZoneCategories;
+
+    var layer = protomapsL.leafletLayer({
+      url: './data/zones/sa-zones.pmtiles',
+      paint_rules: [
+        {
+          dataLayer: 'zones',
+          symbolizer: new protomapsL.PolygonSymbolizer({
+            fill: function(zoom, feature) {
+              if (!ZC) return '#cccccc';
+              var result = ZC.categoriseZone((feature.props || {}).zone_name);
+              if (!result.knownCategory && !_hasUnknownZone) {
+                _hasUnknownZone = true;
+                refreshZonesLegend();
+              }
+              return result.colour;
+            },
+            opacity: function(zoom, feature) {
+              if (!ZC) return 0.35;
+              var result = ZC.categoriseZone((feature.props || {}).zone_name);
+              return result.category === 'unknown' ? 0.50 : 0.35;
+            },
+            stroke: '#666666',
+            width:  0.5,
+          }),
+        },
+      ],
+      label_rules: [],
+      onClick: function(features, e) {
+        if (!features || !features.length) return;
+        var feat     = features[0];
+        var zoneName = (feat.props || {}).zone_name || 'Unknown zone';
+        var m        = window._map;
+        if (!m) return;
+        L.popup()
+          .setLatLng(e.latlng)
+          .setContent(
+            '<b>' + escHtml(zoneName) + '</b>' +
+            '<br><small style="color:#666;">SAPPA zone at this point may differ \u2014 receiver criteria use the live SAPPA API.</small>'
+          )
+          .openOn(m);
+      },
+    });
+
+    return layer;
+  }
+
+  /* ── Overlay GeoJSON layers ──────────────────────────────────────────────── */
+  function loadNoiseLayer(callback) {
+    fetch('./data/overlays/noise-air-emissions.geojson')
+      .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+      .then(function(data) {
+        var layer = L.geoJSON(data, {
+          style: { color: '#d62728', weight: 1, opacity: 0.6, fillColor: '#d62728', fillOpacity: 0.15 },
+          onEachFeature: function(feature, lyr) {
+            var name = (feature.properties || {}).overlay_name || 'Noise and Air Emissions';
+            lyr.bindPopup(
+              '<b>' + escHtml(name) + '</b>' +
+              '<br><small style="color:#666;">Display only \u2014 refer to MBS-010 and SA EPA Noise Policy for applicable criteria.</small>'
+            );
+          },
+        });
+        callback(layer);
+      })
+      .catch(function(e) { console.warn('[PlanSA] Failed to load noise overlay:', e); callback(null); });
+  }
+
+  function loadAircraftLayer(callback) {
+    fetch('./data/overlays/aircraft-noise.geojson')
+      .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+      .then(function(data) {
+        var layer = L.geoJSON(data, {
+          style: function(feature) { return anefStyle(feature); },
+          onEachFeature: function(feature, lyr) {
+            var props    = feature.properties || {};
+            var contour  = normaliseAnef(props.anef_contour);
+            var name     = props.overlay_name || 'Aircraft Noise';
+            var label    = contour ? 'ANEF\u00a0' + contour : name;
+            lyr.bindPopup(
+              '<b>' + escHtml(label) + '</b>' +
+              (contour ? '<br><span style="color:#555;">' + escHtml(name) + '</span>' : '') +
+              '<br><small style="color:#666;">Refer to AS\u00a02021 for aircraft noise intrusion building design requirements.</small>'
+            );
+          },
+        });
+        callback(layer);
+      })
+      .catch(function(e) { console.warn('[PlanSA] Failed to load aircraft overlay:', e); callback(null); });
+  }
+
+  /* ── Zones legend (bottom-left) ──────────────────────────────────────────── */
+  function buildZonesLegend() {
+    var ctrl = L.control({ position: 'bottomleft' });
+    ctrl._planningLegend = true;
+    ctrl.onAdd = function() {
+      var div = L.DomUtil.create('div', 'planning-zones-legend leaflet-control');
+      div.style.cssText = 'background:#fff;padding:6px 8px;border-radius:4px;box-shadow:0 1px 5px rgba(0,0,0,0.25);font-size:11px;min-width:148px;line-height:1.6;';
+      div._isLegendDiv = true;
+      L.DomEvent.disableClickPropagation(div);
+      renderLegendContent(div);
+      return div;
+    };
+    return ctrl;
+  }
+
+  function renderLegendContent(div) {
+    var ZC = window.ZoneCategories;
+    if (!ZC) { div.innerHTML = '<b>PlanSA Zones</b><br><small>(display only)</small>'; return; }
+    var cats = ['residential','commercial','mixed_use','industrial','rural','open_space','infrastructure'];
+    var rows = cats.map(function(cat) {
+      var col = ZC.CATEGORY_COLOURS[cat] || '#ccc';
+      var lbl = ZC.CATEGORY_LABELS[cat]  || cat;
+      return '<div style="display:flex;align-items:center;gap:5px;white-space:nowrap;">' +
+             '<span style="display:inline-block;width:12px;height:12px;background:' + col + ';border:1px solid #999;flex-shrink:0;"></span>' +
+             escHtml(lbl) + '</div>';
+    });
+    if (_hasUnknownZone) {
+      rows.push(
+        '<div style="display:flex;align-items:center;gap:5px;white-space:nowrap;">' +
+        '<span style="display:inline-block;width:12px;height:12px;background:#ff00ff;border:1px solid #999;flex-shrink:0;"></span>' +
+        'Uncategorised (tool error \u2014 please report)</div>'
+      );
+    }
+    var collapsed = div._collapsed;
+    var arrow     = collapsed ? '&#9654;' : '&#9660;';
+    div.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-bottom:' + (collapsed ? '0' : '4px') + ';" id="_planLegendHdr">' +
+      '<b style="font-size:11px;">PlanSA Zones</b>' +
+      '<span style="margin-left:8px;font-size:10px;color:#888;">(display only)</span>' +
+      '<span style="margin-left:6px;">' + arrow + '</span>' +
+      '</div>' +
+      (collapsed ? '' : '<div id="_planLegendBody">' + rows.join('') + '</div>');
+    var hdr = div.querySelector('#_planLegendHdr');
+    if (hdr) {
+      L.DomEvent.on(hdr, 'click', function() {
+        div._collapsed = !div._collapsed;
+        renderLegendContent(div);
+      });
+    }
+  }
+
+  function refreshZonesLegend() {
+    if (!_zonesLegendCtrl) return;
+    var div = _zonesLegendCtrl.getContainer ? _zonesLegendCtrl.getContainer() : null;
+    if (div && div._isLegendDiv) renderLegendContent(div);
+  }
+
+  /* ── Toggle helpers ──────────────────────────────────────────────────────── */
+  function addLayerToMap(layer) {
+    var m = window._map;
+    if (m && layer) layer.addTo(m);
+  }
+  function removeLayerFromMap(layer) {
+    var m = window._map;
+    if (m && layer && m.hasLayer(layer)) m.removeLayer(layer);
+  }
+
+  /* ── Toggle: Zones ───────────────────────────────────────────────────────── */
+  function toggleZones(on) {
+    _planZonesOn = on;
+    var btn = document.getElementById('planningZonesBtn');
+    if (btn) btn.classList.toggle('active', on);
+
+    if (on) {
+      fetchMetadata();
+      if (!_zonesLayer) _zonesLayer = buildZonesLayer();
+      addLayerToMap(_zonesLayer);
+      // Add legend
+      if (!_zonesLegendCtrl) {
+        _zonesLegendCtrl = buildZonesLegend();
+        var m = window._map;
+        if (m) _zonesLegendCtrl.addTo(m);
+      }
+    } else {
+      removeLayerFromMap(_zonesLayer);
+      if (_zonesLegendCtrl) {
+        var m = window._map;
+        if (m) m.removeControl(_zonesLegendCtrl);
+        _zonesLegendCtrl = null;
+      }
+    }
+    updateAttribution();
+  }
+
+  /* ── Toggle: Noise & Air Emissions ──────────────────────────────────────── */
+  function toggleNoise(on) {
+    _planNoiseOn = on;
+    var btn = document.getElementById('planningNoiseBtn');
+    if (btn) btn.classList.toggle('active', on);
+
+    if (on) {
+      fetchMetadata();
+      if (!_noiseLayer) {
+        loadNoiseLayer(function(layer) {
+          _noiseLayer = layer;
+          if (_planNoiseOn) addLayerToMap(_noiseLayer);
+        });
+      } else {
+        addLayerToMap(_noiseLayer);
+      }
+    } else {
+      removeLayerFromMap(_noiseLayer);
+    }
+    updateAttribution();
+  }
+
+  /* ── Toggle: Aircraft Noise ──────────────────────────────────────────────── */
+  function toggleAircraft(on) {
+    _planAircraftOn = on;
+    var btn = document.getElementById('planningAircraftBtn');
+    if (btn) btn.classList.toggle('active', on);
+
+    if (on) {
+      fetchMetadata();
+      if (!_aircraftLayer) {
+        loadAircraftLayer(function(layer) {
+          _aircraftLayer = layer;
+          if (_planAircraftOn) addLayerToMap(_aircraftLayer);
+        });
+      } else {
+        addLayerToMap(_aircraftLayer);
+      }
+    } else {
+      removeLayerFromMap(_aircraftLayer);
+    }
+    updateAttribution();
+  }
+
+  /* ── Wire up buttons ─────────────────────────────────────────────────────── */
+  document.addEventListener('DOMContentLoaded', function() {
+    var zonesBtn    = document.getElementById('planningZonesBtn');
+    var noiseBtn    = document.getElementById('planningNoiseBtn');
+    var aircraftBtn = document.getElementById('planningAircraftBtn');
+
+    if (zonesBtn)    zonesBtn.addEventListener(   'click', function() { toggleZones(   !_planZonesOn);    });
+    if (noiseBtn)    noiseBtn.addEventListener(   'click', function() { toggleNoise(   !_planNoiseOn);    });
+    if (aircraftBtn) aircraftBtn.addEventListener('click', function() { toggleAircraft(!_planAircraftOn); });
+  });
+
+  /* ── Save / load API ─────────────────────────────────────────────────────── */
+  window._getPlanningLayers = function() {
+    return { zones: _planZonesOn, noiseAirEmissions: _planNoiseOn, aircraftNoise: _planAircraftOn };
+  };
+
+  window._setPlanningLayers = function(state) {
+    state = state || {};
+    if (!!state.zones            !== _planZonesOn)    toggleZones(   !!state.zones);
+    if (!!state.noiseAirEmissions !== _planNoiseOn)   toggleNoise(   !!state.noiseAirEmissions);
+    if (!!state.aircraftNoise    !== _planAircraftOn) toggleAircraft(!!state.aircraftNoise);
+  };
+
+}());
+</script>
+
 <!-- ══ Map fullscreen / maximise ══════════════════════════════════════════ -->
 <script>
 (function() {
@@ -39446,9 +39855,8 @@ if (window.pdfjsLib) {
     { id: 'generator_plant', label: 'Generator / Plant room',
       keywords: ['generator', 'genset', 'fire pump'],
       sources: [
-        { type: 'point', searchName: 'generator',         defaultName: 'Generator engine' },
-        { type: 'point', searchName: 'generator exhaust', defaultName: 'Generator exhaust' },
-        { type: 'point', searchName: 'fire pump',          defaultName: 'Fire pump' }
+        { type: 'point', searchName: 'generator',  defaultName: 'Generator engine' },
+        { type: 'point', searchName: 'fire pump', defaultName: 'Fire pump' }
       ]
     },
     { id: 'function_venue', label: 'Function / Hospitality',
@@ -39456,7 +39864,7 @@ if (window.pdfjsLib) {
       sources: [
         { type: 'point', searchName: 'condenser',   defaultName: 'Medium condenser' },
         { type: 'point', searchName: 'exhaust fan', defaultName: 'Medium exhaust fan' },
-        { type: 'point', searchName: 'music noise', defaultName: 'Music noise ambient DJ L10' },
+        { type: 'building', searchName: 'Foreground music - Ambient DJ - L10', defaultName: 'Venue \u2014 music (Ambient DJ L10)' },
         { type: 'area',  searchName: 'patron',       defaultName: 'Patrons (outdoor)' }
       ]
     },
@@ -39495,7 +39903,7 @@ if (window.pdfjsLib) {
         { type: 'line',     searchName: 'medium truck',         defaultName: 'Medium truck movements' },
         { type: 'line',     searchName: 'medium truck exhaust', defaultName: 'Medium truck exhaust' },
         { type: 'area',     searchName: 'unloading',            defaultName: 'Unloading activity', isStub: true },
-        { type: 'building', searchName: 'warehouse',            defaultName: 'Warehouse shell' }
+        { type: 'building', searchName: 'Sheet metal',           defaultName: 'Warehouse shell' }
       ]
     },
     { id: 'childcare', label: 'Childcare',
@@ -39530,7 +39938,13 @@ if (window.pdfjsLib) {
     } else if (type === 'area') {
       entries = _flatLib(typeof AREA_SOURCE_LIBRARY_GROUPED !== 'undefined' ? AREA_SOURCE_LIBRARY_GROUPED : {});
     } else if (type === 'building') {
+      // Supabase building-interior Lp library (may be empty)
       entries = _flatLib(typeof BUILDING_LP_LIBRARY_GROUPED !== 'undefined' ? BUILDING_LP_LIBRARY_GROUPED : {});
+      // Also search Google Sheets building_interior entries (Lp, dB(Z) rows)
+      if (window.SourceLibrary) {
+        var sheetBldg = window.SourceLibrary.getLibraryForSourceType('building_interior');
+        entries = entries.concat(sheetBldg);
+      }
     } else {
       return null;
     }
@@ -39828,18 +40242,27 @@ if (window.pdfjsLib) {
         newBs.name    = srcDef.defaultName;
         newBs._libName = lib ? lib.name : null;
         newBs._stubTodo = isTodo || undefined;
-        /* Pre-fill interior Lp from building library */
-        if (lib && lib.spectrum) {
-          var oct = lib.spectrum;
-          function _band(b) {
-            var v = oct[b];
-            return (v != null) ? v : (oct[String(b)] != null ? oct[String(b)] : null);
+        /* Pre-fill interior Lp — handles both Supabase rows (lib.spectrum)
+           and SourceLibrary rows (lib.hz_63…hz_8000 + lib.lp_dba). */
+        if (lib) {
+          var fillOct2 = null;
+          var fillDba  = lib.lp_dba != null ? lib.lp_dba
+                         : (lib.broadband != null ? lib.broadband : null);
+          if (lib.hz_63 != null || lib.hz_125 != null) {
+            fillOct2 = { 63: lib.hz_63, 125: lib.hz_125, 250: lib.hz_250,
+                         500: lib.hz_500, 1000: lib.hz_1000, 2000: lib.hz_2000,
+                         4000: lib.hz_4000, 8000: lib.hz_8000 };
+          } else if (lib.spectrum) {
+            var oct2 = lib.spectrum;
+            function _band2(b) { var v = oct2[b]; return v != null ? v : (oct2[String(b)] != null ? oct2[String(b)] : null); }
+            fillOct2 = { 63: _band2(63), 125: _band2(125), 250: _band2(250), 500: _band2(500),
+                         1000: _band2(1000), 2000: _band2(2000), 4000: _band2(4000), 8000: _band2(8000) };
           }
-          var fillOct = { 63: _band(63), 125: _band(125), 250: _band(250), 500: _band(500),
-                          1000: _band(1000), 2000: _band(2000), 4000: _band(4000), 8000: _band(8000) };
-          ['day', 'eve', 'night'].forEach(function(p) {
-            newBs.interiorLp[p] = { broadband: lib.lp_dba, octave: fillOct };
-          });
+          if (fillDba != null || fillOct2) {
+            ['day', 'eve', 'night'].forEach(function(p) {
+              newBs.interiorLp[p] = { broadband: fillDba, octave: fillOct2 };
+            });
+          }
         }
         buildingSources.push(newBs);
         if (api.renderBuildingSourceLayer) api.renderBuildingSourceLayer();

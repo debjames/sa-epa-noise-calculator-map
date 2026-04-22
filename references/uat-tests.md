@@ -1,5 +1,55 @@
 # UAT Tests
 
+## PlanSA Planning Layers (display only)
+
+> **IMPORTANT**: These layers are display only. All tests below must be run AFTER Stage 2 (build mode Action has committed data). Steps 1–5 can be verified before data is available.
+
+### Pre-data checks (code-only, no PMTiles/GeoJSON needed)
+
+- [ ] **Mapping panel group** — Mapping▼ contains a "Planning layers (display only)" group label and three buttons: "Zones (PlanSA)", "Noise & Air Emissions", "Aircraft Noise (ANEF)". All off by default. No existing Mapping or Tools buttons affected.
+- [ ] **Save/load round-trip** — Enable all 3 layers, Save Assessment JSON. Open JSON; verify `planningLayers: {zones:true, noiseAirEmissions:true, aircraftNoise:true}`. Reload — all 3 layers re-enabled.
+- [ ] **Load pre-existing JSON** — Load any JSON saved before this feature was added. Loads cleanly; all 3 planning layers default off. No console errors.
+- [ ] **_version unchanged** — Saved JSON has `"_version": 2` (not 3).
+- [ ] **`window.ZoneCategories` accessible** — Open DevTools console → `window.ZoneCategories.categoriseZone('Unknown Zone Xyz')` returns `{category:'unknown', colour:'#ff00ff', knownCategory:false}`.
+
+### Post-data: Zones (PlanSA)
+
+- [ ] **Layers toggle on/off** — Enable "Zones (PlanSA)"; PMTiles layer appears on map. Disable; layer removed.
+- [ ] **Zones visible at zoom 12 — Adelaide metro** — Navigate to -34.92, 138.60 (Adelaide), zoom 12. Zone polygons render with colour fill. No magenta polygons in Greater Adelaide Planning Region (indicates all zone names are in `ZONE_CATEGORY_MAP`).
+- [ ] **Residential check** — Drop receiver at Prospect (~-34.89, 138.60). Zone polygon is pale yellow. SAPPA result in receiver panel says "General Neighbourhood" or similar residential zone.
+- [ ] **Industrial check** — Navigate to Regency Park (~-34.86, 138.56). Zone polygons render grey (industrial category).
+- [ ] **Rural/Hills check** — Navigate to Adelaide Hills. Zone polygons render green tones.
+- [ ] **Click popup** — Click any zone polygon. Popup shows zone name in bold, with note: "SAPPA zone at this point may differ — receiver criteria use the live SAPPA API."
+- [ ] **Zoom 14 — full detail** — Zoom to 14; zones render with per-parcel detail.
+- [ ] **Zoom 8 — still renders** — Zoom out to 8; zones still render (simplified but present, no features dropped).
+- [ ] **Regional cities** — Pan to Mount Gambier (~-37.83, 140.78), Whyalla (~-33.03, 137.57), Port Lincoln (~-34.72, 135.87). Zones render without gaps.
+- [ ] **Legend appears** — When Zones ON, bottom-left legend appears with category swatches. Legend is collapsible (click header).
+- [ ] **Legend hides** — When Zones OFF, legend removed from map.
+- [ ] **Unknown zone magenta** — If any zone appears magenta, log the zone name and add to `ZONE_CATEGORY_MAP`. (Should be none after full population.)
+
+### Post-data: Noise & Air Emissions overlay
+
+- [ ] **Toggle on/off** — Enable "Noise & Air Emissions"; red polygon overlay appears. Disable; overlay removed.
+- [ ] **Coverage** — Red polygons present along South Rd, around Adelaide Airport, Wingfield, Port Adelaide, Torrens Rd corridor.
+- [ ] **Click popup** — Click a polygon; popup shows "Noise and Air Emissions" (or exact overlay name) with note about MBS-010 and SA EPA Noise Policy.
+
+### Post-data: Aircraft Noise (ANEF) overlay
+
+- [ ] **Toggle on/off** — Enable "Aircraft Noise (ANEF)"; graduated contour polygons appear around Adelaide Airport and Parafield Airport. Disable; layer removed.
+- [ ] **ANEF graduation** — Inner contours darker than outer (ANEF 40 darkest, ANEF 20 lightest).
+- [ ] **No magenta contours** — No magenta polygons visible. If any appear, `anef_contour` has an unexpected value — update `ANEF_STYLES` in the planning layers IIFE.
+- [ ] **Click popup** — Click a contour; popup shows "ANEF {value}" label and overlay name, with note about AS 2021.
+
+### Attribution
+
+- [ ] **Attribution appears** — With any one planning layer ON, attribution strip (bottom-right) shows "© Govt of SA (DHUD), CC-BY 4.0 — planning data as at DD MMM YYYY". Date matches `data/metadata.json fetched_utc`.
+- [ ] **Attribution hidden** — When all three planning layers OFF, attribution string is removed.
+
+### Performance
+
+- [ ] **Calc not slowed** — Run a full noise grid with Zones ON vs Zones OFF. PMTiles rendering is GPU-side; timing difference ≤10%.
+- [ ] **No console errors** — With all three layers visible and a calc in progress, no errors in console.
+
 ## Suggested Noise Sources (💡) — Facility-Group Multi-Source
 
 ### No PDF loaded — all facilities visible

@@ -1,5 +1,73 @@
 # Architecture
 
+## PlanSA Planning Layers (display only)
+
+Three display-only map layers sourced from SA Government open data (CC-BY 4.0). **No calculation impact.** SAPPA API per-receiver remains the sole source of truth for SA criteria derivation.
+
+### Frontend files
+
+| File | Purpose |
+|---|---|
+| `js/zone-categories.js` | Exposes `window.ZoneCategories` — `ZONE_CATEGORY_MAP`, `CATEGORY_COLOURS`, `CATEGORY_LABELS`, `categoriseZone(zoneName)`. Empty `ZONE_CATEGORY_MAP` before first discover run. |
+| CDN: pmtiles@3.0.6 | PMTiles protocol handler (loaded before protomaps-leaflet) |
+| CDN: protomaps-leaflet@4.0.0 | Renders PMTiles vector tiles as a Leaflet layer (`protomapsL`) |
+| Planning layers IIFE (inline `<script>` in `index.html`) | Toggle logic, lazy-loading, legend, attribution, save/load API |
+
+### Data files (produced by GitHub Action)
+
+| File | Contents |
+|---|---|
+| `data/zones/sa-zones.pmtiles` | Statewide zone polygons, zoom 8–14, layer name `zones`, properties: `zone_name` (title-case), `subzone_name` (optional) |
+| `data/overlays/noise-air-emissions.geojson` | Noise & Air Emissions overlay polygons, property: `overlay_name` |
+| `data/overlays/aircraft-noise.geojson` | Aircraft Noise (ANEF) overlay polygons, properties: `overlay_name`, `anef_contour` |
+| `data/metadata.json` | `fetched_utc`, feature counts, `distinct_zone_names_count`, field name mapping |
+| `data/_discovery.json` | Written by discover mode — distinct zone/overlay names for populating `ZONE_CATEGORY_MAP` |
+
+### Data pipeline
+
+`scripts/update-planning-data.js` — Node ESM script, two modes:
+
+| Mode | What it does |
+|---|---|
+| `MODE=discover` (default) | Downloads both zips, logs all distinct property keys + values, writes `data/_discovery.json`. Windows-safe. |
+| `MODE=build` | Downloads, filters overlays by substring match, simplifies with mapshaper (10%), runs tippecanoe for PMTiles, writes `data/metadata.json`. Ubuntu/tippecanoe required. |
+
+devDependencies: `adm-zip`, `mapshaper`. `tippecanoe` (felt fork) installed in GitHub Action from source.
+
+### GitHub Action
+
+`.github/workflows/update-planning-data.yml` — scheduled weekly (Sun 18:00 UTC), manual dispatch with `mode` input. Installs tippecanoe from source, runs `node scripts/update-planning-data.js`, auto-commits `data/**` via `stefanzweifel/git-auto-commit-action@v5`.
+
+### UI
+
+Three buttons added to Mapping▼ panel under group label "Planning layers (display only)":
+- `#planningZonesBtn` — Zones (PlanSA)
+- `#planningNoiseBtn` — Noise & Air Emissions
+- `#planningAircraftBtn` — Aircraft Noise (ANEF)
+
+Zones legend: `L.control({ position: 'bottomleft' })`, collapsible, shows only when Zones layer is on. Unknown zone category flag (`_hasUnknownZone`) appends a magenta "Uncategorised" row.
+
+Attribution: added/removed via `map.attributionControl.addAttribution/removeAttribution` — shows when any planning layer is on; date from `metadata.json fetched_utc`.
+
+### Save/load
+
+`planningLayers: { zones: bool, noiseAirEmissions: bool, aircraftNoise: bool }` added to both export (`exportJsonBtn` handler) and undo `serialiseState()`. Loaded in `loadAssessment()` step 15c via `window._setPlanningLayers(state)`. Defaults all false when key absent (old files load clean). `_version` not bumped.
+
+### Global API
+
+| Function | Purpose |
+|---|---|
+| `window._getPlanningLayers()` | Returns current toggle state object |
+| `window._setPlanningLayers(state)` | Applies toggle state (used by loadAssessment) |
+| `window.ZoneCategories.categoriseZone(name)` | Returns `{category, colour, label, knownCategory, zoneName}` |
+
+### Zone category map workflow
+
+1. Run Action in discover mode → `data/_discovery.json` lists every distinct `zone_name`.
+2. Populate `js/zone-categories.js` `ZONE_CATEGORY_MAP` with exact title-cased zone names (categories: `residential|commercial|mixed_use|industrial|rural|open_space|infrastructure`).
+3. Run Action in build mode → PMTiles + overlays produced.
+4. Any zone not in the map renders magenta (visible QA signal).
+
 ## GIS Import
 
 Single-file module (inline `<script>` at end of `index.html`, wrapped in an IIFE). Entry point: `window._gisImport.importGis(file)`, wired to `#gisFileInput` change event. `window._gisImport.parseGisFile(file)` exposed for testing.

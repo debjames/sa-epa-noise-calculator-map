@@ -1,0 +1,56 @@
+name: Update planning data
+
+on:
+  schedule:
+    - cron: '0 18 * * 0'    # Sun 18:00 UTC = Mon 06:00 ACDT (UTC+10:30)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'discover or build'
+        required: true
+        default: 'build'
+        type: choice
+        options:
+          - discover
+          - build
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-planning-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install tippecanoe from source (felt fork)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libsqlite3-dev zlib1g-dev
+          git clone --depth 1 https://github.com/felt/tippecanoe /tmp/tippecanoe
+          cd /tmp/tippecanoe && make -j$(nproc) && sudo make install
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Run planning data script
+        env:
+          MODE: ${{ inputs.mode || 'build' }}
+        run: node scripts/update-planning-data.js
+
+      - name: Commit data files
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(data): refresh planning data ${{ github.run_id }} (${{ inputs.mode || 'build' }})"
+          file_pattern: 'data/**'
