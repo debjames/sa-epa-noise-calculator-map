@@ -26,19 +26,83 @@
    */
   var ZONE_CATEGORY_MAP = {
     // ── Residential ──────────────────────────────────────────────────────────
-    // (add entries from _discovery.json after first discover run)
+    'City Living':                        'residential',
+    'Established Neighbourhood':          'residential',
+    'General Neighbourhood':              'residential',
+    'Hills Neighbourhood':                'residential',
+    'Housing Diversity Neighbourhood':    'residential',
+    'Master Planned Neighbourhood':       'residential',
+    'Neighbourhood':                      'residential',
+    'Residential Park':                   'residential',
+    'Suburban Neighbourhood':             'residential',
+    'Township Neighbourhood':             'residential',
+    'Urban Corridor (Living)':            'residential',
+    'Urban Neighbourhood':                'residential',
+    'Waterfront Neighbourhood':           'residential',
+    "Workers' Settlement":                'residential',
 
     // ── Commercial ───────────────────────────────────────────────────────────
+    'Business Neighbourhood':             'commercial',
+    'Capital City':                       'commercial',
+    'City Main Street':                   'commercial',
+    'Local Activity Centre':              'commercial',
+    'Suburban Activity Centre':           'commercial',
+    'Suburban Business':                  'commercial',
+    'Suburban Main Street':               'commercial',
+    'Township Activity Centre':           'commercial',
+    'Township Main Street':               'commercial',
+    'Urban Activity Centre':              'commercial',
+    'Urban Corridor (Business)':          'commercial',
+    'Urban Corridor (Main Street)':       'commercial',
 
     // ── Mixed use ────────────────────────────────────────────────────────────
+    'City Riverbank':                     'mixed_use',
+    'Master Planned Renewal':             'mixed_use',
+    'Master Planned Township':            'mixed_use',
+    'Township':                           'mixed_use',
+    'Urban Corridor (Boulevard)':         'mixed_use',
+    'Urban Renewal Neighbourhood':        'mixed_use',
 
     // ── Industrial ───────────────────────────────────────────────────────────
+    'Employment':                         'industrial',
+    'Employment (Bulk Handling)':         'industrial',
+    'Employment (Enterprise)':            'industrial',
+    'Home Industry':                      'industrial',
+    'Motorsport Park':                    'industrial',
+    'Resource Extraction':                'industrial',
+    'Strategic Employment':               'industrial',
+    'Strategic Innovation':               'industrial',
 
     // ── Rural ────────────────────────────────────────────────────────────────
+    'Caravan And Tourist Park':           'rural',
+    'Deferred Urban':                     'rural',
+    'Golf Course Estate':                 'rural',
+    'Hills Face':                         'rural',
+    'Productive Rural Landscape':         'rural',
+    'Remote Areas':                       'rural',
+    'Rural':                              'rural',
+    'Rural Aquaculture':                  'rural',
+    'Rural Horticulture':                 'rural',
+    'Rural Intensive Enterprise':         'rural',
+    'Rural Living':                       'rural',
+    'Rural Neighbourhood':                'rural',
+    'Rural Settlement':                   'rural',
+    'Rural Shack Settlement':             'rural',
+    'Tourism Development':                'rural',
 
     // ── Open space ───────────────────────────────────────────────────────────
+    'Adelaide Park Lands':                'open_space',
+    'Coastal Waters And Offshore Islands':'open_space',
+    'Conservation':                       'open_space',
+    'Open Space':                         'open_space',
+    'Recreation':                         'open_space',
 
     // ── Infrastructure ───────────────────────────────────────────────────────
+    'Commonwealth Facilities':            'infrastructure',
+    'Community Facilities':               'infrastructure',
+    'Infrastructure':                     'infrastructure',
+    'Infrastructure (Airfield)':          'infrastructure',
+    'Infrastructure (Ferry And Marina Facilities)': 'infrastructure',
   };
 
   var CATEGORY_COLOURS = {
