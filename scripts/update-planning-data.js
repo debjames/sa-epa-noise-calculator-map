@@ -329,9 +329,10 @@ async function runBuild(zonesDir, overlaysDir) {
 
   // ── Detect field names ────────────────────────────────────────────────────
   const oDFC = disc.overlays?.field_value_counts || {};
-  const overlayNameField = Object.keys(oDFC)
-    .sort(function(a, b) { return (oDFC[b] || 0) - (oDFC[a] || 0); })
-    .find(function(k) { return (oDFC[k] || 0) >= 2; }) || 'name';
+  const preferredOverlayFields = ['name', 'layer_name', 'overlay_name', 'NAME', 'Layer', 'layername'];
+  const overlayNameField = preferredOverlayFields.find(function(k) { return k in oDFC; }) ||
+    Object.keys(oDFC).sort(function(a, b) { return (oDFC[b] || 0) - (oDFC[a] || 0); })
+      .find(function(k) { return (oDFC[k] || 0) >= 2 && (oDFC[k] || 0) <= 500; }) || 'name';
 
   const oVPF = disc.overlays?.values_per_field || {};
   const anefContourField = Object.keys(oVPF).find(function(k) {
