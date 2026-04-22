@@ -1,0 +1,20 @@
+{
+  "fetched_utc": "2026-04-22T23:54:09.373Z",
+  "source_zones_url": "https://www.dptiapps.com.au/dataportal/PDCodeZones_geojson.zip",
+  "source_overlays_url": "https://www.dptiapps.com.au/dataportal/PDCodeOverlays_geojson.zip",
+  "zone_feature_count": 5386,
+  "distinct_zone_names_count": 65,
+  "noise_feature_count": 160,
+  "aircraft_feature_count": 36,
+  "pmtiles_mb": 10.45,
+  "overlay_name_field": "name",
+  "anef_contour_field": "value",
+  "zone_name_field": "name",
+  "subzone_name_field": "value",
+  "noise_layer_names": [
+    "Noise and Air Emissions"
+  ],
+  "aircraft_layer_names": [
+    "Aircraft Noise Exposure"
+  ]
+}
