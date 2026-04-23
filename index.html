@@ -40015,13 +40015,13 @@ if (window.pdfjsLib) {
    * sources[].isStub: true = known missing from library (Lw = null)    */
   var FACILITY_SUGGESTIONS = [
     { id: 'car_park', label: 'Car park',
-      keywords: ['car park', 'parking'],
+      keywords: ['car park', 'carpark', 'car_park', 'parking', 'parking lot', 'multi-storey', 'multistorey', 'parking garage', 'parking structure'],
       sources: [
         { type: 'area', searchName: 'car idling', defaultName: 'Car park \u2014 car idling' }
       ]
     },
     { id: 'loading_dock', label: 'Loading dock',
-      keywords: ['loading bay', 'loading area'],
+      keywords: ['loading dock', 'loading bay', 'loading zone', 'loading area', 'goods entrance', 'service entrance', 'dock', 'loading'],
       sources: [
         { type: 'area', searchName: 'electric forklift',    defaultName: 'Forklift movements' },
         { type: 'line', searchName: 'medium truck',         defaultName: 'Medium truck movements' },
@@ -40030,21 +40030,21 @@ if (window.pdfjsLib) {
       ]
     },
     { id: 'office_commercial', label: 'Office / Commercial',
-      keywords: ['office', 'building'],
+      keywords: ['office', 'commercial', 'business', 'corporate', 'headquarters', 'hq', 'workplace', 'coworking', 'co-working'],
       sources: [
         { type: 'point', searchName: 'condenser',   defaultName: 'Medium condenser' },
         { type: 'point', searchName: 'exhaust fan', defaultName: 'Medium exhaust fan' }
       ]
     },
     { id: 'generator_plant', label: 'Generator / Plant room',
-      keywords: ['generator', 'genset', 'fire pump'],
+      keywords: ['generator', 'gen set', 'genset', 'diesel', 'fire pump room', 'fire pump'],
       sources: [
         { type: 'point', searchName: 'generator',  defaultName: 'Generator engine' },
         { type: 'point', searchName: 'fire pump', defaultName: 'Fire pump' }
       ]
     },
     { id: 'function_venue', label: 'Function / Hospitality',
-      keywords: ['pub', 'bar', 'venue', 'nightclub'],
+      keywords: ['restaurant', 'cafe', 'bar', 'pub', 'hotel', 'tavern', 'function', 'venue', 'nightclub', 'club', 'lounge', 'bistro', 'eatery', 'dining', 'reception', 'hospitality', 'wedding', 'events', 'pavilion', 'beer garden'],
       sources: [
         { type: 'point', searchName: 'condenser',   defaultName: 'Medium condenser' },
         { type: 'point', searchName: 'exhaust fan', defaultName: 'Medium exhaust fan' },
@@ -40053,7 +40053,7 @@ if (window.pdfjsLib) {
       ]
     },
     { id: 'fast_food', label: 'Fast food / Drive-through',
-      keywords: ['drive-through', 'mcdonald', 'kfc'],
+      keywords: ['fast food', 'fast_food', 'drive-through', 'drive through', 'drive-thru', 'drivethru', 'takeaway', "McDonald's", 'KFC', "Hungry Jack's", 'Subway', 'Red Rooster', "Domino's", 'Nandos'],
       sources: [
         { type: 'point', searchName: 'speaker box', defaultName: 'Speaker box' },
         { type: 'area',  searchName: 'patron',       defaultName: 'Patrons (outdoor)' },
@@ -40061,7 +40061,7 @@ if (window.pdfjsLib) {
       ]
     },
     { id: 'car_wash', label: 'Car wash',
-      keywords: ['car wash', 'vacuum'],
+      keywords: ['car wash', 'carwash', 'car_wash', 'auto wash', 'vehicle wash', 'detailing'],
       sources: [
         { type: 'point', searchName: 'vacuum',            defaultName: 'Vacuum' },
         { type: 'point', searchName: 'car wash',           defaultName: 'Car wash auto' },
@@ -40070,7 +40070,7 @@ if (window.pdfjsLib) {
       ]
     },
     { id: 'service_station', label: 'Service station',
-      keywords: ['petrol', 'servo', 'fuel'],
+      keywords: ['service station', 'servo', 'petrol station', 'gas station', 'fuel', 'fuel_station', 'BP', 'Shell', 'Caltex', '7-Eleven', 'United', 'Ampol', 'Mobil', 'OTR'],
       sources: [
         { type: 'line',  searchName: 'large truck',         defaultName: 'Large truck movements' },
         { type: 'line',  searchName: 'large truck exhaust', defaultName: 'Large truck exhaust' },
@@ -40081,7 +40081,7 @@ if (window.pdfjsLib) {
       ]
     },
     { id: 'industrial_warehouse', label: 'Industrial / Warehouse',
-      keywords: ['industrial', 'warehouse', 'factory'],
+      keywords: ['industrial', 'warehouse', 'factory', 'manufacturing', 'workshop', 'depot', 'distribution', 'logistics', 'plant', 'yard', 'industrial estate', 'industrial_estate'],
       sources: [
         { type: 'area',     searchName: 'electric forklift',    defaultName: 'Electric forklift movements' },
         { type: 'line',     searchName: 'medium truck',         defaultName: 'Medium truck movements' },
@@ -40091,7 +40091,7 @@ if (window.pdfjsLib) {
       ]
     },
     { id: 'childcare', label: 'Childcare',
-      keywords: ['childcare', 'kindergarten', 'preschool'],
+      keywords: ['childcare', 'child care', 'child_care', 'daycare', 'day care', 'kindergarten', 'kindy', 'elc', 'early learning', 'preschool', 'pre-school', 'nursery', 'creche', 'oshc'],
       sources: [
         { type: 'area',  searchName: 'car idling',  defaultName: 'Car park \u2014 car idling' },
         { type: 'area',  searchName: 'children',    defaultName: 'Children (10 children 2\u20133 yrs)', isStub: true },
@@ -40156,14 +40156,21 @@ if (window.pdfjsLib) {
   /* ── Global state ─────────────────────────────────────────────────── */
   window._pdfSuggestedGroups = null; // null = no PDF; array = PDF scanned
 
+  /* ── Normalise text for keyword matching (lowercase, strip diacritics, normalise apostrophes) */
+  function _normKw(s) {
+    return (s || '').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[\u2018\u2019\u201c\u201d\u02bc]/g, "'");
+  }
+
   /* ── Scan PDF text for keyword matches ────────────────────────────── */
   window._soPdfScanSources = function(text) {
-    var textLow = (text || '').toLowerCase();
+    var textNorm = _normKw(text || '');
     var matches = [];
     FACILITY_SUGGESTIONS.forEach(function(fac) {
       var hitKw = null;
       fac.keywords.some(function(kw) {
-        if (textLow.indexOf(kw.toLowerCase()) !== -1) { hitKw = kw; return true; }
+        if (textNorm.indexOf(_normKw(kw)) !== -1) { hitKw = kw; return true; }
         return false;
       });
       if (hitKw) matches.push({ id: fac.id, label: fac.label, matchedKeyword: hitKw });
