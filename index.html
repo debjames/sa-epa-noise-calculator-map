@@ -26270,13 +26270,16 @@ if (window.pdfjsLib) {
     /* Show/hide MBS 010 button based on state */
     window._updateMBS010Btn = function(state) {
       var btn = document.getElementById('mbs010ToggleBtn');
-      if (btn) btn.style.display = (state === 'SA') ? '' : 'none';
-      if (state !== 'SA' && _mbs010On) {
+      // null treated as SA — app starts with null until geocoding resolves
+      if (btn) btn.style.display = (state === 'SA' || state === null) ? '' : 'none';
+      if (state !== 'SA' && state !== null && _mbs010On) {
         clearMBS010Layers();
         _mbs010On = false;
         if (btn) { btn.classList.remove('active'); btn.textContent = ' MBS 010 Screening'; if (MBS_ICON) btn.insertBefore(MBS_ICON, btn.firstChild); }
       }
     };
+    // Show button immediately — null state is treated as SA at startup
+    window._updateMBS010Btn(currentState);
 
     /* --- Zone lookup: offline point-in-polygon against local PlanSA GeoJSON --- */
     function queryZoningAtPoint(lat, lng) {
@@ -26510,7 +26513,8 @@ if (window.pdfjsLib) {
     window.refreshMBS010 = refreshMBS010;
 
     function querySAPPAOverlays(mode, latlng) {
-      if (currentState !== 'SA') return;
+      // null state treated as SA (app starts null; geocoding sets it later)
+      if (currentState !== null && currentState !== 'SA') return;
       if (!isSourceMode(mode)) return;
 
       var geom = latlng.lng + ',' + latlng.lat;
@@ -39140,6 +39144,11 @@ if (window.pdfjsLib) {
         });
         _zoneCacheReady = null;
         return _zoneCache;
+      })
+      .catch(function(err) {
+        console.warn('[zones] Cache fetch failed — will retry on next lookup:', err);
+        _zoneCacheReady = null; // allow retry on next _ensureZoneCache() call
+        return Promise.reject(err);
       });
     return _zoneCacheReady;
   }
