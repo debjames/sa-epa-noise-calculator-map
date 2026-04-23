@@ -2,7 +2,7 @@
 
 ## PlanSA Planning Layers (display only)
 
-Three display-only map layers sourced from SA Government open data (CC-BY 4.0). **No calculation impact.** SAPPA API per-receiver remains the sole source of truth for SA criteria derivation.
+Three display-only map layers sourced from SA Government open data (CC-BY 4.0). **No calculation impact.** Zone identification for criteria derivation now uses offline point-in-polygon against the local GeoJSON — no SAPPA API call is made for zone lookup at a point.
 
 ### Frontend files
 
@@ -48,7 +48,7 @@ Three buttons added to Mapping▼ panel under group label "Planning layers (disp
 - `#planningNoiseBtn` — Noise & Air Emissions
 - `#planningAircraftBtn` — Aircraft Noise (ANEF)
 
-Zones legend: the shared "P&D Code Zones" `zoneLegendControl` (defined in the map IIFE, accessible via `window._getZoneLegendControl()`). Shows only when Zones layer is on. Populated by `window._populateZoneLegend(names)` from the visible GeoJSON features (refreshed on moveend). Colours from `ZONE_COLOURS` via `window._getZoneColour`.
+Zones legend: the shared "P&D Code Zones" `zoneLegendControl` (defined in the map IIFE, accessible via `window._getZoneLegendControl()`). Shows only when Zones layer is on. Populated by `window._populateZoneLegend(names)` from the visible GeoJSON features (refreshed on `moveend`+`zoomend`, debounced 150 ms). Capped at 40 distinct zones — "Zoom in for zone legend" placeholder shown when exceeded. Colours from `ZONE_COLOURS` via `window._getZoneColour`.
 
 Attribution: added/removed via `map.attributionControl.addAttribution/removeAttribution` — shows when any planning layer is on; date from `metadata.json fetched_utc`.
 
@@ -64,7 +64,18 @@ Attribution: added/removed via `map.attributionControl.addAttribution/removeAttr
 | `window._setPlanningLayers(state)` | Applies toggle state (used by loadAssessment) |
 | `window._getZoneColour(name)` | Returns zone fill colour from `ZONE_COLOURS` table (map IIFE) |
 | `window._getZoneLegendControl()` | Returns the shared `zoneLegendControl` singleton |
-| `window._populateZoneLegend(names)` | Populates legend from an array of zone names |
+| `window._populateZoneLegend(names)` | Populates legend from array of zone names; `null` → "Zoom in for zone legend"; `[]` → "No zones in view" |
+| `window._findZoneAtPoint(lat, lng)` | Async PIP against `data/zones/sa-zones.geojson` cache. Returns `{zone, subzone}\|null`. Used by `queryZoningAtPoint` in the map IIFE for offline zone detection at receiver/source placement. |
+| `window._planDataDate()` | Returns formatted metadata date string (e.g. "23 Apr 2026") from last `data/metadata.json` fetch, or `''` if not yet loaded. Used in `updateZoneDescText()`. |
+
+### Zone identification data flow
+
+1. User drops a pin (SA state) → `queryAndSetZone(mode, latlng)` called
+2. → `queryZoningAtPoint(lat, lng)` → calls `window._findZoneAtPoint(lat, lng)`
+3. → planning IIFE: `_ensureZoneCache()` (lazy-fetches `sa-zones.geojson` once), bbox prefilter, ray-casting PIP
+4. Returns `{zone, subzone}` (same shape as former SAPPA API response)
+5. → `matchZoneToKey(zone, subzone)` → sets dropdown → `render()` → criteria derived
+6. Network calls: zero SAPPA API calls for zone identification. One `fetch(sa-zones.geojson)` on first lookup (shared with the Zones display layer if that's already loaded).
 
 ## GIS Import
 

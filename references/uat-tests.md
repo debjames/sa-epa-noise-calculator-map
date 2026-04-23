@@ -16,17 +16,42 @@
 
 - [ ] **Layers toggle on/off** — Enable "Zones (PlanSA)"; GeoJSON zone layer appears on map. Disable; layer removed.
 - [ ] **Zones visible at zoom 12 — Adelaide metro** — Navigate to -34.92, 138.60 (Adelaide), zoom 12. Zone polygons render with per-zone SAPPA colours (e.g. General Neighbourhood pale pink, Employment blue-grey). Legend shows "P&D Code Zones" with viewport-visible zone swatches.
-- [ ] **Residential check** — Drop receiver at Prospect (~-34.89, 138.60). Zone polygon is pale yellow. SAPPA result in receiver panel says "General Neighbourhood" or similar residential zone.
-- [ ] **Industrial check** — Navigate to Regency Park (~-34.86, 138.56). Zone polygons render grey (industrial category).
-- [ ] **Rural/Hills check** — Navigate to Adelaide Hills. Zone polygons render green tones.
-- [ ] **Click popup** — Click any zone polygon. Popup shows zone name in bold, with note: "SAPPA zone at this point may differ — receiver criteria use the live SAPPA API."
+- [ ] **Residential check** — Drop receiver at Prospect (~-34.895, 138.605). Zone polygon is pale pink/salmon. Receiver panel shows "Established Neighbourhood" auto-detected, no "SAPPA unavailable" message.
+- [ ] **Industrial check** — Navigate to Regency Park (~-34.863, 138.579). Zone polygons render Strategic Employment colour (light purple). Drop receiver; zone auto-detects as "Strategic Employment".
+- [ ] **Rural/Hills check** — Navigate to Adelaide Hills. Zone polygons render green tones (Conservation, Hills Neighbourhood etc.).
+- [ ] **Click popup** — Click any zone polygon. Popup shows zone name in bold, with note "Auto-detected from PlanSA open data (DD MMM YYYY) — verify on SAPPA ↗". Link opens SAPPA in a new tab.
 - [ ] **Zoom 14 and zoom 8: all features present** — At zoom 14, full detail. At zoom 8, all ~5,400 features still present (simplification is geometric only — no feature dropping).
 - [ ] **Toggle rapidly 5×** — Toggle Zones on/off 5 times quickly. Canvas renderer handles state changes cleanly; no flicker or orphan polygons.
 - [ ] **Pan performance** — Pan across Adelaide metro at zoom 11 with Zones visible. Pan stays smooth (canvas renderer). If framerate drops below ~30fps, the canvas renderer is not being used.
 - [ ] **Regional cities** — Pan to Mount Gambier (~-37.83, 140.78), Whyalla (~-33.03, 137.57), Port Lincoln (~-34.72, 135.87). Zones render without gaps.
-- [ ] **Legend appears** — When Zones ON, bottom-left legend appears with category swatches. Legend is collapsible (click header).
+- [ ] **Legend appears** — When Zones ON, bottom-left legend appears with zone swatches.
 - [ ] **Legend hides** — When Zones OFF, legend removed from map.
 - [ ] **Unknown zone grey** — Any zone not in `ZONE_COLOURS` (e.g. "Workers' Settlement") renders `#999` grey rather than a named colour. This is cosmetic only — criteria are unaffected.
+
+### Viewport-aware legend
+
+- [ ] **Adelaide zoom 12 — partial legend** — Toggle Zones ON at zoom 12 centered on Adelaide. Legend shows only zones visible in that viewport (typically ~25–35), not all 65.
+- [ ] **Pan to Mt Gambier** — Legend updates within 200 ms to show Mt Gambier-specific zones (~15–20). "Adelaide Park Lands" and "Capital City" disappear from list.
+- [ ] **Zoom out to all SA** — Zoom to level 6 (all of SA visible). Legend shows "Zoom in for zone legend" placeholder.
+- [ ] **Zones OFF — no legend work** — Toggle Zones OFF, then pan the map. DevTools Performance shows no `refreshZonesLegendNow` calls while zones are hidden.
+- [ ] **Debounce** — Pan rapidly; legend updates once after panning stops (~150 ms), not on every frame.
+
+### Offline zone detection (SA state only)
+
+- [ ] **Prospect receiver** — Place receiver at ~-34.895, 138.605. Zone field auto-populates as "Established Neighbourhood" (or adjacent residential zone). No "SAPPA unavailable" text appears anywhere.
+- [ ] **Regency Park source** — Place source pin at ~-34.863, 138.579. Zone auto-detects as "Strategic Employment". Criteria use this zone without any dropdown override needed.
+- [ ] **Belair / Conservation zone** — Place receiver inside Belair National Park (~-35.02, 138.63). Zone auto-detects as a Conservation or Hills-family zone.
+- [ ] **Zero SAPPA network calls** — Place 4 receivers in different SA locations. DevTools → Network tab: zero requests to `location.sa.gov.au`. All zone fields populated offline.
+- [ ] **Speed: 4 rapid receivers** — Place 4 receivers in quick succession. Each zone field populates within 200 ms of placement (check with DevTools Timeline or `console.time`).
+- [ ] **"No zone found" message** — Place receiver outside all SA zones if possible (far offshore, or cross-border). Status label reads "No zone found — verify on SAPPA ↗".
+- [ ] **Zone detection works before Zones layer toggled** — Without toggling the Zones display layer ON, drop a receiver. Zone auto-detects (PIP triggers its own fetch). Then toggle Zones ON — layer loads instantly (uses same cached data, no second fetch).
+- [ ] **Criteria unchanged** — For a known test site (e.g. Prospect Established Neighbourhood), criteria output (INL, Lmax limit) matches pre-refactor values. Zone key format "Established Neighbourhood Zone | En Subzone" feeds into criteria correctly.
+
+### "Verify on SAPPA" note
+
+- [ ] **Zone description text (SA state)** — In SA state, the zone description text in the Receivers/Map panel reads "…using PlanSA open data (DD MMM YYYY)… verify on SAPPA ↗". Link opens SAPPA in a new tab.
+- [ ] **Date updates after zones loaded** — Enable Zones layer (triggers metadata fetch). Date in zone description text updates to match `data/metadata.json fetched_utc`.
+- [ ] **VIC and NSW state** — VIC/NSW zone detection unchanged; no "PlanSA" text in those states.
 
 ### Post-data: Noise & Air Emissions overlay
 

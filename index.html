@@ -12298,7 +12298,9 @@ function updateZoneDescText() {
   } else if (currentState === 'OTHER') {
     el.innerHTML = '';
   } else {
-    el.innerHTML = 'Zones and subzones are <b>automatically detected</b> when you place markers on the map (data from <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA</a>). Click the &#x270F; icon to override manually. Use &#x21BB; to re-fetch.';
+    var _ddDate = (typeof window._planDataDate === 'function') ? window._planDataDate() : '';
+    var _ddSuffix = _ddDate ? ' (' + _ddDate + ')' : '';
+    el.innerHTML = 'Zones and subzones are <b>automatically detected</b> using PlanSA open data' + _ddSuffix + '. Click the &#x270F; icon to override manually. For authoritative zoning, verify on <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA &#x2197;</a>.';
   }
 }
 
@@ -25750,6 +25752,10 @@ if (window.pdfjsLib) {
       if (!container) return;
       var itemsDiv = container.querySelector('.zone-legend-items');
       if (!itemsDiv) return;
+      if (names === null) {
+        itemsDiv.innerHTML = '<span style="color:#888;font-size:10px;">Zoom in for zone legend</span>';
+        return;
+      }
       if (!names || !names.length) {
         itemsDiv.innerHTML = '<span style="color:#888;font-size:10px;">No zones in view</span>';
         return;
@@ -26251,46 +26257,23 @@ if (window.pdfjsLib) {
       }
     };
 
-    /* --- Query SAPPA for zone/subzone at a lat/lng point --- */
+    /* --- Zone lookup: offline point-in-polygon against local PlanSA GeoJSON --- */
     function queryZoningAtPoint(lat, lng) {
-      if (SAPPA_API_UNAVAILABLE) {
-        return Promise.resolve({ zone: null, subzone: null, apiUnavailable: true });
+      if (typeof window._findZoneAtPoint === 'function') {
+        return window._findZoneAtPoint(lat, lng).then(function(result) {
+          if (!result) return { zone: null, subzone: null };
+          return { zone: result.zone || null, subzone: result.subzone || null };
+        });
       }
-      var geom = lng + ',' + lat;
-      var zoneUrl = SAPPA_BASE + '/0/query' +
-        '?geometry=' + geom +
-        '&geometryType=esriGeometryPoint&inSR=4326' +
-        '&spatialRel=esriSpatialRelIntersects' +
-        '&outFields=name&returnGeometry=false&f=json';
-      var subzoneUrl = SAPPA_BASE + '/1/query' +
-        '?geometry=' + geom +
-        '&geometryType=esriGeometryPoint&inSR=4326' +
-        '&spatialRel=esriSpatialRelIntersects' +
-        '&outFields=name&returnGeometry=false&f=json';
-
-      return Promise.all([
-        fetch(zoneUrl).then(function(r) { return r.json(); }),
-        fetch(subzoneUrl).then(function(r) { return r.json(); })
-      ]).then(function(results) {
-        var zoneData = results[0];
-        var subzoneData = results[1];
-        var zoneName = null;
-        var subzoneName = null;
-        if (zoneData.features && zoneData.features.length > 0) {
-          zoneName = zoneData.features[0].attributes.name;
-        }
-        if (subzoneData.features && subzoneData.features.length > 0) {
-          subzoneName = subzoneData.features[0].attributes.name;
-        }
-        return { zone: zoneName, subzone: subzoneName };
-      });
+      /* Fallback: zones IIFE not yet initialised (race condition on first load) */
+      return Promise.resolve({ zone: null, subzone: null });
     }
 
     /* --- Match SAPPA zone/subzone names to DATA keys --- */
     function matchZoneToKey(zoneName, subzoneName) {
       if (!zoneName) return null;
 
-      /* SAPPA returns names without "Zone"/"Subzone" suffixes;
+      /* PlanSA GeoJSON zone_name has no "Zone" suffix (matches ZONE_COLOURS keys);
          DATA keys are like "General Neighbourhood Zone | (no subzone)" */
       var zoneWithSuffix = zoneName + ' Zone';
       var key;
@@ -26413,24 +26396,21 @@ if (window.pdfjsLib) {
           if (statusEl) {
             var sub2 = statusEl.querySelector('.zone-status-label');
             if (sub2) {
-              if (result.apiUnavailable) {
-                sub2.textContent = 'SAPPA unavailable \u2014 select zone manually \u270f';
-                sub2.style.color = '#d97706';
-              } else if (result.zone) {
+              if (result.zone) {
                 var label = result.zone;
                 if (result.subzone) label += ' / ' + result.subzone;
                 if (!key) label += ' (no match)';
                 sub2.textContent = label;
                 sub2.style.color = key ? '#059669' : '#d97706';
               } else {
-                sub2.textContent = 'No zone data';
+                sub2.textContent = 'No zone found \u2014 verify on SAPPA \u2197';
                 sub2.style.color = 'var(--muted)';
               }
             }
           }
         })
         .catch(function(err) {
-          console.warn('SAPPA zone query failed:', err);
+          console.warn('[zone] PIP query failed:', err);
           if (statusEl) {
             var sub3 = statusEl.querySelector('.zone-status-label');
             if (sub3) {
@@ -39009,6 +38989,121 @@ if (window.pdfjsLib) {
   var _noiseLayer    = null;  // L.geoJSON
   var _aircraftLayer = null;  // L.geoJSON
 
+  /* ── Zone features cache for offline PIP ────────────────────────────────── */
+  /* Each entry: { feature: GeoJSONFeature, bbox: [minLng,minLat,maxLng,maxLat] } */
+  var _zoneCache      = null;   // null = not loaded; array once loaded
+  var _zoneCacheReady = null;   // pending Promise or null
+
+  function _computeBbox(feature) {
+    var geom = feature.geometry;
+    if (!geom) return null;
+    var minLng =  Infinity, minLat =  Infinity;
+    var maxLng = -Infinity, maxLat = -Infinity;
+    function scanRing(ring) {
+      for (var i = 0; i < ring.length; i++) {
+        var x = ring[i][0], y = ring[i][1];
+        if (x < minLng) minLng = x;
+        if (y < minLat) minLat = y;
+        if (x > maxLng) maxLng = x;
+        if (y > maxLat) maxLat = y;
+      }
+    }
+    if (geom.type === 'Polygon') {
+      geom.coordinates.forEach(scanRing);
+    } else if (geom.type === 'MultiPolygon') {
+      geom.coordinates.forEach(function(poly) { poly.forEach(scanRing); });
+    }
+    return isFinite(minLng) ? [minLng, minLat, maxLng, maxLat] : null;
+  }
+
+  /* Ray-casting PIP for a single ring [[lng,lat],...] */
+  function _pipRing(lat, lng, ring) {
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var xi = ring[i][0], yi = ring[i][1];
+      var xj = ring[j][0], yj = ring[j][1];
+      if ((yi > lat) !== (yj > lat) &&
+          lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
+  /* PIP for a full GeoJSON feature (Polygon or MultiPolygon, outer ring only) */
+  function _pipFeature(lat, lng, feature) {
+    var geom = feature.geometry;
+    if (!geom) return false;
+    if (geom.type === 'Polygon') {
+      return _pipRing(lat, lng, geom.coordinates[0]);
+    } else if (geom.type === 'MultiPolygon') {
+      return geom.coordinates.some(function(poly) { return _pipRing(lat, lng, poly[0]); });
+    }
+    return false;
+  }
+
+  /* Ensure the zone features cache is populated (fetches once, then resolves immediately) */
+  function _ensureZoneCache() {
+    if (_zoneCache !== null) return Promise.resolve(_zoneCache);
+    if (_zoneCacheReady) return _zoneCacheReady;
+    _zoneCacheReady = fetch('./data/zones/sa-zones.geojson')
+      .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+      .then(function(data) {
+        _zoneCache = (data.features || []).map(function(f) {
+          return { feature: f, bbox: _computeBbox(f) };
+        });
+        _zoneCacheReady = null;
+        return _zoneCache;
+      });
+    return _zoneCacheReady;
+  }
+
+  /* Find zone at a point using offline PIP.
+     Returns Promise<{zone,subzone}|null> — zone_name without "Zone" suffix. */
+  function findZoneAtPointLocal(lat, lng) {
+    return _ensureZoneCache().then(function(cache) {
+      /* Step 1: bbox prefilter */
+      var candidates = [];
+      for (var i = 0; i < cache.length; i++) {
+        var bb = cache[i].bbox;
+        if (!bb) continue;
+        if (lng >= bb[0] && lng <= bb[2] && lat >= bb[1] && lat <= bb[3]) {
+          candidates.push(cache[i]);
+        }
+      }
+      /* Step 2: detailed PIP */
+      var matches = [];
+      for (var j = 0; j < candidates.length; j++) {
+        if (_pipFeature(lat, lng, candidates[j].feature)) {
+          matches.push(candidates[j]);
+        }
+      }
+      if (!matches.length) return null;
+
+      /* Prefer smallest bbox area (most specific polygon) */
+      matches.sort(function(a, b) {
+        var aA = (a.bbox[2]-a.bbox[0]) * (a.bbox[3]-a.bbox[1]);
+        var aB = (b.bbox[2]-b.bbox[0]) * (b.bbox[3]-b.bbox[1]);
+        return aA - aB;
+      });
+      if (matches.length > 1) {
+        var s0 = (matches[0].bbox[2]-matches[0].bbox[0]) * (matches[0].bbox[3]-matches[0].bbox[1]);
+        var s1 = (matches[1].bbox[2]-matches[1].bbox[0]) * (matches[1].bbox[3]-matches[1].bbox[1]);
+        if (Math.abs(s0 - s1) < 1e-10) {
+          console.warn('[PlanSA PIP] Tied zones at point:',
+            matches[0].feature.properties.zone_name,
+            matches[1].feature.properties.zone_name);
+        }
+      }
+
+      var props = matches[0].feature.properties || {};
+      return { zone: props.zone_name || null, subzone: props.subzone_name || null };
+    });
+  }
+
+  /* Expose for the map IIFE (queryZoningAtPoint) */
+  window._findZoneAtPoint = findZoneAtPointLocal;
+  /* Expose metadata date for updateZoneDescText() */
+  window._planDataDate = function() { return _metadataDate || ''; };
+
   /* ── Attribution state ──────────────────────────────────────────────────── */
   var _metadataDate     = null;   // fetched from data/metadata.json on first use
   var _planAttrAdded    = false;
@@ -39101,40 +39196,81 @@ if (window.pdfjsLib) {
     return { fillColor: col, fillOpacity: 0.35, color: '#444', weight: 0.5, opacity: 0.5 };
   }
 
-  /* Returns zone names visible in current map bounds (for legend population) */
+  /* ── Legend debounce timer ───────────────────────────────────────────────── */
+  var _legendRefreshTimer = null;
+  var MAX_LEGEND_ZONES = 40;
+
+  /* Returns zone names visible in current map bounds (uses bbox cache when available) */
   function getVisibleZoneNames() {
-    if (!_zonesLayer) return [];
     var m      = window._map;
     var bounds = m && m.getBounds();
     if (!bounds) return [];
-    var seen = {};
+
+    var w = bounds.getWest(), e = bounds.getEast();
+    var s = bounds.getSouth(), n = bounds.getNorth();
+
+    /* Fast path: use the bbox cache if the zones data is already loaded */
+    if (_zoneCache !== null) {
+      var seen = {};
+      for (var i = 0; i < _zoneCache.length; i++) {
+        var bb = _zoneCache[i].bbox;
+        if (!bb) continue;
+        if (bb[2] >= w && bb[0] <= e && bb[3] >= s && bb[1] <= n) {
+          var name = (_zoneCache[i].feature.properties || {}).zone_name;
+          if (name) seen[name] = true;
+        }
+      }
+      return Object.keys(seen);
+    }
+
+    /* Slow path: use Leaflet layer bboxes (before cache is ready) */
+    if (!_zonesLayer) return [];
+    var seen2 = {};
     _zonesLayer.eachLayer(function(lyr) {
       try {
         var b = lyr.getBounds ? lyr.getBounds() : null;
-        if (!b || bounds.intersects(b)) {
-          var n = lyr.feature && lyr.feature.properties && lyr.feature.properties.zone_name;
-          if (n) seen[n] = true;
+        if (b && bounds.intersects(b)) {
+          var nm = lyr.feature && lyr.feature.properties && lyr.feature.properties.zone_name;
+          if (nm) seen2[nm] = true;
         }
-      } catch(e) {}
+      } catch(e2) {}
     });
-    return Object.keys(seen);
+    return Object.keys(seen2);
   }
 
-  /* ── Zones GeoJSON layer ────────────────────────────────────────────────── */
+  /* Refresh legend with viewport-aware zone list; caps at MAX_LEGEND_ZONES */
+  function refreshZonesLegendNow() {
+    if (!_planZonesOn || !window._populateZoneLegend) return;
+    var names = getVisibleZoneNames();
+    if (names.length > MAX_LEGEND_ZONES) {
+      window._populateZoneLegend(null);  // "Zoom in for zone legend"
+    } else {
+      window._populateZoneLegend(names);
+    }
+  }
+
+  function refreshZonesLegendDebounced() {
+    clearTimeout(_legendRefreshTimer);
+    _legendRefreshTimer = setTimeout(refreshZonesLegendNow, 150);
+  }
+
+  /* ── Zones GeoJSON layer (reuses _zoneCache so data is only fetched once) ── */
   function loadZonesLayer(callback) {
-    fetch('./data/zones/sa-zones.geojson')
-      .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
-      .then(function(data) {
-        var layer = L.geoJSON(data, {
+    _ensureZoneCache()
+      .then(function(cache) {
+        var features = cache.map(function(entry) { return entry.feature; });
+        var layer = L.geoJSON({ type: 'FeatureCollection', features: features }, {
           renderer: getCanvasRenderer(),
           style: function(feature) {
             return getZoneStyle((feature.properties || {}).zone_name);
           },
           onEachFeature: function(feature, lyr) {
             var zoneName = (feature.properties || {}).zone_name || 'Unknown zone';
+            var dateStr  = _metadataDate ? ' (' + _metadataDate + ')' : '';
             lyr.bindPopup(
               '<b>' + escHtml(zoneName) + '</b>' +
-              '<br><small style="color:#666;">SAPPA zone at this point may differ \u2014 receiver criteria use the live SAPPA API.</small>'
+              '<br><small style="color:#666;">Auto-detected from PlanSA open data' + dateStr +
+              ' \u2014 verify on <a href="https://sappa.plan.sa.gov.au/" target="_blank" rel="noopener">SAPPA \u2197</a> for authoritative zoning.</small>'
             );
           },
         });
@@ -39205,7 +39341,7 @@ if (window.pdfjsLib) {
     var ctrl = window._getZoneLegendControl && window._getZoneLegendControl();
     if (!m || !ctrl) return;
     if (!ctrl.getContainer()) ctrl.addTo(m);
-    if (window._populateZoneLegend) window._populateZoneLegend(getVisibleZoneNames());
+    refreshZonesLegendNow();
   }
 
   function _hideZonesLegend() {
@@ -39291,13 +39427,11 @@ if (window.pdfjsLib) {
     if (noiseBtn)    noiseBtn.addEventListener(   'click', function() { toggleNoise(   !_planNoiseOn);    });
     if (aircraftBtn) aircraftBtn.addEventListener('click', function() { toggleAircraft(!_planAircraftOn); });
 
-    // Refresh zones legend when map pans/zooms (show only zones visible in viewport)
+    // Refresh zones legend when map pans/zooms (viewport-aware, debounced 150 ms)
     var m = window._map;
     if (m) {
-      m.on('moveend', function() {
-        if (_planZonesOn && window._populateZoneLegend) {
-          window._populateZoneLegend(getVisibleZoneNames());
-        }
+      m.on('moveend zoomend', function() {
+        if (_planZonesOn) refreshZonesLegendDebounced();
       });
     }
   });
