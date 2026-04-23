@@ -39474,6 +39474,10 @@ if (window.pdfjsLib) {
   window._isPlanZonesOn   = function() { return _planZonesOn; };
   window._anefStyle       = anefStyle;
 
+  // Pre-warm zone cache at startup so criteria compute immediately on first
+  // receiver placement regardless of whether "Show zones" layer is toggled on.
+  _ensureZoneCache();
+
   /* ── Canvas pointer-events API (for placement-mode click-through) ────────
      During point-placement modes the shared canvas must be non-interactive
      so map clicks reach the placement handler rather than triggering layer

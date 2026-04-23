@@ -46,6 +46,7 @@
 - [ ] **Speed: 4 rapid receivers** — Place 4 receivers in quick succession. Each zone field populates within 200 ms of placement (check with DevTools Timeline or `console.time`).
 - [ ] **"No zone found" message** — Place receiver outside all SA zones if possible (far offshore, or cross-border). Status label reads "No zone found — verify on SAPPA ↗".
 - [ ] **Zone detection works before Zones layer toggled** — Without toggling the Zones display layer ON, drop a receiver. Zone auto-detects (PIP triggers its own fetch). Then toggle Zones ON — layer loads instantly (uses same cached data, no second fetch).
+- [ ] **Criteria compute immediately on first receiver — zones layer OFF** — Load the tool fresh (hard-refresh). Do NOT toggle "Show zones". Wait 10 seconds for page to settle. Place a receiver in an SA zone (e.g. ~-34.895, 138.605). Within ~1 second, the Receivers & Criteria panel shows a zone name AND populated Day/Evening/Night/Lmax criteria values. No dashes that then populate after a further delay.
 - [ ] **Criteria unchanged** — For a known test site (e.g. Prospect Established Neighbourhood), criteria output (INL, Lmax limit) matches pre-refactor values. Zone key format "Established Neighbourhood Zone | En Subzone" feeds into criteria correctly.
 
 ### "Verify on SAPPA" note
