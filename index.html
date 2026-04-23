@@ -40550,7 +40550,7 @@ if (window.pdfjsLib) {
     var delta = 0.0003;   // ~30 m between sources
     var d2    = 0.00018;  // ~20 m polygon side for area sources
     var bd    = 0.00013;  // ~14 m polygon side for building sources
-    var api   = window._toolboxApi || {};
+    var api   = window._gisRenderHooks || window._toolboxApi || {};
     var idx   = 0;
     var added = 0, stubAdded = 0;
 
@@ -40600,7 +40600,7 @@ if (window.pdfjsLib) {
           id:       'ls_' + (++_lsIdCtr),
           name:     srcDef.defaultName,
           vertices: [],
-          libraryEntry: lib ? lib.name : null,
+          libraryEntry: lib || null,
           height_m: lib ? (lib.height_m || 0.5) : 0.5,
           movements: {
             day:   { N: 1, speed: 10, operatingPct: 100 },
@@ -40643,7 +40643,7 @@ if (window.pdfjsLib) {
           operatingPct:   { day: 100, eve: 100, night: 100 },
           quantity:       { day: 1, eve: 1, night: 1 },
           manualOverride: { day: false, eve: false, night: false },
-          libraryEntry:   lib ? lib.name : null,
+          libraryEntry:   lib || null,
           _userEdited:    { eve: false, night: false },
           _libName:  lib ? lib.name : null,
           _stubTodo: isTodo || undefined
