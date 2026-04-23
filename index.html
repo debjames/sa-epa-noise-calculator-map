@@ -6682,13 +6682,13 @@ body.disclaimer-visible .container {
   <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Three propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity), and CONCAWE (Report 4/81, Manning 1981) which adds meteorological corrections for six atmospheric stability categories. It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
   <div class="h2" style="font-size:13px;margin-top:18px;">Data sources</div>
   <div class="h2" style="font-size:12px;margin-top:10px;">Planning zones</div>
-  <div class="p">Planning zone classifications are detected automatically via state planning portal APIs based on the placed receiver location. The data source varies by jurisdiction:</div>
+  <div class="p">Planning zone classifications are detected automatically based on the placed receiver location. The data source varies by jurisdiction:</div>
   <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
-    <li>SA: SA Planning Portal (SAPPA) &mdash; SA Planning and Design Code</li>
+    <li>SA: PlanSA open data (data.sa.gov.au, CC-BY&nbsp;4.0) &mdash; SA Planning and Design Code zones, served via a locally cached GeoJSON layer. Zone identification uses offline point-in-polygon lookup; users should verify classifications against the SA Planning Portal (SAPPA) for authoritative confirmation.</li>
     <li>VIC: Victorian Planning Authority &mdash; Planning Schemes Online</li>
     <li>NSW: NSW Planning Portal &mdash; Environmental Planning Instruments (LEPs and SEPPs)</li>
   </ul>
-  <div class="p">Zone detection requires an internet connection. Users should verify zone classifications independently as APIs may not reflect recent planning amendments or interim provisions.</div>
+  <div class="p">SA zone detection is performed offline using a locally cached PlanSA GeoJSON layer (updated periodically from data.sa.gov.au). VIC and NSW zone detection query live APIs and require an internet connection. Users should verify zone classifications independently as data may not reflect recent planning amendments or interim provisions.</div>
   <div class="h2" style="font-size:12px;margin-top:10px;">Noise criteria</div>
   <div class="p">Applicable noise criteria are applied based on the detected zone and the selected state. Criteria sources by jurisdiction:</div>
   <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
@@ -6718,12 +6718,12 @@ body.disclaimer-visible .container {
   </ul>
   <div class="h2" style="font-size:12px;margin-top:10px;">MBS 010 screening</div>
   <div class="p">MBS 010 (Ministerial Building Standard 010 &mdash; Construction requirements for the control of external sound) is a South Australian building standard published under the Planning, Development and Infrastructure Act 2016, available on the PlanSA website. It sets deemed-to-satisfy construction requirements for reducing the intrusion of road, rail, and aircraft noise into habitable rooms of residential buildings (Class 1, 2, 3, Class 4 and Class 9c aged care buildings).</div>
-  <div class="p">Application of MBS 010 is triggered by the Noise and Emissions Overlay in the SA Planning and Design Code. The current version is Version 3 (1 May 2023). The screening tool queries the SAPPA API to determine whether a receiver location falls within a Noise and Emissions Overlay area. Users should confirm overlay applicability and the current version of MBS 010 with the relevant consent authority.</div>
+  <div class="p">Application of MBS 010 is triggered by the Noise and Emissions Overlay in the SA Planning and Design Code. The current version is Version 3 (1 May 2023). The tool determines overlay applicability using offline point-in-polygon lookup against a locally cached PlanSA GeoJSON layer (updated periodically from data.sa.gov.au); the aircraft noise (ANEF) contours are also sourced from the same dataset. Users should confirm overlay applicability and the current version of MBS 010 with the relevant consent authority.</div>
   <div class="h2" style="font-size:12px;margin-top:10px;">User-imported site plans</div>
   <div class="p">The Site plan overlay tool lets the user import a PDF, PNG, or JPEG site plan and position it on the map as a semi-transparent Leaflet overlay with adjustable opacity, position, scale, and rotation. Aspect ratio is preserved from the image&rsquo;s native dimensions on initial placement (with a <em>cos(lat)</em> compensation for 1&deg;&nbsp;lng &ne; 1&deg;&nbsp;lat in metres) and on corner-drag resizing by default; hold Shift to free-resize. PDF imports attempt to extract text from the title block to pre-fill the project name and, where present, a street address. Site plan overlays are purely visual &mdash; they do not participate in any calculation &mdash; and are serialised in saved assessments.</div>
   <div class="h2" style="font-size:13px;margin-top:18px;">Modelling methodology</div>
   <div class="h2" style="font-size:13px;">Zone detection</div>
-  <div class="p">Receiver zones are detected automatically by querying state planning portal APIs based on the receiver map location: SA uses the SA Planning Portal (SAPPA), VIC uses the Victorian Planning Authority API, and NSW uses the NSW Planning Portal. Zone detection requires an internet connection. Users should verify zone classifications independently, as APIs may not reflect recent planning amendments. Zone information is used to apply the applicable noise criteria for that receiver.</div>
+  <div class="p">Receiver zones are detected automatically based on the receiver map location. SA zones are identified using offline point-in-polygon lookup against a locally cached PlanSA open-data GeoJSON layer (data.sa.gov.au); the SAPPA portal remains the authoritative reference for formal verification. VIC uses the Victorian Planning Authority API and NSW uses the NSW Planning Portal &mdash; both require an internet connection. Users should verify zone classifications independently, as data may not reflect recent planning amendments. Zone information is used to apply the applicable noise criteria for that receiver.</div>
   <div class="h2" style="font-size:13px;">State noise criteria</div>
   <div class="p">Detected zones are mapped to applicable noise criteria using independent, state-specific logic in the Receivers &amp; criteria panel. Changes to one state&rsquo;s derivation rules do not affect another. The applied criterion and pass/fail outcome are shown in the Predicted noise levels table and the compliance strip.</div>
   <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
@@ -6829,7 +6829,7 @@ body.disclaimer-visible .container {
     <li>Geometric divergence (&sect;7.1): fully implemented</li>
     <li>Barrier / building screening (&sect;7.4): implemented, single dominant path, top and lateral diffraction</li>
     <li>Terrain screening: partial &mdash; single dominant ridge, per-band Maekawa diffraction, DEM from Geoscience Australia WCS LiDAR (5&thinsp;m, primary) with Open-Elevation SRTM fallback</li>
-    <li>Meteorological correction (&sect;8): not implemented &mdash; this tool is intended for worst-case screening assessments; meteorological corrections are appropriate for detailed assessments only</li>
+    <li>Meteorological correction (&sect;8): not implemented in the ISO 9613-2 path (C<sub>met</sub> correction) &mdash; available via the CONCAWE propagation model, which provides explicit six-category meteorological corrections based on Pasquill stability class and vector wind speed</li>
   </ul>
   <div class="h2" style="font-size:12px;margin-top:10px;">Security</div>
   <div class="p">User-entered data (source names, receiver names) is escaped before insertion into the interface using DOM-native <code>escapeHTML()</code> to prevent cross-site scripting (XSS). No user data is transmitted to any server &mdash; all calculations run entirely in the browser.</div>
@@ -28315,8 +28315,17 @@ if (window.pdfjsLib) {
         map.getContainer().style.cursor = mode ? 'crosshair' : '';
       }
       /* Disable planning-layer canvas pointer-events during placement so map
-         clicks reach the placement handler instead of triggering layer popups. */
-      if (typeof window._setPlanningCanvasInteractive === 'function') {
+         clicks reach the placement handler instead of triggering layer popups.
+         Uses the shared map-click mode tracker so the ruler and any future
+         tools participate in the same refcount. */
+      if (typeof window._enterMapClickMode === 'function') {
+        if (mode) {
+          if (typeof window._cancelRulerMode === 'function') window._cancelRulerMode();
+          window._enterMapClickMode('placement');
+        } else {
+          window._exitMapClickMode('placement');
+        }
+      } else if (typeof window._setPlanningCanvasInteractive === 'function') {
         window._setPlanningCanvasInteractive(!mode);
       }
       /* Dismiss onboarding hint as soon as user enters any placement mode
@@ -28390,6 +28399,7 @@ if (window.pdfjsLib) {
           _rulerStart = null;
           if (rulerBtn) rulerBtn.classList.remove('active');
           map.getContainer().style.cursor = '';
+          if (typeof window._exitMapClickMode === 'function') window._exitMapClickMode('ruler');
         }
         return; // don't fall through to marker placement
       }
@@ -29959,21 +29969,28 @@ if (window.pdfjsLib) {
     var _rulerStart       = null;        // {lat,lng} of first click
     var _rulerTempDot     = null;        // temporary start-point marker
 
+    /* Cancel ruler and restore pointer-events — safe to call when not active */
+    window._cancelRulerMode = function() {
+      if (!_rulerMode) return;
+      _rulerMode  = false;
+      _rulerStart = null;
+      if (_rulerTempDot) { map.removeLayer(_rulerTempDot); _rulerTempDot = null; }
+      if (rulerBtn) rulerBtn.classList.remove('active');
+      map.getContainer().style.cursor = '';
+      if (typeof window._exitMapClickMode === 'function') window._exitMapClickMode('ruler');
+    };
+
     var rulerBtn = document.getElementById('rulerBtn');
     if (rulerBtn) {
       rulerBtn.addEventListener('click', function() {
         if (_rulerMode) {
-          // cancel in-progress measurement
-          _rulerMode  = false;
-          _rulerStart = null;
-          if (_rulerTempDot) { map.removeLayer(_rulerTempDot); _rulerTempDot = null; }
-          rulerBtn.classList.remove('active');
-          map.getContainer().style.cursor = '';
+          window._cancelRulerMode();
         } else {
           _rulerMode = true;
           _rulerStart = null;
           rulerBtn.classList.add('active');
           map.getContainer().style.cursor = 'crosshair';
+          if (typeof window._enterMapClickMode === 'function') window._enterMapClickMode('ruler');
         }
       });
     }
@@ -31047,6 +31064,28 @@ if (window.pdfjsLib) {
               var ht = parseFloat(document.getElementById('newBsHeight').value);
               if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid height.'); return; }
               map.closePopup();
+              // If placing an existing unplaced building source, update it instead of creating a new one
+              var _pendingBsId = window._pendingBsId;
+              window._pendingBsId = null;
+              if (_pendingBsId) {
+                var _existingBs = null;
+                for (var _bi = 0; _bi < buildingSources.length; _bi++) {
+                  if (buildingSources[_bi].id === _pendingBsId) { _existingBs = buildingSources[_bi]; break; }
+                }
+                if (_existingBs) {
+                  _existingBs.vertices = bsVerts;
+                  _existingBs.height_m = ht;
+                  _existingBs.baseHeightM = base;
+                  if (_terrainEnabled) _fetchVertexElevations(_existingBs);
+                  renderBuildingSourceLayer();
+                  openBsPanel(_existingBs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
+                  if (typeof render === 'function') render();
+                  if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+                  if (typeof window._undoPushState === 'function') window._undoPushState('Place building source');
+                  if (window._renderObjectList) window._renderObjectList();
+                  return;
+                }
+              }
               var newBs = _bsMakeDefault(bsVerts, ht);
               newBs.baseHeightM = base;
               buildingSources.push(newBs);
@@ -31057,7 +31096,7 @@ if (window.pdfjsLib) {
               if (window._recomputeNoiseMap) window._recomputeNoiseMap();
               if (typeof window._undoPushState === 'function') window._undoPushState('Add building source');
             });
-            if (cancelBtnBs) cancelBtnBs.addEventListener('click', function() { map.closePopup(); });
+            if (cancelBtnBs) cancelBtnBs.addEventListener('click', function() { window._pendingBsId = null; map.closePopup(); });
           }, 50);
           return;
         }
@@ -31070,6 +31109,26 @@ if (window.pdfjsLib) {
           var _asDrawBtn2 = document.getElementById('drawAreaSourceBtn');
           if (_asDrawBtn2) _asDrawBtn2.classList.remove('active');
           var asVerts = e.layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
+          // If placing an existing unplaced area source, update it instead of creating a new one
+          var _pendingAsId = window._pendingAsId;
+          window._pendingAsId = null;
+          if (_pendingAsId) {
+            var _existingAs = null;
+            for (var _ai = 0; _ai < areaSources.length; _ai++) {
+              if (areaSources[_ai].id === _pendingAsId) { _existingAs = areaSources[_ai]; break; }
+            }
+            if (_existingAs) {
+              _existingAs.vertices = asVerts;
+              if (_terrainEnabled) _fetchVertexElevations(_existingAs);
+              renderAreaSourceLayer();
+              openAsPanel(_existingAs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
+              if (typeof render === 'function') render();
+              if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              if (typeof window._undoPushState === 'function') window._undoPushState('Place area source');
+              if (window._renderObjectList) window._renderObjectList();
+              return;
+            }
+          }
           var newAs = {
             id: 'as_' + (++_asIdCtr),
             name: 'Area source ' + _asIdCtr,
@@ -34555,6 +34614,28 @@ if (window.pdfjsLib) {
       var verts = latlngsRaw.map(function(ll) { return [ll.lat, ll.lng]; });
       if (verts.length < 2) return;
 
+      // If placing an existing unplaced line source, update it instead of creating a new one
+      var _pendingLsId = window._pendingLsId;
+      window._pendingLsId = null;
+      if (_pendingLsId) {
+        var _existingLs = null;
+        for (var _li = 0; _li < lineSources.length; _li++) {
+          if (lineSources[_li].id === _pendingLsId) { _existingLs = lineSources[_li]; break; }
+        }
+        if (_existingLs) {
+          _existingLs.vertices = verts;
+          if (_terrainEnabled) _fetchVertexElevations(_existingLs);
+          renderLineSourceLayer();
+          renderLineSourceCards();
+          if (typeof render === 'function') render();
+          if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+          if (typeof window._undoPushState === 'function') window._undoPushState('Place line source');
+          if (window._renderObjectList) window._renderObjectList();
+          openLsPanel(_existingLs.id, e.originalEvent ? e.originalEvent.clientX : Math.round(window.innerWidth / 2), e.originalEvent ? e.originalEvent.clientY : Math.round(window.innerHeight / 2));
+          return;
+        }
+      }
+
       // Create new ls object with new data model and open floating panel
       var newId = ++_lsIdCtr;
       var newLs = {
@@ -35309,6 +35390,26 @@ if (window.pdfjsLib) {
       var latlngsRaw = e.layer.getLatLngs();
       var verts = latlngsRaw.map(function(ll) { return [ll.lat, ll.lng]; });
       if (verts.length < 2) return;
+
+      // If placing an existing unplaced CoRTN road, update it instead of creating a new one
+      var _pendingCortnId = window._pendingCortnId;
+      window._pendingCortnId = null;
+      if (_pendingCortnId) {
+        var _existingCr = null;
+        for (var _ci = 0; _ci < cortnRoads.length; _ci++) {
+          if (cortnRoads[_ci].id === _pendingCortnId) { _existingCr = cortnRoads[_ci]; break; }
+        }
+        if (_existingCr) {
+          _existingCr.vertices = verts;
+          try { recalcCortnRoad(_existingCr); } catch (ex) {}
+          renderCortnRoadLayer();
+          if (typeof window._undoPushState === 'function') window._undoPushState('Place CoRTN road');
+          if (window._recomputeCortnMap) window._recomputeCortnMap();
+          if (window._renderObjectList) window._renderObjectList();
+          openCortnPanel(_existingCr.id);
+          return;
+        }
+      }
 
       var newCr = _cortnDefaultRoad(verts);
       cortnRoads.push(newCr);
@@ -38275,14 +38376,19 @@ if (window.pdfjsLib) {
           var lsDetail = 'Ht: ' + lsHt.toFixed(1) + 'm';
           if (hasVerts) lsDetail += ' | ' + Math.round(lsLen) + 'm';
           if (lsParts.length > 0) lsDetail += ' | ' + lsParts.join(' | ') + ' dB(A)/m';
-          html += '<div class="obj-row" data-obj-type="linesource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts ? 'pointer' : 'default') + ';">';
+          html += '<div class="obj-row" data-obj-type="linesource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:pointer;">';
           html += '<span style="width:14px;height:3px;background:#d32f2f;border-radius:1px;display:inline-block;flex-shrink:0;"></span>';
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">L' + (i + 1) + '</span>';
-          html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
-            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + _acBadgesForSource(ls.id) + '</div>' +
-            '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(lsDetail) + '</div>' +
-            '</span>';
-          if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'linesource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
+          if (hasVerts) {
+            html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+              '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + _acBadgesForSource(ls.id) + '</div>' +
+              '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(lsDetail) + '</div>' +
+              '</span>';
+            html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'linesource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
+          } else {
+            html += '<span style="flex:1;overflow:hidden;min-width:0;"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div></span>';
+            html += '<span style="font-size:12px;color:#bbb;font-style:italic;flex-shrink:0;">not placed \u2014 click to place</span>';
+          }
           html += '</div>';
         });
         areaSources.forEach(function(as, i) {
@@ -38302,14 +38408,19 @@ if (window.pdfjsLib) {
           var asDetail = 'Ht: ' + asHt.toFixed(1) + 'm';
           if (hasVerts) asDetail += ' | ' + _asFormatArea(asArea);
           if (asParts.length > 0) asDetail += ' | ' + asParts.join(' | ') + asUnit;
-          html += '<div class="obj-row" data-obj-type="areasource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts ? 'pointer' : 'default') + ';">';
+          html += '<div class="obj-row" data-obj-type="areasource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:pointer;">';
           html += '<span style="width:11px;height:11px;border:2px solid #d97706;background:rgba(255,160,50,0.25);border-radius:2px;display:inline-block;flex-shrink:0;"></span>';
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">A' + (i + 1) + '</span>';
-          html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
-            '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + _acBadgesForSource(as.id) + '</div>' +
-            '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(asDetail) + '</div>' +
-            '</span>';
-          if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'areasource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
+          if (hasVerts) {
+            html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+              '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + _acBadgesForSource(as.id) + '</div>' +
+              '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(asDetail) + '</div>' +
+              '</span>';
+            html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'areasource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
+          } else {
+            html += '<span style="flex:1;overflow:hidden;min-width:0;"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div></span>';
+            html += '<span style="font-size:12px;color:#bbb;font-style:italic;flex-shrink:0;">not placed \u2014 click to place</span>';
+          }
           html += '</div>';
         });
         if (typeof buildingSources !== 'undefined') {
@@ -38325,14 +38436,41 @@ if (window.pdfjsLib) {
               bsParts.push(lbl + ': ' + (Number.isFinite(bsTot[p]) ? Math.round(bsTot[p]) : '\u2014'));
             });
             var bsDetail = 'Ht: ' + bsHt.toFixed(1) + 'm | ' + bsParts.join(' | ') + ' dB(A)';
-            html += '<div class="obj-row" data-obj-type="buildingsource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:' + (hasVerts ? 'pointer' : 'default') + ';">';
+            html += '<div class="obj-row" data-obj-type="buildingsource" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:pointer;">';
             html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(124,58,237,0.18)" stroke="#7c3aed" stroke-width="2" style="flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#7c3aed" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#7c3aed" stroke-width="1.5"/></svg>';
             html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:22px;">BS' + (i + 1) + '</span>';
-            html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
-              '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + _acBadgesForSource(bs.id) + '</div>' +
-              '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(bsDetail) + '</div>' +
-              '</span>';
-            if (hasVerts) html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'buildingsource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
+            if (hasVerts) {
+              html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+                '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + _acBadgesForSource(bs.id) + '</div>' +
+                '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(bsDetail) + '</div>' +
+                '</span>';
+              html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'buildingsource\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
+            } else {
+              html += '<span style="flex:1;overflow:hidden;min-width:0;"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div></span>';
+              html += '<span style="font-size:12px;color:#bbb;font-style:italic;flex-shrink:0;">not placed \u2014 click to place</span>';
+            }
+            html += '</div>';
+          });
+        }
+        if (typeof cortnRoads !== 'undefined') {
+          cortnRoads.forEach(function(cr, i) {
+            var hasVerts = cr.vertices && cr.vertices.length >= 2;
+            var name = escapeHTML(cr.name || ('Road ' + (i + 1)));
+            var crLen = hasVerts ? Math.round(_lsTotalLength(cr.vertices)) : 0;
+            var crDetail = hasVerts ? (crLen + 'm') : '';
+            html += '<div class="obj-row" data-obj-type="cortnroad" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:pointer;">';
+            html += '<span style="width:14px;height:3px;background:#1565C0;border-radius:1px;display:inline-block;flex-shrink:0;"></span>';
+            html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">T' + (i + 1) + '</span>';
+            if (hasVerts) {
+              html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+                '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div>' +
+                '<div style="font-size:10px;color:#9ca3af;">' + crDetail + '</div>' +
+                '</span>';
+              html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'cortnroad\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">\u22ee</button>';
+            } else {
+              html += '<span style="flex:1;overflow:hidden;min-width:0;"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</div></span>';
+              html += '<span style="font-size:12px;color:#bbb;font-style:italic;flex-shrink:0;">not placed \u2014 click to place</span>';
+            }
             html += '</div>';
           });
         }
@@ -38464,7 +38602,13 @@ if (window.pdfjsLib) {
         if (typeof openSrcPanel === 'function') openSrcPanel(idx);
       } else if (type === 'linesource') {
         var ls = lineSources[idx];
-        if (!ls || !ls.vertices || ls.vertices.length < 2) return;
+        if (!ls) return;
+        if (!ls.vertices || ls.vertices.length < 2) {
+          window._pendingLsId = ls.id;
+          var _dlsBtn = document.getElementById('drawLineSourceBtn');
+          if (_dlsBtn) _dlsBtn.click();
+          return;
+        }
         var mid = _lsPolylineMidpoint(ls.vertices);
         if (!inFs && mid) map.panTo([mid.lat, mid.lng]);
         if (ls._poly) { ls._poly.setStyle({ weight: 7, opacity: 1.0 }); setTimeout(function() { ls._poly.setStyle(LS_STYLE); }, 1000); }
@@ -38487,18 +38631,43 @@ if (window.pdfjsLib) {
         }
       } else if (type === 'areasource') {
         var as = areaSources[idx];
-        if (!as || !as.vertices || as.vertices.length < 3) return;
+        if (!as) return;
+        if (!as.vertices || as.vertices.length < 3) {
+          window._pendingAsId = as.id;
+          var _dasBtn = document.getElementById('drawAreaSourceBtn');
+          if (_dasBtn) _dasBtn.click();
+          return;
+        }
         var asCtr = _asPolygonCentroid(as.vertices);
         if (!inFs) map.panTo([asCtr.lat, asCtr.lng]);
         if (as._poly) { as._poly.setStyle({ weight: 5, color: 'rgba(200,120,30,1)' }); setTimeout(function() { if (as._poly) as._poly.setStyle(AS_STYLE); }, 1000); }
         if (typeof openAsPanel === 'function') openAsPanel(as.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
       } else if (type === 'buildingsource') {
         var bsrc = buildingSources[idx];
-        if (!bsrc || !bsrc.vertices || bsrc.vertices.length < 3) return;
+        if (!bsrc) return;
+        if (!bsrc.vertices || bsrc.vertices.length < 3) {
+          window._pendingBsId = bsrc.id;
+          var _dbsBtn = document.getElementById('drawBuildingSourceBtn');
+          if (_dbsBtn) _dbsBtn.click();
+          return;
+        }
         var bsCtr = _asPolygonCentroid(bsrc.vertices);
         if (!inFs) map.panTo([bsCtr.lat, bsCtr.lng]);
         if (bsrc._poly) { bsrc._poly.setStyle({ weight: 5, color: 'rgba(109,40,217,1)' }); setTimeout(function(){ if (bsrc._poly) bsrc._poly.setStyle(BS_STYLE); }, 1000); }
         if (typeof openBsPanel === 'function') openBsPanel(bsrc.id, Math.round(window.innerWidth/2), Math.round(window.innerHeight/2));
+      } else if (type === 'cortnroad') {
+        var cr = typeof cortnRoads !== 'undefined' ? cortnRoads[idx] : null;
+        if (!cr) return;
+        if (!cr.vertices || cr.vertices.length < 2) {
+          window._pendingCortnId = cr.id;
+          var _dcrBtn = document.getElementById('drawCortnRoadBtn');
+          if (_dcrBtn) _dcrBtn.click();
+          return;
+        }
+        var crMid = _lsPolylineMidpoint(cr.vertices);
+        if (!inFs && crMid) map.panTo([crMid.lat, crMid.lng]);
+        if (cr._poly) { cr._poly.setStyle({ weight: 10, opacity: 1.0 }); setTimeout(function() { if (cr._poly) cr._poly.setStyle({ color: '#1565C0', weight: 6, opacity: 0.85 }); }, 1000); }
+        if (typeof window.openCortnPanel === 'function') window.openCortnPanel(cr.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
       } else if (type === 'barrier') {
         var ub = userBarriers[idx];
         if (!ub || !ub.vertices || !ub.vertices.length) return;
@@ -38608,6 +38777,17 @@ if (window.pdfjsLib) {
         _groundZones.push(newGz);
         _renderGroundZone(newGz);
         if (typeof render === 'function') render();
+      } else if (type === 'cortnroad') {
+        if (typeof cortnRoads === 'undefined') return;
+        var crOrig = cortnRoads[idx];
+        if (!crOrig) return;
+        var newCrCopy = JSON.parse(JSON.stringify(crOrig, function(k, v) { return k === '_poly' || k === '_labelMarker' ? undefined : v; }));
+        newCrCopy.id = 'cr_' + Date.now();
+        newCrCopy.name = (crOrig.name || 'Road') + ' (copy)';
+        if (crOrig.vertices && crOrig.vertices.length) newCrCopy.vertices = crOrig.vertices.map(function(v) { return [v[0] - 0.00002, v[1] + 0.00002]; });
+        cortnRoads.push(newCrCopy);
+        if (typeof renderCortnRoadLayer === 'function') renderCortnRoadLayer();
+        if (typeof render === 'function') render();
       }
     }
 
@@ -38683,6 +38863,19 @@ if (window.pdfjsLib) {
         if (window._renderObjectList) window._renderObjectList();
         if (typeof render === 'function') render();
         if (typeof window._undoPushState === 'function') window._undoPushState(_gzLabel);
+      } else if (type === 'cortnroad') {
+        if (typeof cortnRoads === 'undefined') return;
+        var _cr = cortnRoads[idx];
+        if (!confirm('Delete "' + (_cr ? _cr.name || 'Road' : 'Road') + '"?')) return;
+        var _crLabel = 'Delete ' + (_cr ? _cr.name || 'Road' : 'Road');
+        if (_cr && _cr._poly) { try { _cr._poly.remove(); } catch(e2) {} }
+        if (_cr && _cr._labelMarker) { try { _cr._labelMarker.remove(); } catch(e2) {} }
+        cortnRoads.splice(idx, 1);
+        if (typeof renderCortnRoadLayer === 'function') renderCortnRoadLayer();
+        if (window._recomputeCortnMap) window._recomputeCortnMap();
+        if (window._renderObjectList) window._renderObjectList();
+        if (typeof render === 'function') render();
+        if (typeof window._undoPushState === 'function') window._undoPushState(_crLabel);
       }
     }
 
@@ -39508,6 +39701,24 @@ if (window.pdfjsLib) {
   window._setPlanningCanvasInteractive = function(on) {
     var el = _canvasRenderer && _canvasRenderer._container;
     if (el) el.style.pointerEvents = on ? '' : 'none';
+  };
+
+  /* ── Map-click mode tracker ──────────────────────────────────────────────
+     Any tool that requires raw map clicks (sources, receivers, ruler, …)
+     calls _enterMapClickMode(name) on entry and _exitMapClickMode(name) on
+     exit.  Pointer-events on the planning canvas are disabled while at
+     least one mode is active and restored only when all modes have exited,
+     so overlapping enter/exit transitions never leave a stale state. */
+  var _mapClickModes = {};
+  window._enterMapClickMode = function(name) {
+    _mapClickModes[name] = true;
+    window._setPlanningCanvasInteractive(false);
+  };
+  window._exitMapClickMode = function(name) {
+    delete _mapClickModes[name];
+    if (Object.keys(_mapClickModes).length === 0) {
+      window._setPlanningCanvasInteractive(true);
+    }
   };
 
   /* ── Save / load API ─────────────────────────────────────────────────────── */
@@ -40384,7 +40595,7 @@ if (window.pdfjsLib) {
         var newLs = {
           id:       'ls_' + (++_lsIdCtr),
           name:     srcDef.defaultName,
-          vertices: [[lat, lng], [lat, lng + delta]],
+          vertices: [],
           libraryEntry: lib ? lib.name : null,
           height_m: lib ? (lib.height_m || 0.5) : 0.5,
           movements: {
@@ -40412,11 +40623,10 @@ if (window.pdfjsLib) {
 
       /* ── Area source ──────────────────────────────────────────────── */
       } else if (srcDef.type === 'area') {
-        var asVerts = [[lat, lng], [lat + d2, lng], [lat + d2, lng + d2], [lat, lng + d2]];
         var newAs = {
           id:       'as_' + (++_asIdCtr),
           name:     srcDef.defaultName,
-          vertices: asVerts,
+          vertices: [],
           height_m: lib ? (lib.height_m || 0.5) : 0.5,
           lwMode:   'per_m2',
           lwValue:  { day: lib ? lib.lw_m2_dba : null,
@@ -40440,8 +40650,7 @@ if (window.pdfjsLib) {
       /* ── Building source ──────────────────────────────────────────── */
       } else if (srcDef.type === 'building') {
         if (!api.makeBuildingSource) return;
-        var bsVerts = [[lat, lng], [lat + bd, lng], [lat + bd, lng + bd], [lat, lng + bd]];
-        var newBs = api.makeBuildingSource(bsVerts, 6);
+        var newBs = api.makeBuildingSource([], 6);
         if (!newBs) return;
         newBs.name    = srcDef.defaultName;
         newBs._libName = lib ? lib.name : null;
@@ -41885,6 +42094,10 @@ if (window.pdfjsLib) {
             typeof window._isPlacementActive === 'function' &&
             window._isPlacementActive()) {
           window._cancelPlacementMode();
+          e.preventDefault();
+        }
+        if (typeof window._cancelRulerMode === 'function') {
+          window._cancelRulerMode();
           e.preventDefault();
         }
         break;
