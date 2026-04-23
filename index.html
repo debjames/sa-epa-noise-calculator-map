@@ -39014,6 +39014,11 @@ if (window.pdfjsLib) {
     var contour = normaliseAnef((feature.properties || {}).anef_contour);
     var cfg     = ANEF_STYLES[contour];
     if (!cfg) {
+      var rawContour = String((feature.properties || {}).anef_contour || '');
+      if (rawContour && rawContour !== 'undefined') {
+        // Known ANEF area but no numeric level (e.g. "Area is subject to aircraft noise")
+        return { color: '#8888cc', weight: 1, opacity: 0.6, fillColor: '#ccd5e8', fillOpacity: 0.20 };
+      }
       return { color: '#ff00ff', weight: 1, opacity: 0.6, fillColor: '#ff00ff', fillOpacity: 0.40 };
     }
     var darker = shadeHex(cfg.fill, -40);
@@ -39148,11 +39153,12 @@ if (window.pdfjsLib) {
           onEachFeature: function(feature, lyr) {
             var props    = feature.properties || {};
             var contour  = normaliseAnef(props.anef_contour);
+            var isNumeric = contour && /^\d+$/.test(contour);
             var name     = props.overlay_name || 'Aircraft Noise';
-            var label    = contour ? 'ANEF\u00a0' + contour : name;
+            var label    = isNumeric ? 'ANEF\u00a0' + contour : (props.anef_contour || name);
             lyr.bindPopup(
               '<b>' + escHtml(label) + '</b>' +
-              (contour ? '<br><span style="color:#555;">' + escHtml(name) + '</span>' : '') +
+              (isNumeric ? '<br><span style="color:#555;">' + escHtml(name) + '</span>' : '') +
               '<br><small style="color:#666;">Refer to AS\u00a02021 for aircraft noise intrusion building design requirements.</small>'
             );
           },
