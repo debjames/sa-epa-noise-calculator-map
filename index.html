@@ -1687,6 +1687,13 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   #map-column .map-status-row { max-width: none; }
 }
 
+/* Shift the topleft Leaflet control stack (status row + zoom) right when the
+   sidebar is expanded, to clear the 32px collapse-toggle that protrudes into
+   the map. Both controls share the same container so one rule moves both. */
+#app-layout:not(.side-panel-collapsed) #noise-map .leaflet-top.leaflet-left {
+  margin-left: 53px;
+}
+
 /* Drawer: right-side overlay */
 #drawer-panel {
   position: absolute;
