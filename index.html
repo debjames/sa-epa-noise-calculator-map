@@ -27014,10 +27014,23 @@ if (window.pdfjsLib) {
         }
         var anefLabel;
         if (anefVals.length) {
-          // Prefer numeric contour labels ("ANEF 25 contour"); fall back to raw value
-          anefLabel = anefVals.map(function(v) {
-            return /\d/.test(v) ? v + ' contour' : v;
-          }).join(', ');
+          // Pick the highest numeric contour (innermost zone wins).
+          // Values: "ANEF 25", "ANEF 40", "Area is subject to aircraft noise"
+          var best = null;
+          var bestNum = -1;
+          anefVals.forEach(function(v) {
+            var m = v.match(/(\d+)/);
+            if (m) {
+              var n = parseInt(m[1], 10);
+              if (n > bestNum) { bestNum = n; best = v; }
+            }
+          });
+          if (best) {
+            anefLabel = best + ' contour';
+          } else {
+            // No numeric contour — use first non-numeric value (e.g. "Area is subject...")
+            anefLabel = anefVals[0];
+          }
         } else {
           anefLabel = 'Not within ANEF contour';
         }
