@@ -8,10 +8,11 @@ Three display-only map layers sourced from SA Government open data (CC-BY 4.0). 
 
 | File | Purpose |
 |---|---|
-| `js/zone-categories.js` | Exposes `window.ZoneCategories` — `ZONE_CATEGORY_MAP`, `CATEGORY_COLOURS`, `CATEGORY_LABELS`, `categoriseZone(zoneName)`. |
 | Planning layers IIFE (inline `<script>` in `index.html`) | Toggle logic, lazy-loading, legend, attribution, save/load API |
 
 No external CDN dependencies for planning layers — all three layers use Leaflet's built-in `L.geoJSON` + `L.canvas()` renderer.
+
+Zone styling reuses the existing `ZONE_COLOURS` table and `getZoneColour(name)` function from the map IIFE (sourced from SAPPA MapServer layer 114 symbology). Exposed via `window._getZoneColour`, `window._getZoneLegendControl()`, and `window._populateZoneLegend(names)`.
 
 ### Data files (produced by GitHub Action)
 
@@ -21,7 +22,7 @@ No external CDN dependencies for planning layers — all three layers use Leafle
 | `data/overlays/noise-air-emissions.geojson` | Noise & Air Emissions overlay polygons, property: `overlay_name` |
 | `data/overlays/aircraft-noise.geojson` | Aircraft Noise (ANEF) overlay polygons, properties: `overlay_name`, `anef_contour` |
 | `data/metadata.json` | `fetched_utc`, feature counts, `geojson_mb`, `distinct_zone_names_count`, field name mapping |
-| `data/_discovery.json` | Written by discover mode — distinct zone/overlay names for populating `ZONE_CATEGORY_MAP` |
+| `data/_discovery.json` | Written by discover mode — distinct zone/overlay names for reference |
 
 ### Data pipeline
 
@@ -47,7 +48,7 @@ Three buttons added to Mapping▼ panel under group label "Planning layers (disp
 - `#planningNoiseBtn` — Noise & Air Emissions
 - `#planningAircraftBtn` — Aircraft Noise (ANEF)
 
-Zones legend: `L.control({ position: 'bottomleft' })`, collapsible, shows only when Zones layer is on. Unknown zone category flag (`_hasUnknownZone`) appends a magenta "Uncategorised" row.
+Zones legend: the shared "P&D Code Zones" `zoneLegendControl` (defined in the map IIFE, accessible via `window._getZoneLegendControl()`). Shows only when Zones layer is on. Populated by `window._populateZoneLegend(names)` from the visible GeoJSON features (refreshed on moveend). Colours from `ZONE_COLOURS` via `window._getZoneColour`.
 
 Attribution: added/removed via `map.attributionControl.addAttribution/removeAttribution` — shows when any planning layer is on; date from `metadata.json fetched_utc`.
 
@@ -61,14 +62,9 @@ Attribution: added/removed via `map.attributionControl.addAttribution/removeAttr
 |---|---|
 | `window._getPlanningLayers()` | Returns current toggle state object |
 | `window._setPlanningLayers(state)` | Applies toggle state (used by loadAssessment) |
-| `window.ZoneCategories.categoriseZone(name)` | Returns `{category, colour, label, knownCategory, zoneName}` |
-
-### Zone category map workflow
-
-1. Run Action in discover mode → `data/_discovery.json` lists every distinct `zone_name`.
-2. Populate `js/zone-categories.js` `ZONE_CATEGORY_MAP` with exact title-cased zone names (categories: `residential|commercial|mixed_use|industrial|rural|open_space|infrastructure`).
-3. Run Action in build mode → `sa-zones.geojson` + overlays produced.
-4. Any zone not in the map renders magenta (visible QA signal).
+| `window._getZoneColour(name)` | Returns zone fill colour from `ZONE_COLOURS` table (map IIFE) |
+| `window._getZoneLegendControl()` | Returns the shared `zoneLegendControl` singleton |
+| `window._populateZoneLegend(names)` | Populates legend from an array of zone names |
 
 ## GIS Import
 

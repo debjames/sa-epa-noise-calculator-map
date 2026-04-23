@@ -10,12 +10,12 @@
 - [ ] **Save/load round-trip** — Enable all 3 layers, Save Assessment JSON. Open JSON; verify `planningLayers: {zones:true, noiseAirEmissions:true, aircraftNoise:true}`. Reload — all 3 layers re-enabled.
 - [ ] **Load pre-existing JSON** — Load any JSON saved before this feature was added. Loads cleanly; all 3 planning layers default off. No console errors.
 - [ ] **_version unchanged** — Saved JSON has `"_version": 2` (not 3).
-- [ ] **`window.ZoneCategories` accessible** — Open DevTools console → `window.ZoneCategories.categoriseZone('Unknown Zone Xyz')` returns `{category:'unknown', colour:'#ff00ff', knownCategory:false}`.
+- [ ] **`window._getZoneColour` accessible** — Open DevTools console → `window._getZoneColour('General Neighbourhood')` returns a non-null colour string. `window._getZoneColour('Nonexistent Zone Xyz')` returns `'#999'`.
 
 ### Post-data: Zones (PlanSA)
 
 - [ ] **Layers toggle on/off** — Enable "Zones (PlanSA)"; GeoJSON zone layer appears on map. Disable; layer removed.
-- [ ] **Zones visible at zoom 12 — Adelaide metro** — Navigate to -34.92, 138.60 (Adelaide), zoom 12. Zone polygons render with colour fill. No magenta polygons in Greater Adelaide Planning Region (indicates all zone names are in `ZONE_CATEGORY_MAP`).
+- [ ] **Zones visible at zoom 12 — Adelaide metro** — Navigate to -34.92, 138.60 (Adelaide), zoom 12. Zone polygons render with per-zone SAPPA colours (e.g. General Neighbourhood pale pink, Employment blue-grey). Legend shows "P&D Code Zones" with viewport-visible zone swatches.
 - [ ] **Residential check** — Drop receiver at Prospect (~-34.89, 138.60). Zone polygon is pale yellow. SAPPA result in receiver panel says "General Neighbourhood" or similar residential zone.
 - [ ] **Industrial check** — Navigate to Regency Park (~-34.86, 138.56). Zone polygons render grey (industrial category).
 - [ ] **Rural/Hills check** — Navigate to Adelaide Hills. Zone polygons render green tones.
@@ -26,7 +26,7 @@
 - [ ] **Regional cities** — Pan to Mount Gambier (~-37.83, 140.78), Whyalla (~-33.03, 137.57), Port Lincoln (~-34.72, 135.87). Zones render without gaps.
 - [ ] **Legend appears** — When Zones ON, bottom-left legend appears with category swatches. Legend is collapsible (click header).
 - [ ] **Legend hides** — When Zones OFF, legend removed from map.
-- [ ] **Unknown zone magenta** — If any zone appears magenta, log the zone name and add to `ZONE_CATEGORY_MAP`. (Should be none after full population.)
+- [ ] **Unknown zone grey** — Any zone not in `ZONE_COLOURS` (e.g. "Workers' Settlement") renders `#999` grey rather than a named colour. This is cosmetic only — criteria are unaffected.
 
 ### Post-data: Noise & Air Emissions overlay
 

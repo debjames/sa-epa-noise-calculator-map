@@ -2074,7 +2074,6 @@ body.disclaimer-visible .container {
 <!-- Google Sheets source reference library (sole active source) -->
 <script src="js/sources-library.js?v=4"></script>
 <!-- PlanSA zone category map (display only — populated post-discover run) -->
-<script src="js/zone-categories.js?v=1"></script>
 </head>
 <body>
 
@@ -25743,6 +25742,28 @@ if (window.pdfjsLib) {
       });
     }
 
+    /* --- Expose zone styling to the planning layers IIFE (separate script) --- */
+    window._getZoneColour = getZoneColour;
+    window._getZoneLegendControl = function() { return zoneLegendControl; };
+    window._populateZoneLegend = function(names) {
+      var container = zoneLegendControl.getContainer();
+      if (!container) return;
+      var itemsDiv = container.querySelector('.zone-legend-items');
+      if (!itemsDiv) return;
+      if (!names || !names.length) {
+        itemsDiv.innerHTML = '<span style="color:#888;font-size:10px;">No zones in view</span>';
+        return;
+      }
+      var html = '';
+      names.slice().sort().forEach(function(name) {
+        var col = getZoneColour(name);
+        html += '<div class="zone-legend-item">' +
+          '<span class="zone-legend-swatch" style="background:' + col + ';"></span>' +
+          '<span class="zone-legend-name" title="' + name + '">' + name + '</span></div>';
+      });
+      itemsDiv.innerHTML = html;
+    };
+
     map.on('moveend', function() {
       if (!isZoneOn) return;
       clearTimeout(_zoneLegendTimer);
@@ -38988,9 +39009,7 @@ if (window.pdfjsLib) {
   var _noiseLayer    = null;  // L.geoJSON
   var _aircraftLayer = null;  // L.geoJSON
 
-  /* ── Legend + attribution state ─────────────────────────────────────────── */
-  var _zonesLegendCtrl  = null;
-  var _hasUnknownZone   = false;
+  /* ── Attribution state ──────────────────────────────────────────────────── */
   var _metadataDate     = null;   // fetched from data/metadata.json on first use
   var _planAttrAdded    = false;
   var PLAN_ATTR         = '\u00a9 Govt of SA (DHUD), CC-BY\u00a04.0 \u2014 planning data as at {date}';
@@ -39076,28 +39095,40 @@ if (window.pdfjsLib) {
     }
   }
 
+  /* ── Zone style: reuses ZONE_COLOURS from the map IIFE via window._getZoneColour ── */
+  function getZoneStyle(zoneName) {
+    var col = (window._getZoneColour && window._getZoneColour(zoneName)) || '#999';
+    return { fillColor: col, fillOpacity: 0.35, color: '#444', weight: 0.5, opacity: 0.5 };
+  }
+
+  /* Returns zone names visible in current map bounds (for legend population) */
+  function getVisibleZoneNames() {
+    if (!_zonesLayer) return [];
+    var m      = window._map;
+    var bounds = m && m.getBounds();
+    if (!bounds) return [];
+    var seen = {};
+    _zonesLayer.eachLayer(function(lyr) {
+      try {
+        var b = lyr.getBounds ? lyr.getBounds() : null;
+        if (!b || bounds.intersects(b)) {
+          var n = lyr.feature && lyr.feature.properties && lyr.feature.properties.zone_name;
+          if (n) seen[n] = true;
+        }
+      } catch(e) {}
+    });
+    return Object.keys(seen);
+  }
+
   /* ── Zones GeoJSON layer ────────────────────────────────────────────────── */
   function loadZonesLayer(callback) {
     fetch('./data/zones/sa-zones.geojson')
       .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
       .then(function(data) {
-        var ZC = window.ZoneCategories;
         var layer = L.geoJSON(data, {
           renderer: getCanvasRenderer(),
           style: function(feature) {
-            var props  = feature.properties || {};
-            var result = ZC ? ZC.categoriseZone(props.zone_name) : { colour: '#cccccc', knownCategory: false };
-            if (!result.knownCategory && !_hasUnknownZone) {
-              _hasUnknownZone = true;
-              refreshZonesLegend();
-            }
-            return {
-              fillColor:   result.colour,
-              fillOpacity: result.knownCategory ? 0.35 : 0.50,
-              color:       '#666',
-              weight:      0.5,
-              opacity:     0.5,
-            };
+            return getZoneStyle((feature.properties || {}).zone_name);
           },
           onEachFeature: function(feature, lyr) {
             var zoneName = (feature.properties || {}).zone_name || 'Unknown zone';
@@ -39158,63 +39189,6 @@ if (window.pdfjsLib) {
       .catch(function(e) { console.warn('[PlanSA] Failed to load aircraft overlay:', e); callback(null); });
   }
 
-  /* ── Zones legend (bottom-left) ──────────────────────────────────────────── */
-  function buildZonesLegend() {
-    var ctrl = L.control({ position: 'bottomleft' });
-    ctrl._planningLegend = true;
-    ctrl.onAdd = function() {
-      var div = L.DomUtil.create('div', 'planning-zones-legend leaflet-control');
-      div.style.cssText = 'background:#fff;padding:6px 8px;border-radius:4px;box-shadow:0 1px 5px rgba(0,0,0,0.25);font-size:11px;min-width:148px;line-height:1.6;';
-      div._isLegendDiv = true;
-      L.DomEvent.disableClickPropagation(div);
-      renderLegendContent(div);
-      return div;
-    };
-    return ctrl;
-  }
-
-  function renderLegendContent(div) {
-    var ZC = window.ZoneCategories;
-    if (!ZC) { div.innerHTML = '<b>PlanSA Zones</b><br><small>(display only)</small>'; return; }
-    var cats = ['residential','commercial','mixed_use','industrial','rural','open_space','infrastructure'];
-    var rows = cats.map(function(cat) {
-      var col = ZC.CATEGORY_COLOURS[cat] || '#ccc';
-      var lbl = ZC.CATEGORY_LABELS[cat]  || cat;
-      return '<div style="display:flex;align-items:center;gap:5px;white-space:nowrap;">' +
-             '<span style="display:inline-block;width:12px;height:12px;background:' + col + ';border:1px solid #999;flex-shrink:0;"></span>' +
-             escHtml(lbl) + '</div>';
-    });
-    if (_hasUnknownZone) {
-      rows.push(
-        '<div style="display:flex;align-items:center;gap:5px;white-space:nowrap;">' +
-        '<span style="display:inline-block;width:12px;height:12px;background:#ff00ff;border:1px solid #999;flex-shrink:0;"></span>' +
-        'Uncategorised (tool error \u2014 please report)</div>'
-      );
-    }
-    var collapsed = div._collapsed;
-    var arrow     = collapsed ? '&#9654;' : '&#9660;';
-    div.innerHTML =
-      '<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-bottom:' + (collapsed ? '0' : '4px') + ';" id="_planLegendHdr">' +
-      '<b style="font-size:11px;">PlanSA Zones</b>' +
-      '<span style="margin-left:8px;font-size:10px;color:#888;">(display only)</span>' +
-      '<span style="margin-left:6px;">' + arrow + '</span>' +
-      '</div>' +
-      (collapsed ? '' : '<div id="_planLegendBody">' + rows.join('') + '</div>');
-    var hdr = div.querySelector('#_planLegendHdr');
-    if (hdr) {
-      L.DomEvent.on(hdr, 'click', function() {
-        div._collapsed = !div._collapsed;
-        renderLegendContent(div);
-      });
-    }
-  }
-
-  function refreshZonesLegend() {
-    if (!_zonesLegendCtrl) return;
-    var div = _zonesLegendCtrl.getContainer ? _zonesLegendCtrl.getContainer() : null;
-    if (div && div._isLegendDiv) renderLegendContent(div);
-  }
-
   /* ── Toggle helpers ──────────────────────────────────────────────────────── */
   function addLayerToMap(layer) {
     var m = window._map;
@@ -39226,6 +39200,20 @@ if (window.pdfjsLib) {
   }
 
   /* ── Toggle: Zones ───────────────────────────────────────────────────────── */
+  function _showZonesLegend() {
+    var m    = window._map;
+    var ctrl = window._getZoneLegendControl && window._getZoneLegendControl();
+    if (!m || !ctrl) return;
+    if (!ctrl.getContainer()) ctrl.addTo(m);
+    if (window._populateZoneLegend) window._populateZoneLegend(getVisibleZoneNames());
+  }
+
+  function _hideZonesLegend() {
+    var m    = window._map;
+    var ctrl = window._getZoneLegendControl && window._getZoneLegendControl();
+    if (m && ctrl && ctrl.getContainer()) { try { m.removeControl(ctrl); } catch(e) {} }
+  }
+
   function toggleZones(on) {
     _planZonesOn = on;
     var btn = document.getElementById('planningZonesBtn');
@@ -39236,30 +39224,15 @@ if (window.pdfjsLib) {
       if (!_zonesLayer) {
         loadZonesLayer(function(layer) {
           _zonesLayer = layer;
-          if (_planZonesOn) {
-            addLayerToMap(_zonesLayer);
-            if (!_zonesLegendCtrl) {
-              _zonesLegendCtrl = buildZonesLegend();
-              var m = window._map;
-              if (m) _zonesLegendCtrl.addTo(m);
-            }
-          }
+          if (_planZonesOn) { addLayerToMap(_zonesLayer); _showZonesLegend(); }
         });
       } else {
         addLayerToMap(_zonesLayer);
-        if (!_zonesLegendCtrl) {
-          _zonesLegendCtrl = buildZonesLegend();
-          var m = window._map;
-          if (m) _zonesLegendCtrl.addTo(m);
-        }
+        _showZonesLegend();
       }
     } else {
       removeLayerFromMap(_zonesLayer);
-      if (_zonesLegendCtrl) {
-        var m = window._map;
-        if (m) m.removeControl(_zonesLegendCtrl);
-        _zonesLegendCtrl = null;
-      }
+      _hideZonesLegend();
     }
     updateAttribution();
   }
@@ -39308,7 +39281,7 @@ if (window.pdfjsLib) {
     updateAttribution();
   }
 
-  /* ── Wire up buttons ─────────────────────────────────────────────────────── */
+  /* ── Wire up buttons + legend moveend refresh ───────────────────────────── */
   document.addEventListener('DOMContentLoaded', function() {
     var zonesBtn    = document.getElementById('planningZonesBtn');
     var noiseBtn    = document.getElementById('planningNoiseBtn');
@@ -39317,6 +39290,16 @@ if (window.pdfjsLib) {
     if (zonesBtn)    zonesBtn.addEventListener(   'click', function() { toggleZones(   !_planZonesOn);    });
     if (noiseBtn)    noiseBtn.addEventListener(   'click', function() { toggleNoise(   !_planNoiseOn);    });
     if (aircraftBtn) aircraftBtn.addEventListener('click', function() { toggleAircraft(!_planAircraftOn); });
+
+    // Refresh zones legend when map pans/zooms (show only zones visible in viewport)
+    var m = window._map;
+    if (m) {
+      m.on('moveend', function() {
+        if (_planZonesOn && window._populateZoneLegend) {
+          window._populateZoneLegend(getVisibleZoneNames());
+        }
+      });
+    }
   });
 
   /* ── Save / load API ─────────────────────────────────────────────────────── */
