@@ -528,11 +528,17 @@ Inserted after the line source button at [index.html:2116](../index.html:2116):
 `drawCortnRoadBtn` click → cancels other active draw modes (line source, barriers) → enables `L.Draw.Polyline` with `CORTN_STYLE`. A dedicated `map.on(L.Draw.Event.CREATED)` listener checks `_cortnDrawHandler` and bails out otherwise — this coexists with the line source CREATED listener, each does nothing unless its own handler is active.
 
 On completion:
-1. Extract vertices
-2. `newCr = _cortnDefaultRoad(verts)` → push into `cortnRoads`
+1. Check `window._pendingCortnId` (set when an unplaced road row in the Objects window was clicked). If set, find the matching `cortnRoads[]` entry and assign `vertices` to it — skip creating a new road. Clear `_pendingCortnId`.
+2. If no pending ID: `newCr = _cortnDefaultRoad(verts)` → push into `cortnRoads`
 3. `renderCortnRoadLayer()`
-4. `window._undoPushState('Add CoRTN road')`
-5. `openCortnPanel(newCr.id)`
+4. `window._undoPushState('Add/Place CoRTN road')`
+5. `openCortnPanel(cr.id)`
+
+The same **pending-ID pattern** applies to all polyline/polygon draw tools:
+- `window._pendingLsId` — line source (checked in `L.Draw.Event.CREATED` for line source)
+- `window._pendingAsId` — area source (checked in area source CREATED handler)
+- `window._pendingBsId` — building source (checked inside the building source popup OK button)
+- `window._pendingCortnId` — CoRTN road (checked above)
 
 ### Floating panel `#cortnFloatPanel`
 
@@ -590,7 +596,7 @@ The map area (inside `#map-column`) is flanked by two panels:
 
 ### LHS additional panels (beyond Mapping/Tools/Modelling)
 
-- **`#mp-objects`** — Objects LHS button (no body); clicking `#objectsToggleBtn` opens `#objectsFloatPanel`, a draggable `position:fixed` overlay (same pattern as `#helpFloatPanel` / `#suggestFloatPanel`).
+- **`#mp-objects`** — Objects LHS button (no body); clicking `#objectsToggleBtn` opens `#objectsFloatPanel`, a draggable `position:fixed` overlay (same pattern as `#helpFloatPanel` / `#suggestFloatPanel`). The panel lists all source types: point sources, line sources, area sources, building sources, and CoRTN roads. Unplaced sources (those with `vertices.length < 2`, or for point sources no `latlng`) show "not placed — click to place" in grey italic. Clicking an unplaced row activates the draw tool for that source type using the pending-ID pattern (`window._pendingLsId` / `_pendingAsId` / `_pendingBsId` / `_pendingCortnId`). `_renderObjectList()` re-renders the whole list; `_objRowClick(type, idx)` handles row clicks; `_objMenuBtn(type, idx)` opens the ⋮ context menu; `_objDelete(type, idx)` and `_objDuplicate(type, idx)` handle delete/duplicate for all five source types including CoRTN roads.
 - **`#mp-propmethod`** — Propagation method accordion: method toggle buttons (`#propMethodGroup`), ISO 9613-2 params (`#iso9613Params`), CONCAWE params (`#concaweMetPanel`), ISO validation runner. The old RHS Propagation method `.grid2` is kept in HTML but hidden with `style="display:none"`.
 - **`#mp-customsrc`** — Custom sources accordion containing `#customSrcBody`. The old RHS Custom sources `.grid2` is hidden with `style="display:none"`. All existing JS using `getElementById('customSrcBody')` etc. is unaffected because LHS elements appear first in DOM.
 
