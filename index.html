@@ -23079,6 +23079,10 @@ setInitialCollapseState();
         });
         _legacyMigrated = true;
       }
+      // Migration: rename "Medium exhaust fan" sources created before 2026-04 rename (2026-04)
+      sourcePins.forEach(function(pin) {
+        if (pin.name === 'Medium exhaust fan') pin.name = 'Small exhaust fan';
+      });
       // Re-render source pins UI
       if (typeof renderSourcePins === 'function') renderSourcePins();
 
@@ -40256,31 +40260,31 @@ if (window.pdfjsLib) {
     { id: 'office_commercial', label: 'Office / Commercial',
       keywords: ['office', 'commercial', 'business', 'corporate', 'headquarters', 'hq', 'workplace', 'coworking', 'co-working'],
       sources: [
-        { type: 'point', searchName: 'condenser',   defaultName: 'Medium condenser' },
-        { type: 'point', searchName: 'exhaust fan', defaultName: 'Medium exhaust fan' }
+        { type: 'point', searchName: 'medium double fan', defaultName: 'Medium condenser' },
+        { type: 'point', searchName: 'garbage room',      defaultName: 'Small exhaust fan' }
       ]
     },
     { id: 'generator_plant', label: 'Generator / Plant room',
       keywords: ['generator', 'gen set', 'genset', 'diesel', 'fire pump room', 'fire pump'],
       sources: [
         { type: 'point', searchName: 'generator',  defaultName: 'Generator engine' },
-        { type: 'point', searchName: 'fire pump', defaultName: 'Fire pump' }
+        { type: 'point', searchName: 'PowerMaXX',  defaultName: 'Fire pump' }
       ]
     },
     { id: 'function_venue', label: 'Function / Hospitality',
       keywords: ['restaurant', 'cafe', 'bar', 'pub', 'hotel', 'tavern', 'function', 'venue', 'nightclub', 'club', 'lounge', 'bistro', 'eatery', 'dining', 'reception', 'hospitality', 'wedding', 'events', 'pavilion', 'beer garden'],
       sources: [
-        { type: 'point', searchName: 'condenser',   defaultName: 'Medium condenser' },
-        { type: 'point', searchName: 'exhaust fan', defaultName: 'Medium exhaust fan' },
+        { type: 'point', searchName: 'medium double fan', defaultName: 'Medium condenser' },
+        { type: 'point', searchName: 'garbage room',      defaultName: 'Small exhaust fan' },
         { type: 'building', searchName: 'Foreground music - Ambient DJ - L10', defaultName: 'Venue \u2014 music (Ambient DJ L10)' },
-        { type: 'area',  searchName: 'patron',       defaultName: 'Patrons (outdoor)' }
+        { type: 'area',  searchName: 'patron in bar',    defaultName: 'Patrons (outdoor)' }
       ]
     },
     { id: 'fast_food', label: 'Fast food / Drive-through',
       keywords: ['fast food', 'fast_food', 'drive-through', 'drive through', 'drive-thru', 'drivethru', 'takeaway', "McDonald's", 'KFC', "Hungry Jack's", 'Subway', 'Red Rooster', "Domino's", 'Nandos'],
       sources: [
         { type: 'point', searchName: 'speaker box', defaultName: 'Speaker box' },
-        { type: 'area',  searchName: 'patron',       defaultName: 'Patrons (outdoor)' },
+        { type: 'area',  searchName: 'patron in bar', defaultName: 'Patrons (outdoor)' },
         { type: 'area',  searchName: 'car idling',   defaultName: 'Car idling' }
       ]
     },
@@ -40288,7 +40292,7 @@ if (window.pdfjsLib) {
       keywords: ['car wash', 'carwash', 'car_wash', 'auto wash', 'vehicle wash', 'detailing'],
       sources: [
         { type: 'point', searchName: 'vacuum',            defaultName: 'Vacuum' },
-        { type: 'point', searchName: 'car wash',           defaultName: 'Car wash auto' },
+        { type: 'point', searchName: 'car wash - auto',    defaultName: 'Car wash auto' },
         { type: 'line',  searchName: 'car driving slowly', defaultName: 'Car driving slowly' },
         { type: 'point', searchName: 'car idling',         defaultName: 'Car idling' }
       ]
@@ -40300,27 +40304,27 @@ if (window.pdfjsLib) {
         { type: 'line',  searchName: 'large truck exhaust', defaultName: 'Large truck exhaust' },
         { type: 'point', searchName: 'vacuum',              defaultName: 'Vacuum' },
         { type: 'area',  searchName: 'car idling',          defaultName: 'Car idling' },
-        { type: 'point', searchName: 'condenser',           defaultName: 'Medium condenser' },
-        { type: 'point', searchName: 'exhaust fan',         defaultName: 'Medium exhaust fan' }
+        { type: 'point', searchName: 'medium double fan',   defaultName: 'Medium condenser' },
+        { type: 'point', searchName: 'garbage room',        defaultName: 'Small exhaust fan' }
       ]
     },
     { id: 'industrial_warehouse', label: 'Industrial / Warehouse',
       keywords: ['industrial', 'warehouse', 'factory', 'manufacturing', 'workshop', 'depot', 'distribution', 'logistics', 'plant', 'yard', 'industrial estate', 'industrial_estate'],
       sources: [
-        { type: 'area',     searchName: 'electric forklift',    defaultName: 'Electric forklift movements' },
-        { type: 'line',     searchName: 'medium truck',         defaultName: 'Medium truck movements' },
-        { type: 'line',     searchName: 'medium truck exhaust', defaultName: 'Medium truck exhaust' },
-        { type: 'area',     searchName: 'unloading',            defaultName: 'Unloading activity', isStub: true },
-        { type: 'building', searchName: 'Sheet metal',           defaultName: 'Warehouse shell' }
+        { type: 'area',     searchName: 'electric forklift - typical', defaultName: 'Electric forklift movements' },
+        { type: 'line',     searchName: 'medium truck',               defaultName: 'Medium truck movements' },
+        { type: 'line',     searchName: 'medium truck exhaust',       defaultName: 'Medium truck exhaust' },
+        { type: 'area',     searchName: 'unloading',                  defaultName: 'Unloading activity', isStub: true },
+        { type: 'building', searchName: 'Warehouse - internal reverberant', constructionSearchName: 'Sheet metal', defaultName: 'Warehouse shell' }
       ]
     },
     { id: 'childcare', label: 'Childcare',
       keywords: ['childcare', 'child care', 'child_care', 'daycare', 'day care', 'kindergarten', 'kindy', 'elc', 'early learning', 'preschool', 'pre-school', 'nursery', 'creche', 'oshc'],
       sources: [
-        { type: 'area',  searchName: 'car idling',  defaultName: 'Car park \u2014 car idling' },
-        { type: 'area',  searchName: 'children',    defaultName: 'Children (10 children 2\u20133 yrs)', isStub: true },
-        { type: 'point', searchName: 'condenser',   defaultName: 'Medium condenser' },
-        { type: 'point', searchName: 'exhaust fan', defaultName: 'Medium exhaust fan' }
+        { type: 'area',  searchName: 'car idling',       defaultName: 'Car park \u2014 car idling' },
+        { type: 'area',  searchName: '2 - 3 years',     defaultName: 'Children (10 children 2\u20133 yrs)' },
+        { type: 'point', searchName: 'medium double fan', defaultName: 'Medium condenser' },
+        { type: 'point', searchName: 'garbage room',      defaultName: 'Small exhaust fan' }
       ]
     }
   ];
@@ -40675,6 +40679,18 @@ if (window.pdfjsLib) {
             ['day', 'eve', 'night'].forEach(function(p) {
               newBs.interiorLp[p] = { broadband: fillDba, octave: fillOct2 };
             });
+          }
+        }
+        /* Pre-apply shell construction if constructionSearchName is specified */
+        if (srcDef.constructionSearchName && typeof CONSTRUCTION_LIBRARY !== 'undefined') {
+          var _csLow = srcDef.constructionSearchName.toLowerCase();
+          var _csLib = CONSTRUCTION_LIBRARY.walls || [];
+          for (var _ci2 = 0; _ci2 < _csLib.length; _ci2++) {
+            if (_csLib[_ci2].name && _csLib[_ci2].name.toLowerCase().indexOf(_csLow) !== -1) {
+              newBs.defaultConstruction = JSON.parse(JSON.stringify(_csLib[_ci2]));
+              newBs.roofConstruction    = Object.assign(JSON.parse(JSON.stringify(_csLib[_ci2])), { enabled: true });
+              break;
+            }
           }
         }
         buildingSources.push(newBs);
