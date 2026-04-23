@@ -2523,7 +2523,6 @@ body.disclaimer-visible .container {
                 <button class="mp-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Urban area<span class="mp-kbd">U</span></button>
                 <div class="mp-sep"></div>
                 <div style="font-size:9px;color:rgba(255,255,255,0.45);padding:1px 8px 2px;text-transform:uppercase;letter-spacing:0.05em;">Planning layers (display only)</div>
-                <button class="mp-btn" id="planningZonesBtn" title="Show PlanSA zones (display only \u2014 does not affect SA criteria; SAPPA API is the source of truth)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="2" width="9" height="9"/><rect x="13" y="2" width="9" height="9"/><rect x="2" y="13" width="9" height="9"/><rect x="13" y="13" width="9" height="9"/></svg> Zones (PlanSA)</button>
                 <button class="mp-btn" id="planningNoiseBtn" title="Show Noise &amp; Air Emissions overlay (display only \u2014 refer to SA EPA Noise Policy for criteria)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg> Noise &amp; Air Emissions</button>
                 <button class="mp-btn" id="planningAircraftBtn" title="Show Aircraft Noise (ANEF) overlay (display only \u2014 refer to AS 2021 for building design requirements)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg> Aircraft Noise (ANEF)</button>
               </div>
@@ -12314,7 +12313,7 @@ function updateZoneDescText() {
 function updateZoneToggleLabel() {
   const btn = document.getElementById('zoneToggleBtn');
   if (!btn) return;
-  btn.title = currentState === 'VIC' ? 'Toggle VicPlan zoning overlay on map' : currentState === 'NSW' ? 'Toggle NSW planning zones overlay on map' : 'Toggle SAPPA zoning overlay on map';
+  btn.title = currentState === 'VIC' ? 'Toggle VicPlan zoning overlay on map' : currentState === 'NSW' ? 'Toggle NSW planning zones overlay on map' : 'Toggle PlanSA zones on map';
 }
 
 function updateOpTimeHeaders() {
@@ -25809,40 +25808,35 @@ if (window.pdfjsLib) {
     var zoneToggle = document.getElementById('zoneToggleBtn');
     if (zoneToggle) {
       zoneToggle.addEventListener('click', function() {
-        var overlay = getActiveZoneOverlay();
-        if (!overlay) {
-          if (currentState === 'SA') {
-            alert('SA zone overlay unavailable \u2014 the SAPPA ArcGIS REST API has changed and now requires authentication.\n\nUse SAPPA directly to view zones: https://sappa.plan.sa.gov.au/\n\nSelect zones manually using the \u270f edit button on each receiver.');
-          } else {
-            alert('Zoning overlay could not be loaded.');
+        // SA: delegate to static GeoJSON layer via planning IIFE
+        if (currentState === 'SA') {
+          if (typeof window._togglePlanZones === 'function') {
+            window._togglePlanZones(!window._isPlanZonesOn());
           }
           return;
         }
+        // VIC / NSW: existing dynamic overlay behaviour (unchanged)
+        var overlay = getActiveZoneOverlay();
+        if (!overlay) {
+          alert('Zoning overlay could not be loaded.');
+          return;
+        }
         if (isZoneOn) {
-          // Remove all possible overlays
           if (zoningOverlay && map.hasLayer(zoningOverlay)) map.removeLayer(zoningOverlay);
           if (vicZoningOverlay && map.hasLayer(vicZoningOverlay)) map.removeLayer(vicZoningOverlay);
           if (nswZoningOverlay && map.hasLayer(nswZoningOverlay)) map.removeLayer(nswZoningOverlay);
           if (zoneOutlineLayer && map.hasLayer(zoneOutlineLayer)) map.removeLayer(zoneOutlineLayer);
           if (subzoneFeatureLayer) map.removeLayer(subzoneFeatureLayer);
           map.closeTooltip(hoverTooltip);
-          // Remove legend
           if (zoneLegendControl.getContainer()) { try { map.removeControl(zoneLegendControl); } catch(e) {} }
           isZoneOn = false;
           zoneToggle.classList.remove('active');
-          zoneToggle.innerHTML = ICON_GRID + ' Show Zones';
+          zoneToggle.innerHTML = ICON_GRID + ' Show zones<span class="mp-kbd">Z</span>';
         } else {
           isZoneOn = true;
           overlay.addTo(map);
-          // SA-specific: outline layer, subzone layer, and legend
-          if (currentState === 'SA') {
-            if (zoneOutlineLayer) zoneOutlineLayer.addTo(map);
-            if (subzoneFeatureLayer) subzoneFeatureLayer.addTo(map);
-            zoneLegendControl.addTo(map);
-            refreshZoneLegend();
-          }
           zoneToggle.classList.add('active');
-          zoneToggle.innerHTML = ICON_GRID + ' Hide Zones';
+          zoneToggle.innerHTML = ICON_GRID + ' Hide zones<span class="mp-kbd">Z</span>';
         }
       });
     }
@@ -39447,6 +39441,13 @@ if (window.pdfjsLib) {
     _planZonesOn = on;
     var btn = document.getElementById('planningZonesBtn');
     if (btn) btn.classList.toggle('active', on);
+    var zoneMapBtn = document.getElementById('zoneToggleBtn');
+    if (zoneMapBtn) {
+      zoneMapBtn.classList.toggle('active', on);
+      var svgEl = zoneMapBtn.querySelector('svg');
+      var svgStr = svgEl ? svgEl.outerHTML : '';
+      zoneMapBtn.innerHTML = svgStr + (on ? ' Hide zones' : ' Show zones') + '<span class="mp-kbd">Z</span>';
+    }
 
     if (on) {
       fetchMetadata();
@@ -39512,11 +39513,9 @@ if (window.pdfjsLib) {
 
   /* ── Wire up buttons + legend moveend refresh ───────────────────────────── */
   document.addEventListener('DOMContentLoaded', function() {
-    var zonesBtn    = document.getElementById('planningZonesBtn');
     var noiseBtn    = document.getElementById('planningNoiseBtn');
     var aircraftBtn = document.getElementById('planningAircraftBtn');
 
-    if (zonesBtn)    zonesBtn.addEventListener(   'click', function() { toggleZones(   !_planZonesOn);    });
     if (noiseBtn)    noiseBtn.addEventListener(   'click', function() { toggleNoise(   !_planNoiseOn);    });
     if (aircraftBtn) aircraftBtn.addEventListener('click', function() { toggleAircraft(!_planAircraftOn); });
 
@@ -39528,6 +39527,10 @@ if (window.pdfjsLib) {
       });
     }
   });
+
+  /* ── Cross-IIFE zone toggle API ─────────────────────────────────────────── */
+  window._togglePlanZones = toggleZones;
+  window._isPlanZonesOn   = function() { return _planZonesOn; };
 
   /* ── Save / load API ─────────────────────────────────────────────────────── */
   window._getPlanningLayers = function() {
