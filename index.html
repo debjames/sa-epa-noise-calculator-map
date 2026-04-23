@@ -25263,8 +25263,6 @@ if (window.pdfjsLib) {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/protomaps-leaflet@4.0.1/dist/protomaps-leaflet.min.js" crossorigin="anonymous"></script>
 <script>
 (function () {
   'use strict';
@@ -38978,8 +38976,15 @@ if (window.pdfjsLib) {
   var _planNoiseOn    = false;
   var _planAircraftOn = false;
 
+  /* ── Shared canvas renderer (required for ~5,400 zone polygons) ────────── */
+  var _canvasRenderer = null;
+  function getCanvasRenderer() {
+    if (!_canvasRenderer) _canvasRenderer = L.canvas({ padding: 0.5 });
+    return _canvasRenderer;
+  }
+
   /* ── Layer cache (lazy-init on first toggle-on) ─────────────────────────── */
-  var _zonesLayer    = null;  // protomaps-leaflet layer
+  var _zonesLayer    = null;  // L.geoJSON
   var _noiseLayer    = null;  // L.geoJSON
   var _aircraftLayer = null;  // L.geoJSON
 
@@ -39071,57 +39076,40 @@ if (window.pdfjsLib) {
     }
   }
 
-  /* ── Zones PMTiles layer (protomaps-leaflet) ─────────────────────────────── */
-  function buildZonesLayer() {
-    if (!window.protomapsL) {
-      console.warn('[PlanSA] protomaps-leaflet not loaded — Zones layer unavailable');
-      return null;
-    }
-    var ZC = window.ZoneCategories;
-
-    var layer = protomapsL.leafletLayer({
-      url: './data/zones/sa-zones.pmtiles',
-      paint_rules: [
-        {
-          dataLayer: 'zones',
-          symbolizer: new protomapsL.PolygonSymbolizer({
-            fill: function(zoom, feature) {
-              if (!ZC) return '#cccccc';
-              var result = ZC.categoriseZone((feature.props || {}).zone_name);
-              if (!result.knownCategory && !_hasUnknownZone) {
-                _hasUnknownZone = true;
-                refreshZonesLegend();
-              }
-              return result.colour;
-            },
-            opacity: function(zoom, feature) {
-              if (!ZC) return 0.35;
-              var result = ZC.categoriseZone((feature.props || {}).zone_name);
-              return result.category === 'unknown' ? 0.50 : 0.35;
-            },
-            stroke: '#666666',
-            width:  0.5,
-          }),
-        },
-      ],
-      label_rules: [],
-      onClick: function(features, e) {
-        if (!features || !features.length) return;
-        var feat     = features[0];
-        var zoneName = (feat.props || {}).zone_name || 'Unknown zone';
-        var m        = window._map;
-        if (!m) return;
-        L.popup()
-          .setLatLng(e.latlng)
-          .setContent(
-            '<b>' + escHtml(zoneName) + '</b>' +
-            '<br><small style="color:#666;">SAPPA zone at this point may differ \u2014 receiver criteria use the live SAPPA API.</small>'
-          )
-          .openOn(m);
-      },
-    });
-
-    return layer;
+  /* ── Zones GeoJSON layer ────────────────────────────────────────────────── */
+  function loadZonesLayer(callback) {
+    fetch('./data/zones/sa-zones.geojson')
+      .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+      .then(function(data) {
+        var ZC = window.ZoneCategories;
+        var layer = L.geoJSON(data, {
+          renderer: getCanvasRenderer(),
+          style: function(feature) {
+            var props  = feature.properties || {};
+            var result = ZC ? ZC.categoriseZone(props.zone_name) : { colour: '#cccccc', knownCategory: false };
+            if (!result.knownCategory && !_hasUnknownZone) {
+              _hasUnknownZone = true;
+              refreshZonesLegend();
+            }
+            return {
+              fillColor:   result.colour,
+              fillOpacity: result.knownCategory ? 0.35 : 0.50,
+              color:       '#666',
+              weight:      0.5,
+              opacity:     0.5,
+            };
+          },
+          onEachFeature: function(feature, lyr) {
+            var zoneName = (feature.properties || {}).zone_name || 'Unknown zone';
+            lyr.bindPopup(
+              '<b>' + escHtml(zoneName) + '</b>' +
+              '<br><small style="color:#666;">SAPPA zone at this point may differ \u2014 receiver criteria use the live SAPPA API.</small>'
+            );
+          },
+        });
+        callback(layer);
+      })
+      .catch(function(e) { console.warn('[PlanSA] Failed to load zones:', e); callback(null); });
   }
 
   /* ── Overlay GeoJSON layers ──────────────────────────────────────────────── */
@@ -39130,6 +39118,7 @@ if (window.pdfjsLib) {
       .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
       .then(function(data) {
         var layer = L.geoJSON(data, {
+          renderer: getCanvasRenderer(),
           style: { color: '#d62728', weight: 1, opacity: 0.6, fillColor: '#d62728', fillOpacity: 0.15 },
           onEachFeature: function(feature, lyr) {
             var name = (feature.properties || {}).overlay_name || 'Noise and Air Emissions';
@@ -39149,6 +39138,7 @@ if (window.pdfjsLib) {
       .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
       .then(function(data) {
         var layer = L.geoJSON(data, {
+          renderer: getCanvasRenderer(),
           style: function(feature) { return anefStyle(feature); },
           onEachFeature: function(feature, lyr) {
             var props    = feature.properties || {};
@@ -39243,13 +39233,25 @@ if (window.pdfjsLib) {
 
     if (on) {
       fetchMetadata();
-      if (!_zonesLayer) _zonesLayer = buildZonesLayer();
-      addLayerToMap(_zonesLayer);
-      // Add legend
-      if (!_zonesLegendCtrl) {
-        _zonesLegendCtrl = buildZonesLegend();
-        var m = window._map;
-        if (m) _zonesLegendCtrl.addTo(m);
+      if (!_zonesLayer) {
+        loadZonesLayer(function(layer) {
+          _zonesLayer = layer;
+          if (_planZonesOn) {
+            addLayerToMap(_zonesLayer);
+            if (!_zonesLegendCtrl) {
+              _zonesLegendCtrl = buildZonesLegend();
+              var m = window._map;
+              if (m) _zonesLegendCtrl.addTo(m);
+            }
+          }
+        });
+      } else {
+        addLayerToMap(_zonesLayer);
+        if (!_zonesLegendCtrl) {
+          _zonesLegendCtrl = buildZonesLegend();
+          var m = window._map;
+          if (m) _zonesLegendCtrl.addTo(m);
+        }
       }
     } else {
       removeLayerFromMap(_zonesLayer);

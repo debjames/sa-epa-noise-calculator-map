@@ -6,7 +6,7 @@
   "distinct_zone_names_count": 65,
   "noise_feature_count": 160,
   "aircraft_feature_count": 36,
-  "pmtiles_mb": 10.45,
+  "geojson_mb": null,
   "overlay_name_field": "name",
   "anef_contour_field": "value",
   "zone_name_field": "name",

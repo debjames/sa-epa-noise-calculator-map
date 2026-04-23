@@ -3,7 +3,7 @@
  *
  * This map governs the visual colour of the PlanSA Zones display layer only.
  * SA criteria derivation uses SAPPA API at each receiver — not this map.
- * Any zone name in the PMTiles that isn't in this map renders magenta
+ * Any zone name in the GeoJSON that isn't in this map renders magenta
  * (obvious "please add me" signal during QA).
  *
  * POPULATING: run MODE=discover Action, read data/_discovery.json for every
@@ -17,8 +17,8 @@
 
   /**
    * Exact zone name → category mapping.
-   * Keys must be EXACTLY as they appear in the PMTiles (title-cased by the
-   * build script). Values must be one of the CATEGORY_COLOURS keys below.
+   * Keys must be EXACTLY as they appear in sa-zones.geojson (title-cased by
+   * the build script). Values must be one of the CATEGORY_COLOURS keys below.
    *
    * NOTE: this map is intentionally EMPTY before the first discover run.
    * Populate after running the GitHub Action in discover mode and reviewing

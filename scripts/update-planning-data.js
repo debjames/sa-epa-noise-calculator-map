@@ -4,12 +4,12 @@
  *
  * Downloads SA Planning & Design Code data and produces:
  *   MODE=discover  → data/_discovery.json (inspect before building)
- *   MODE=build     → data/zones/sa-zones.pmtiles
+ *   MODE=build     → data/zones/sa-zones.geojson
  *                    data/overlays/noise-air-emissions.geojson
  *                    data/overlays/aircraft-noise.geojson
  *                    data/metadata.json
  *
- * Local Windows usage: DISCOVER mode only (tippecanoe not available on Windows).
+ * Local Windows usage: DISCOVER mode only (mapshaper may have issues on Windows paths).
  * BUILD mode runs in the GitHub Action on Ubuntu.
  *
  * Env vars:
@@ -23,7 +23,6 @@
  *     It is stream-parsed with JSONStream to stay within Node.js limits.
  */
 
-import { execSync }                                         from 'child_process';
 import { createReadStream, createWriteStream,
          existsSync, mkdirSync, readFileSync,
          readdirSync, rmSync, statSync,
@@ -52,7 +51,7 @@ const OVERLAYS_DIR = join(DATA_DIR, 'overlays');
 const TMP_DIR      = join(tmpdir(), 'planning-data-' + process.pid);
 
 const MIN_ZONE_FEATURES = 4_000;   // statewide SA zones are ~5,300 in the GDA2020 file
-const MAX_PMTILES_MB    = 95;
+const MAX_ZONES_GEOJSON_MB = 30;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilities
@@ -427,23 +426,17 @@ async function runBuild(zonesDir, overlaysDir) {
   log('Noise GeoJSON    → ' + noiseOutPath);
   log('Aircraft GeoJSON → ' + aircraftOutPath);
 
-  // ── Zones → PMTiles ────────────────────────────────────────────────────────
+  // ── Zones → GeoJSON ───────────────────────────────────────────────────────
   ensureDir(ZONES_DIR);
   const zonesFiles = findGeoJSONFiles(zonesDir);
 
-  // Load zones normally (GDA2020 only, ~5,400 features — well within memory)
   let allZoneFeatures = [];
   for (const f of zonesFiles) {
     log('Loading zones: ' + basename(f));
-    const { count, fieldValues } = await streamCollectStats(f);
-    log('  → ' + count + ' zone features');
-  }
-
-  // Re-read to build the output FeatureCollection (small enough for readFileSync)
-  for (const f of zonesFiles) {
     await streamFeatures(f, function(feat) {
       allZoneFeatures.push(feat);
     });
+    log('  → ' + allZoneFeatures.length + ' zone features so far');
   }
 
   log('Total zone features: ' + allZoneFeatures.length);
@@ -454,7 +447,7 @@ async function runBuild(zonesDir, overlaysDir) {
   const zonesFC = {
     type: 'FeatureCollection',
     features: allZoneFeatures.map(function(feat) {
-      const props   = feat.properties || {};
+      const props    = feat.properties || {};
       const outProps = { zone_name: toTitleCase(String(props[zoneNameField] || '')) };
       if (subzoneNameField && props[subzoneNameField]) {
         outProps.subzone_name = toTitleCase(String(props[subzoneNameField]));
@@ -464,35 +457,17 @@ async function runBuild(zonesDir, overlaysDir) {
   };
 
   const zonesTmpPath = join(TMP_DIR, 'zones-processed.geojson');
-  const pmtilesPath  = join(ZONES_DIR, 'sa-zones.pmtiles');
+  const zonesOutPath = join(ZONES_DIR, 'sa-zones.geojson');
   writeFileSync(zonesTmpPath, JSON.stringify(zonesFC), 'utf8');
   log('zones-processed.geojson written (' + allZoneFeatures.length + ' features)');
 
-  const tippecanoeCmd = [
-    'tippecanoe',
-    '--output=' + pmtilesPath,
-    '--layer=zones',
-    '--minimum-zoom=8',
-    '--maximum-zoom=14',
-    '--no-feature-limit',
-    '--no-tile-size-limit',
-    '--detect-shared-borders',
-    '--simplification=10',
-    '--force',
-    zonesTmpPath,
-  ].join(' ');
+  await simplifyWithMapshaper(zonesTmpPath, zonesOutPath);
+  log('sa-zones.geojson → ' + zonesOutPath);
 
-  log('Running tippecanoe...');
-  try {
-    execSync(tippecanoeCmd, { stdio: 'inherit' });
-  } catch (e) {
-    die('tippecanoe failed: ' + e.message);
-  }
-
-  const pmtilesMB = statSync(pmtilesPath).size / (1024 * 1024);
-  log('sa-zones.pmtiles: ' + pmtilesMB.toFixed(1) + ' MB');
-  if (pmtilesMB > MAX_PMTILES_MB) {
-    die('sa-zones.pmtiles (' + pmtilesMB.toFixed(1) + ' MB) exceeds ' + MAX_PMTILES_MB + ' MB limit');
+  const geojsonMB = statSync(zonesOutPath).size / (1024 * 1024);
+  log('sa-zones.geojson: ' + geojsonMB.toFixed(1) + ' MB');
+  if (geojsonMB > MAX_ZONES_GEOJSON_MB) {
+    die('sa-zones.geojson (' + geojsonMB.toFixed(1) + ' MB) exceeds ' + MAX_ZONES_GEOJSON_MB + ' MB limit');
   }
 
   // ── metadata.json ──────────────────────────────────────────────────────────
@@ -505,7 +480,7 @@ async function runBuild(zonesDir, overlaysDir) {
     distinct_zone_names_count: distinctZoneCount,
     noise_feature_count:       noiseCount,
     aircraft_feature_count:    aircraftCount,
-    pmtiles_mb:                parseFloat(pmtilesMB.toFixed(2)),
+    geojson_mb:                parseFloat(geojsonMB.toFixed(2)),
     overlay_name_field:        overlayNameField,
     anef_contour_field:        anefContourField,
     zone_name_field:           zoneNameField,

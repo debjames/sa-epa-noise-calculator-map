@@ -4,7 +4,7 @@
 
 > **IMPORTANT**: These layers are display only. All tests below must be run AFTER Stage 2 (build mode Action has committed data). Steps 1–5 can be verified before data is available.
 
-### Pre-data checks (code-only, no PMTiles/GeoJSON needed)
+### Pre-data checks (code-only, no GeoJSON needed)
 
 - [ ] **Mapping panel group** — Mapping▼ contains a "Planning layers (display only)" group label and three buttons: "Zones (PlanSA)", "Noise & Air Emissions", "Aircraft Noise (ANEF)". All off by default. No existing Mapping or Tools buttons affected.
 - [ ] **Save/load round-trip** — Enable all 3 layers, Save Assessment JSON. Open JSON; verify `planningLayers: {zones:true, noiseAirEmissions:true, aircraftNoise:true}`. Reload — all 3 layers re-enabled.
@@ -14,14 +14,15 @@
 
 ### Post-data: Zones (PlanSA)
 
-- [ ] **Layers toggle on/off** — Enable "Zones (PlanSA)"; PMTiles layer appears on map. Disable; layer removed.
+- [ ] **Layers toggle on/off** — Enable "Zones (PlanSA)"; GeoJSON zone layer appears on map. Disable; layer removed.
 - [ ] **Zones visible at zoom 12 — Adelaide metro** — Navigate to -34.92, 138.60 (Adelaide), zoom 12. Zone polygons render with colour fill. No magenta polygons in Greater Adelaide Planning Region (indicates all zone names are in `ZONE_CATEGORY_MAP`).
 - [ ] **Residential check** — Drop receiver at Prospect (~-34.89, 138.60). Zone polygon is pale yellow. SAPPA result in receiver panel says "General Neighbourhood" or similar residential zone.
 - [ ] **Industrial check** — Navigate to Regency Park (~-34.86, 138.56). Zone polygons render grey (industrial category).
 - [ ] **Rural/Hills check** — Navigate to Adelaide Hills. Zone polygons render green tones.
 - [ ] **Click popup** — Click any zone polygon. Popup shows zone name in bold, with note: "SAPPA zone at this point may differ — receiver criteria use the live SAPPA API."
-- [ ] **Zoom 14 — full detail** — Zoom to 14; zones render with per-parcel detail.
-- [ ] **Zoom 8 — still renders** — Zoom out to 8; zones still render (simplified but present, no features dropped).
+- [ ] **Zoom 14 and zoom 8: all features present** — At zoom 14, full detail. At zoom 8, all ~5,400 features still present (simplification is geometric only — no feature dropping).
+- [ ] **Toggle rapidly 5×** — Toggle Zones on/off 5 times quickly. Canvas renderer handles state changes cleanly; no flicker or orphan polygons.
+- [ ] **Pan performance** — Pan across Adelaide metro at zoom 11 with Zones visible. Pan stays smooth (canvas renderer). If framerate drops below ~30fps, the canvas renderer is not being used.
 - [ ] **Regional cities** — Pan to Mount Gambier (~-37.83, 140.78), Whyalla (~-33.03, 137.57), Port Lincoln (~-34.72, 135.87). Zones render without gaps.
 - [ ] **Legend appears** — When Zones ON, bottom-left legend appears with category swatches. Legend is collapsible (click header).
 - [ ] **Legend hides** — When Zones OFF, legend removed from map.
@@ -47,7 +48,9 @@
 
 ### Performance
 
-- [ ] **Calc not slowed** — Run a full noise grid with Zones ON vs Zones OFF. PMTiles rendering is GPU-side; timing difference ≤10%.
+- [ ] **GeoJSON size guard** — `data/zones/sa-zones.geojson` file size < 30 MB.
+- [ ] **Calc not slowed** — Run a full noise grid with Zones ON vs Zones OFF. Canvas rendering is 2D-composited; timing difference ≤10%.
+- [ ] **Fast 3G (DevTools throttle)** — Initial Zones toggle fetches in a few seconds; subsequent toggles are instantaneous (cached).
 - [ ] **No console errors** — With all three layers visible and a calc in progress, no errors in console.
 
 ## Suggested Noise Sources (💡) — Facility-Group Multi-Source

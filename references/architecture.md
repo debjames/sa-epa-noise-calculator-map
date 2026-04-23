@@ -8,19 +8,19 @@ Three display-only map layers sourced from SA Government open data (CC-BY 4.0). 
 
 | File | Purpose |
 |---|---|
-| `js/zone-categories.js` | Exposes `window.ZoneCategories` — `ZONE_CATEGORY_MAP`, `CATEGORY_COLOURS`, `CATEGORY_LABELS`, `categoriseZone(zoneName)`. Empty `ZONE_CATEGORY_MAP` before first discover run. |
-| CDN: pmtiles@3.0.6 | PMTiles protocol handler (loaded before protomaps-leaflet) |
-| CDN: protomaps-leaflet@4.0.0 | Renders PMTiles vector tiles as a Leaflet layer (`protomapsL`) |
+| `js/zone-categories.js` | Exposes `window.ZoneCategories` — `ZONE_CATEGORY_MAP`, `CATEGORY_COLOURS`, `CATEGORY_LABELS`, `categoriseZone(zoneName)`. |
 | Planning layers IIFE (inline `<script>` in `index.html`) | Toggle logic, lazy-loading, legend, attribution, save/load API |
+
+No external CDN dependencies for planning layers — all three layers use Leaflet's built-in `L.geoJSON` + `L.canvas()` renderer.
 
 ### Data files (produced by GitHub Action)
 
 | File | Contents |
 |---|---|
-| `data/zones/sa-zones.pmtiles` | Statewide zone polygons, zoom 8–14, layer name `zones`, properties: `zone_name` (title-case), `subzone_name` (optional) |
+| `data/zones/sa-zones.geojson` | Statewide zone polygons, ~5,400 features, properties: `zone_name` (title-case), `subzone_name` (optional). Served as GeoJSON (~15–20 MB uncompressed, ~5–7 MB gzipped). Canvas renderer required for performance at this feature count. |
 | `data/overlays/noise-air-emissions.geojson` | Noise & Air Emissions overlay polygons, property: `overlay_name` |
 | `data/overlays/aircraft-noise.geojson` | Aircraft Noise (ANEF) overlay polygons, properties: `overlay_name`, `anef_contour` |
-| `data/metadata.json` | `fetched_utc`, feature counts, `distinct_zone_names_count`, field name mapping |
+| `data/metadata.json` | `fetched_utc`, feature counts, `geojson_mb`, `distinct_zone_names_count`, field name mapping |
 | `data/_discovery.json` | Written by discover mode — distinct zone/overlay names for populating `ZONE_CATEGORY_MAP` |
 
 ### Data pipeline
@@ -30,13 +30,15 @@ Three display-only map layers sourced from SA Government open data (CC-BY 4.0). 
 | Mode | What it does |
 |---|---|
 | `MODE=discover` (default) | Downloads both zips, logs all distinct property keys + values, writes `data/_discovery.json`. Windows-safe. |
-| `MODE=build` | Downloads, filters overlays by substring match, simplifies with mapshaper (10%), runs tippecanoe for PMTiles, writes `data/metadata.json`. Ubuntu/tippecanoe required. |
+| `MODE=build` | Downloads, filters overlays by substring match, simplifies all three layers with mapshaper (Visvalingam 10%), writes `data/metadata.json`. No external build tools required. |
 
-devDependencies: `adm-zip`, `mapshaper`. `tippecanoe` (felt fork) installed in GitHub Action from source.
+devDependencies: `adm-zip`, `mapshaper`, `JSONStream`. All run on Node 20 cross-platform.
+
+**Institutional decision:** Both zone zips contain GDA2020 and GDA94 projections of the same features. Always filter to GDA2020 only — never re-include GDA94 thinking it's missing data; it's duplicate geometry.
 
 ### GitHub Action
 
-`.github/workflows/update-planning-data.yml` — scheduled weekly (Sun 18:00 UTC), manual dispatch with `mode` input. Installs tippecanoe from source, runs `node scripts/update-planning-data.js`, auto-commits `data/**` via `stefanzweifel/git-auto-commit-action@v5`.
+`.github/workflows/update-planning-data.yml` — scheduled weekly (Sun 18:00 UTC), manual dispatch with `mode` input. Runs `npm install` then `node scripts/update-planning-data.js`. Auto-commits `data/**` via `stefanzweifel/git-auto-commit-action@v5`. Action runtime ~1–2 min (no native build step).
 
 ### UI
 
@@ -65,7 +67,7 @@ Attribution: added/removed via `map.attributionControl.addAttribution/removeAttr
 
 1. Run Action in discover mode → `data/_discovery.json` lists every distinct `zone_name`.
 2. Populate `js/zone-categories.js` `ZONE_CATEGORY_MAP` with exact title-cased zone names (categories: `residential|commercial|mixed_use|industrial|rural|open_space|infrastructure`).
-3. Run Action in build mode → PMTiles + overlays produced.
+3. Run Action in build mode → `sa-zones.geojson` + overlays produced.
 4. Any zone not in the map renders magenta (visible QA signal).
 
 ## GIS Import
