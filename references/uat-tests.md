@@ -1,5 +1,19 @@
 # UAT Tests
 
+## Map-click mode — planning layer click-passthrough (generalised)
+
+> Verify with all three planning layers visible (Zones toggle ON, MBS 010 ON).
+
+- [ ] **Ruler through planning layers** — Enable Zones layer. Click Ruler button. Click map 3 times forming a triangle → each click registers as a ruler point; no zone popup fires during measurement.
+- [ ] **Ruler exit restores popups** — After ruler ends (second click), click any zone polygon → zone popup opens normally.
+- [ ] **Escape cancels ruler cleanly** — Start ruler (first click placed). Press Escape → ruler exits, button de-activates. Click zone polygon → popup fires; no leftover `pointer-events: none` on planning canvas.
+- [ ] **Switching to add-receiver cancels ruler** — Start ruler. Without ending it, click Add Receiver (R1 button). Ruler cleanly exits; Add Receiver mode starts. Click map → receiver placed (not a ruler point or zone popup).
+- [ ] **pointer-events restored after any tool exit** — DevTools → inspect planning canvas element (`_canvasRenderer._container`) after any tool exit → `pointer-events` is `''` or unset (never stuck as `none`).
+- [ ] **Area source drawing still works with zones ON** — Enable Zones. Draw area source polygon → completes normally, no zone popup interference.
+- [ ] **Line source drawing still works with zones ON** — Draw line source → completes normally.
+- [ ] **No console errors** — No JS errors throughout the above steps.
+- [ ] **Source/receiver placement unchanged** — Add source, place receivers with zones ON → works as before; zone popups suppressed during placement, restored after.
+
 ## PlanSA Planning Layers (display only)
 
 > **IMPORTANT**: These layers are display only. All tests below must be run AFTER Stage 2 (build mode Action has committed data). Steps 1–5 can be verified before data is available.

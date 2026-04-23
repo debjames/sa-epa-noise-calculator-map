@@ -1,3 +1,10 @@
+# Failure notifications: GitHub sends an email on first failure of a previously-
+# succeeding run to all repo watchers who have Actions email notifications enabled.
+# Deb: confirm your setting at github.com/settings/notifications under
+# "Actions" → "Only notify for failed workflows".
+# A Slack notification to #resonate-lab is also sent (see final step below).
+# Pre-requisite: repo secret SLACK_WEBHOOK_URL must be set — see architecture.md.
+
 name: Update planning data
 
 on:
@@ -13,6 +20,14 @@ on:
         options:
           - discover
           - build
+      test_slack_notification:
+        description: 'Force a failure to test the Slack notification'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 permissions:
   contents: write
@@ -26,6 +41,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Force failure for Slack notification test
+        if: inputs.test_slack_notification == 'true'
+        run: |
+          echo "::error::Test failure — triggered by test_slack_notification=true input. This is intentional."
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -47,3 +68,15 @@ jobs:
         with:
           commit_message: "chore(data): refresh planning data ${{ github.run_id }} (${{ inputs.mode || 'build' }})"
           file_pattern: 'data/**'
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          payload: |
+            {
+              "text": ":rotating_light: *Planning data refresh failed*\n*Workflow:* ${{ github.workflow }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View logs>\n*Triggered by:* ${{ github.event_name }}\n*Branch:* ${{ github.ref_name }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

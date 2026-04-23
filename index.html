@@ -39636,7 +39636,11 @@ if (window.pdfjsLib) {
     var m    = window._map;
     var ctrl = window._getZoneLegendControl && window._getZoneLegendControl();
     if (!m || !ctrl) return;
-    if (!ctrl.getContainer()) ctrl.addTo(m);
+    // Leaflet's removeControl removes the element from the DOM but does NOT null
+    // ctrl._container, so getContainer() returns the stale detached node on
+    // subsequent toggle-on cycles. Check DOM attachment, not just existence.
+    var container = ctrl.getContainer();
+    if (!container || !document.body.contains(container)) ctrl.addTo(m);
     refreshZonesLegendNow();
   }
 

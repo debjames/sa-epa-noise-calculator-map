@@ -39,7 +39,9 @@ devDependencies: `adm-zip`, `mapshaper`, `JSONStream`. All run on Node 20 cross-
 
 ### GitHub Action
 
-`.github/workflows/update-planning-data.yml` — scheduled weekly (Sun 18:00 UTC), manual dispatch with `mode` input. Runs `npm install` then `node scripts/update-planning-data.js`. Auto-commits `data/**` via `stefanzweifel/git-auto-commit-action@v5`. Action runtime ~1–2 min (no native build step).
+`.github/workflows/update-planning-data.yml` — scheduled weekly (Sun 18:00 UTC), manual dispatch with `mode` and `test_slack_notification` inputs. Runs `npm install` then `node scripts/update-planning-data.js`. Auto-commits `data/**` via `stefanzweifel/git-auto-commit-action@v5`. Action runtime ~1–2 min (no native build step).
+
+**Failure notifications:** On any step failure, `slackapi/slack-github-action@v2.1.1` posts to `#resonate-lab` with a link to the run logs. Requires repo secret `SLACK_WEBHOOK_URL` — create an Incoming Webhook in the Resonate Slack app targeting `#resonate-lab`, then add the URL at Settings → Secrets and variables → Actions → `SLACK_WEBHOOK_URL`. GitHub also emails repo watchers with Actions failure notifications enabled (user setting at github.com/settings/notifications → Actions → "Only notify for failed workflows"). Use the `test_slack_notification=true` dispatch input to force a test failure and verify the Slack message end-to-end.
 
 ### UI
 
