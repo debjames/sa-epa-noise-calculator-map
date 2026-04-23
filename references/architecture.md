@@ -43,25 +43,26 @@ devDependencies: `adm-zip`, `mapshaper`, `JSONStream`. All run on Node 20 cross-
 
 ### UI
 
-Three buttons added to Mapping▼ panel under group label "Planning layers (display only)":
+One button in Mapping▼ panel:
 - `#planningZonesBtn` — Zones (PlanSA)
-- `#planningNoiseBtn` — Noise & Air Emissions
-- `#planningAircraftBtn` — Aircraft Noise (ANEF)
+
+Noise & Air Emissions and Aircraft Noise (ANEF) overlays are now loaded by the **MBS 010 Screening** toggle (`#mbs010ToggleBtn`) via `loadMBS010Layers()` in the map IIFE — not by the planning IIFE.
 
 Zones legend: the shared "P&D Code Zones" `zoneLegendControl` (defined in the map IIFE, accessible via `window._getZoneLegendControl()`). Shows only when Zones layer is on. Populated by `window._populateZoneLegend(names)` from the visible GeoJSON features (refreshed on `moveend`+`zoomend`, debounced 150 ms). Capped at 40 distinct zones — "Zoom in for zone legend" placeholder shown when exceeded. Colours from `ZONE_COLOURS` via `window._getZoneColour`.
 
-Attribution: added/removed via `map.attributionControl.addAttribution/removeAttribution` — shows when any planning layer is on; date from `metadata.json fetched_utc`.
+Attribution: added/removed via `map.attributionControl.addAttribution/removeAttribution` — shows when Zones layer is on; date from `metadata.json fetched_utc`.
 
 ### Save/load
 
-`planningLayers: { zones: bool, noiseAirEmissions: bool, aircraftNoise: bool }` added to both export (`exportJsonBtn` handler) and undo `serialiseState()`. Loaded in `loadAssessment()` step 15c via `window._setPlanningLayers(state)`. Defaults all false when key absent (old files load clean). `_version` not bumped.
+`planningLayers: { zones: bool }` serialised in both export and undo `serialiseState()`. Loaded in `loadAssessment()` step 15c via `window._setPlanningLayers(state)`. Defaults false when key absent (old files load clean). Old saves with `noiseAirEmissions`/`aircraftNoise` keys are silently ignored. `_version` not bumped.
 
 ### Global API
 
 | Function | Purpose |
 |---|---|
-| `window._getPlanningLayers()` | Returns current toggle state object |
-| `window._setPlanningLayers(state)` | Applies toggle state (used by loadAssessment) |
+| `window._getPlanningLayers()` | Returns `{ zones: bool }` |
+| `window._setPlanningLayers(state)` | Applies zones toggle state (used by loadAssessment) |
+| `window._anefStyle(feature)` | Returns Leaflet style object for an ANEF GeoJSON feature; graduated by `anef_contour`. Used by `loadMBS010Layers()` in the map IIFE. |
 | `window._getZoneColour(name)` | Returns zone fill colour from `ZONE_COLOURS` table (map IIFE) |
 | `window._getZoneLegendControl()` | Returns the shared `zoneLegendControl` singleton |
 | `window._populateZoneLegend(names)` | Populates legend from array of zone names; `null` → "Zoom in for zone legend"; `[]` → "No zones in view" |

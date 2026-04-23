@@ -6,9 +6,10 @@
 
 ### Pre-data checks (code-only, no GeoJSON needed)
 
-- [ ] **Mapping panel group** — Mapping▼ contains a "Planning layers (display only)" group label and three buttons: "Zones (PlanSA)", "Noise & Air Emissions", "Aircraft Noise (ANEF)". All off by default. No existing Mapping or Tools buttons affected.
-- [ ] **Save/load round-trip** — Enable all 3 layers, Save Assessment JSON. Open JSON; verify `planningLayers: {zones:true, noiseAirEmissions:true, aircraftNoise:true}`. Reload — all 3 layers re-enabled.
-- [ ] **Load pre-existing JSON** — Load any JSON saved before this feature was added. Loads cleanly; all 3 planning layers default off. No console errors.
+- [ ] **Mapping panel group** — Mapping▼ contains "Zones (PlanSA)" button. No "Planning layers (display only)" group label. No "Noise & Air Emissions" or "Aircraft Noise (ANEF)" buttons in the Mapping panel. No existing Mapping or Tools buttons affected.
+- [ ] **Save/load round-trip** — Enable Zones layer, Save Assessment JSON. Open JSON; verify `planningLayers: {zones:true}` (no `noiseAirEmissions` or `aircraftNoise` keys). Reload — Zones layer re-enabled.
+- [ ] **Load pre-existing JSON** — Load any JSON saved before this feature was added (may contain `planningLayers: {noiseAirEmissions:true, aircraftNoise:true}`). Loads cleanly; noise/aircraft keys silently ignored; no console errors.
+- [ ] **MBS 010 Screening includes Noise & Air Emissions and ANEF** — Enable MBS 010 Screening (SA state). Legend shows "Noise & Air Emissions" (red `#d62728`) and "ANEF" (orange `#ff9a5a`) entries alongside ANR Contours and road/rail layers. Both load from local GeoJSON (no SAPPA network calls). Checkboxes toggle layers on/off. No console errors.
 - [ ] **_version unchanged** — Saved JSON has `"_version": 2` (not 3).
 - [ ] **`window._getZoneColour` accessible** — Open DevTools console → `window._getZoneColour('General Neighbourhood')` returns a non-null colour string. `window._getZoneColour('Nonexistent Zone Xyz')` returns `'#999'`.
 

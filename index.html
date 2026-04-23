@@ -2521,10 +2521,6 @@ body.disclaimer-visible .container {
                 <button class="mp-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial<span class="mp-kbd">I</span></button>
                 <button class="mp-btn cadastre-toggle-btn" id="cadastreToggleBtn" title="Toggle cadastral boundaries and building outlines"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="4" width="8" height="7"/><rect x="14" y="4" width="8" height="7"/><rect x="5" y="13" width="8" height="7"/><rect x="16" y="13" width="6" height="7"/></svg> Cadastral<span class="mp-kbd">D</span></button>
                 <button class="mp-btn urban-boundary-toggle-btn" id="urbanBoundaryToggleBtn" title="Show major urban area boundaries (EPA Pub 1826.5)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 3h18v18H3z" stroke-dasharray="4 2"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/></svg> Urban area<span class="mp-kbd">U</span></button>
-                <div class="mp-sep"></div>
-                <div style="font-size:9px;color:rgba(255,255,255,0.45);padding:1px 8px 2px;text-transform:uppercase;letter-spacing:0.05em;">Planning layers (display only)</div>
-                <button class="mp-btn" id="planningNoiseBtn" title="Show Noise &amp; Air Emissions overlay (display only \u2014 refer to SA EPA Noise Policy for criteria)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg> Noise &amp; Air Emissions</button>
-                <button class="mp-btn" id="planningAircraftBtn" title="Show Aircraft Noise (ANEF) overlay (display only \u2014 refer to AS 2021 for building design requirements)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg> Aircraft Noise (ANEF)</button>
               </div>
             </div>
 
@@ -22132,7 +22128,7 @@ setInitialCollapseState();
         // Buildings layer toggle
         data.buildingsOn = window._getBuildingsOn ? window._getBuildingsOn() : true;
         // Planning layers (display only — no calc impact)
-        data.planningLayers = window._getPlanningLayers ? window._getPlanningLayers() : { zones: false, noiseAirEmissions: false, aircraftNoise: false };
+        data.planningLayers = window._getPlanningLayers ? window._getPlanningLayers() : { zones: false };
         data.noiseMapOn = window._getNoiseMapOn ? window._getNoiseMapOn() : false;
         data.noiseMapPeriod = window._getNoiseMapPeriod ? window._getNoiseMapPeriod() : 'day';
         data.lmaxMethod = window._getLmaxMethod ? window._getLmaxMethod() : 'simple';
@@ -23502,11 +23498,7 @@ setInitialCollapseState();
       // 15c. Planning layers (display only — default false if key absent)
       if (window._setPlanningLayers) {
         var pl = data.planningLayers || {};
-        window._setPlanningLayers({
-          zones:             !!pl.zones,
-          noiseAirEmissions: !!pl.noiseAirEmissions,
-          aircraftNoise:     !!pl.aircraftNoise,
-        });
+        window._setPlanningLayers({ zones: !!pl.zones });
       }
       // Noise map settings — always reset grid size to Auto on load (never restore a fine saved grid)
       if (window._setNoiseMapGridSize) window._setNoiseMapGridSize('auto');
@@ -24670,7 +24662,7 @@ setInitialCollapseState();
       // Map settings (don't restore noise map — expensive; always false)
       data.buildingsOn      = window._getBuildingsOn      ? window._getBuildingsOn()      : true;
       // Planning layers (display only — no calc impact)
-      data.planningLayers = window._getPlanningLayers ? window._getPlanningLayers() : { zones: false, noiseAirEmissions: false, aircraftNoise: false };
+      data.planningLayers = window._getPlanningLayers ? window._getPlanningLayers() : { zones: false };
       data.noiseMapOn       = false;
       data.noiseMapPeriod   = window._getNoiseMapPeriod   ? window._getNoiseMapPeriod()   : 'day';
       data.lmaxMethod       = window._getLmaxMethod       ? window._getLmaxMethod()       : 'simple';
@@ -26067,40 +26059,49 @@ if (window.pdfjsLib) {
       var bounds = map.getBounds();
       var env = bounds.getWest() + ',' + bounds.getSouth() + ',' + bounds.getEast() + ',' + bounds.getNorth();
 
-      MBS010_OVERLAY_CFG.forEach(function(cfg) {
-        var url = SAPPA_OVERLAYS_BASE + '/' + cfg.id + '/query' +
-          '?geometry=' + encodeURIComponent(env) +
-          '&geometryType=esriGeometryEnvelope&inSR=4326' +
-          '&spatialRel=esriSpatialRelIntersects' +
-          '&outFields=name,value,description' +
-          '&returnGeometry=true&outSR=4326&maxAllowableOffset=0.0001&f=geojson';
-
-        fetchWithRetry(url).then(function(data) {
+      // Noise & Air Emissions — local GeoJSON (PlanSA overlay)
+      fetch('./data/overlays/noise-air-emissions.geojson')
+        .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+        .then(function(data) {
           if (!_mbs010On) return;
           if (!data.features || !data.features.length) return;
           var layer = L.geoJSON(data, {
-            style: {
-              color: cfg.color,
-              weight: cfg.weight || 2,
-              opacity: 0.85,
-              fillColor: cfg.fill || cfg.color,
-              fillOpacity: 0.2,
-              dashArray: null
-            },
+            style: { color: '#d62728', weight: 1, opacity: 0.6, fillColor: '#d62728', fillOpacity: 0.15 },
             onEachFeature: function(feature, lyr) {
-              var props = feature.properties || {};
-              var tip = '<b>' + escapeHTML(cfg.name) + '</b>';
-              if (props.name) tip += '<br>' + props.name;
-              if (props.value) tip += '<br>' + props.value;
-              lyr.bindTooltip(tip, { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
+              var name = (feature.properties || {}).overlay_name || 'Noise and Air Emissions';
+              lyr.bindTooltip('<b>' + escapeHTML(name) + '</b>', { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
             }
           });
           layer.addTo(map);
-          layer._mbs010id = cfg.id;
+          layer._mbs010id = 0;
           _mbs010Layers.push(layer);
           bringBoundaryToFront();
-        }).catch(function(err) { console.warn('MBS010 layer ' + cfg.id + ' failed:', err); });
-      });
+        }).catch(function(err) { console.warn('MBS010 noise layer failed:', err); });
+
+      // Aircraft Noise (ANEF) — local GeoJSON (PlanSA overlay), graduated by contour
+      fetch('./data/overlays/aircraft-noise.geojson')
+        .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+        .then(function(data) {
+          if (!_mbs010On) return;
+          if (!data.features || !data.features.length) return;
+          var layer = L.geoJSON(data, {
+            style: function(feature) {
+              return (typeof window._anefStyle === 'function')
+                ? window._anefStyle(feature)
+                : { color: '#005ce6', weight: 1, opacity: 0.6, fillColor: '#005ce6', fillOpacity: 0.15 };
+            },
+            onEachFeature: function(feature, lyr) {
+              var props = feature.properties || {};
+              var contour = String(props.anef_contour || '').trim().replace(/^[^0-9]*/, '');
+              var label = contour ? 'ANEF\u00a0' + contour : (props.overlay_name || 'Aircraft Noise');
+              lyr.bindTooltip('<b>' + escapeHTML(label) + '</b>', { sticky: true, className: 'zone-tooltip', opacity: 0.95 });
+            }
+          });
+          layer.addTo(map);
+          layer._mbs010id = 1;
+          _mbs010Layers.push(layer);
+          bringBoundaryToFront();
+        }).catch(function(err) { console.warn('MBS010 aircraft noise layer failed:', err); });
 
       // Load ANR contours from local GeoJSON file
       function addANRLayer(data) {
@@ -26203,8 +26204,8 @@ if (window.pdfjsLib) {
         L.DomEvent.disableScrollPropagation(div);
 
         var layerGroups = [
-          { key: 0, label: 'Noise & Air Emissions', color: '#b04030' },
-          { key: 1, label: 'ANEF', color: '#005ce6' },
+          { key: 0, label: 'Noise & Air Emissions', color: '#d62728' },
+          { key: 1, label: 'ANEF', color: '#ff9a5a' },
           { key: 'anr', label: 'ANR Contours', color: '#FFAB66' },
           { key: 'road_type_a.geojson', label: 'Type A Road', color: '#ffbebe' },
           { key: 'road_type_b.geojson', label: 'Type B Road', color: '#ffebaf' },
@@ -38999,8 +39000,6 @@ if (window.pdfjsLib) {
 
   /* ── State ──────────────────────────────────────────────────────────────── */
   var _planZonesOn    = false;
-  var _planNoiseOn    = false;
-  var _planAircraftOn = false;
 
   /* ── Shared canvas renderer (required for ~5,400 zone polygons) ────────── */
   var _canvasRenderer = null;
@@ -39011,8 +39010,6 @@ if (window.pdfjsLib) {
 
   /* ── Layer cache (lazy-init on first toggle-on) ─────────────────────────── */
   var _zonesLayer    = null;  // L.geoJSON
-  var _noiseLayer    = null;  // L.geoJSON
-  var _aircraftLayer = null;  // L.geoJSON
 
   /* ── Zone features cache for offline PIP ─────────────────────────────────────
      Each entry: {
@@ -39246,7 +39243,7 @@ if (window.pdfjsLib) {
     var m = window._map;
     if (!m || !m.attributionControl) return;
     if (_planAttrAdded) m.attributionControl.removeAttribution(PLAN_ATTR.replace('{date}', _metadataDate || '—'));
-    var anyOn = _planZonesOn || _planNoiseOn || _planAircraftOn;
+    var anyOn = _planZonesOn;
     if (anyOn) {
       m.attributionControl.addAttribution(getAttrString());
       _planAttrAdded = true;
@@ -39373,52 +39370,6 @@ if (window.pdfjsLib) {
       .catch(function(e) { console.warn('[PlanSA] Failed to load zones:', e); callback(null); });
   }
 
-  /* ── Overlay GeoJSON layers ──────────────────────────────────────────────── */
-  function loadNoiseLayer(callback) {
-    fetch('./data/overlays/noise-air-emissions.geojson')
-      .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
-      .then(function(data) {
-        var layer = L.geoJSON(data, {
-          renderer: getCanvasRenderer(),
-          style: { color: '#d62728', weight: 1, opacity: 0.6, fillColor: '#d62728', fillOpacity: 0.15 },
-          onEachFeature: function(feature, lyr) {
-            var name = (feature.properties || {}).overlay_name || 'Noise and Air Emissions';
-            lyr.bindPopup(
-              '<b>' + escHtml(name) + '</b>' +
-              '<br><small style="color:#666;">Display only \u2014 refer to MBS-010 and SA EPA Noise Policy for applicable criteria.</small>'
-            );
-          },
-        });
-        callback(layer);
-      })
-      .catch(function(e) { console.warn('[PlanSA] Failed to load noise overlay:', e); callback(null); });
-  }
-
-  function loadAircraftLayer(callback) {
-    fetch('./data/overlays/aircraft-noise.geojson')
-      .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
-      .then(function(data) {
-        var layer = L.geoJSON(data, {
-          renderer: getCanvasRenderer(),
-          style: function(feature) { return anefStyle(feature); },
-          onEachFeature: function(feature, lyr) {
-            var props    = feature.properties || {};
-            var contour  = normaliseAnef(props.anef_contour);
-            var isNumeric = contour && /^\d+$/.test(contour);
-            var name     = props.overlay_name || 'Aircraft Noise';
-            var label    = isNumeric ? 'ANEF\u00a0' + contour : (props.anef_contour || name);
-            lyr.bindPopup(
-              '<b>' + escHtml(label) + '</b>' +
-              (isNumeric ? '<br><span style="color:#555;">' + escHtml(name) + '</span>' : '') +
-              '<br><small style="color:#666;">Refer to AS\u00a02021 for aircraft noise intrusion building design requirements.</small>'
-            );
-          },
-        });
-        callback(layer);
-      })
-      .catch(function(e) { console.warn('[PlanSA] Failed to load aircraft overlay:', e); callback(null); });
-  }
-
   /* ── Toggle helpers ──────────────────────────────────────────────────────── */
   function addLayerToMap(layer) {
     var m = window._map;
@@ -39480,57 +39431,8 @@ if (window.pdfjsLib) {
     updateAttribution();
   }
 
-  /* ── Toggle: Noise & Air Emissions ──────────────────────────────────────── */
-  function toggleNoise(on) {
-    _planNoiseOn = on;
-    var btn = document.getElementById('planningNoiseBtn');
-    if (btn) btn.classList.toggle('active', on);
-
-    if (on) {
-      fetchMetadata();
-      if (!_noiseLayer) {
-        loadNoiseLayer(function(layer) {
-          _noiseLayer = layer;
-          if (_planNoiseOn) addLayerToMap(_noiseLayer);
-        });
-      } else {
-        addLayerToMap(_noiseLayer);
-      }
-    } else {
-      removeLayerFromMap(_noiseLayer);
-    }
-    updateAttribution();
-  }
-
-  /* ── Toggle: Aircraft Noise ──────────────────────────────────────────────── */
-  function toggleAircraft(on) {
-    _planAircraftOn = on;
-    var btn = document.getElementById('planningAircraftBtn');
-    if (btn) btn.classList.toggle('active', on);
-
-    if (on) {
-      fetchMetadata();
-      if (!_aircraftLayer) {
-        loadAircraftLayer(function(layer) {
-          _aircraftLayer = layer;
-          if (_planAircraftOn) addLayerToMap(_aircraftLayer);
-        });
-      } else {
-        addLayerToMap(_aircraftLayer);
-      }
-    } else {
-      removeLayerFromMap(_aircraftLayer);
-    }
-    updateAttribution();
-  }
-
   /* ── Wire up buttons + legend moveend refresh ───────────────────────────── */
   document.addEventListener('DOMContentLoaded', function() {
-    var noiseBtn    = document.getElementById('planningNoiseBtn');
-    var aircraftBtn = document.getElementById('planningAircraftBtn');
-
-    if (noiseBtn)    noiseBtn.addEventListener(   'click', function() { toggleNoise(   !_planNoiseOn);    });
-    if (aircraftBtn) aircraftBtn.addEventListener('click', function() { toggleAircraft(!_planAircraftOn); });
 
     // Refresh zones legend when map pans/zooms (viewport-aware, debounced 150 ms)
     var m = window._map;
@@ -39544,6 +39446,7 @@ if (window.pdfjsLib) {
   /* ── Cross-IIFE zone toggle API ─────────────────────────────────────────── */
   window._togglePlanZones = toggleZones;
   window._isPlanZonesOn   = function() { return _planZonesOn; };
+  window._anefStyle       = anefStyle;
 
   /* ── Canvas pointer-events API (for placement-mode click-through) ────────
      During point-placement modes the shared canvas must be non-interactive
@@ -39557,14 +39460,12 @@ if (window.pdfjsLib) {
 
   /* ── Save / load API ─────────────────────────────────────────────────────── */
   window._getPlanningLayers = function() {
-    return { zones: _planZonesOn, noiseAirEmissions: _planNoiseOn, aircraftNoise: _planAircraftOn };
+    return { zones: _planZonesOn };
   };
 
   window._setPlanningLayers = function(state) {
     state = state || {};
-    if (!!state.zones            !== _planZonesOn)    toggleZones(   !!state.zones);
-    if (!!state.noiseAirEmissions !== _planNoiseOn)   toggleNoise(   !!state.noiseAirEmissions);
-    if (!!state.aircraftNoise    !== _planAircraftOn) toggleAircraft(!!state.aircraftNoise);
+    if (!!state.zones !== _planZonesOn) toggleZones(!!state.zones);
   };
 
 }());
