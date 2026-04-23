@@ -594,7 +594,7 @@ Line sources continue to work exactly as before; CoRTN roads layer on top withou
 The map area (inside `#map-column`) is flanked by two panels:
 
 - **Left**: `#side-panel` — a fixed 300px-wide column containing Search + Mapping/Tools/Modelling/Propagation/Custom sources accordions + Objects button + the drawer toggle. Collapsible via a right-edge button; state persists in `localStorage`. On mobile (<768px) it's an overlay with a backdrop. Injected at runtime by `_resonateSidePanelBoot()` in the inline script at [index.html:1721](../index.html:1721).
-- **Right**: `#drawer-panel` — the 520px drawer with **section-filtered** panels (Setup / Criteria / Results / Recommended treatments). Nav buttons activate sections via `activateSection(sectionId)` which toggles `.section-hidden` on `[data-section]` elements.
+- **Right**: `#drawer-panel` — the 520px drawer with **section-filtered** panels (Setup / Criteria / Results / Recommended treatments). Nav buttons activate sections via `activateSection(sectionId)` which toggles `.section-hidden` on `[data-section]` elements. When the drawer opens, `setDrawerOpen()` sets `mapColumn.style.right` to the drawer's current `offsetWidth` so the map physically shrinks (mirroring the LHS collapse pattern); a `transitionend` listener on `#map-column` for the `right` property calls `map.invalidateSize()` after the `0.3s cubic-bezier` animation. Resize-drag and window-resize re-clamp also update `mapColumn.style.right` in lockstep.
 
 ### LHS additional panels (beyond Mapping/Tools/Modelling)
 
@@ -1347,8 +1347,8 @@ The page loads with the original HTML structure intact, then an inline `<script>
 | `#app-header` | Compact header: logo + title + action buttons (row 1), under-construction notice + intro text (row 2) |
 | `#app-header-row1` | Horizontal flex row for logo, `.h1` title, Collapse All btn, Save/Load/Report/Share buttons |
 | `#app-layout` | Flex child that fills remaining viewport height below header |
-| `#map-column` | Absolutely positioned, fills `#app-layout`. Contains `#mapInnerWrapper` (with `#noise-map`, toolbars, fullscreen sidebar), search bar overlay (`#mapSearchWrapper`), and status row |
-| `#drawer-panel` | 520px right-side overlay on top of map. Classes: `drawer-open` / `drawer-closed` |
+| `#map-column` | Absolutely positioned within `#app-layout`; `left` tracks LHS panel width, `right` tracks RHS drawer width (0 when closed, drawer `offsetWidth` when open). `transition: right 0.3s cubic-bezier(0.4,0,0.2,1)`. Contains `#mapInnerWrapper` (with `#noise-map`, toolbars, fullscreen sidebar), search bar overlay (`#mapSearchWrapper`), and status row |
+| `#drawer-panel` | 520px right-side panel. `position:absolute; right:0`. Animates open/closed via `transform:translateX()`. Opening sets `mapColumn.style.right` so the map shrinks rather than being overlaid. Classes: `drawer-open` / `drawer-closed` |
 | `#drawer-toggle` | Button docked to left edge of drawer, toggles open/closed |
 | `#drawer-content` | Scrollable container inside drawer, holds all panels in original order |
 

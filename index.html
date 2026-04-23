@@ -7380,9 +7380,43 @@ body.disclaimer-visible .container {
     // Show/hide collapsed nametag tab
     var cnt = document.getElementById('drawer-collapsed-nametag');
     if (cnt) cnt.style.display = open ? 'none' : 'block';
+    // Shrink/expand map column so drawer is a layout sibling, not an overlay.
+    // `right` has no effect on this element (over-constrained layout), so we
+    // set an explicit `width` = parent_width - left_offset - drawer_width.
+    if (open) { _syncMapWidth(); } else { mapColumn.style.width = ''; }
+    // Invalidate immediately (mirrors LHS nudgeMap pattern).
+    if (window._map && typeof window._map.invalidateSize === 'function') window._map.invalidateSize();
     try { localStorage.setItem(DRAWER_KEY, open ? 'true' : 'false'); } catch(e) {}
   }
+
+  // Recalculate #map-column explicit width when drawer is open.
+  // Using width (not right) because right is over-constrained on this element.
+  function _syncMapWidth() {
+    if (!drawerPanel.classList.contains('drawer-open')) return;
+    var parentW = mapColumn.parentElement ? mapColumn.parentElement.offsetWidth : window.innerWidth;
+    var mcLeft  = parseFloat(getComputedStyle(mapColumn).left) || 0;
+    var newW = Math.max(0, parentW - mcLeft - drawerPanel.offsetWidth) + 'px';
+    if (mapColumn.style.width !== newW) {
+      mapColumn.style.width = newW;
+      if (window._map && typeof window._map.invalidateSize === 'function') window._map.invalidateSize();
+    }
+  }
+
   window._setDrawerOpen = setDrawerOpen;  // Phase 2: expose for auto-scroll
+  // Re-sync width when the LHS panel collapses/expands (class on #app-layout changes)
+  // or when the LHS resize handle changes mc.style.left (style attribute changes).
+  (function() {
+    var al = mapColumn.parentElement;
+    if (al && window.MutationObserver) {
+      // Watch #app-layout class (side-panel-collapsed toggle)
+      new MutationObserver(function() { _syncMapWidth(); })
+        .observe(al, { attributes: true, attributeFilter: ['class'] });
+      // Watch #map-column style attribute (LHS resize handle changes left inline).
+      // Guard: _syncMapWidth only sets width if value differs, preventing loops.
+      new MutationObserver(function() { _syncMapWidth(); })
+        .observe(mapColumn, { attributes: true, attributeFilter: ['style'] });
+    }
+  })();
 
   drawerToggle.addEventListener('click', function() {
     setDrawerOpen(drawerPanel.classList.contains('drawer-closed'));
@@ -7428,14 +7462,7 @@ body.disclaimer-visible .container {
     }, 200);
   });
 
-  // Also invalidate on drawer toggle (map area changes)
-  drawerToggle.addEventListener('click', function() {
-    setTimeout(function() {
-      if (window._map && typeof window._map.invalidateSize === 'function') {
-        window._map.invalidateSize();
-      }
-    }, 350); // after transition completes
-  });
+  // invalidateSize is handled by the mapColumn transitionend listener above
 
   // ── 7. Patch PDF export to work with new layout ────────────────────
   // The PDF export uses #pdfArea which is now empty/hidden.
@@ -7581,6 +7608,9 @@ body.disclaimer-visible .container {
       if (didDrag) {
         var newWidth = startWidth + dx;
         drawer.style.width = clampWidth(newWidth) + 'px';
+        if (drawer.classList.contains('drawer-open')) {
+          _syncMapWidth();
+        }
       }
     });
 
@@ -7607,13 +7637,14 @@ body.disclaimer-visible .container {
     document.addEventListener('pointerup', endDrag);
     document.addEventListener('pointercancel', endDrag);
 
-    // Restore saved width with clamp
+    // Restore saved width with clamp; also sync mapColumn width if drawer is open
     try {
       var saved = localStorage.getItem(DRAWER_WIDTH_KEY);
       if (saved) {
         var px = parseInt(saved, 10);
         if (px && !isNaN(px)) {
           drawer.style.width = clampWidth(px) + 'px';
+          _syncMapWidth();
         }
       }
     } catch(err) {}
@@ -7626,6 +7657,7 @@ body.disclaimer-visible .container {
       var clamped = clampWidth(px);
       if (clamped !== px) {
         drawer.style.width = clamped + 'px';
+        _syncMapWidth();
         if (window._map && typeof window._map.invalidateSize === 'function') {
           window._map.invalidateSize();
         }
@@ -34672,6 +34704,17 @@ if (window.pdfjsLib) {
       var cx = e.originalEvent ? e.originalEvent.clientX : window.innerWidth / 2;
       var cy = e.originalEvent ? e.originalEvent.clientY : window.innerHeight / 2;
       openLsPanel(newLs.id, cx, cy);
+    });
+
+    // Finish on single click of last vertex: auto-complete once ≥2 vertices placed.
+    // Barrier uses L.Draw.Polyline's built-in dblclick/marker-click finish; line source
+    // instead hooks draw:drawvertex so the second click (placing vertex 2) is the finish
+    // click — no extra confirmation click on the vertex marker needed.
+    map.on('draw:drawvertex', function() {
+      if (!_lsDrawHandler) return;
+      var markers = _lsDrawHandler._markers;
+      if (!markers || markers.length < 2) return;
+      _lsDrawHandler.completeShape();
     });
 
     // Cancel line source drawing on Escape
