@@ -40412,10 +40412,11 @@ if (window.pdfjsLib) {
 
   /* ── Build HTML for one facility block ───────────────────────────── */
   function _facilityHtml(fac, fi, matchedKw, isOpen) {
+    var isMatched = !!matchedKw;
     var pcbId = 'sgpcb_' + fi;
     var summaryInner =
       '<input type="checkbox" class="suggest-parent-cb" id="' + pcbId + '"'
-      + ' data-pfac="' + fi + '" checked onclick="event.stopPropagation();">'
+      + ' data-pfac="' + fi + '"' + (isMatched ? ' checked' : '') + ' onclick="event.stopPropagation();">'
       + '<span class="suggest-arrow">&#9654;</span>'
       + '<label for="' + pcbId + '" onclick="event.stopPropagation();"'
       + ' style="flex:1;cursor:pointer;">' + escapeHTML(fac.label) + '</label>';
@@ -40432,7 +40433,7 @@ if (window.pdfjsLib) {
       sourcesHtml +=
         '<div class="suggest-src-item">'
         + '<input type="checkbox" id="' + cbId + '" data-fac="' + fi
-        + '" data-src="' + si + '" data-stub="' + (isTodo ? '1' : '0') + '" checked>'
+        + '" data-src="' + si + '" data-stub="' + (isTodo ? '1' : '0') + '"' + (isMatched ? ' checked' : '') + '>'
         + '<label for="' + cbId + '">' + escapeHTML(src.defaultName) + '</label>'
         + '<span class="suggest-type-badge type-' + src.type + '">' + src.type + '</span>'
         + (isTodo ? '<span class="suggest-todo-badge" title="Library entry not confirmed \u2014 Lw placeholder">TODO</span>' : '')
