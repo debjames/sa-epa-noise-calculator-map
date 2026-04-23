@@ -26053,7 +26053,9 @@ if (window.pdfjsLib) {
 
     /* ANR contour colours matching SAPPA legend (light to dark) */
     var ANR_COLOURS = {20:'#FFF5E6',24:'#FFE0B2',28:'#FFAB66',32:'#E88080',36:'#CC4444',40:'#AA0000'};
-    var _anrGeoJSON = null; // cached ANR GeoJSON data
+    var _anrGeoJSON    = null; // cached ANR GeoJSON data
+    var _mbsAnefGeoJSON  = null; // cached aircraft-noise.geojson for screening PIP
+    var _mbsNoiseGeoJSON = null; // cached noise-air-emissions.geojson for screening PIP
 
     function loadMBS010Layers() {
       var bounds = map.getBounds();
@@ -26510,20 +26512,6 @@ if (window.pdfjsLib) {
     function querySAPPAOverlays(mode, latlng) {
       if (currentState !== 'SA') return;
       if (!isSourceMode(mode)) return;
-
-      // SAPPA overlay API is authentication-restricted — show advisory and skip queries.
-      if (SAPPA_API_UNAVAILABLE) {
-        var unavailMsg = 'Check SAPPA \u2192 sappa.plan.sa.gov.au';
-        ['mbs_anef','mbs_anr','mbs_noise','mbs_mixed'].forEach(function(id) { setMBS(id, unavailMsg); });
-        clearDynamicRows();
-        var roadsPh = document.getElementById('mbs_roads_placeholder');
-        var railPh = document.getElementById('mbs_rail_placeholder');
-        if (roadsPh) { roadsPh.style.display = ''; roadsPh.cells[1].textContent = unavailMsg; roadsPh.cells[2].textContent = '—'; roadsPh.cells[3].textContent = '—'; }
-        if (railPh) { railPh.style.display = ''; railPh.cells[1].textContent = unavailMsg; railPh.cells[2].textContent = '—'; railPh.cells[3].textContent = '—'; }
-        var secMixed = document.getElementById('mbs_sec_mixed');
-        if (secMixed) secMixed.textContent = '—';
-        return;
-      }
 
       var geom = latlng.lng + ',' + latlng.lat;
       var ptParams = '&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json';
@@ -27008,59 +26996,97 @@ if (window.pdfjsLib) {
       // Query ANEF + Noise overlay first, then conditionally load road/rail
       var _mbsTriggered = false;
 
-      // 1. Aircraft Noise Exposure (layer 1 in CurrentOverlays)
-      var anefPromise = fetchWithRetry(SAPPA_OVERLAYS_BASE + '/1/query?geometry=' + geom + ptParams + '&outFields=name,value')
-        .then(function(data) {
-          var anefVals = [];
-          if (data.features) {
-            data.features.forEach(function(f) {
-              var v = f.attributes.value || f.attributes.name || '';
-              if (v.indexOf('ANEF') >= 0) anefVals.push(v + ' contour');
-            });
-          }
-          setMBS('mbs_anef', anefVals.length ? anefVals.join(', ') : 'Not within ANEF contour');
-          // ANR check against local GeoJSON contours
-          function checkANR(anrData) {
-            var anrVal = null;
-            if (anrData && anrData.features) {
-              anrData.features.forEach(function(f) {
-                if (pointInGeoJSONFeature(latlng.lat, latlng.lng, f)) {
-                  var v = f.properties.ANR;
-                  if (anrVal === null || v > anrVal) anrVal = v;
-                }
-              });
+      // 1. Aircraft Noise Exposure — PIP against local PlanSA GeoJSON
+      //    f.properties.value = "ANEF 25" | "Area is subject to aircraft noise"
+      function _runAnefCheck(anefData) {
+        var anefVals = [];
+        if (anefData && anefData.features) {
+          anefData.features.forEach(function(f) {
+            if (pointInGeoJSONFeature(latlng.lat, latlng.lng, f)) {
+              var v = ((f.properties || {}).anef_contour || '').trim();
+              if (v) anefVals.push(v);
             }
-            if (anrVal !== null) {
-              setMBS('mbs_anr', 'ANR ' + anrVal + ' dB(A)');
-              // SEC from Table 4.4: 20<24→1, 24<28→2, 28<32→3, 32<36→4, ≥36→5
-              var anrSec = anrVal >= 36 ? 5 : anrVal >= 32 ? 4 : anrVal >= 28 ? 3 : anrVal >= 24 ? 2 : 1;
-              var secEl = document.getElementById('mbs_sec_anr');
-              if (secEl) { secEl.textContent = anrSec; }
-            }
-            else if (anefVals.length) { setMBS('mbs_anr', 'Within ANEF but not within ANR contour'); var secEl = document.getElementById('mbs_sec_anr'); if (secEl) secEl.textContent = '—'; }
-            else { setMBS('mbs_anr', 'Not within ANR contour'); var secEl = document.getElementById('mbs_sec_anr'); if (secEl) secEl.textContent = '—'; }
-          }
-          if (_anrGeoJSON) { checkANR(_anrGeoJSON); }
-          else { fetch('anr.geojson').then(function(r) { return r.json(); }).then(function(d) { _anrGeoJSON = d; checkANR(d); }).catch(function() { setMBS('mbs_anr', '—'); }); }
-          return anefVals.length > 0;
-        }).catch(function() { setMBS('mbs_anef', '—'); setMBS('mbs_anr', '—'); return false; });
+          });
+        }
+        var anefLabel;
+        if (anefVals.length) {
+          // Prefer numeric contour labels ("ANEF 25 contour"); fall back to raw value
+          anefLabel = anefVals.map(function(v) {
+            return /\d/.test(v) ? v + ' contour' : v;
+          }).join(', ');
+        } else {
+          anefLabel = 'Not within ANEF contour';
+        }
+        setMBS('mbs_anef', anefLabel);
 
-      // 2. Noise and Air Emissions (layer 0 in CurrentOverlays)
-      var noisePromise = fetchWithRetry(SAPPA_OVERLAYS_BASE + '/0/query?geometry=' + geom + ptParams + '&outFields=name,description')
-        .then(function(data) {
-          var inOverlay = data.features && data.features.length > 0;
-          if (inOverlay) {
-            var overlayNames = [];
-            data.features.forEach(function(f) {
-              var n = f.attributes.name || f.attributes.description || 'Noise and Air Emissions';
-              if (overlayNames.indexOf(n) === -1) overlayNames.push(n);
+        // ANR check against local GeoJSON contours (nested here — needs anefVals for context)
+        function checkANR(anrData) {
+          var anrVal = null;
+          if (anrData && anrData.features) {
+            anrData.features.forEach(function(f) {
+              if (pointInGeoJSONFeature(latlng.lat, latlng.lng, f)) {
+                var v = f.properties.ANR;
+                if (anrVal === null || v > anrVal) anrVal = v;
+              }
             });
-            setMBS('mbs_noise', 'Site in ' + overlayNames.join(', ') + ' Overlay');
-          } else {
-            setMBS('mbs_noise', 'Site not in Noise and Air Emissions Overlay');
           }
-          return inOverlay;
-        }).catch(function() { setMBS('mbs_noise', '—'); return false; });
+          if (anrVal !== null) {
+            setMBS('mbs_anr', 'ANR ' + anrVal + ' dB(A)');
+            var anrSec = anrVal >= 36 ? 5 : anrVal >= 32 ? 4 : anrVal >= 28 ? 3 : anrVal >= 24 ? 2 : 1;
+            var secEl = document.getElementById('mbs_sec_anr');
+            if (secEl) secEl.textContent = anrSec;
+          } else if (anefVals.length) {
+            setMBS('mbs_anr', 'Within ANEF but not within ANR contour');
+            var secEl = document.getElementById('mbs_sec_anr'); if (secEl) secEl.textContent = '—';
+          } else {
+            setMBS('mbs_anr', 'Not within ANR contour');
+            var secEl = document.getElementById('mbs_sec_anr'); if (secEl) secEl.textContent = '—';
+          }
+        }
+        if (_anrGeoJSON) { checkANR(_anrGeoJSON); }
+        else { fetch('anr.geojson').then(function(r) { return r.json(); }).then(function(d) { _anrGeoJSON = d; checkANR(d); }).catch(function() { setMBS('mbs_anr', '—'); }); }
+        return anefVals.length > 0;
+      }
+
+      var anefPromise;
+      if (_mbsAnefGeoJSON) {
+        anefPromise = Promise.resolve(_runAnefCheck(_mbsAnefGeoJSON));
+      } else {
+        anefPromise = fetch('./data/overlays/aircraft-noise.geojson')
+          .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+          .then(function(data) { _mbsAnefGeoJSON = data; return _runAnefCheck(data); })
+          .catch(function(e) { console.warn('MBS010 ANEF PIP failed:', e); setMBS('mbs_anef', '—'); setMBS('mbs_anr', '—'); return false; });
+      }
+
+      // 2. Noise and Air Emissions — PIP against local PlanSA GeoJSON
+      //    f.properties.overlay_name = "Noise and Air Emissions"
+      function _runNoiseCheck(noiseData) {
+        var overlayNames = [];
+        if (noiseData && noiseData.features) {
+          noiseData.features.forEach(function(f) {
+            if (pointInGeoJSONFeature(latlng.lat, latlng.lng, f)) {
+              var n = ((f.properties || {}).overlay_name) || 'Noise and Air Emissions';
+              if (overlayNames.indexOf(n) === -1) overlayNames.push(n);
+            }
+          });
+        }
+        if (overlayNames.length) {
+          setMBS('mbs_noise', 'Site in ' + overlayNames.join(', ') + ' Overlay');
+        } else {
+          setMBS('mbs_noise', 'Site not in Noise and Air Emissions Overlay');
+        }
+        return overlayNames.length > 0;
+      }
+
+      var noisePromise;
+      if (_mbsNoiseGeoJSON) {
+        noisePromise = Promise.resolve(_runNoiseCheck(_mbsNoiseGeoJSON));
+      } else {
+        noisePromise = fetch('./data/overlays/noise-air-emissions.geojson')
+          .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+          .then(function(data) { _mbsNoiseGeoJSON = data; return _runNoiseCheck(data); })
+          .catch(function(e) { console.warn('MBS010 noise PIP failed:', e); setMBS('mbs_noise', '—'); return false; });
+      }
 
       // After both checks: load road/rail/mixed only if site is in Noise and Air Emissions Overlay
       Promise.all([anefPromise, noisePromise]).then(function(results) {
