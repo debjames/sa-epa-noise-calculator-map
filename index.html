@@ -28270,12 +28270,19 @@ if (window.pdfjsLib) {
       if (map && map.getContainer) {
         map.getContainer().style.cursor = mode ? 'crosshair' : '';
       }
+      /* Disable planning-layer canvas pointer-events during placement so map
+         clicks reach the placement handler instead of triggering layer popups. */
+      if (typeof window._setPlanningCanvasInteractive === 'function') {
+        window._setPlanningCanvasInteractive(!mode);
+      }
       /* Dismiss onboarding hint as soon as user enters any placement mode
          (covers keyboard shortcuts and button clicks for sources/receivers) */
       if (mode && typeof window._dismissOnboardingHint === 'function') {
         window._dismissOnboardingHint();
       }
     }
+    window._isPlacementActive    = function() { return !!currentMode; };
+    window._cancelPlacementMode  = function() { if (currentMode) setMode(null); };
 
     /* ---- Add a new source pin (called from addSource map-click mode) ---- */
     function addNewSourcePin(latlng) {
@@ -39416,6 +39423,12 @@ if (window.pdfjsLib) {
   function addLayerToMap(layer) {
     var m = window._map;
     if (m && layer) layer.addTo(m);
+    /* If placement mode is active the canvas was already set non-interactive,
+       but adding the first layer to the map creates the canvas _container.
+       Re-apply so the freshly-created element also has pointer-events:none. */
+    if (typeof window._isPlacementActive === 'function' && window._isPlacementActive()) {
+      window._setPlanningCanvasInteractive(false);
+    }
   }
   function removeLayerFromMap(layer) {
     var m = window._map;
@@ -39531,6 +39544,16 @@ if (window.pdfjsLib) {
   /* ── Cross-IIFE zone toggle API ─────────────────────────────────────────── */
   window._togglePlanZones = toggleZones;
   window._isPlanZonesOn   = function() { return _planZonesOn; };
+
+  /* ── Canvas pointer-events API (for placement-mode click-through) ────────
+     During point-placement modes the shared canvas must be non-interactive
+     so map clicks reach the placement handler rather than triggering layer
+     popups. Call setPlanningCanvasInteractive(false) on mode enter, and
+     (true) on mode exit.  Guards against null canvas (layer not yet on map). */
+  window._setPlanningCanvasInteractive = function(on) {
+    var el = _canvasRenderer && _canvasRenderer._container;
+    if (el) el.style.pointerEvents = on ? '' : 'none';
+  };
 
   /* ── Save / load API ─────────────────────────────────────────────────────── */
   window._getPlanningLayers = function() {
@@ -41896,6 +41919,16 @@ if (window.pdfjsLib) {
     var key = e.key;
 
     switch (key) {
+      /* ── Cancel placement mode ───────────────────────────────── */
+      case 'Escape':
+        if (typeof window._cancelPlacementMode === 'function' &&
+            typeof window._isPlacementActive === 'function' &&
+            window._isPlacementActive()) {
+          window._cancelPlacementMode();
+          e.preventDefault();
+        }
+        break;
+
       /* ── Sources ─────────────────────────────────────────────── */
       case 'p': case 'P':
         _btn('mapMode-addSource');
