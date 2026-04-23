@@ -40315,7 +40315,7 @@ if (window.pdfjsLib) {
         { type: 'line',     searchName: 'medium truck',               defaultName: 'Medium truck movements' },
         { type: 'line',     searchName: 'medium truck exhaust',       defaultName: 'Medium truck exhaust' },
         { type: 'area',     searchName: 'unloading',                  defaultName: 'Unloading activity', isStub: true },
-        { type: 'building', searchName: 'Warehouse - internal reverberant', constructionSearchName: 'Sheet metal', defaultName: 'Warehouse shell' }
+        { type: 'building', searchName: 'Warehouse - internal reverberant', constructionSearchName: 'Sheet metal', defaultName: 'Warehouse building' }
       ]
     },
     { id: 'childcare', label: 'Childcare',
@@ -40657,8 +40657,9 @@ if (window.pdfjsLib) {
         if (!api.makeBuildingSource) return;
         var newBs = api.makeBuildingSource([], 6);
         if (!newBs) return;
-        newBs.name    = srcDef.defaultName;
-        newBs._libName = lib ? lib.name : null;
+        newBs.name           = srcDef.defaultName;
+        newBs._libName       = lib ? lib.name : null;
+        newBs.lpLibraryEntry = lib ? lib.name : null;
         newBs._stubTodo = isTodo || undefined;
         /* Pre-fill interior Lp — handles both Supabase rows (lib.spectrum)
            and SourceLibrary rows (lib.hz_63…hz_8000 + lib.lp_dba). */
