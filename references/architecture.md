@@ -1433,19 +1433,25 @@ All heading and body text is rendered via jsPDF API calls (not html2canvas). Hel
 
 | Helper | Style |
 |---|---|
-| `h1Heading(text)` | 20 pt bold, Resonate yellow `#F2CB00` `[242,203,0]`, before: 12 pt, after: 6 pt; hanging indent — first line at `margin`, continuation lines at `margin + 15 mm` |
+| `h1Heading(text)` | Arial 20 pt bold, Resonate yellow `#F2CB00` `[242,203,0]`, before: 12 pt, after: 6 pt; hanging indent — first line at `margin`, continuation lines at `margin + 15 mm` |
 | `h2Heading(text)` | 15 pt bold, black `[51,51,51]`, before: 12 pt, after: 6 pt; same hanging indent |
 | `introPara(text)` | 9 pt normal, black, line spacing 12 pt (4.23 mm/line); 2 mm gap after paragraph. Call once per paragraph. |
-| `captionText(text)` | 8 pt bold, black, before: 3 pt, after: 3 pt. Call **before** `placeImage()` for table captions; call **after** the image block for figure captions. |
-| `bulletItem(text)` | 9 pt normal, black, line spacing 12 pt. Glyph U+00B7 `·` at `mSide`; text at `mSide + 10 mm` (1 cm hanging indent); wrapped lines align back to `mSide + 10 mm`. Space before 3 pt, after 3 pt. Single-bullet page overflow handled per item. |
+| `captionText(text)` | 8 pt bold, black, before: 3 pt, after: 3 pt. **Not used in the Criteria section** — retained for future reuse. |
+| `bulletItem(text)` | 9 pt normal, black, line spacing 12 pt. Glyph U+2022 `•` at `mSide`; text at `mSide + 10 mm` (1 cm hanging indent); wrapped lines align back to `mSide + 10 mm`. Space before 3 pt, after 3 pt. Single-bullet page overflow handled per item. |
+| `bulletItemMixed(runs)` | Same layout as `bulletItem`. `runs` is `[{text: string, italic: boolean}, …]`. Wrapping measured from concatenated text in normal font; each line rendered as italic/roman segments using `pdf.getTextWidth()` for x-advancement. Use for bullets containing publication / legislation title italics. |
+| `parseDescriptors(text)` | Splits a string into `[{text: string, sub: boolean}]` segments where `sub: true` marks a subscript run. Recognises: `LAeq`, `LA10`, `LA90`, `LAmax`, `L10,15min`, `L90,15min`. For each descriptor, the leading `L` is a normal segment and the subscript letters/digits are a `sub: true` segment. |
+| `measureRichLine(segs, bold, fs)` | Returns the total rendered width (mm) of a segment array at the given font size. Normal segments measured at `fs`; subscript segments measured at `fs × 0.62`. Used for centering rich lines in table cells. |
+| `renderRichLine(segs, startX, lineY, bold, fs, lineH)` | Renders a segment array at `(startX, lineY)`. Normal segments at `fs`; subscript segments at `fs × 0.62` with a downward baseline offset of `lineH × 0.28`. Does not change text colour — caller must set it beforehand. |
 | `placeImage(img, label, maxH)` | Renders captured image at full column width (`cW = 166 mm`); adds 2 mm gap after. Throws on invalid data. |
 
 **Constant:** `var PT = 0.3528;` — converts points to mm (used for all spacing calculations).
 
+**Font:** `var FONT = 'helvetica'` is the default, overridden to `'arial'` at runtime if `fonts/arial-normal.ttf`, `arial-bold.ttf`, `arial-italic.ttf`, and `arial-bolditalic.ttf` are present in the project `fonts/` directory. The four font files are loaded as base64 and registered with jsPDF (`addFileToVFS` / `addFont`) immediately after `new jsPDF()`. The `fonts/` directory is in `.gitignore` (Microsoft Arial is not redistributable). If the font files are absent (e.g. on GitHub Pages), the code logs a console warning and uses Helvetica throughout.
+
 **Top-level section order** (fixed):
 1. H1 "Criteria" (Resonate yellow, 20 pt bold)
 2. H2 "Introduction" → lead-in paragraph → 5-item bullet list *(see below)*
-3. H2 "Zoning" → intro → zone map → figure caption
+3. H2 "Zoning" → intro → zone map image
 4. H2 "Planning & Design Code — Interface between Land Uses" → intro → table *(SA only)*
 5. H2 "Environmental noise policy" → 2× intro → table
 6. H2 "Emergency equipment criteria" → intro → table *(conditional)*
@@ -1466,16 +1472,16 @@ Final bullet ends with a full stop — intentional. Keep-with-next: entire Intro
 
 **Criteria section structure** (sub-section order is fixed):
 1. H1 "Criteria"
-2. H2 "Zoning" → intro → zone map image → figure caption below ("Zone map")
-3. H2 "Planning & Design Code — Interface between Land Uses" → intro → table caption above → table image *(SA only)*
-4. H2 "Environmental noise policy" → 2× intro paragraphs → table caption above → table image
-5. H2 "Emergency equipment criteria" → intro → table caption above → table image *(conditional)*
-6. H2 "Music noise criteria" → intro → table caption above → table image *(conditional)*
-7. H2 "Schools, kindergartens, child-care centre of place of worship" → intro → table caption above → table image *(conditional)*
+2. H2 "Zoning" → intro → zone map image
+3. H2 "Planning & Design Code — Interface between Land Uses" → intro → table *(SA only)*
+4. H2 "Environmental noise policy" → 2× intro paragraphs → table
+5. H2 "Emergency equipment criteria" → intro → table *(conditional)*
+6. H2 "Music noise criteria" → intro → table *(conditional)*
+7. H2 "Schools, kindergartens, child-care centre of place of worship" → intro → table *(conditional)*
 
-**No figure/table auto-numbering** — captions are plain descriptive text; there is no counter. Do not add "Figure N" or "Table N" prefixes to any caption in this section.
+**No captions** — all figure and table captions have been removed from the Criteria section. The `captionText()` helper remains in the codebase but is not called.
 
-**Subscripts in intro text** — jsPDF text mode does not support inline subscripts. Use plain ASCII notation (e.g. `L10,15min`) rather than Unicode subscript characters, which are not guaranteed to be present in the embedded Helvetica font.
+**Subscripts on L-descriptors** — All acoustic L-descriptors (`LAeq`, `LA10`, `LA90`, `LAmax`, `L10,15min`, `L90,15min`) are rendered with true subscript formatting via the `parseDescriptors` / `measureRichLine` / `renderRichLine` helper trio. The subscript portion (e.g. `Aeq`, `A10`) is set at 62 % of body font size and shifted downward by 28 % of line height. All five text-rendering functions that draw table cells or paragraph text (`introPara`, `drawCell`, `_eCell`, `_dcM`, `_chCell`) delegate to `renderRichLine`; the two standalone bold header strings ("Criteria, L\u200BAeq dB" and "L\u200BAeq dB") are replaced with `parseDescriptors` + `measureRichLine` + `renderRichLine` calls for manual centring.
 
 ### PDF export — map framing panel (`#pdfFramingPanel`)
 
@@ -1515,18 +1521,18 @@ All page-fit logic in `generatePDFAppendix` reads from a single set of constants
 
 ### PDF export — keep-with-next convention
 
-Each Criteria sub-section is treated as an atomic block (heading + intro paragraph(s) + caption + figure/table). Before rendering any block, its total height is measured using helper functions and `newPageIfNeeded(needH)` is called:
+Each Criteria sub-section is treated as an atomic block (heading + intro paragraph(s) + figure/table). Before rendering any block, its total height is measured using helper functions and `newPageIfNeeded(needH)` is called:
 
 | Helper | What it measures |
 |---|---|
 | `_mH2(text)` | H2 heading height (12 pt before + lines × 15 pt leading + 6 pt after) |
 | `_mParas(texts[])` | Sum of intro paragraph heights (lines × 12 pt leading + 2 mm gap each) |
-| `_mCap()` | Caption height (3 pt + 8 pt + 3 pt = fixed 14 pt ≈ 4.94 mm) |
+| `_mCap()` | Caption height (3 pt + 8 pt + 3 pt = fixed 14 pt ≈ 4.94 mm) — **kept for future use; not included in any block-height calculation** |
 | `_mImg(img)` | Image height (`cW × img.aspect + 2 mm`) or 0 if no image |
 
 `newPageIfNeeded(needH)` inserts `pdf.addPage()` and resets `y = mTop` if `needH > remainH()`.
 
-`renderCritTablePaginated(capLabel)` handles the criteria table separately — it renders row-by-row and inserts a page break (with caption + gold header row repeat) whenever a row would overflow the page.
+`renderCritTablePaginated()` handles the criteria table separately — it renders row-by-row and inserts a page break (with **gold header row only** repeated) whenever a row would overflow the page. No caption is repeated on continuation pages.
 
 ### PDF Figure 1 — layer-state override pattern
 
@@ -1566,8 +1572,15 @@ Row height is dynamic: each row measured via `_pdcMeasureRowH()` (wraps all thre
 | Constant | Value | Purpose |
 |---|---|---|
 | `TABLE_HEADER_YELLOW` | `[242,203,0]` (#F2CB00) | Primary header row (gold) — all tables |
-| `TABLE_HEADER_GREY` | `[242,242,242]` | Subheader / frequency-label rows — all tables |
+| `TABLE_HEADER_GREY` | `[217,217,217]` (#D9D9D9) | Subheader / frequency-label rows — all tables (final, confirmed) |
 | `GOLD` | same reference as `RESONATE_YELLOW` | Legacy alias, still used inside `renderCritTablePaginated` |
+
+#### Table style invariants (all five tables)
+- **Borders:** 0.5 pt black (`setDrawColor(0,0,0)`, `setLineWidth(0.18)`), drawn AFTER fills on every cell — 4 sides, no exceptions
+- **Text colour:** black (`setTextColor(0,0,0)`) for all cells including header rows
+- **Row height:** auto-sized — `max(lines per cell) × lineHeight + 2 × padding`; no fixed row heights; `lineHeight ≈ fontSize × 0.3528 × 1.35`, `padding = 2 mm`
+- **Text alignment:** top-aligned (baseline at `cy + pad + capHeight`); subsequent lines at `+ lineHeight` each
+- **Space after table:** `y += 12 * PT` (~4.2 mm) appended after the last row of every table
 
 ### What stayed intact
 

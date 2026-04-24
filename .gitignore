@@ -28,3 +28,6 @@ Thumbs.db
 
 # Work artifacts (extracted .docx innards, etc.)
 template-extracted/
+
+# Proprietary font files (Microsoft Arial — not redistributable)
+fonts/

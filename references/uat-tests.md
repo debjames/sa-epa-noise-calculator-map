@@ -223,6 +223,12 @@ Prerequisite: SA assessment with source placed, 2+ receivers placed and zones de
 - [ ] **Emergency criteria — absent** — Untick "Emergency equipment" → regenerate PDF → no emergency section in PDF.
 - [ ] **Music criteria — present** — Tick "Music" checkbox, enter background noise values → regenerate PDF → "Music Noise Criteria" octave band table appears with LA90 and LA10 criteria values.
 - [ ] **Music criteria — absent** — Untick "Music" → regenerate PDF → no music section in PDF.
+- [ ] **Music LA90 row — no input-box clipping** — Enter values 20, 23, 25, 34, 40, 42, 45 in the seven octave bands. Export PDF. LA90 row shows all values fully visible as plain centred text: 20 23 25 34 40 42 45. No input-box border, no clipped digits.
+- [ ] **Music LA90 and LA10 row styling match** — Both rows render with identical cell style (same font size, centred alignment, no background fill). Neither row shows any input widget chrome.
+- [ ] **Music LA10 values correct** — With background values above, LA10 row shows 28 31 33 42 48 50 53 (each = LA90 + 8).
+- [ ] **Music table — missing band value** — Leave one band empty. That cell shows "—" in both LA90 and LA10 rows; other cells unaffected.
+- [ ] **Music table header** — Gold header row reads "Octave band centre frequency, Hz" in white bold. Frequency label row (63 125 250 500 1000 2000 4000) renders in light grey with bold numerals.
+- [ ] **Music live UI unchanged** — After PDF export, the background noise input boxes in the sidebar remain fully editable; values entered before export are preserved.
 - [ ] **Childcare criteria — present** — Tick "Childcare / students" → regenerate PDF → "Childcare / Student Criteria" section appears showing 50 dB(A).
 - [ ] **Childcare criteria — absent** — Untick "Childcare" → regenerate PDF → no childcare section in PDF.
 
@@ -252,26 +258,142 @@ Prerequisite: SA assessment with source placed, 2+ receivers placed and zones de
 - [ ] **Basemap restored after export** — After aerial export, map returns to aerial view. After street export, map stays on street.
 - [ ] **Layers restored** — After export with noise map + contours + pins all on, all are back on the map immediately after the PDF downloads.
 - [ ] **Zone legend in capture** — Zone legend (bottom-left) and scale bar remain visible in Figure 1 image.
-- [ ] **SA zones in appendix** — SA state selected, zones toggled on → SA zone polygons appear in Figure 1.
-- [ ] **VIC zones in appendix** — VIC state selected, zones toggled on → VIC zone polygons appear in Figure 1.
-- [ ] **NSW zones in appendix** — NSW state selected, zones toggled on → NSW zone polygons appear in Figure 1.
-- [ ] **Zones off → no zones** — Zones toggled off → Figure 1 shows street map + boundary only, no zone polygons.
+- [ ] **SA zones in appendix** — SA state selected, zones toggled on → SA zone polygons (canvas-rendered GeoJSON) appear in Figure 1 with their fill colours and zone labels.
+- [ ] **SA zones forced on — zones off** — SA state selected, zones toggled **OFF** before export → export PDF → Figure 1 shows SA zone polygons (forced on during capture). After download, live map zone toggle is restored to OFF.
+- [ ] **VIC zones in appendix** — VIC state selected, zones toggled on → VIC VicPlan zone polygons appear in Figure 1.
+- [ ] **VIC zones forced on — zones off** — VIC state, zones OFF before export → Figure 1 shows VIC zone polygons. Live map restored to zones OFF after export.
+- [ ] **NSW zones in appendix** — NSW state selected, zones toggled on → NSW planning portal zone polygons appear in Figure 1.
+- [ ] **NSW zones forced on — zones off** — NSW state, zones OFF before export → Figure 1 shows NSW zone polygons. Live map restored to zones OFF after export.
+- [ ] **Zones forced on — many objects visible** — Sources, receivers, barriers, ground zones, noise map all ON; zone toggle OFF. Export → Figure 1 shows zones only (all other objects absent). After export: all objects + noise map restored; zone toggle still OFF.
+- [ ] **Async zone fetch — export immediately after page load** — Open page, do NOT toggle zones. Export appendix immediately (zone data not yet loaded into `_zonesLayer`). Figure 1 either (a) shows zone polygons (if 1000ms wait was sufficient for async GeoJSON load) or (b) shows street map only with a console warning — but does NOT capture a half-rendered or blank map silently.
+- [ ] **SA zone state not double-toggled** — SA state, zones toggled ON before export. Export appendix → zones are already on, should NOT be toggled off and back on (no flicker). After export, zones remain ON.
+- [ ] **Criteria PDF (exportCriteriaPdf) — SA zones forced** — SA state, zones OFF. Click "Export Criteria PDF" button → Figure 1 shows SA zone polygons. After export, zones remain OFF.
 - [ ] **Parcel boundary in capture** — Source placed (triggers parcel boundary API fetch) → black/white dashed boundary polygon appears in Figure 1.
 - [ ] **No parcel boundary before source placed** — No source placed → no boundary polygon in Figure 1. Export still succeeds.
 
-### Diagnostic logging (regression guard for PNG corruption fix)
+### Diagnostic logging (regression guard)
 
-- [ ] **Console entries present** — On successful export, browser console shows `[pdf-appendix] receivers & criteria { format: "JPEG", dataUrlLength: ..., dataUrlPrefix: "data:image/jpeg;base64,...", aspect: ... }` and similarly for any other included sections. Length must be > 100. Note: prefix is now `data:image/jpeg` (not `data:image/png`).
-- [ ] **Named error on failure** — If export fails, alert reads `"PDF appendix export failed at [section name]: ..."` not a generic message. Trigger by temporarily breaking a capture (e.g. hiding the critBody element before export).
-- [ ] **Zero-size element skipped** — If a table element has zero width/height at capture time (e.g. collapsed section), that section returns `null` from `captureElement()` and is silently skipped in the PDF — no error thrown.
+- [ ] **Console entries present** — On successful export, browser console shows `[pdf-appendix] zone map { dataUrlLength: ..., aspect: ... }`. Native table sections (PDC, criteria, emergency, music, childcare) produce no `[pdf-appendix]` log entries as they use no image capture.
+- [ ] **Named error on failure** — If export fails, alert reads `"PDF appendix export failed at [section name]: ..."`. For image captures, `_pdfLabel` is set before `addImage`; for native tables any JS error propagates to the outer catch with the last known `_pdfLabel`.
+- [ ] **No html2canvas calls for tables** — Confirm via DevTools Network tab: no canvas/JPEG fetch requests are made for PDC, emergency, or childcare sections (all rendered inline by jsPDF).
 
-### JPEG table capture (regression guard for large-PNG jsPDF failure)
+### JPEG zone map capture (regression guard for large-PNG jsPDF failure)
 
 - [ ] **Tall criteria table — no PNG error** — NSW state, 4 receivers placed, all zones detected (maximises row count). Export appendix → no "Incomplete or corrupt PNG file" alert. PDF downloads and opens. Criteria table visible.
-- [ ] **All sections JPEG** — Open browser devtools console before export. Export appendix with PDC + criteria + emergency + music + childcare all active. Every `[pdf-appendix]` log entry shows `format: "JPEG"` and `dataUrlPrefix: "data:image/jpeg;base64,"`. No `"data:image/png"` prefix in any entry.
-- [ ] **Text readability** — Open the exported PDF at 100% zoom. Table text (column headers, receiver names, dB values) is sharp and legible — JPEG compression at quality 0.95 must not produce visible blocking artefacts on text.
-- [ ] **Error labels the section** — If any table capture fails, the alert message includes the section name (e.g. `"PDF appendix export failed at [receivers & criteria]: ..."`) — confirmed because `placeImage()` now sets `_pdfLabel` as its first action before `addImage` can throw.
-- [ ] **Zone map still JPEG** — Figure 1 (zone map) still captured as JPEG directly (not via `captureElement()`). Confirm by checking `[pdf-appendix] zone map` log entry shows `format: "JPEG"` or equivalent prefix.
+- [ ] **Zone map still JPEG** — Zone map is still captured as JPEG directly. Confirm by checking `[pdf-appendix] zone map` console entry shows `format: "JPEG"` or JPEG data URL prefix.
+- [ ] **Text readability** — Open the exported PDF at 100% zoom. Table text (column headers, receiver names, dB values) is sharp and legible — no JPEG artefacts on text (tables are now native jsPDF, not JPEG).
+- [ ] **Error labels the section** — If export fails, alert includes a section name from `_pdfLabel`. For native-rendered sections (PDC, emergency, childcare) the label is set to 'init' during the PDF build; for zone map the label is 'zone map'.
+
+### Native table rendering — Resonate styling (PDC, emergency, childcare)
+
+- [ ] **PDC table present and populated** — SA state, export → PDC table shows 6 rows, each with wrapped Performance Outcome, DTS/DPF, and Relevance text. No `<div contenteditable>` artefacts.
+- [ ] **PDC row heights dynamic** — PO 4.2 (longest text) renders with a noticeably taller row than PO 4.4 (short text). No row is clipped.
+- [ ] **PDC relevance text preserved** — Type custom text into a Relevance cell in the sidebar before export. That text appears verbatim in the Relevance column of the PDF table.
+- [ ] **PDC "TBC" value** — If a relevance cell reads "TBC" (auto-set by the tool), the PDF renders it as "TBC pending modelling".
+- [ ] **PDC header row gold** — Header row ("Performance Outcome" / "DTS/DPF" / "Relevance") has gold (#F2CB00) background with **black bold text**.
+- [ ] **PDC subheading row grey** — "Activities Generating Noise or Vibration" row renders with grey (**#D9D9D9**) background and black text.
+- [ ] **PDC column proportions** — Performance Outcome column is visibly the widest (~47%); Relevance column the narrowest (~20%).
+- [ ] **PDC pagination** — On a long-form export where the PDC table spans a page break, the header row ("Performance Outcome" / "DTS/DPF" / "Relevance") repeats at the top of the continuation page. No row body is split mid-cell.
+- [ ] **Emergency table 2-row header** — Fire pump only: row 1 gold "Receiver | Criteria, LAeq dB"; row 2 grey "empty | Fire pump". Generator only: row 2 shows "Standby generator". Both active: row 2 shows both equipment labels.
+- [ ] **Emergency table body values** — Criteria values in the body rows match what appears in the Emergency Equipment Criteria section in the sidebar.
+- [ ] **Emergency table body reads from rendered DOM** — Enable emergency equipment, do NOT open the Emergency Equipment Criteria panel. Export PDF → emergency table body rows are populated (values come from `emergEquipBody` after `renderEmergencyEquipCriteria()` runs).
+- [ ] **Childcare table layout** — Table has two columns: "Location" (75% width) and "LAeq dB" (25% width). Single body row: "All sensitive receivers" | "50".
+- [ ] **Childcare table header gold** — Header row has gold background with **black text**.
+- [ ] **All table borders consistent** — Every native table (PDC, criteria, emergency, music, childcare) uses **0.18 mm black borders** on all four sides of every cell. No missing or doubled borders visible at 200% zoom in PDF viewer.
+- [ ] **Every cell has full 4-sided border** — Zoom to 200% in PDF viewer. Check each table: no cell has a missing edge (top, bottom, left, or right). Borders are solid black, not grey.
+- [ ] **No text clipping in any cell** — Rows auto-size to content. "Night LAmax (dB)" header, "Old Belair Road, Torrens Park" receiver name, and "Suburban Neighbourhood Zone" zone name all render without truncation or overflow into adjacent cells.
+- [ ] **12 pt gap between table and next element** — After each table (PDC, criteria, emergency, music, childcare) there is a visible ~4 mm gap before the next heading or paragraph. No table is flush against the element below it.
+- [ ] **Grey shade matches #D9D9D9** — Subheader / frequency-label rows (PDC category subheadings, music octave-band frequency row) render in a mid-grey that visually matches #D9D9D9. Not the lighter #F2F2F2.
+- [ ] **TABLE_HEADER_YELLOW consistent** — Gold header colour is visually identical across all five tables (PDC, criteria, emergency, music, childcare). All use #F2CB00.
+
+### PDF export — map framing panel
+
+- [ ] **Panel appears on Save PDF** — Click "Save PDF" toolbar button. A floating panel titled "Prepare map for PDF" appears centred near the top of the screen. The button is NOT yet disabled (export hasn't started).
+- [ ] **Map still interactive** — While the framing panel is visible, zoom and pan the map. Both work normally — the panel does not block map interaction.
+- [ ] **Panel does not close on click-outside** — Click on the map or sidebar while the panel is visible. Panel stays open.
+- [ ] **Accept starts export** — Click Accept. Panel closes, button disables to "Exporting…", PDF export proceeds and downloads.
+- [ ] **Cancel aborts export** — Click "Save PDF", then click Cancel. Panel closes, button remains enabled (not disabled), no PDF downloaded. Clicking Save PDF again re-shows the framing panel.
+- [ ] **exportCriteriaPdf framing panel** — Trigger the standalone Criteria PDF export button (if visible). Same framing panel appears; Accept/Cancel behave identically.
+- [ ] **Framing panel z-index** — Panel appears on top of all map layers, sidebars, and overlays. No UI element obscures it.
+
+### PDF export — criteria capture independent of sidebar state
+
+- [ ] **All panels collapsed — export still works** — Collapse all cards in the Criteria sidebar tab. Click Save PDF → Accept. Export completes; PDF includes all criteria table sections with correct data (no blank tables, no missing sections).
+- [ ] **Panels restored after export** — After export completes, collapsed panels remain collapsed. The export process does not leave panels in a different state than before export.
+- [ ] **Mixed collapse state** — Collapse only the "Environmental noise policy" card. Export → Accept. PDF includes the criteria table from that card. Card remains collapsed in the sidebar after export.
+- [ ] **overflow-y clipped panels captured** — If any criteria panel has a scrollable (overflow-y:auto) container, the full table content is captured — not just the visible viewport portion.
+
+### PDF Criteria section — heading and intro text structure
+
+- [ ] **H1 "Criteria" present** — PDF opens with "Criteria" as the first heading in Resonate yellow (#F2CB00), 20 pt bold. No other heading uses this colour.
+- [ ] **Six H2 sub-sections in correct order** — Sub-sections appear in this sequence: Zoning → Planning & Design Code — Interface between Land Uses → Environmental noise policy → Emergency equipment criteria → Music noise criteria → Schools, kindergartens, child-care centre of place of worship. (Conditional sections only appear when their source category is active.)
+- [ ] **Old headings gone** — "Receivers & Criteria", "Childcare / Student Criteria", and "Emergency Equipment Criteria" do not appear anywhere in the PDF.
+- [ ] **H1 spacing** — 12 pt before / 6 pt after H1 "Criteria". H1 is visually separated from the H2 below it.
+- [ ] **H2 spacing** — 12 pt before / 6 pt after each H2. H2 headings are visually separated from intro paragraphs below.
+- [ ] **Intro paragraphs present** — Each H2 is immediately followed by its intro paragraph in 9 pt normal weight. Text is verbatim per spec (spot-check first sentence of each).
+- [ ] **Two-paragraph intro — Environmental noise policy** — The "Environmental noise policy" intro is split into two separate paragraphs, with a visible gap between "…noise-affected premises." and "Based on the land use categories…".
+- [ ] **Line spacing** — Body intro text has visible leading (12 pt line spacing). Lines are not cramped.
+- [ ] **No captions anywhere in Criteria section** — Export PDF. Search the PDF text (Ctrl+F in Acrobat) for: "Zone map", "Relevant assessment provisions", "Environmental noise criteria", "Music noise criteria", "People noise criteria". None of these strings should appear as standalone caption lines — the H2 heading text is the only labelling. Confirm zero caption occurrences.
+- [ ] **H1 hanging indent** — If H1 wraps to two lines (unlikely at 20 pt), continuation line is indented 1.5 cm from left margin.
+- [ ] **H2 hanging indent** — "Schools, kindergartens, child-care centre of place of worship" at 15 pt — if it wraps, continuation line is indented 1.5 cm.
+- [ ] **Table data unchanged** — Receiver names, zone names, INL values, criteria values (dB), fire pump / generator values, octave band values, 50 dB(A) childcare threshold all unchanged in the tables.
+- [ ] **Other PDF sections unaffected** — Sections outside Criteria (page numbers, cover metadata if any) render identically to before.
+- [ ] **No console errors** — Export completes with no errors in DevTools console.
+
+### PDF export — Introduction section
+
+- [ ] **Introduction before Criteria** — Export appendix. The PDF opens with an H2 "Introduction" heading (15 pt bold black) appearing immediately before the "Criteria" H1 heading. No other content appears between them.
+- [ ] **H2 style matches Criteria sub-sections** — "Introduction" heading renders identically in size, weight, colour, and spacing to other H2 headings such as "Zoning" — 15 pt bold black, 12 pt before, 6 pt after.
+- [ ] **Lead-in sentence present and correct** — Immediately below the heading: "The noise impact assessment has been undertaken in consideration of the following guidelines:" in 9 pt normal black, line spacing matching Criteria intro paragraphs.
+- [ ] **Five bullets in correct order** — Bullets appear in this exact sequence: (1) Planning & Design Code; (2) Environment Protection (Commercial & Industrial Noise) Policy 2023 (Noise Policy); (3) Local Nuisance and Litter Control Act 2016; (4) World Health Organization (WHO) Guidelines for Community Noise; (5) Environment Protection Authority (EPA) Guideline Assessing music noise from indoor venues (2021).
+- [ ] **Solid round bullet glyph** — Each bullet begins with `•` (U+2022 solid round bullet), NOT a middle dot `·`, hyphen `-`, or tofu square `□`. Copy a glyph from the PDF and paste into a text editor — it should paste as `•`.
+- [ ] **1 cm hanging indent** — Measure in the PDF: bullet glyph sits at the body left margin (0 cm offset); bullet text starts 1 cm to the right of the glyph. Wrapped lines on multi-line bullets (bullets 2, 4, 5) align back to the 1 cm mark — not to the glyph position.
+- [ ] **Full stop on final bullet** — Bullet 5 ends with a full stop: "…indoor venues (2021)." — verify it is present and in roman (not italic).
+- [ ] **Bullet spacing** — Consistent small gap between each bullet (~2 mm visible gap); 3 pt before + 3 pt after each item (no tight stacking, no large gaps).
+- [ ] **Bullet text style** — 9 pt black; line spacing matches the lead-in paragraph above.
+- [ ] **Italic runs — bullet 1** — "Planning & Design Code" renders entirely in roman (no italic).
+- [ ] **Italic runs — bullet 2** — "Environment Protection (Commercial & Industrial Noise) Policy" renders in italic; " 2023 (Noise Policy)" renders in roman. Italic/roman boundary is at the space before "2023".
+- [ ] **Italic runs — bullet 3** — "Local Nuisance and Litter Control Act" renders in italic; " 2016" renders in roman.
+- [ ] **Italic runs — bullet 4** — "World Health Organization (WHO) " renders in roman; "Guidelines for Community Noise" renders in italic.
+- [ ] **Italic runs — bullet 5** — "Environment Protection Authority (EPA) Guideline " renders in roman; "Assessing music noise from indoor venues" renders in italic; " (2021)." renders in roman.
+- [ ] **Wrapped italic lines** — If a bullet wraps mid-italic-run, the continuation line continues in italic from the correct word. No style flip at line boundaries.
+- [ ] **Keep-with-next — block stays together** — If the Introduction would start near the bottom of a page and overflow, the entire block (H2 + lead-in + all 5 bullets) moves to the next page together. No orphan heading or lead-in sentence left alone at the bottom.
+- [ ] **Criteria H1 unaffected** — After the Introduction, "Criteria" H1 still appears in 20 pt bold Resonate yellow, followed by all six sub-sections in the correct order and with correct data.
+- [ ] **No console errors** — Export completes with no errors in DevTools console.
+
+### PDF export — L-descriptor subscript formatting
+
+- [ ] **Subscript present — criteria table headers** — In the SA/VIC/NSW criteria table, column headers "Day L**Aeq** (dB)", "Night L**Aeq** (dB)", and "Night L**Amax** (dB)" render with "Aeq" / "Amax" visibly smaller than "L" and slightly lower (subscript position). The "L" sits on the normal baseline; the subscript letters sit below it.
+- [ ] **Subscript size** — The subscript portion appears approximately 60 % of body text height. It is clearly smaller than surrounding text but still legible at normal PDF zoom (100 %).
+- [ ] **Subscript baseline** — The subscript portion sits below the normal text baseline — not above (superscript) and not on the baseline. The descender of the subscript does not clip the cell border below.
+- [ ] **Centring preserved — centre-aligned cells** — Column headers with subscripts remain horizontally centred in their cells. The centring is calculated from the actual rich-text rendered width (not the plain-string width), so the header is not visibly off-centre.
+- [ ] **Emergency header — "Criteria, L_Aeq dB"** — The spanning gold header in the Emergency equipment table reads "Criteria, L**Aeq** dB" with subscript "Aeq". The text is horizontally centred in the span.
+- [ ] **Childcare header — "L_Aeq dB"** — The "L**Aeq** dB" column header in the Schools/childcare table has subscript "Aeq" and is centred in the right-hand column.
+- [ ] **Music table row labels** — "Lowest background L**A90** (dB)" and "Music noise criteria L**A10** (dB)" in the music table render with subscript "A90" / "A10" respectively. Left-aligned, no misalignment.
+- [ ] **Intro paragraph — music noise** — The music noise intro paragraph text contains "L**10,15min**" and "L**90,15min**" with subscript "10,15min" / "90,15min". These are legible at the 9 pt body font size.
+- [ ] **Non-descriptor text unchanged** — Text that does not contain an L-descriptor (e.g. "Location", "Zone", frequency numbers, criteria values) renders identically to before — no unintended reformatting.
+- [ ] **Row heights not clipped** — No cell has its bottom text line clipped by the cell border. Row auto-heights accommodate the subscript descender correctly (the subscript sits within the top-padding + cap-height zone and does not extend past the cell floor).
+
+### PDF export — running logo header and page geometry
+
+- [ ] **Logo on every page** — Export appendix with enough content to produce 2+ pages. Open the PDF. Resonate logo appears at top-left of **every** page (page 1, page 2, …), not just the first.
+- [ ] **Logo position and size** — Logo is approximately 5.29 cm wide and sits exactly **2 cm** from the top edge of each page (measure from page top to top of logo), aligned with the left content margin.
+- [ ] **Body text clears logo** — No body text or heading overlaps the logo. Visible gap (~10.58 mm / 30 pt) between the bottom of the logo and the first line of content.
+- [ ] **Logo crisp at 100% zoom** — Open exported PDF in Acrobat at 100%. Resonate logo text and mark are sharp with clean edges — no pixelation or blur.
+- [ ] **Logo crisp at 200% zoom** — Zoom to 200% in Acrobat. Logo remains crisp; text edges are clean. (2× canvas upsample → 1632 × 612 px → ~784 DPI at 5.29 cm — should be clean at 200%.)
+- [ ] **Logo crisp at 400% zoom** — Zoom to 400%. Some softening acceptable (raster source); no severe staircase pixelation on letter curves.
+- [ ] **Logo colour correct** — Yellow matches Resonate brand colour (#F2CB00); no colour shift from canvas re-encode.
+- [ ] **Page numbers on every page** — Every page shows "N / Total" centred at the bottom (e.g. "1 / 3", "2 / 3"). Format is `page / total`, not just a page number.
+- [ ] **No cover page** — PDF opens directly at the Criteria content; there is no blank or title-only cover page. Logo is on the first content page.
+
+### PDF export — keep-with-next and pagination
+
+- [ ] **No orphaned H2 headings** — With minimal content (only Zoning + Environmental noise policy sections), verify that no H2 heading appears as the last element on a page with its content starting on the next page. If the heading + intro + table won't fit together, the entire block starts on the next page.
+- [ ] **Zone map figure not split** — If the zone map image is tall, the entire zone map block (H2 + intro + figure) moves to a new page rather than splitting the image across pages.
+- [ ] **Tall criteria table paginates** — Place ≥8 receivers (to force a multi-page table). Export appendix. On the second (and subsequent) criteria table pages: (a) **no caption** at the top — header row starts immediately at the top margin; (b) gold header row repeats immediately below the top margin; (c) table data continues correctly without gaps or duplicate rows; (d) no content overflows below the bottom margin.
+- [ ] **Repeated header row styling** — Repeated header row uses the same Resonate yellow background `[242,203,0]` and bold black text as the original header row — not plain white.
+- [ ] **Single-page table — no spurious page break** — With 1–3 receivers, the criteria table fits on one page. No blank page inserted before or after the table.
+- [ ] **All active conditional sections paginate correctly** — Enable emergency + music + childcare, place 6 receivers. Export. All six sub-sections appear; none has an orphaned heading; each section block starts cleanly on a new page if it would otherwise overflow.
 
 ### 3D area source terrain draping
 

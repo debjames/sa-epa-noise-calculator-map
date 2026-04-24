@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: update-planning-data
@@ -48,10 +49,16 @@ jobs:
           exit 1
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Create data branch
+        run: |
+          BRANCH="chore/data-${{ github.run_id }}"
+          git checkout -b "$BRANCH"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
 
@@ -64,14 +71,28 @@ jobs:
         run: node scripts/update-planning-data.js
 
       - name: Commit data files
-        uses: stefanzweifel/git-auto-commit-action@v5
+        id: auto-commit
+        uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5
         with:
           commit_message: "chore(data): refresh planning data ${{ github.run_id }} (${{ inputs.mode || 'build' }})"
           file_pattern: 'data/**'
+          branch: ${{ env.BRANCH }}
+          push_options: '--set-upstream'
+
+      - name: Open pull request
+        if: steps.auto-commit.outputs.changes_detected == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --title "chore(data): refresh planning data (${{ inputs.mode || 'build' }})" \
+            --body "Automated data refresh — run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})." \
+            --base main \
+            --head "$BRANCH"
 
       - name: Notify Slack on failure
         if: failure()
-        uses: slackapi/slack-github-action@v2.1.1
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
         with:
           payload: |
             {
