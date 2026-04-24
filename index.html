@@ -386,40 +386,40 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 /* Zone legend control */
 .zone-legend {
   background: rgba(255,255,255,0.92);
-  border-radius: 8px;
+  border-radius: 16px;
   box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-  padding: 8px 10px;
-  font-size: 11px;
+  padding: 16px 20px;
+  font-size: 22px;
   line-height: 1.5;
-  max-height: 260px;
+  max-height: 520px;
   overflow-y: auto;
-  min-width: 140px;
-  max-width: 220px;
+  min-width: 280px;
+  max-width: 440px;
 }
 .zone-legend-title {
   font-weight: 700;
-  font-size: 11px;
-  margin-bottom: 5px;
+  font-size: 22px;
+  margin-bottom: 10px;
   color: #333;
   border-bottom: 1px solid #ddd;
-  padding-bottom: 4px;
+  padding-bottom: 8px;
 }
 .zone-legend-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 1px 0;
+  gap: 12px;
+  padding: 2px 0;
 }
 .zone-legend-swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   border: 1px solid rgba(0,0,0,0.25);
   flex-shrink: 0;
 }
 .zone-legend-name {
   color: #444;
-  font-size: 11px;
+  font-size: 22px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -16601,19 +16601,19 @@ function _buildZoneListHTML(zones, fracs, label) {
   zones.forEach(function(z) {
     if (!seen[z.zoneCode]) { seen[z.zoneCode] = true; unique.push(z); }
   });
-  var html = '<div style="margin-bottom:4px;"><span style="font-weight:600;font-size:10px;">' + label + '</span>';
+  var html = '<div style="margin-bottom:8px;"><span style="font-weight:600;font-size:20px;">' + label + '</span>';
   if (unique.length === 0) {
-    html += ' <span style="color:var(--muted);font-size:10px;">No zones detected</span>';
+    html += ' <span style="color:var(--muted);font-size:20px;">No zones detected</span>';
   } else {
-    html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">';
     unique.forEach(function(z) {
       var col = TYPE_COLORS[z.type] || '#6b7280';
-      html += '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;font-weight:500;">' +
+      html += '<span style="font-size:18px;padding:2px 10px;border-radius:6px;background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;font-weight:500;">' +
               z.zoneCode + ' = ' + (TYPE_LABELS[z.type] || '?') + '</span>';
     });
     html += '</div>';
   }
-  html += '<div style="font-size:9px;color:var(--muted);margin-top:1px;">';
+  html += '<div style="font-size:18px;color:var(--muted);margin-top:2px;">';
   html += 'T1: ' + Math.round(fracs[1] * 100) + '% · T2: ' + Math.round(fracs[2] * 100) + '% · T3: ' + Math.round(fracs[3] * 100) + '%';
   html += '</div></div>';
   return html;
@@ -26595,7 +26595,7 @@ if (window.pdfjsLib) {
       _mbs010LegendCtrl = L.control({ position: 'bottomleft' });
       _mbs010LegendCtrl.onAdd = function(map) {
         var div = L.DomUtil.create('div', 'zone-legend');
-        div.style.cssText = 'background:#fff;padding:8px 12px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:12px;line-height:1.8;';
+        div.style.cssText = 'background:#fff;padding:16px 24px;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:24px;line-height:1.8;';
         L.DomEvent.disableClickPropagation(div);
         L.DomEvent.disableScrollPropagation(div);
 
@@ -26610,12 +26610,12 @@ if (window.pdfjsLib) {
           { key: 'trams.geojson', label: 'Tram line', color: '#4a8a4a' }
         ];
 
-        var html = '<style>input[data-mbs-key]{appearance:none;-webkit-appearance:none;width:14px;height:14px;border:1.5px solid #ccc;border-radius:2px;background:#fff;cursor:pointer;position:relative;flex-shrink:0;margin:0;}input[data-mbs-key]:checked::after{content:"\\2713";position:absolute;top:-2px;left:1px;font-size:12px;color:#999;font-weight:700;}</style>';
-        html += '<div style="font-weight:700;margin-bottom:4px;">MBS 010 Screening</div>';
+        var html = '<style>input[data-mbs-key]{appearance:none;-webkit-appearance:none;width:28px;height:28px;border:3px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;position:relative;flex-shrink:0;margin:0;}input[data-mbs-key]:checked::after{content:"\\2713";position:absolute;top:-4px;left:2px;font-size:24px;color:#999;font-weight:700;}</style>';
+        html += '<div style="font-weight:700;margin-bottom:8px;">MBS 010 Screening</div>';
         layerGroups.forEach(function(lg) {
-          html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">' +
+          html += '<label style="display:flex;align-items:center;gap:12px;cursor:pointer;">' +
             '<input type="checkbox" checked data-mbs-key="' + lg.key + '">' +
-            '<span style="display:inline-block;width:14px;height:14px;background:' + lg.color + ';opacity:0.7;border:1px solid ' + lg.color + ';border-radius:2px;flex-shrink:0;"></span> ' +
+            '<span style="display:inline-block;width:28px;height:28px;background:' + lg.color + ';opacity:0.7;border:1px solid ' + lg.color + ';border-radius:4px;flex-shrink:0;"></span> ' +
             lg.label + '</label>';
         });
         div.innerHTML = html;
@@ -28106,7 +28106,7 @@ if (window.pdfjsLib) {
         var wrapper = L.DomUtil.create('div', '');
         // Use 2-column grid when 3+ legends, single column for 1-2
         var cols = visibleIds.length >= 3 ? 2 : 1;
-        wrapper.style.cssText = 'display:grid;grid-template-columns:repeat(' + cols + ',1fr);gap:6px;max-height:calc(100vh - 120px);overflow-y:auto;pointer-events:auto;';
+        wrapper.style.cssText = 'display:grid;grid-template-columns:repeat(' + cols + ',1fr);gap:12px;max-height:calc(100vh - 120px);overflow-y:auto;pointer-events:auto;';
 
         visibleIds.forEach(function(id) {
           var data = window.autoIFDataPerReceiver[id];
@@ -28116,16 +28116,16 @@ if (window.pdfjsLib) {
 
           var card = document.createElement('div');
           card.className = 'zone-legend';
-          card.style.cssText = 'max-width:240px;min-width:170px;margin:0;border-left:3px solid ' + col + ';';
-          var html = '<div class="zone-legend-title" style="color:' + col + ';font-size:11px;">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</div>';
-          html += '<div style="display:flex;gap:6px;margin-bottom:3px;font-size:8px;font-weight:600;">';
+          card.style.cssText = 'max-width:480px;min-width:340px;margin:0;border-left:6px solid ' + col + ';';
+          var html = '<div class="zone-legend-title" style="color:' + col + ';font-size:22px;">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</div>';
+          html += '<div style="display:flex;gap:12px;margin-bottom:6px;font-size:16px;font-weight:600;">';
           html += '<span style="color:#059669;">\u25A0 T1 Res</span>';
           html += '<span style="color:#d97706;">\u25A0 T2 Com</span>';
           html += '<span style="color:#dc2626;">\u25A0 T3 Ind</span>';
           html += '</div>';
           html += _buildZoneListHTML(data.zones140, data.fracs140, '140 m circle');
           html += _buildZoneListHTML(data.zones400, data.fracs400, '400 m circle');
-          html += '<div style="font-size:10px;font-weight:600;color:#059669;margin-top:3px;">Computed IF = ' + data.IF.toFixed(2) + '</div>';
+          html += '<div style="font-size:20px;font-weight:600;color:#059669;margin-top:6px;">Computed IF = ' + data.IF.toFixed(2) + '</div>';
           card.innerHTML = html;
           wrapper.appendChild(card);
         });
@@ -36810,7 +36810,7 @@ if (window.pdfjsLib) {
         // elements incorrectly when the parent background is also semi-transparent.
         // Using #fff here makes the export match the on-screen appearance exactly
         // (the live view was rgba(255,255,255,0.92) — visually indistinguishable).
-        div.style.cssText = 'background:#fff;padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
+        div.style.cssText = 'background:#fff;padding:16px 24px;border-radius:12px;font-size:22px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
         var legendTitle;
         if (_nmSelectedCase) {
           var _nmLegCase = (typeof assessmentCases !== 'undefined') ? assessmentCases.find(function(c){ return c.id === _nmSelectedCase; }) : null;
@@ -36819,7 +36819,7 @@ if (window.pdfjsLib) {
           legendTitle = (PERIOD_LABELS[_noiseMapPeriod] || 'Day L<sub>Aeq</sub>') + ' dB';
         }
         var s = '<b>' + legendTitle + '</b><br>';
-        s += '<span style="color:#888;font-size:10px;">' + _noiseMapHeight.toFixed(1) + 'm height</span><br>';
+        s += '<span style="color:#888;font-size:20px;">' + _noiseMapHeight.toFixed(1) + 'm height</span><br>';
         // Build legend from NOISE_COLOURS (skip transparent first entry).
         // Pre-composite each swatch colour against white so the swatches are fully
         // opaque — this makes the colours correct in both the live view (legend sits
@@ -36828,7 +36828,7 @@ if (window.pdfjsLib) {
           var nc = NOISE_COLOURS[li];
           var label = nc.max === Infinity ? '&gt;' + nc.min : nc.min + '\u2013' + nc.max;
           var swatchCol = _legendSwatchColor(nc.color);
-          s += '<span style="display:inline-block;width:14px;height:10px;background:' + swatchCol + ';margin-right:4px;border:1px solid rgba(0,0,0,0.25);vertical-align:middle;border-radius:2px;"></span>' + label + '<br>';
+          s += '<span style="display:inline-block;width:28px;height:20px;background:' + swatchCol + ';margin-right:8px;border:1px solid rgba(0,0,0,0.25);vertical-align:middle;border-radius:4px;"></span>' + label + '<br>';
         }
         div.innerHTML = s;
         return div;
@@ -38079,16 +38079,16 @@ if (window.pdfjsLib) {
       _cortnLegend = L.control({ position: 'bottomright' });
       _cortnLegend.onAdd = function() {
         var div = L.DomUtil.create('div', 'noise-legend');
-        div.style.cssText = 'background:#fff;padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
+        div.style.cssText = 'background:#fff;padding:16px 24px;border-radius:12px;font-size:22px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
         var metricLabel = _cortnMapMetric === 'la10' ? 'L<sub>A10</sub>' : 'L<sub>Aeq</sub>';
         var periodLabel = _cortnMapPeriod === 'night' ? 'Night' : 'Day';
         var s = '<b>CoRTN ' + periodLabel + ' ' + metricLabel + ' dB(A)</b><br>';
-        s += '<span style="color:#888;font-size:10px;">' + _cortnMapHeight.toFixed(1) + 'm height</span><br>';
+        s += '<span style="color:#888;font-size:20px;">' + _cortnMapHeight.toFixed(1) + 'm height</span><br>';
         for (var li = 1; li < NOISE_COLOURS.length; li++) {
           var nc = NOISE_COLOURS[li];
           var label = nc.max === Infinity ? '&gt;' + nc.min : nc.min + '\u2013' + nc.max;
           var swatchCol = _legendSwatchColor(nc.color);
-          s += '<span style="display:inline-block;width:14px;height:10px;background:' + swatchCol + ';margin-right:4px;border:1px solid rgba(0,0,0,0.25);vertical-align:middle;border-radius:2px;"></span>' + label + '<br>';
+          s += '<span style="display:inline-block;width:28px;height:20px;background:' + swatchCol + ';margin-right:8px;border:1px solid rgba(0,0,0,0.25);vertical-align:middle;border-radius:4px;"></span>' + label + '<br>';
         }
         div.innerHTML = s;
         return div;
