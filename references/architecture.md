@@ -1427,18 +1427,147 @@ These are pre-existing reservations in the Mapping panel at [`index.html:2082`](
 
 `window._restoreForPdfExport()` and `window._restoreDrawerLayout()` temporarily move content back to the original `#pdfArea > .container > .sheet` structure for html2canvas capture, then restore the drawer layout.
 
+### PDF export — Criteria section typography spec (`generatePDFAppendix`)
+
+All heading and body text is rendered via jsPDF API calls (not html2canvas). Helper functions defined inside `generatePDFAppendix`:
+
+| Helper | Style |
+|---|---|
+| `h1Heading(text)` | 20 pt bold, Resonate yellow `#F2CB00` `[242,203,0]`, before: 12 pt, after: 6 pt; hanging indent — first line at `margin`, continuation lines at `margin + 15 mm` |
+| `h2Heading(text)` | 15 pt bold, black `[51,51,51]`, before: 12 pt, after: 6 pt; same hanging indent |
+| `introPara(text)` | 9 pt normal, black, line spacing 12 pt (4.23 mm/line); 2 mm gap after paragraph. Call once per paragraph. |
+| `captionText(text)` | 8 pt bold, black, before: 3 pt, after: 3 pt. Call **before** `placeImage()` for table captions; call **after** the image block for figure captions. |
+| `bulletItem(text)` | 9 pt normal, black, line spacing 12 pt. Glyph U+00B7 `·` at `mSide`; text at `mSide + 10 mm` (1 cm hanging indent); wrapped lines align back to `mSide + 10 mm`. Space before 3 pt, after 3 pt. Single-bullet page overflow handled per item. |
+| `placeImage(img, label, maxH)` | Renders captured image at full column width (`cW = 166 mm`); adds 2 mm gap after. Throws on invalid data. |
+
+**Constant:** `var PT = 0.3528;` — converts points to mm (used for all spacing calculations).
+
+**Top-level section order** (fixed):
+1. H1 "Criteria" (Resonate yellow, 20 pt bold)
+2. H2 "Introduction" → lead-in paragraph → 5-item bullet list *(see below)*
+3. H2 "Zoning" → intro → zone map → figure caption
+4. H2 "Planning & Design Code — Interface between Land Uses" → intro → table *(SA only)*
+5. H2 "Environmental noise policy" → 2× intro → table
+6. H2 "Emergency equipment criteria" → intro → table *(conditional)*
+7. H2 "Music noise criteria" → intro → table *(conditional)*
+8. H2 "Schools, kindergartens, child-care centre of place of worship" → intro → table *(conditional)*
+
+**Introduction bullet list** — five fixed items (order preserved):
+
+| # | Text |
+|---|---|
+| 1 | Planning & Design Code |
+| 2 | Environment Protection (Commercial & Industrial Noise) Policy 2023 (Noise Policy) |
+| 3 | Local Nuisance and Litter Control Act 2016 |
+| 4 | World Health Organization (WHO) Guidelines for Community Noise |
+| 5 | Environment Protection Authority (EPA) Guideline Assessing music noise from indoor venues (2021). |
+
+Final bullet ends with a full stop — intentional. Keep-with-next: entire Introduction block (H2 + lead-in + all 5 bullets) measured via `_mH2 + _mParas + _mBullets` and `newPageIfNeeded()` called before rendering.
+
+**Criteria section structure** (sub-section order is fixed):
+1. H1 "Criteria"
+2. H2 "Zoning" → intro → zone map image → figure caption below ("Zone map")
+3. H2 "Planning & Design Code — Interface between Land Uses" → intro → table caption above → table image *(SA only)*
+4. H2 "Environmental noise policy" → 2× intro paragraphs → table caption above → table image
+5. H2 "Emergency equipment criteria" → intro → table caption above → table image *(conditional)*
+6. H2 "Music noise criteria" → intro → table caption above → table image *(conditional)*
+7. H2 "Schools, kindergartens, child-care centre of place of worship" → intro → table caption above → table image *(conditional)*
+
+**No figure/table auto-numbering** — captions are plain descriptive text; there is no counter. Do not add "Figure N" or "Table N" prefixes to any caption in this section.
+
+**Subscripts in intro text** — jsPDF text mode does not support inline subscripts. Use plain ASCII notation (e.g. `L10,15min`) rather than Unicode subscript characters, which are not guaranteed to be present in the embedded Helvetica font.
+
+### PDF export — map framing panel (`#pdfFramingPanel`)
+
+A non-blocking floating panel shown before either PDF export function locks its button. Lets the user adjust map zoom/pan before capture.
+
+**HTML:** `<div id="pdfFramingPanel">` — `position:fixed; top:72px; left:50%; transform:translateX(-50%); z-index:10000; display:none; flex-direction:column`. Panel does not close on click-outside; only Accept/Cancel buttons close it.
+
+**JS:** `window._showPdfFramingPanel()` — returns `Promise<boolean>`. Resolves `true` on Accept, `false` on Cancel. `stopPropagation` on click/mousedown/wheel prevents accidental panel interaction reaching the map, but the map remains fully interactive behind the panel.
+
+**Buttons:** `#pdfFrameAcceptBtn` (resolves true), `#pdfFrameCancelBtn` (resolves false).
+
+**Integration:** `generatePDFAppendix()` calls `await window._showPdfFramingPanel()` as its **first** async step — before `btn.disabled = true`. If the user clicks Cancel, the function returns immediately without capturing or locking the UI.
+
+### PDF export — page geometry constants
+
+All page-fit logic in `generatePDFAppendix` reads from a single set of constants defined at the top of the "3. Build PDF" section. **Never hardcode margin or height values elsewhere in the function — always derive from these.**
+
+| Constant | Value | Notes |
+|---|---|---|
+| `LOGO_W` | `52.9 mm` (5.29 cm) | Logo width |
+| `LOGO_H` | `LOGO_W × (306/816) ≈ 19.84 mm` | Aspect-ratio derived from `resonate-logo.png` (816 × 306 px) |
+| `LOGO_TOP` | `20 mm` (2 cm) | Border between page top edge and top of logo |
+| `LOGO_GAP` | `30 × PT ≈ 10.58 mm` | Gap from bottom of logo to first body content (30 pt) |
+| `mTop` | `LOGO_TOP + LOGO_H + LOGO_GAP ≈ 50.42 mm` | Top content margin (first y position for body) |
+| `mBot` | `20 mm` | Bottom margin |
+| `mSide` | `22 mm` | Left and right margins |
+| `pW` | `210 mm` | A4 page width |
+| `pH` | `297 mm` | A4 page height |
+| `cW` | `pW − 2×mSide = 166 mm` | Content column width |
+| `cH` | `pH − mTop − mBot ≈ 226.6 mm` | Content column height |
+
+**Logo asset:** `resonate-logo.png` — located at repo root alongside `index.html`, 816 × 306 px PNG. Loaded via `new Image()` → **2× canvas** (1632 × 612 px) → `toDataURL('image/png')`. The 2× canvas serves two purposes: (1) forces conversion to RGBA PNG format, which jsPDF's internal `png.js` parser handles reliably (the original file may be indexed-colour or RGB, which the parser can silently degrade); (2) doubles the pixel count to ~784 DPI at the 5.29 cm rendered width, crisp at 200%+ zoom. If load fails `logoDataUrl` is `null` and the logo is silently skipped (page numbers still render). **Permanent fix note:** replacing `resonate-logo.png` with a print-quality SVG or ≥1500 px PNG from Resonate brand assets would remove the canvas-upsample dependency entirely.
+
+**Running header:** logo rendered via post-processing loop — after all content pages are built, a `for (_p = 1 … pageCount)` loop calls `pdf.setPage(_p)` then `pdf.addImage(logoDataUrl, …)` for every page. Page numbers (`N / total`) rendered in the same loop, centred at `(pW/2, pH-10)`.
+
+**No cover page** — the first content page is page 1; the logo appears on it like every other page.
+
+### PDF export — keep-with-next convention
+
+Each Criteria sub-section is treated as an atomic block (heading + intro paragraph(s) + caption + figure/table). Before rendering any block, its total height is measured using helper functions and `newPageIfNeeded(needH)` is called:
+
+| Helper | What it measures |
+|---|---|
+| `_mH2(text)` | H2 heading height (12 pt before + lines × 15 pt leading + 6 pt after) |
+| `_mParas(texts[])` | Sum of intro paragraph heights (lines × 12 pt leading + 2 mm gap each) |
+| `_mCap()` | Caption height (3 pt + 8 pt + 3 pt = fixed 14 pt ≈ 4.94 mm) |
+| `_mImg(img)` | Image height (`cW × img.aspect + 2 mm`) or 0 if no image |
+
+`newPageIfNeeded(needH)` inserts `pdf.addPage()` and resets `y = mTop` if `needH > remainH()`.
+
+`renderCritTablePaginated(capLabel)` handles the criteria table separately — it renders row-by-row and inserts a page break (with caption + gold header row repeat) whenever a row would overflow the page.
+
+### PDF Figure 1 — layer-state override pattern
+
+Figure 1 (zone map) must show **only** base street tiles + zone polygons. `generatePDFAppendix()` implements an override using a whitelist approach:
+1. Pre-flight call to `_getPdfZoneCaptureState()` checks `effectiveZoneOn`; if false, clicks `zoneToggleBtn` and waits 2× rAF + 1000ms for layer data to arrive.
+2. Gets final refs via `_getPdfZoneCaptureState()` (called after zone forcing so `saZonesLayer` ref is valid).
+3. Builds a whitelist: street basemap, parcel outlines, SA `saZonesLayer` (canvas GeoJSON), VIC/NSW `activeZoneOverlay` + `_currentImage` + `zoneOutlineLayer` + `subzoneFeatureLayer`.
+4. Removes ALL non-whitelisted layers from `_map` (recorded for restore).
+5. After capture: restores removed layers, then turns zones back off if they were forced on.
+
+**SA zone state caveat** — for SA, `isZoneOn` (in the SAPPA/overlay IIFE) is never set; SA zone visibility is tracked by `_planZonesOn` inside the planning IIFE, exposed via `window._isPlanZonesOn()`. `_getPdfZoneCaptureState()` computes `effectiveZoneOn = isZoneOn || saZonesOn` and returns `saZonesLayer` (via `window._getSaZonesLayer()`). Future figures must read `effectiveZoneOn`, not `isZoneOn`, when deciding whether zones are on.
+
 ### PDF appendix image formats (`generatePDFAppendix`)
 
-Both image capture paths in the appendix PDF use **JPEG** (not PNG):
+All PDF table cells render from the data model. Input-element capture is not used — `captureElement()` / html2canvas must **never** be applied to tables containing `<input>` or `contenteditable` elements, as input chrome and clipping artefacts will appear in the output.
 
-| Section | How captured | Format |
+| Section | How rendered | Format |
 |---|---|---|
 | Figure 1 — zone map | Leaflet map canvas via `map.getContainer()` | JPEG, direct `pdf.addImage(..., 'JPEG', ...)` |
-| All table sections (PDC, criteria, emergency, music, childcare) | `captureElement()` → `html2canvas` scale:3 → `toDataURL('image/jpeg', 0.95)` | JPEG, via `placeImage()` |
+| PDC table | Native jsPDF — reads `_PDC_PROVISIONS[i]` + `_pdcProvisions[i].relevance` | — (no image) |
+| Environmental noise criteria table | Native jsPDF via `renderCritTablePaginated()` | — (no image) |
+| Emergency equipment table | Native jsPDF — 2-row header (gold + grey) built from `fireOn`/`genOn` flags; body rows from `emergEquipBody` DOM | — (no image) |
+| Music noise criteria table | Native jsPDF — reads `musicBg*` input values directly | — (no image) |
+| Childcare table | Native jsPDF — static "All sensitive receivers | 50" row | — (no image) |
 
-PNG was used originally but jsPDF's pure-JS PNG parser (`png.js`) cannot handle very large PNGs (~10–40 MB) produced by html2canvas at scale:3 on a 1100px-wide panel. JPEG is used for all sections to avoid this.
+html2canvas (`captureElement()`) is used only for the zone map figure; all table sections use native jsPDF rendering. `placeImage()` is retained for the zone map only.
 
-`placeImage(img, label, maxH)` auto-detects format from the data URL prefix and passes `'JPEG'` or `'PNG'` to `pdf.addImage()`. `_pdfLabel` is set inside `placeImage()` as its first action so the catch block always names the failing section.
+#### PDC table column layout
+Three columns, proportional to `cW = 166 mm`:
+- Performance Outcome: 47% ≈ 78 mm
+- DTS/DPF: 33% ≈ 55 mm
+- Relevance: 20% ≈ 33 mm
+
+Row height is dynamic: each row measured via `_pdcMeasureRowH()` (wraps all three cells at their widths, returns `maxLines × _pdcLH + 2 × _pdcPad`). Rows never split across pages; header row repeats on continuation pages.
+
+#### Named colour constants (inside `generatePDFAppendix`)
+| Constant | Value | Purpose |
+|---|---|---|
+| `TABLE_HEADER_YELLOW` | `[242,203,0]` (#F2CB00) | Primary header row (gold) — all tables |
+| `TABLE_HEADER_GREY` | `[242,242,242]` | Subheader / frequency-label rows — all tables |
+| `GOLD` | same reference as `RESONATE_YELLOW` | Legacy alias, still used inside `renderCritTablePaginated` |
 
 ### What stayed intact
 

@@ -2876,7 +2876,6 @@ body.disclaimer-visible .container {
         <div class="card-header" style="margin-bottom:4px;" onclick="toggleCardSection('critBody','critToggleBtn')">
           <h2 style="margin:0;">Receivers &amp; criteria</h2>
           <div style="display:flex;gap:5px;align-items:center;">
-            <button class="crit-refresh-btn" id="exportCriteriaPdfBtn" onclick="event.stopPropagation();exportCriteriaPdf(this)" title="Export criteria derivation PDF (A4 portrait)">&#x21E9;</button>
             <button class="crit-refresh-btn" onclick="event.stopPropagation();refreshZonesAndCriteria()" title="Refresh all: addresses, coordinates, ASL, zones and criteria for all placed markers">&#x21BB;</button>
             <button class="collapse-btn" id="critToggleBtn" title="Toggle section">&#x25B2;</button>
           </div>
@@ -13645,417 +13644,17 @@ window._pdcOnEdit = function(idx, text) {
   var relCell = row.querySelector('td.pdc-rel-cell, td[class*="pdc-rel-cell"]');
   if (relCell) relCell.className = isRelevant ? 'pdc-rel-cell pdc-relevant-border' : 'pdc-rel-cell';
 };
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   CRITERIA DERIVATION PDF EXPORT
-   ══════════════════════════════════════════════════════════════════════════════ */
-
-async function exportCriteriaPdf(btn) {
-  if (btn) { btn.disabled = true; btn.innerHTML = 'Exporting\u2026'; }
-  try {
-    var jsPDF = (window.jspdf || {}).jsPDF;
-    if (!jsPDF) throw new Error('jsPDF library not loaded');
-    if (!window.html2canvas) throw new Error('html2canvas not loaded');
-
-    var projNum  = (document.getElementById('projectNumberInput') || {}).value || '';
-    var projName = (document.getElementById('projectNameInput')   || {}).value || '';
-    var today    = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
-
-    // ── 1. Prepare zone map: hide non-zone layers, capture, restore ──────────
-    var captureState = typeof window._prepareZoneCapture === 'function'
-      ? window._prepareZoneCapture() : null;
-
-    // Two rAFs + 300ms for Leaflet to apply layer changes before html2canvas reads the DOM
-    await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
-    await new Promise(function(r) { setTimeout(r, 300); });
-
-    var mapEl = document.getElementById('noise-map');
-    var zoneMapDataUrl = null, zoneMapAspect = 1;
-    if (mapEl) {
-      var mc = await html2canvas(mapEl, { scale: 3, useCORS: true, allowTaint: true });
-      zoneMapDataUrl = mc.toDataURL('image/png');
-      zoneMapAspect  = mc.height / mc.width;
-    }
-
-    // Restore all layers immediately after capture
-    if (captureState && typeof window._restoreAfterCapture === 'function') {
-      window._restoreAfterCapture(captureState);
-    }
-
-    // ── 2. Build PDF ─────────────────────────────────────────────────────────
-    var pdf    = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    var pW = 210, pH = 297, margin = 20, cW = pW - 2 * margin;
-
-    var GOLD  = [194, 155, 40];
-    var DARK  = [25,  25,  25];
-    var MUTED = [110, 110, 110];
-    var state = (typeof currentState !== 'undefined') ? currentState : '';
-
-    var y = margin;
-
-    // ── Page 1: title + zone map ─────────────────────────────────────────────
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(15);
-    pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-    pdf.text('Derivation of Noise Emission Criteria', margin, y);
-    y += 7;
-
-    if (projNum || projName) {
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10);
-      pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-      pdf.text([projNum, projName].filter(Boolean).join(' \u2014 '), margin, y);
-      y += 5;
-    }
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(9);
-    pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-    pdf.text(today, margin, y);
-    y += 6;
-
-    pdf.setDrawColor(DARK[0], DARK[1], DARK[2]);
-    pdf.setLineWidth(0.4);
-    pdf.line(margin, y, pW - margin, y);
-    y += 8;
-
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(11);
-    pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-    pdf.text('1  Zoning', margin, y);
-    y += 6;
-
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(9);
-    pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-    var zoningBlurb = 'The zoning of the subject site and noise-affected premises is shown in Figure\u00a01.';
-    var zLines = pdf.splitTextToSize(zoningBlurb, cW);
-    pdf.text(zLines, margin, y);
-    y += zLines.length * 4.5 + 4;
-
-    if (zoneMapDataUrl) {
-      var imgH  = cW * zoneMapAspect;
-      var avail = pH - margin - y - 14;
-      var drawH = Math.min(imgH, avail > 20 ? avail : imgH);
-      var drawW = drawH / zoneMapAspect;
-      var imgX  = margin + (cW - drawW) / 2;
-      pdf.setDrawColor(180, 180, 180);
-      pdf.setLineWidth(0.2);
-      pdf.rect(imgX - 0.5, y - 0.5, drawW + 1, drawH + 1, 'S');
-      pdf.addImage(zoneMapDataUrl, 'PNG', imgX, y, drawW, drawH);
-      y += drawH + 4;
-      pdf.setFont('helvetica', 'italic');
-      pdf.setFontSize(8);
-      pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-      pdf.text('Figure 1 \u2014 Site zoning', margin + cW / 2, y, { align: 'center' });
-    }
-
-    // ── Page 2 (SA only): P&D Code provisions table ──────────────────────────
-    if (state === 'SA') {
-      var relevantProvisions = _PDC_PROVISIONS.map(function(p, i) {
-        return { prov: p, rel: (_pdcProvisions[i] && _pdcProvisions[i].relevance) || '' };
-      }).filter(function(r) { return r.rel !== '' && r.rel !== '\u2014'; });
-
-      pdf.addPage();
-      y = margin;
-
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(11);
-      pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-      pdf.text('2  Relevant Assessment Provisions', margin, y);
-      y += 6;
-
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(9);
-      pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-      var provBlurb = 'Relevant provisions from the Planning & Design Code Part 4 \u2014 Interface between Land Uses are identified in Table\u00a02.';
-      var provLines = pdf.splitTextToSize(provBlurb, cW);
-      pdf.text(provLines, margin, y);
-      y += provLines.length * 4.5 + 5;
-
-      // Table header — 3 columns: Relevance | Performance Outcome | DTS/DPF
-      var c1 = cW * 0.20, c2 = cW * 0.47, c3 = cW * 0.33;
-      var cols = [margin, margin + c1, margin + c1 + c2];
-      var rowH = 7;
-      pdf.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-      pdf.rect(margin, y, cW, rowH, 'F');
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(8);
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('Relevance', cols[0] + 2, y + 5);
-      pdf.text('Performance Outcome', cols[1] + 2, y + 5);
-      pdf.text('DTS/DPF', cols[2] + 2, y + 5);
-      y += rowH;
-
-      // Subheading row
-      var subH = 6;
-      pdf.setFillColor(240, 240, 240);
-      pdf.rect(margin, y, cW, subH, 'F');
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(7.5);
-      pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-      pdf.text('Activities Generating Noise or Vibration', margin + cW / 2, y + 4.2, { align: 'center' });
-      y += subH;
-
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(7.5);
-      pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-      var provRowsData = relevantProvisions.length ? relevantProvisions : _PDC_PROVISIONS.map(function(p, i) {
-        return { prov: p, rel: ('\u2014') };
-      });
-      provRowsData.forEach(function(r, ri) {
-        var parts   = r.prov.ref.split(' / ');
-        var poRef   = parts[0] || '';
-        var dtsRef  = parts[1] || '';
-        var relLines = pdf.splitTextToSize(r.rel || '\u2014', c1 - 4);
-        var poLines  = pdf.splitTextToSize(poRef + ' \u2014 ' + r.prov.po,  c2 - 4);
-        var dtsLines = pdf.splitTextToSize(dtsRef + ' \u2014 ' + r.prov.dts, c3 - 4);
-        var nLines   = Math.max(relLines.length, poLines.length, dtsLines.length);
-        var rH       = nLines * 4 + 5;
-        // Page break
-        if (y + rH > pH - margin - 15) { pdf.addPage(); y = margin; }
-        // Row background
-        if (ri % 2 === 1) { pdf.setFillColor(248, 248, 248); pdf.rect(margin, y, cW, rH, 'F'); }
-        pdf.setDrawColor(220, 220, 220);
-        pdf.line(margin, y, margin + cW, y);
-        pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-        pdf.text(relLines, cols[0] + 2, y + 4);
-        pdf.text(poLines,  cols[1] + 2, y + 4);
-        pdf.text(dtsLines, cols[2] + 2, y + 4);
-        y += rH;
-      });
-
-      y += 4;
-      pdf.setFont('helvetica', 'italic');
-      pdf.setFontSize(8);
-      pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-      pdf.text('Table 1 \u2014 Relevant Assessment Provisions \u2014 Activities generating noise or vibration', margin + cW / 2, y, { align: 'center' });
-    }
-
-    // ── Page 2 (non-SA) / Page 3 (SA): noise criteria table ─────────────────
-    pdf.addPage();
-    y = margin;
-
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(11);
-    pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-    pdf.text('2  Noise criteria', margin, y);
-    y += 6;
-
-    var policyName = state === 'SA'
-      ? 'the Environment Protection (Commercial \u0026 Industrial Noise) Policy 2023'
-      : state === 'VIC' ? 'Noise from Industry in Regional Victoria (NIRV) and State Environment Protection Policy (NIRV)'
-      : state === 'NSW' ? 'the NSW Noise Policy for Industry (2017)'
-      : 'the applicable noise policy';
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(9);
-    pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-    var critTableNum = state === 'SA' ? 2 : 1;
-    var emergTableNum = state === 'SA' ? 3 : 2;
-    var critBlurb = 'Environmental noise criteria derived in accordance with ' + policyName + ' are summarised in Table\u00a0' + critTableNum + '.';
-    var cLines = pdf.splitTextToSize(critBlurb, cW);
-    pdf.text(cLines, margin, y);
-    y += cLines.length * 4.5 + 5;
-
-    y = _renderCriteriaTablePDF(pdf, margin, y, cW, GOLD, DARK, MUTED);
-    y += 4;
-    pdf.setFont('helvetica', 'italic');
-    pdf.setFontSize(8);
-    pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-    pdf.text('Table ' + critTableNum + ' \u2014 Summary of zones and noise criteria', margin + cW / 2, y, { align: 'center' });
-
-    // ── Page 3: emergency equipment (SA, if selected) ────────────────────────
-    var emergSection = document.getElementById('emergEquipSection');
-    var firePump  = (document.getElementById('saEmergFire') || {}).checked;
-    var generator = (document.getElementById('saEmergGen')  || {}).checked;
-    var emergVisible = emergSection && emergSection.style.display !== 'none' && (firePump || generator);
-
-    if (emergVisible) {
-      pdf.addPage();
-      y = margin;
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(11);
-      pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-      pdf.text('3  Emergency equipment criteria', margin, y);
-      y += 6;
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(9);
-      pdf.setTextColor(DARK[0], DARK[1], DARK[2]);
-      pdf.text('Criteria for emergency equipment are summarised in Table\u00a02.', margin, y);
-      y += 9;
-      y = _renderEmergTablePDF(pdf, margin, y, cW, GOLD, DARK, MUTED);
-      y += 4;
-      pdf.setFont('helvetica', 'italic');
-      pdf.setFontSize(8);
-      pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-      pdf.text('Table ' + emergTableNum + ' \u2014 Emergency equipment criteria', margin + cW / 2, y, { align: 'center' });
-    }
-
-    // ── Page numbers ─────────────────────────────────────────────────────────
-    var pageCount = pdf.getNumberOfPages();
-    for (var p = 1; p <= pageCount; p++) {
-      pdf.setPage(p);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8);
-      pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-      pdf.text(String(p) + ' / ' + String(pageCount), pW / 2, pH - 10, { align: 'center' });
-    }
-
-    // ── Download ─────────────────────────────────────────────────────────────
-    var fname = (projNum ? projNum.trim() + ' - ' : '') + 'Criteria Derivation.pdf';
-    pdf.save(fname);
-
-  } catch (e) {
-    console.error('exportCriteriaPdf error:', e);
-    alert('PDF export failed: ' + e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '&#x21E9; PDF'; }
-  }
-}
-
-function _renderCriteriaTablePDF(pdf, margin, startY, cW, GOLD, DARK, MUTED) {
-  var state = (typeof currentState !== 'undefined') ? currentState : 'SA';
-  var isVIC = state === 'VIC', isNSW = state === 'NSW', isSA = !isVIC && !isNSW;
-
-  // Column definitions (widths in mm, normalised to cW below)
-  var cols = isSA ? [
-    { key: 'name',  label: 'Location',        w: 44, align: 'left'   },
-    { key: 'zone',  label: 'Zone',             w: 44, align: 'left'   },
-    { key: 'crit',  label: 'Criteria',         w: 20, align: 'center' },
-    { key: 'day',   label: 'Day LAeq (dB)',    w: 21, align: 'center' },
-    { key: 'night', label: 'Night LAeq (dB)',  w: 21, align: 'center' },
-    { key: 'lmax',  label: 'Night LAmax (dB)', w: 20, align: 'center' }
-  ] : isVIC ? [
-    { key: 'name',  label: 'Location',        w: 36, align: 'left'   },
-    { key: 'zone',  label: 'Zone',             w: 32, align: 'left'   },
-    { key: 'land',  label: 'Land use',         w: 28, align: 'left'   },
-    { key: 'day',   label: 'Day LAeq (dB)',    w: 19, align: 'center' },
-    { key: 'eve',   label: 'Eve LAeq (dB)',    w: 19, align: 'center' },
-    { key: 'night', label: 'Night LAeq (dB)',  w: 19, align: 'center' },
-    { key: 'lmax',  label: 'Night LAmax (dB)', w: 17, align: 'center' }
-  ] : /* NSW */ [
-    { key: 'name',  label: 'Location',        w: 42, align: 'left'   },
-    { key: 'zone',  label: 'Zone',             w: 36, align: 'left'   },
-    { key: 'land',  label: 'Land use',         w: 26, align: 'left'   },
-    { key: 'day',   label: 'Day LAeq (dB)',    w: 22, align: 'center' },
-    { key: 'night', label: 'Night LAeq (dB)',  w: 22, align: 'center' },
-    { key: 'lmax',  label: 'Night LAmax (dB)', w: 22, align: 'center' }
-  ];
-  // Normalise to exactly cW
-  var totalW = cols.reduce(function(s, c) { return s + c.w; }, 0);
-  cols.forEach(function(c) { c.w = c.w / totalW * cW; });
-
-  var hdrH = 8, rowH = 7, fs = 8.5;
-  var SHADE_SRC = [242, 242, 242], SHADE_ALT = [250, 250, 250];
-  var y = startY;
-
-  function colX(i) { var x = margin; for (var j = 0; j < i; j++) x += cols[j].w; return x; }
-
-  function drawCell(ci, cy, w, h, text, align, bg, bold, color) {
-    if (bg) { pdf.setFillColor(bg[0], bg[1], bg[2]); pdf.rect(ci, cy, w, h, 'F'); }
-    pdf.setDrawColor(180, 180, 180); pdf.setLineWidth(0.18); pdf.rect(ci, cy, w, h, 'S');
-    if (text == null || text === '') return;
-    pdf.setFont('helvetica', bold ? 'bold' : 'normal');
-    pdf.setFontSize(fs);
-    pdf.setTextColor(color ? color[0] : DARK[0], color ? color[1] : DARK[1], color ? color[2] : DARK[2]);
-    var lines = pdf.splitTextToSize(String(text), w - 4);
-    if (align === 'center') pdf.text(lines, ci + w / 2, cy + h / 2, { align: 'center', baseline: 'middle' });
-    else pdf.text(lines, ci + 2, cy + h / 2, { align: 'left', baseline: 'middle' });
-  }
-
-  // Header row
-  pdf.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-  pdf.rect(margin, y, cW, hdrH, 'F');
-  cols.forEach(function(col, i) { drawCell(colX(i), y, col.w, hdrH, col.label, col.align, null, true, [255,255,255]); });
-  y += hdrH;
-
-  // Data rows
-  ['src','r1','r2','r3','r4'].forEach(function(id, rowIdx) {
-    var isSrc = id === 'src';
-    if (!isSrc && !(window.getReceiverLatLng && window.getReceiverLatLng(id))) return;
-
-    var nameEl = isSrc ? document.getElementById('subjectSiteName')
-                       : document.getElementById('recvName' + id.replace('r',''));
-    var nameVal = nameEl ? nameEl.value.trim() : id;
-
-    var zdEl = document.getElementById(id + '_zdisp');
-    var zoneVal = '—';
-    if (zdEl) {
-      var nl = zdEl.querySelector('.zone-name-line'), sl = zdEl.querySelector('.zone-sub-line');
-      var parts = [];
-      if (nl && nl.textContent.trim() && nl.textContent.trim() !== '—') parts.push(nl.textContent.trim());
-      if (sl && sl.textContent.trim()) parts.push(sl.textContent.trim());
-      if (parts.length) zoneVal = parts.join(' / ');
-    }
-
-    var landEl  = document.getElementById(id + '_land');
-    var landVal = landEl ? landEl.textContent.trim() : '—';
-
-    var critEl  = document.getElementById(id + '_recvtype_disp');
-    var critVal = isSrc ? 'Subject site' : (critEl ? critEl.textContent.trim() : '—');
-
-    function txt(elId) { var el = document.getElementById(elId); return el ? (el.textContent.trim() || '\u2014') : '\u2014'; }
-    var dayVal   = isSrc ? '\u2014' : txt(id + '_daycrit');
-    var eveVal   = isSrc ? '\u2014' : txt(id + '_evecrit');
-    var nightVal = isSrc ? '\u2014' : txt(id + '_nightcrit');
-    var lmaxVal  = isSrc ? '\u2014' : txt(id + '_lmaxcrit');
-
-    var bg        = isSrc ? SHADE_SRC : (rowIdx % 2 === 0 ? null : SHADE_ALT);
-    var textColor = isSrc ? MUTED : null;
-
-    cols.forEach(function(col, ci) {
-      var val = { name:nameVal, zone:zoneVal, crit:critVal, land:landVal,
-                  day:dayVal, eve:eveVal, night:nightVal, lmax:lmaxVal }[col.key] || '\u2014';
-      drawCell(colX(ci), y, col.w, rowH, val, col.align, bg, false, textColor);
-    });
-    y += rowH;
-  });
-  return y;
-}
-
-function _renderEmergTablePDF(pdf, margin, startY, cW, GOLD, DARK, MUTED) {
-  var thead = document.getElementById('emergEquipHead');
-  var tbody = document.getElementById('emergEquipBody');
-  if (!thead || !tbody) return startY;
-  var headerCells = thead.querySelectorAll('th');
-  var bodyRows    = tbody.querySelectorAll('tr');
-  if (!headerCells.length) return startY;
-
-  var n = headerCells.length, colW = cW / n;
-  var hdrH = 8, rowH = 7, fs = 8.5;
-  var SHADE = [242, 242, 242];
-  var y = startY;
-
-  function drawCell(x, cy, w, h, text, bold, bg) {
-    if (bg) { pdf.setFillColor(bg[0], bg[1], bg[2]); pdf.rect(x, cy, w, h, 'F'); }
-    pdf.setDrawColor(180, 180, 180); pdf.setLineWidth(0.18); pdf.rect(x, cy, w, h, 'S');
-    if (!text) return;
-    pdf.setFont('helvetica', bold ? 'bold' : 'normal'); pdf.setFontSize(fs);
-    var color = bold ? [255,255,255] : DARK;
-    pdf.setTextColor(color[0], color[1], color[2]);
-    var lines = pdf.splitTextToSize(text, w - 4);
-    pdf.text(lines, x + 2, cy + h / 2, { baseline: 'middle' });
-  }
-
-  pdf.setFillColor(GOLD[0], GOLD[1], GOLD[2]);
-  pdf.rect(margin, y, cW, hdrH, 'F');
-  headerCells.forEach(function(th, i) { drawCell(margin + i * colW, y, colW, hdrH, th.textContent.trim(), true, null); });
-  y += hdrH;
-
-  bodyRows.forEach(function(tr, ri) {
-    var tds = tr.querySelectorAll('td');
-    var bg  = ri % 2 === 1 ? SHADE : null;
-    tds.forEach(function(td, i) { drawCell(margin + i * colW, y, colW, rowH, td.textContent.trim(), false, bg); });
-    y += rowH;
-  });
-  return y;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    generatePDFAppendix() — A4 PDF criteria appendix for acoustic reports
    Uses the Save JPG canvas-rendering pipeline for the zone map (handles
    CORS/ESRI tiles correctly) and html2canvas screenshots for data tables.
    ═══════════════════════════════════════════════════════════════════════════ */
 async function generatePDFAppendix(btn) {
+  // Show framing panel before locking the button — user adjusts map then accepts or cancels.
+  if (typeof window._showPdfFramingPanel === 'function') {
+    var _frameAccepted = await window._showPdfFramingPanel();
+    if (!_frameAccepted) return;
+  }
   if (btn) { btn.disabled = true; var origText = btn.textContent; btn.textContent = 'Exporting\u2026'; }
   try {
     var jsPDF = (window.jspdf || {}).jsPDF;
@@ -14088,6 +13687,10 @@ async function generatePDFAppendix(btn) {
           restored.push({ el: node, prop: 'overflowX', val: node.style.overflowX });
           node.style.overflowX = 'visible';
         }
+        if (cs.overflowY === 'auto' || cs.overflowY === 'hidden' || cs.overflowY === 'scroll') {
+          restored.push({ el: node, prop: 'overflowY', val: node.style.overflowY });
+          node.style.overflowY = 'visible';
+        }
         node = node.parentElement;
       }
       // Temporarily widen the element AND all tables inside it so narrow
@@ -14112,6 +13715,8 @@ async function generatePDFAppendix(btn) {
         drawer.style.minWidth = '1200px';
         drawer.style.width = '1200px';
       }
+      // Settle wait: let the browser repaint after all DOM mutations before html2canvas reads layout.
+      await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
       try {
         var c = await html2canvas(el, {
           scale: 3, useCORS: true, logging: false,
@@ -14139,20 +13744,49 @@ async function generatePDFAppendix(btn) {
     var mapEl = document.getElementById('noise-map');
     var _pdfRestore = [];
 
-    // Get current layer refs from the map IIFE (called at export time so
-    // dynamic refs like sourceParcelOutline reflect the current state).
-    var _zcs = (typeof window._getPdfZoneCaptureState === 'function')
+    // ── 1a. Force zone layer ON for Figure 1 (regardless of user's current state).
+    // For SA: zones are tracked by _isPlanZonesOn (separate from isZoneOn).
+    // For VIC/NSW: zones are tracked by isZoneOn inside the map IIFE.
+    // We check effectiveZoneOn from a pre-flight call, force on if needed, then
+    // re-fetch refs so the whitelist sees the now-live layer references.
+    var _pdfZonesWereForced = false;
+    (function() {
+      var _preCheck = typeof window._getPdfZoneCaptureState === 'function'
+        ? window._getPdfZoneCaptureState() : null;
+      if (!_preCheck) return;
+      if (_preCheck.effectiveZoneOn) return;  // already on — nothing to do
+      var _zoneBtn = document.getElementById('zoneToggleBtn');
+      if (_zoneBtn) { _zoneBtn.click(); _pdfZonesWereForced = true; }
+    })();
+
+    // Get current layer refs AFTER zone forcing so refs (saZonesLayer, activeZoneOverlay)
+    // reflect the now-on state. Dynamic refs like sourceParcelOutline also resolved here.
+    var _zcs = null;
+    if (_pdfZonesWereForced) {
+      // Wait for zone layer to load and render: 2× rAF + 1000ms for SA GeoJSON fetch
+      // or ESRI tile load. SA cache is pre-warmed so this is almost always sufficient.
+      await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+      await new Promise(function(r) { setTimeout(r, 1000); });
+    }
+    _zcs = (typeof window._getPdfZoneCaptureState === 'function')
       ? window._getPdfZoneCaptureState() : null;
 
     // Build the whitelist: layers (and their parent groups) that must stay visible.
-    // Zone layers only included when zones are currently ON.
-    // hasLayer check in _isPdfWhitelisted handles any child features that ESRI
-    // FeatureLayer / LayerGroup may add individually to map._layers.
+    // Uses effectiveZoneOn so SA canvas zones and VIC/NSW ESRI overlays are both covered.
     var _whitelistGroups = [];
     if (_zcs) {
       if (_zcs.sourceParcelOutline)  _whitelistGroups.push(_zcs.sourceParcelOutline);
       if (_zcs.sourceParcelOutline2) _whitelistGroups.push(_zcs.sourceParcelOutline2);
-      if (_zcs.isZoneOn) {
+      // SA canvas-rendered GeoJSON zones layer + its canvas renderer.
+      // The L.canvas renderer is itself in map._layers — if not whitelisted it gets
+      // removed from the map, detaching the canvas element and blanking zone polygons.
+      if (_zcs.saZonesLayer && _map && _map.hasLayer(_zcs.saZonesLayer)) {
+        _whitelistGroups.push(_zcs.saZonesLayer);
+      }
+      if (_zcs.saCanvasRenderer && _map && _map.hasLayer(_zcs.saCanvasRenderer)) {
+        _whitelistGroups.push(_zcs.saCanvasRenderer);
+      }
+      if (_zcs.effectiveZoneOn) {
         if (_zcs.activeZoneOverlay)   _whitelistGroups.push(_zcs.activeZoneOverlay);
         // ESRI dynamicMapLayer renders via an internal _currentImage overlay that
         // appears as a separate entry in map._layers. Whitelist it explicitly.
@@ -14194,13 +13828,17 @@ async function generatePDFAppendix(btn) {
     if (_zcs) {
       var _esriInnerRef = _zcs.activeZoneOverlay && _zcs.activeZoneOverlay._currentImage || null;
       console.log('[pdf-appendix] refs | streetLayer:', !!_zcs.streetLayer,
-        '| isZoneOn:', _zcs.isZoneOn, '| isAerial:', _zcs.isAerial,
+        '| effectiveZoneOn:', _zcs.effectiveZoneOn,
+        '| saZonesOn:', _zcs.saZonesOn, '| isZoneOn:', _zcs.isZoneOn,
+        '| isAerial:', _zcs.isAerial,
+        '| saZonesLayer:', !!_zcs.saZonesLayer,
         '| activeZoneOverlay:', !!_zcs.activeZoneOverlay,
         '| activeZoneOverlay ctor:', _zcs.activeZoneOverlay && _zcs.activeZoneOverlay.constructor && _zcs.activeZoneOverlay.constructor.name,
         '| _currentImage:', !!_esriInnerRef,
         '| subzoneFeatureLayer:', !!_zcs.subzoneFeatureLayer,
         '| zoneOutlineLayer:', !!_zcs.zoneOutlineLayer,
-        '| sourceParcelOutline:', !!_zcs.sourceParcelOutline);
+        '| sourceParcelOutline:', !!_zcs.sourceParcelOutline,
+        '| zonesWereForced:', _pdfZonesWereForced);
       if (_map) {
         var _diagCount = 0;
         _map.eachLayer(function(l) {
@@ -14208,6 +13846,7 @@ async function generatePDFAppendix(btn) {
           if (_diagCount <= 30) {
             console.log('[pdf-appendix] layer |', l.constructor && l.constructor.name,
               '| kept:', _isPdfWhitelisted(l),
+              '| isRef saZones:', l === _zcs.saZonesLayer,
               '| isRef activeZone:', l === _zcs.activeZoneOverlay,
               '| isRef _currentImage:', l === _esriInnerRef,
               '| isRef subzone:', l === _zcs.subzoneFeatureLayer,
@@ -14328,6 +13967,12 @@ async function generatePDFAppendix(btn) {
     // Restore all hidden layers immediately after map capture
     _pdfRestore.forEach(function(fn) { fn(); });
 
+    // If zones were forced on for Figure 1, turn them back off to restore live map state
+    if (_pdfZonesWereForced) {
+      var _zoneRestoreBtn = document.getElementById('zoneToggleBtn');
+      if (_zoneRestoreBtn) _zoneRestoreBtn.click();
+    }
+
     // ── Force-render criteria tables ──────────────────────────────────────────
     // Call render() (the orchestrator) so all criteria table cells are populated
     // regardless of which panels the user has open. render() calls renderSADerivTable
@@ -14350,8 +13995,17 @@ async function generatePDFAppendix(btn) {
     // Two rAF waits: render() may schedule further paints for .table-scroll cells
     await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
 
+    // Expand collapsed cards AND unhide inactive tab sections before capture.
+    // .section-hidden uses display:none !important which beats captureElement's
+    // inline display:block override — must be removed at the class level.
+    var _collapsedCards = Array.from(document.querySelectorAll('.card-body.collapsed'));
+    var _hiddenSections = Array.from(document.querySelectorAll('.section-hidden'));
+    _collapsedCards.forEach(function(el) { el.classList.remove('collapsed'); });
+    _hiddenSections.forEach(function(el) { el.classList.remove('section-hidden'); });
+    await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+
     // Diagnostic: log each capture target's state as flat primitives (visible without expanding)
-    ['pdcBody', 'critBody', 'emergEquipTable', 'musicBgTable'].forEach(function(id) {
+    ['pdcBody', 'critBody', 'emergEquipTable'].forEach(function(id) {
       var _el = document.getElementById(id);
       var _tbl = _el ? (_el.querySelector('table') || _el) : null;
       console.log('[pdf-appendix] target', id,
@@ -14362,55 +14016,110 @@ async function generatePDFAppendix(btn) {
     });
 
     // ── 2. Capture table screenshots ────────────────────────────────────────
-    // A) Planning & Design Code — Interface between Land Uses (SA only)
-    // Capture #pdcBody but temporarily hide the intro paragraph so only the
-    // provisions table + sensitive receiver definition note are captured.
-    var pdcBodyEl = document.getElementById('pdcBody');
-    var pdcImg = null;
-    if (pdcBodyEl && currentState === 'SA') {
-      var pdcIntro = pdcBodyEl.querySelector('.p');
-      var pdcIntroDisp = pdcIntro ? pdcIntro.style.display : '';
-      if (pdcIntro) pdcIntro.style.display = 'none';
-      pdcImg = await captureElement(pdcBodyEl);
-      if (pdcIntro) pdcIntro.style.display = pdcIntroDisp;
-    }
+    // A) PDC — rendered natively in the PDF build; no html2canvas capture needed
+    var pdcOn = (currentState === 'SA');
 
-    // B) Receivers & criteria table (the main table inside #critBody)
-    var critBodyEl = document.getElementById('critBody');
-    var critTableEl = critBodyEl ? critBodyEl.querySelector('.table-scroll') : null;
-    var critImg = await captureElement(critTableEl);
+    // B) Receivers & criteria table — rendered natively with pagination (no html2canvas needed)
+    // renderCritTablePaginated() inside the PDF build reads from the DOM directly.
 
-    // C) Emergency equipment table (conditional)
+    // C) Emergency — rendered natively in the PDF build; no html2canvas capture needed
     var emergOn = !!(document.getElementById('srcCatEmergency') && document.getElementById('srcCatEmergency').checked);
     var fireOn = emergOn && !!(document.getElementById('srcEmergFire') && document.getElementById('srcEmergFire').checked);
     var genOn  = emergOn && !!(document.getElementById('srcEmergGen')  && document.getElementById('srcEmergGen').checked);
-    var emergImg = null;
-    if (fireOn || genOn) emergImg = await captureElement(document.getElementById('emergEquipTable'));
 
-    // D) Music criteria table (conditional)
+    // D) Music criteria — read band values from data model (no DOM capture; avoids input-box chrome)
     var musicOn = !!(document.getElementById('srcCatMusic') && document.getElementById('srcCatMusic').checked);
-    var musicImg = null;
-    if (musicOn) musicImg = await captureElement(document.getElementById('musicBgTable'));
+    var _musicBands = [63, 125, 250, 500, 1000, 2000, 4000];
+    var _musicBgVals = {}, _musicCritVals = {};
+    if (musicOn) {
+      _musicBands.forEach(function(b) {
+        var el = document.getElementById('musicBg' + b);
+        var v = el ? parseFloat(el.value) : NaN;
+        _musicBgVals[b]   = isNaN(v) ? '\u2014' : String(v);
+        _musicCritVals[b] = isNaN(v) ? '\u2014' : String(v + 8);
+      });
+    }
 
-    // E) Childcare section table (conditional)
+    // E) Childcare — rendered natively in the PDF build; no html2canvas capture needed
     var childOn = !!(document.getElementById('srcCatChildcare') && document.getElementById('srcCatChildcare').checked);
-    var childSec = document.getElementById('childcareCriteriaSection');
-    var childImg = null;
-    if (childOn && childSec) childImg = await captureElement(childSec.querySelector('table'));
+
+    // Restore collapsed panels and hidden tab sections
+    _collapsedCards.forEach(function(el) { el.classList.add('collapsed'); });
+    _hiddenSections.forEach(function(el) { el.classList.add('section-hidden'); });
 
     // ── 3. Build PDF ────────────────────────────────────────────────────────
-    var pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    var pW = 210, pH = 297, margin = 22, cW = pW - 2 * margin;
+
+    // ── Shared page-geometry constants (mm) — ALL fit/layout logic reads here ──
+    var PT = 0.3528;                          // 1 pt in mm
+    var RESONATE_YELLOW = [242, 203, 0];      // #F2CB00
+    var LOGO_W   = 52.9;                      // 5.29 cm
+    var LOGO_H   = LOGO_W * (306 / 816);      // aspect-preserved ≈ 19.84 mm
+    var LOGO_TOP = 20;                        // 2 cm border between page top and logo top
+    var LOGO_GAP = 30 * PT;                   // 30 pt gap below logo ≈ 10.58 mm
+    var mTop  = LOGO_TOP + LOGO_H + LOGO_GAP; // ≈ 50.42 mm — body content starts here
+    var mBot  = 20;                           // bottom margin (page numbers at pH-10)
+    var mSide = 22;                           // left / right margin
+    var pW = 210, pH = 297;
+    var cW = pW - 2 * mSide;                 // 166 mm — column width unchanged
+    var cH = pH - mTop - mBot;               // usable content height ≈ 226.6 mm
     var TEXT  = [51, 51, 51];
     var MUTED = [102, 102, 102];
     var LINE  = [204, 204, 204];
-    // jsPDF's built-in 'helvetica' is the PDF equivalent of Arial
-    var FONT = 'helvetica';
-    var y = margin;
+    var FONT  = 'helvetica';
+    var GOLD               = RESONATE_YELLOW;
+    var TABLE_HEADER_YELLOW = RESONATE_YELLOW;   // primary header row (Word FormatTable1)
+    var TABLE_HEADER_GREY   = [242, 242, 242];   // subheader / freq-label rows (FormatTable2)
 
+    var pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    // Load Resonate logo — draw to 2× canvas to (a) normalise to RGBA PNG for reliable
+    // jsPDF embedding and (b) double the pixel density to ~784 DPI at 5.29 cm rendered.
+    var logoDataUrl = await new Promise(function(resolve) {
+      var img = new Image();
+      img.onload = function() {
+        try {
+          var scale = 2;
+          var c = document.createElement('canvas');
+          c.width  = img.naturalWidth  * scale;   // 1632 px
+          c.height = img.naturalHeight * scale;   // 612 px
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          resolve(c.toDataURL('image/png'));
+        } catch(e) { resolve(null); }
+      };
+      img.onerror = function() { resolve(null); };
+      img.src = 'resonate-logo.png';
+    });
+
+    var y = mTop;
+
+    // ── Page-space helpers ──────────────────────────────────────────────────
+    function remainH() { return pH - mBot - y; }
+    function newPageIfNeeded(needH) { if (needH > remainH()) { pdf.addPage(); y = mTop; } }
+
+    // ── Block-height measurement (do not advance y) ─────────────────────────
+    function _mH2(text) {
+      pdf.setFont(FONT, 'bold'); pdf.setFontSize(15);
+      return 12*PT + pdf.splitTextToSize(text, cW).length * 15*PT + 6*PT;
+    }
+    function _mParas(texts) {
+      pdf.setFont(FONT, 'normal'); pdf.setFontSize(9);
+      return texts.reduce(function(h, t) {
+        return h + pdf.splitTextToSize(t, cW).length * 12*PT + 2;
+      }, 0);
+    }
+    function _mCap() { return 3*PT + 8*PT + 3*PT; }
+    function _mImg(img) { return img ? cW * img.aspect + 2 : 0; }
+    function _mBullets(items) {
+      pdf.setFont(FONT, 'normal'); pdf.setFontSize(9);
+      var textW = cW - 10; // 10 mm hanging indent
+      return items.reduce(function(h, item) {
+        return h + 3*PT + pdf.splitTextToSize(item, textW).length * 12*PT + 3*PT;
+      }, 0);
+    }
+
+    // ── Image placement (full column width, moves to next page if needed) ───
     function placeImage(img, label, maxH) {
       if (!img) return;
-      // Set label first so the outer catch always names the failing section
       if (label) _pdfLabel = label;
       var _isPng  = img.dataUrl && img.dataUrl.startsWith('data:image/png');
       var _isJpeg = img.dataUrl && img.dataUrl.startsWith('data:image/jpeg');
@@ -14421,92 +14130,488 @@ async function generatePDFAppendix(btn) {
       console.log('[pdf-appendix]', _pdfLabel, { format: _fmt, dataUrlLength: img.dataUrl.length, dataUrlPrefix: img.dataUrl.slice(0, 40), aspect: img.aspect });
       var drawW = cW, drawH = cW * img.aspect;
       if (maxH && drawH > maxH) { drawH = maxH; drawW = drawH / img.aspect; }
-      if (y + drawH > pH - margin - 8) { pdf.addPage(); y = margin; }
-      var imgX = margin + (cW - drawW) / 2;
+      if (y + drawH > pH - mBot - 8) { pdf.addPage(); y = mTop; }
+      var imgX = mSide + (cW - drawW) / 2;
       pdf.addImage(img.dataUrl, _fmt, imgX, y, drawW, drawH);
-      y += drawH + 3;
+      y += drawH + 2;
     }
 
-    function sectionLabel(text) {
-      if (y > pH - margin - 20) { pdf.addPage(); y = margin; }
-      pdf.setFont(FONT, 'bold');
-      pdf.setFontSize(10);
+    // ── Typography helpers ───────────────────────────────────────────────────
+    function h1Heading(text) {
+      var before = 12*PT, after = 6*PT, lineH = 20*PT;
+      if (y > pH - mBot - 20) { pdf.addPage(); y = mTop; before = 0; }
+      y += before;
+      pdf.setFont(FONT, 'bold'); pdf.setFontSize(20);
+      pdf.setTextColor(RESONATE_YELLOW[0], RESONATE_YELLOW[1], RESONATE_YELLOW[2]);
+      var lines = pdf.splitTextToSize(text, cW);
+      pdf.text(lines[0], mSide, y);
+      for (var _i = 1; _i < lines.length; _i++) { y += lineH; pdf.text(lines[_i], mSide + 15, y); }
+      y += lineH + after;
       pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
-      pdf.text(text, margin, y);
-      y += 5;
     }
 
-    // ── A) Zone Map ─────────────────────────────────────────────────────────
-    _pdfLabel = 'zone map';
+    function h2Heading(text) {
+      var before = 12*PT, after = 6*PT, lineH = 15*PT;
+      if (y > pH - mBot - 15) { pdf.addPage(); y = mTop; before = 0; }
+      y += before;
+      pdf.setFont(FONT, 'bold'); pdf.setFontSize(15);
+      pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
+      var lines = pdf.splitTextToSize(text, cW);
+      pdf.text(lines[0], mSide, y);
+      for (var _j = 1; _j < lines.length; _j++) { y += lineH; pdf.text(lines[_j], mSide + 15, y); }
+      y += lineH + after;
+    }
+
+    function introPara(text) {
+      var lineSpacing = 12*PT;
+      pdf.setFont(FONT, 'normal'); pdf.setFontSize(9);
+      pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
+      var lines = pdf.splitTextToSize(text, cW);
+      lines.forEach(function(line) {
+        if (y > pH - mBot - 6) { pdf.addPage(); y = mTop; }
+        pdf.text(line, mSide, y);
+        y += lineSpacing;
+      });
+      y += 2;
+    }
+
+    function captionText(text) {
+      var before = 3*PT, after = 3*PT, lineH = 8*PT;
+      if (y > pH - mBot - 8) { pdf.addPage(); y = mTop; before = 0; }
+      y += before;
+      pdf.setFont(FONT, 'bold'); pdf.setFontSize(8);
+      pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
+      pdf.text(text, mSide, y);
+      y += lineH + after;
+    }
+
+    // Bullet item: U+00B7 middle dot at mSide, text at mSide+10mm (1cm hanging indent)
+    function bulletItem(text) {
+      var before = 3*PT, after = 3*PT, lineH = 12*PT;
+      var textW = cW - 10; // 10 mm hanging indent
+      pdf.setFont(FONT, 'normal'); pdf.setFontSize(9);
+      pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
+      var lines = pdf.splitTextToSize(text, textW);
+      if (y + before + lines.length * lineH + after > pH - mBot) { pdf.addPage(); y = mTop; }
+      y += before;
+      pdf.text('\u00B7', mSide, y);
+      pdf.text(lines[0], mSide + 10, y);
+      for (var _bi = 1; _bi < lines.length; _bi++) { y += lineH; pdf.text(lines[_bi], mSide + 10, y); }
+      y += lineH + after;
+    }
+
+    // ── Criteria table — native paginated renderer ────────────────────────
+    // Reads from live DOM; discovers all receivers dynamically (r1–r20);
+    // inserts page breaks with repeated caption + header row on continuation pages.
+    function renderCritTablePaginated(capLabel) {
+      var state = (typeof currentState !== 'undefined') ? currentState : 'SA';
+      var isVIC = state === 'VIC', isNSW = state === 'NSW', isSA = !isVIC && !isNSW;
+      var cols = isSA ? [
+        { key: 'name',  label: 'Location',        w: 44, align: 'left'   },
+        { key: 'zone',  label: 'Zone',             w: 44, align: 'left'   },
+        { key: 'crit',  label: 'Criteria',         w: 20, align: 'center' },
+        { key: 'day',   label: 'Day LAeq (dB)',    w: 21, align: 'center' },
+        { key: 'night', label: 'Night LAeq (dB)',  w: 21, align: 'center' },
+        { key: 'lmax',  label: 'Night LAmax (dB)', w: 20, align: 'center' }
+      ] : isVIC ? [
+        { key: 'name',  label: 'Location',        w: 36, align: 'left'   },
+        { key: 'zone',  label: 'Zone',             w: 32, align: 'left'   },
+        { key: 'land',  label: 'Land use',         w: 28, align: 'left'   },
+        { key: 'day',   label: 'Day LAeq (dB)',    w: 19, align: 'center' },
+        { key: 'eve',   label: 'Eve LAeq (dB)',    w: 19, align: 'center' },
+        { key: 'night', label: 'Night LAeq (dB)',  w: 19, align: 'center' },
+        { key: 'lmax',  label: 'Night LAmax (dB)', w: 17, align: 'center' }
+      ] : /* NSW */ [
+        { key: 'name',  label: 'Location',        w: 42, align: 'left'   },
+        { key: 'zone',  label: 'Zone',             w: 36, align: 'left'   },
+        { key: 'land',  label: 'Land use',         w: 26, align: 'left'   },
+        { key: 'day',   label: 'Day LAeq (dB)',    w: 22, align: 'center' },
+        { key: 'night', label: 'Night LAeq (dB)',  w: 22, align: 'center' },
+        { key: 'lmax',  label: 'Night LAmax (dB)', w: 22, align: 'center' }
+      ];
+      var totalW = cols.reduce(function(s, c) { return s + c.w; }, 0);
+      cols.forEach(function(c) { c.w = c.w / totalW * cW; });
+      function colX(i) { var x = mSide; for (var j = 0; j < i; j++) x += cols[j].w; return x; }
+
+      var hdrH = 8, rowH = 7, fs = 8.5;
+      var SHADE_SRC = [242,242,242], SHADE_ALT = [250,250,250];
+
+      function drawCell(ci, cy, w, h, text, align, bg, bold, color) {
+        if (bg) { pdf.setFillColor(bg[0],bg[1],bg[2]); pdf.rect(ci,cy,w,h,'F'); }
+        pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.18); pdf.rect(ci,cy,w,h,'S');
+        if (text == null || text === '') return;
+        pdf.setFont(FONT, bold ? 'bold' : 'normal'); pdf.setFontSize(fs);
+        pdf.setTextColor(color ? color[0]:TEXT[0], color ? color[1]:TEXT[1], color ? color[2]:TEXT[2]);
+        var ls = pdf.splitTextToSize(String(text), w - 4);
+        if (align === 'center') pdf.text(ls, ci+w/2, cy+h/2, { align:'center', baseline:'middle' });
+        else pdf.text(ls, ci+2, cy+h/2, { align:'left', baseline:'middle' });
+      }
+
+      function drawHdrRow() {
+        pdf.setFillColor(GOLD[0],GOLD[1],GOLD[2]);
+        pdf.rect(mSide, y, cW, hdrH, 'F');
+        cols.forEach(function(col, i) {
+          drawCell(colX(i), y, col.w, hdrH, col.label, col.align, null, true, [255,255,255]);
+        });
+        y += hdrH;
+      }
+
+      drawHdrRow();
+
+      // Discover all receivers dynamically
+      var rowIds = ['src'];
+      for (var rN = 1; rN <= 20; rN++) {
+        if (window.getReceiverLatLng && window.getReceiverLatLng('r' + rN)) rowIds.push('r' + rN);
+      }
+
+      rowIds.forEach(function(id, rowIdx) {
+        var isSrc = id === 'src';
+        // Page break — repeat caption + header on continuation page
+        if (y + rowH > pH - mBot) {
+          pdf.addPage(); y = mTop;
+          captionText(capLabel);
+          drawHdrRow();
+        }
+        var nameEl = isSrc ? document.getElementById('subjectSiteName')
+                           : document.getElementById('recvName' + id.replace('r',''));
+        var nameVal = nameEl ? (nameEl.value || nameEl.textContent || '').trim() : id;
+
+        var zdEl = document.getElementById(id + '_zdisp');
+        var zoneVal = '\u2014';
+        if (zdEl) {
+          var nl = zdEl.querySelector('.zone-name-line'), sl = zdEl.querySelector('.zone-sub-line');
+          var parts = [];
+          if (nl && nl.textContent.trim() && nl.textContent.trim() !== '\u2014') parts.push(nl.textContent.trim());
+          if (sl && sl.textContent.trim()) parts.push(sl.textContent.trim());
+          if (parts.length) zoneVal = parts.join(' / ');
+        }
+
+        var landEl = document.getElementById(id + '_land');
+        var landVal = landEl ? landEl.textContent.trim() : '\u2014';
+        var critEl = document.getElementById(id + '_recvtype_disp');
+        var critVal = isSrc ? 'Subject site' : (critEl ? critEl.textContent.trim() : '\u2014');
+
+        function _txt(elId) { var el = document.getElementById(elId); return el ? (el.textContent.trim() || '\u2014') : '\u2014'; }
+        var dayVal   = isSrc ? '\u2014' : _txt(id + '_daycrit');
+        var eveVal   = isSrc ? '\u2014' : _txt(id + '_evecrit');
+        var nightVal = isSrc ? '\u2014' : _txt(id + '_nightcrit');
+        var lmaxVal  = isSrc ? '\u2014' : _txt(id + '_lmaxcrit');
+
+        var bg = isSrc ? SHADE_SRC : (rowIdx % 2 === 0 ? null : SHADE_ALT);
+        var color = isSrc ? MUTED : null;
+
+        cols.forEach(function(col, ci) {
+          var val = {name:nameVal, zone:zoneVal, crit:critVal, land:landVal,
+                     day:dayVal, eve:eveVal, night:nightVal, lmax:lmaxVal}[col.key] || '\u2014';
+          drawCell(colX(ci), y, col.w, rowH, val, col.align, bg, false, color);
+        });
+        y += rowH;
+      });
+    }
+
+    // ── H1: Criteria ─────────────────────────────────────────────────────────
+    h1Heading('Criteria');
+
+    // ── Introduction ─────────────────────────────────────────────────────────
+    var _introLeadIn = 'The noise impact assessment has been undertaken in consideration of the following guidelines:';
+    var _introBullets = [
+      'Planning \u0026 Design Code',
+      'Environment Protection (Commercial \u0026 Industrial Noise) Policy 2023 (Noise Policy)',
+      'Local Nuisance and Litter Control Act 2016',
+      'World Health Organization (WHO) Guidelines for Community Noise',
+      'Environment Protection Authority (EPA) Guideline Assessing music noise from indoor venues (2021).'
+    ];
+    newPageIfNeeded(_mH2('Introduction') + _mParas([_introLeadIn]) + _mBullets(_introBullets));
+    h2Heading('Introduction');
+    introPara(_introLeadIn);
+    _introBullets.forEach(function(b) { bulletItem(b); });
+
+    // ── H2: Zoning ───────────────────────────────────────────────────────────
+    var _introZoning = 'The zoning of the subject site and noise sensitive receptors are shown in the figure below.';
     if (zoneImg) {
+      var _zmH0 = cW * zoneImg.aspect;
+      // Scale zone map down if the full block (h2+intro+image+caption) exceeds page height
+      var _zmNonImgH = _mH2('Zoning') + _mParas([_introZoning]) + 1 + _mCap();
+      var _zmMaxH = cH - _zmNonImgH;
+      var _zmH = (_zmH0 > _zmMaxH && _zmMaxH > 20) ? _zmMaxH : _zmH0;
+      var _zmW = (_zmH < _zmH0) ? _zmH / zoneImg.aspect : cW;
+      var _zoningBlockH = _zmNonImgH + _zmH;
+      newPageIfNeeded(_zoningBlockH);
+      h2Heading('Zoning');
+      introPara(_introZoning);
+      _pdfLabel = 'zone map';
       if (!zoneImg.dataUrl || zoneImg.dataUrl.length < 100 || !zoneImg.dataUrl.startsWith('data:image/jpeg')) {
         throw new Error('Invalid JPEG for appendix section: zone map');
       }
-      console.log('[pdf-appendix]', _pdfLabel, { dataUrlLength: zoneImg.dataUrl.length, dataUrlPrefix: zoneImg.dataUrl.slice(0, 40), aspect: zoneImg.aspect });
-      var imgMaxH = 90;
-      var imgH = cW * zoneImg.aspect;
-      var drawH = Math.min(imgH, imgMaxH);
-      var drawW = drawH / zoneImg.aspect;
-      var imgX  = margin + (cW - drawW) / 2;
-      pdf.setDrawColor(LINE[0], LINE[1], LINE[2]);
-      pdf.setLineWidth(0.5);
-      pdf.rect(imgX - 0.3, y - 0.3, drawW + 0.6, drawH + 0.6, 'S');
-      pdf.addImage(zoneImg.dataUrl, 'JPEG', imgX, y, drawW, drawH);
-      y += drawH + 3;
-      // Caption: "Figure 1  Zone map" — bold 8pt, left-aligned
-      pdf.setFont(FONT, 'bold');
-      pdf.setFontSize(8);
-      pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
-      pdf.text('Figure 1  Zone map', margin, y);
+      console.log('[pdf-appendix]', _pdfLabel, { dataUrlLength: zoneImg.dataUrl.length, aspect: zoneImg.aspect });
+      pdf.setDrawColor(LINE[0], LINE[1], LINE[2]); pdf.setLineWidth(0.5);
+      pdf.rect(mSide - 0.3, y - 0.3, _zmW + 0.6, _zmH + 0.6, 'S');
+      pdf.addImage(zoneImg.dataUrl, 'JPEG', mSide, y, _zmW, _zmH);
+      y += _zmH + 1;
+      captionText('Zone map');
+    } else {
+      h2Heading('Zoning');
+      introPara(_introZoning);
+    }
+
+    // ── H2: Planning & Design Code — Interface between Land Uses (SA only) ───
+    if (pdcOn) {
+      var _introPDC = 'Interface between Land Uses is a General Development Policy that is relevant to the subject site. The relevant Assessment Provisions relating to noise are outlined in the table below.';
+      var _pdcCap = 'Relevant assessment provisions - activities generating noise or vibration';
+      // Keep h2 + intro + caption + header + subheading + first data row together
+      var _pdcMinH = _mH2('Planning \u0026 Design Code \u2014 Interface between Land Uses') + _mParas([_introPDC]) + _mCap() + 8 + 7 + 15;
+      newPageIfNeeded(Math.min(_pdcMinH, cH));
+      h2Heading('Planning \u0026 Design Code \u2014 Interface between Land Uses');
+      introPara(_introPDC);
+      captionText(_pdcCap);
+
+      // Native PDC table — reads from _PDC_PROVISIONS static data + _pdcProvisions runtime state
+      var _pdcPOW  = cW * 0.47;   // Performance Outcome column
+      var _pdcDTSW = cW * 0.33;   // DTS/DPF column
+      var _pdcRelW = cW * 0.20;   // Relevance column
+      var _pdcFs   = 8;
+      var _pdcLH   = 3.8;         // mm per line at 8pt (≈ font-size × 0.3528 × 1.35)
+      var _pdcPad  = 1.5;         // top & bottom cell padding mm
+      var _pdcAsc  = 0.72 * _pdcFs * PT; // approximate cap-height offset for top-aligned text
+
+      var _pdcCell = function(cx, cy, cw, ch, text, bold, bg, isHdr) {
+        if (bg) { pdf.setFillColor(bg[0],bg[1],bg[2]); pdf.rect(cx,cy,cw,ch,'F'); }
+        pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.18); pdf.rect(cx,cy,cw,ch,'S');
+        if (text == null || text === '') return;
+        pdf.setFont(FONT, bold ? 'bold' : 'normal'); pdf.setFontSize(_pdcFs);
+        pdf.setTextColor(isHdr ? 255 : TEXT[0], isHdr ? 255 : TEXT[1], isHdr ? 255 : TEXT[2]);
+        if (isHdr) {
+          pdf.text(String(text), cx + 2, cy + ch / 2, {baseline:'middle'});
+        } else {
+          var _ls = pdf.splitTextToSize(String(text), cw - 4);
+          _ls.forEach(function(line, li) {
+            pdf.text(line, cx + 2, cy + _pdcPad + _pdcAsc + li * _pdcLH);
+          });
+        }
+      };
+
+      var _pdcMeasureRowH = function(po, dts, rel) {
+        pdf.setFont(FONT, 'normal'); pdf.setFontSize(_pdcFs);
+        var pl = pdf.splitTextToSize(String(po  || ''), _pdcPOW  - 4).length;
+        var dl = pdf.splitTextToSize(String(dts || ''), _pdcDTSW - 4).length;
+        var rl = pdf.splitTextToSize(String(rel || ''), _pdcRelW - 4).length;
+        return Math.max(pl, dl, rl) * _pdcLH + 2 * _pdcPad;
+      };
+
+      var _pdcDrawHeaderRow = function() {
+        pdf.setFillColor(TABLE_HEADER_YELLOW[0], TABLE_HEADER_YELLOW[1], TABLE_HEADER_YELLOW[2]);
+        pdf.rect(mSide, y, cW, 8, 'F');
+        _pdcCell(mSide,                      y, _pdcPOW,  8, 'Performance Outcome', true, null, true);
+        _pdcCell(mSide + _pdcPOW,            y, _pdcDTSW, 8, 'DTS/DPF',             true, null, true);
+        _pdcCell(mSide + _pdcPOW + _pdcDTSW, y, _pdcRelW, 8, 'Relevance',           true, null, true);
+        y += 8;
+      };
+
+      _pdcDrawHeaderRow();
+
+      // Subheading row (grey background)
+      pdf.setFillColor(TABLE_HEADER_GREY[0], TABLE_HEADER_GREY[1], TABLE_HEADER_GREY[2]);
+      pdf.rect(mSide, y, cW, 7, 'F');
+      pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.18); pdf.rect(mSide, y, cW, 7, 'S');
+      pdf.setFont(FONT, 'bold'); pdf.setFontSize(_pdcFs); pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
+      pdf.text('Activities Generating Noise or Vibration', mSide + 2, y + 3.5, {baseline:'middle'});
+      y += 7;
+
+      // Data rows — one per provision; row height sized to the tallest wrapped cell
+      for (var _pi = 0; _pi < _PDC_PROVISIONS.length; _pi++) {
+        var _pp  = _PDC_PROVISIONS[_pi];
+        var _ps  = _pdcProvisions[_pi] || {};
+        var _pr  = _ps.relevance || '\u2014';
+        if (_pr === 'TBC') _pr = 'TBC pending modelling';
+        var _prH = _pdcMeasureRowH(_pp.po, _pp.dts, _pr);
+        if (y + _prH > pH - mBot) { pdf.addPage(); y = mTop; _pdcDrawHeaderRow(); }
+        _pdcCell(mSide,                      y, _pdcPOW,  _prH, _pp.po,  false, null, false);
+        _pdcCell(mSide + _pdcPOW,            y, _pdcDTSW, _prH, _pp.dts, false, null, false);
+        _pdcCell(mSide + _pdcPOW + _pdcDTSW, y, _pdcRelW, _prH, _pr,    false, null, false);
+        y += _prH;
+      }
+    }
+
+    // ── H2: Environmental noise policy ───────────────────────────────────────
+    var _introCrit1 = 'As noted in DTS/DPF 4.1, environmental noise emissions from the subject site should comply with the Environment Protection (Commercial \u0026 Industrial Noise) Policy 2023 (Noise Policy). The environmental noise criteria are based on the land use categories determined based on the principal land uses outlined in the Planning \u0026 Design Code for the noise source and noise-affected premises.';
+    var _introCrit2 = 'Based on the land use categories as outlined in the EPA\u2019s Indicative Noise Factor Guidelines, the relevant criteria for the noise-affected premises in each zone are as outlined in the table below.';
+    var _critCap = 'Environmental noise criteria';
+    // Keep h2 + intros + caption + at minimum header row + 1 data row together
+    var _critMinH = _mH2('Environmental noise policy') + _mParas([_introCrit1, _introCrit2]) + _mCap() + 8 + 7;
+    newPageIfNeeded(Math.min(_critMinH, cH));
+    h2Heading('Environmental noise policy');
+    introPara(_introCrit1);
+    introPara(_introCrit2);
+    captionText(_critCap);
+    renderCritTablePaginated(_critCap);
+
+    // ── H2: Emergency equipment criteria (conditional) ───────────────────────
+    if (fireOn || genOn) {
+      var _introEmerg = 'The development is to include equipment for fire protection and two standby generators. These items of equipment are only to be tested periodically during the day and would only operate in emergency situations when there is a fire or mains power is down. As such, the strict application of the Noise Policy criteria may be considered to be too onerous. The Guidelines for the use of the Environment Protection (Commercial \u0026 Industrial Noise) Policy 2023 (the Guidelines) provides guidance on reasonable adjustments for noise sources that are intermittent and infrequent. Based on these guidelines, alternative criteria for the operation and testing of emergency equipment is outlined in the table below.';
+      var _emergCap = 'Environmental noise criteria';
+      var _emergColCount = 1 + (fireOn ? 1 : 0) + (genOn ? 1 : 0);
+      var _emergRecvW = cW * 0.30;
+      var _emergEqW   = (cW - _emergRecvW) / (_emergColCount - 1);
+      var _emergFs    = 8.5;
+      var _EMERG_TBL_H = 8 + 7 + 4 * 7; // hdr1 + hdr2 + up-to-4 body rows
+      var _emergBlockH = _mH2('Emergency equipment criteria') + _mParas([_introEmerg]) + _mCap() + _EMERG_TBL_H;
+      newPageIfNeeded(Math.min(_emergBlockH, cH));
+      h2Heading('Emergency equipment criteria');
+      introPara(_introEmerg);
+      captionText(_emergCap);
+
+      // Native emergency table — 2-row header (gold + grey) + body rows from DOM
+      var _eCell = function(cx, cy, cw, ch, text, bold, bg, align) {
+        if (bg) { pdf.setFillColor(bg[0],bg[1],bg[2]); pdf.rect(cx,cy,cw,ch,'F'); }
+        pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.18); pdf.rect(cx,cy,cw,ch,'S');
+        if (text == null || text === '') return;
+        pdf.setFont(FONT, bold ? 'bold' : 'normal'); pdf.setFontSize(_emergFs);
+        pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
+        var _ls = pdf.splitTextToSize(String(text), cw - 4);
+        if (align === 'center') pdf.text(_ls, cx+cw/2, cy+ch/2, {align:'center', baseline:'middle'});
+        else pdf.text(_ls, cx+2, cy+ch/2, {align:'left', baseline:'middle'});
+      };
+
+      // Header row 1: "Receiver" | "Criteria, LAeq dB" spanning equipment columns (gold)
+      pdf.setFillColor(TABLE_HEADER_YELLOW[0], TABLE_HEADER_YELLOW[1], TABLE_HEADER_YELLOW[2]);
+      pdf.rect(mSide, y, cW, 8, 'F');
+      pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.18);
+      pdf.rect(mSide, y, _emergRecvW, 8, 'S');
+      pdf.rect(mSide + _emergRecvW, y, cW - _emergRecvW, 8, 'S');
+      pdf.setFont(FONT, 'bold'); pdf.setFontSize(_emergFs); pdf.setTextColor(255,255,255);
+      pdf.text('Receiver', mSide + 2, y + 4, {baseline:'middle'});
+      pdf.text('Criteria, LAeq dB', mSide + _emergRecvW + (cW - _emergRecvW) / 2, y + 4, {align:'center', baseline:'middle'});
+      y += 8;
+
+      // Header row 2: empty | equipment sub-labels (grey)
+      _eCell(mSide, y, _emergRecvW, 7, '', false, TABLE_HEADER_GREY, 'left');
+      var _eCx2 = mSide + _emergRecvW;
+      if (fireOn) { _eCell(_eCx2, y, _emergEqW, 7, 'Fire pump',         true, TABLE_HEADER_GREY, 'center'); _eCx2 += _emergEqW; }
+      if (genOn)  {  _eCell(_eCx2, y, _emergEqW, 7, 'Standby generator', true, TABLE_HEADER_GREY, 'center'); }
+      y += 7;
+
+      // Body rows — read from rendered emergEquipBody DOM (populated by renderEmergencyEquipCriteria)
+      var _eTbody = document.getElementById('emergEquipBody');
+      if (_eTbody) {
+        var _eRows = Array.from(_eTbody.querySelectorAll('tr'));
+        _eRows.forEach(function(tr, ri) {
+          var tds = tr.querySelectorAll('td');
+          if (!tds.length) return;
+          var _ebg = ri % 2 === 1 ? [250,250,250] : null;
+          _eCell(mSide, y, _emergRecvW, 7, tds[0] ? tds[0].textContent.trim() : '', false, _ebg, 'left');
+          var _eCx = mSide + _emergRecvW;
+          if (fireOn) { _eCell(_eCx, y, _emergEqW, 7, tds[1] ? tds[1].textContent.trim() : '', false, _ebg, 'center'); _eCx += _emergEqW; }
+          if (genOn)  { _eCell(_eCx, y, _emergEqW, 7, tds[fireOn ? 2 : 1] ? tds[fireOn ? 2 : 1].textContent.trim() : '', false, _ebg, 'center'); }
+          y += 7;
+        });
+      }
+    }
+
+    // ── H2: Music noise criteria (conditional) ───────────────────────────────
+    if (musicOn) {
+      var _introMusic = 'As noted in DTS/DPF 4.6, music noise emissions (L10,15min) from the subject site should be designed to comply with less than 8 dB above the background noise level (L90,15min) in any octave band of the sound spectrum. The music noise criteria is outlined in the table below based on the lowest background noise measured during the proposed operating period.';
+      var _musicCap = 'Music noise criteria';
+      var _mLblW = 60, _mBandW = (cW - _mLblW) / 7;
+      var _mHdrH = 8, _mFreqH = 7, _mRowH = 7, _mFs = 8.5;
+      var _MUSIC_TBL_H = _mHdrH + _mFreqH + _mRowH + _mRowH;
+      var _musicBlockH = _mH2('Music noise criteria') + _mParas([_introMusic]) + _mCap() + _MUSIC_TBL_H;
+      newPageIfNeeded(Math.min(_musicBlockH, cH));
+      h2Heading('Music noise criteria');
+      introPara(_introMusic);
+      captionText(_musicCap);
+
+      // Native music table — plain cell text, no input-box capture
+      var _dcM = function(cx, cy, cw, ch, text, align, bg, bold) {
+        if (bg) { pdf.setFillColor(bg[0],bg[1],bg[2]); pdf.rect(cx,cy,cw,ch,'F'); }
+        pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.18); pdf.rect(cx,cy,cw,ch,'S');
+        if (text == null || text === '') return;
+        pdf.setFont(FONT, bold ? 'bold' : 'normal'); pdf.setFontSize(_mFs);
+        pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
+        var _ls = pdf.splitTextToSize(String(text), cw - 4);
+        if (align === 'center') pdf.text(_ls, cx+cw/2, cy+ch/2, {align:'center', baseline:'middle'});
+        else pdf.text(_ls, cx+2, cy+ch/2, {align:'left', baseline:'middle'});
+      };
+
+      // Header row: gold, "Octave band centre frequency, Hz"
+      pdf.setFillColor(GOLD[0],GOLD[1],GOLD[2]); pdf.rect(mSide, y, cW, _mHdrH, 'F');
+      pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.18); pdf.rect(mSide, y, _mLblW, _mHdrH, 'S');
+      pdf.setFont(FONT, 'bold'); pdf.setFontSize(_mFs); pdf.setTextColor(255,255,255);
+      pdf.text('Octave band centre frequency, Hz', mSide+_mLblW+(cW-_mLblW)/2, y+_mHdrH/2, {align:'center', baseline:'middle'});
+      y += _mHdrH;
+
+      // Frequency label row: 63 125 250 500 1000 2000 4000
+      var _mShade = [242,242,242];
+      _dcM(mSide, y, _mLblW, _mFreqH, null, 'left', _mShade, false);
+      _musicBands.forEach(function(b, i) {
+        _dcM(mSide+_mLblW+i*_mBandW, y, _mBandW, _mFreqH, String(b), 'center', _mShade, true);
+      });
+      y += _mFreqH;
+
+      // Data row 1: Lowest background noise level, LA90
+      _dcM(mSide, y, _mLblW, _mRowH, 'Lowest background LA90 (dB)', 'left', null, false);
+      _musicBands.forEach(function(b, i) {
+        _dcM(mSide+_mLblW+i*_mBandW, y, _mBandW, _mRowH, _musicBgVals[b], 'center', null, false);
+      });
+      y += _mRowH;
+
+      // Data row 2: Music noise criteria, LA10
+      _dcM(mSide, y, _mLblW, _mRowH, 'Music noise criteria LA10 (dB)', 'left', null, false);
+      _musicBands.forEach(function(b, i) {
+        _dcM(mSide+_mLblW+i*_mBandW, y, _mBandW, _mRowH, _musicCritVals[b], 'center', null, false);
+      });
+      y += _mRowH;
+    }
+
+    // ── H2: Schools, kindergartens… (conditional) ────────────────────────────
+    if (childOn) {
+      var _introChild = 'The Noise Policy specifically excludes \u2018noise from activities carried on in the ordinary course of the operation of a school, kindergarten, child-care centre of place of worship\u2019. The World Health Organization (WHO) Guidelines for Community Noise can be used to consider the noise generated by students. It is accepted to adopt a noise level criteria of 50 dB(A) in the outdoor area of the closest noise sensitive receiver. The noise criteria is outlined in the table below.';
+      var _childCap = 'People noise criteria';
+      var _CHILD_TBL_H = 8 + 7; // header + one data row
+      var _childBlockH = _mH2('Schools, kindergartens, child-care centre of place of worship') + _mParas([_introChild]) + _mCap() + _CHILD_TBL_H;
+      newPageIfNeeded(Math.min(_childBlockH, cH));
+      h2Heading('Schools, kindergartens, child-care centre of place of worship');
+      introPara(_introChild);
+      captionText(_childCap);
+
+      // Native childcare table: "Location" | "LAeq dB" header + single data row
+      var _chLW = cW * 0.75, _chVW = cW * 0.25, _chFs = 8.5;
+      var _chCell = function(cx, cy, cw, ch, text, bold, bg, align) {
+        if (bg) { pdf.setFillColor(bg[0],bg[1],bg[2]); pdf.rect(cx,cy,cw,ch,'F'); }
+        pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.18); pdf.rect(cx,cy,cw,ch,'S');
+        if (text == null || text === '') return;
+        pdf.setFont(FONT, bold ? 'bold' : 'normal'); pdf.setFontSize(_chFs);
+        pdf.setTextColor(TEXT[0], TEXT[1], TEXT[2]);
+        var _ls = pdf.splitTextToSize(String(text), cw - 4);
+        if (align === 'center') pdf.text(_ls, cx+cw/2, cy+ch/2, {align:'center', baseline:'middle'});
+        else pdf.text(_ls, cx+2, cy+ch/2, {align:'left', baseline:'middle'});
+      };
+      pdf.setFillColor(TABLE_HEADER_YELLOW[0], TABLE_HEADER_YELLOW[1], TABLE_HEADER_YELLOW[2]);
+      pdf.rect(mSide, y, cW, 8, 'F');
+      pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.18);
+      pdf.rect(mSide, y, _chLW, 8, 'S');
+      pdf.rect(mSide + _chLW, y, _chVW, 8, 'S');
+      pdf.setFont(FONT, 'bold'); pdf.setFontSize(_chFs); pdf.setTextColor(255,255,255);
+      pdf.text('Location', mSide + 2, y + 4, {baseline:'middle'});
+      pdf.text('LAeq dB', mSide + _chLW + _chVW / 2, y + 4, {align:'center', baseline:'middle'});
+      y += 8;
+      _chCell(mSide, y, _chLW, 7, 'All sensitive receivers', false, null, 'left');
+      _chCell(mSide + _chLW, y, _chVW, 7, '50', false, null, 'center');
       y += 7;
     }
 
-    // ── B) Planning & Design Code — Interface between Land Uses ───────────
-    if (pdcImg) {
-      sectionLabel('Planning & Design Code \u2014 Interface between Land Uses');
-      placeImage(pdcImg, 'PDC interface');
-      y += 3;
-    }
-
-    // ── C) Receivers & Criteria ─────────────────────────────────────────────
-    if (critImg) {
-      sectionLabel('Receivers & Criteria');
-      placeImage(critImg, 'receivers & criteria');
-      y += 3;
-    }
-
-    // ── C) Emergency Equipment Criteria (conditional) ───────────────────────
-    if (emergImg) {
-      sectionLabel('Emergency Equipment Criteria');
-      placeImage(emergImg, 'emergency equipment');
-      y += 3;
-    }
-
-    // ── D) Music Noise Criteria (conditional) ───────────────────────────────
-    if (musicImg) {
-      sectionLabel('Music Noise Criteria');
-      placeImage(musicImg, 'music criteria');
-      y += 3;
-    }
-
-    // ── E) Childcare / Student Criteria (conditional) ───────────────────────
-    if (childImg) {
-      sectionLabel('Childcare / Student Criteria');
-      placeImage(childImg, 'childcare criteria');
-      y += 3;
-    }
-
-    // ── Page numbers ────────────────────────────────────────────────────────
+    // ── Running logo header + page numbers (post-processing loop) ────────────
     var pageCount = pdf.getNumberOfPages();
-    for (var p = 1; p <= pageCount; p++) {
-      pdf.setPage(p);
-      pdf.setFont(FONT, 'normal');
-      pdf.setFontSize(8);
+    for (var _p = 1; _p <= pageCount; _p++) {
+      pdf.setPage(_p);
+      if (logoDataUrl) {
+        pdf.addImage(logoDataUrl, 'PNG', mSide, LOGO_TOP, LOGO_W, LOGO_H);
+      }
+      pdf.setFont(FONT, 'normal'); pdf.setFontSize(8);
       pdf.setTextColor(MUTED[0], MUTED[1], MUTED[2]);
-      pdf.text(String(p) + ' / ' + String(pageCount), pW / 2, pH - 10, { align: 'center' });
+      pdf.text(String(_p) + ' / ' + String(pageCount), pW / 2, pH - 10, { align: 'center' });
     }
 
-    // ── 4. Save PDF ─────────────────────────────────────────────────────────
+    // ── 4. Save PDF ──────────────────────────────────────────────────────────
     var fname = projNum.trim()
       ? projNum.trim().replace(/[\\/:*?"<>|]/g, '-') + '_Appendix_Criteria.pdf'
       : 'Appendix_Criteria.pdf';
@@ -25962,70 +26067,20 @@ if (window.pdfjsLib) {
     window.querySAZoningAtPoint = queryZoningAtPoint;
     window._saMatchZoneToKey = matchZoneToKey;
 
-    /* ── Zone map capture helpers for exportCriteriaPdf() ─────────────────── */
-    window._prepareZoneCapture = function() {
-      var overlay = (typeof getActiveZoneOverlay === 'function') ? getActiveZoneOverlay() : null;
-      var state = {
-        pinsOn:       _allObjVisible,
-        aerialOn:     isAerial,
-        cadastreOn:   isCadastreOn,
-        buildingsOn:  _buildingsOn,
-        zoneOn:       isZoneOn,
-        tcHadLayer:   !!(window._terrainContourLayer && window._map && window._map.hasLayer(window._terrainContourLayer)),
-        noiseOpacity: (_noiseCanvasLayer && window._map && window._map.hasLayer(_noiseCanvasLayer)) ? 0.8 : null,
-        compOpacity:  (_complianceCanvasLayer && window._map && window._map.hasLayer(_complianceCanvasLayer)) ? 0.82 : null,
-        noiseContour: !!(_noiseContourLayer && window._map && window._map.hasLayer(_noiseContourLayer))
-      };
-      // Ensure zone overlay is ON (only if overlay exists — avoids alert)
-      if (!isZoneOn && overlay) { var zb = document.getElementById('zoneToggleBtn'); if (zb) zb.click(); }
-      // Turn OFF objects
-      if (_allObjVisible) { var pb = document.getElementById('pinsToggleBtn'); if (pb) pb.click(); }
-      // Turn OFF aerial (back to street tiles)
-      if (isAerial) { var ab = document.getElementById('aerialToggleBtn'); if (ab) ab.click(); }
-      // Turn OFF cadastre
-      if (isCadastreOn) { var cb = document.getElementById('cadastreToggleBtn'); if (cb) cb.click(); }
-      // Turn OFF OSM buildings
-      if (_buildingsOn) { var bb = document.getElementById('buildingsToggleBtn'); if (bb) bb.click(); }
-      // Hide terrain contour layer (remove, preserving layer contents for restore)
-      if (state.tcHadLayer && window._terrainContourLayer) window._map.removeLayer(window._terrainContourLayer);
-      // Hide noise map canvas (opacity 0 — instant, no Leaflet repaint needed)
-      if (state.noiseOpacity !== null && _noiseCanvasLayer) _noiseCanvasLayer.setOpacity(0);
-      // Hide compliance canvas
-      if (state.compOpacity !== null && _complianceCanvasLayer) _complianceCanvasLayer.setOpacity(0);
-      // Hide noise contour lines layer
-      if (state.noiseContour && _noiseContourLayer && window._map) window._map.removeLayer(_noiseContourLayer);
-      return state;
-    };
-
-    window._restoreAfterCapture = function(state) {
-      // Restore zone to original state
-      if (!state.zoneOn && isZoneOn) { var zb = document.getElementById('zoneToggleBtn'); if (zb) zb.click(); }
-      // Restore objects
-      if (state.pinsOn && !_allObjVisible) { var pb = document.getElementById('pinsToggleBtn'); if (pb) pb.click(); }
-      // Restore aerial
-      if (state.aerialOn && !isAerial) { var ab = document.getElementById('aerialToggleBtn'); if (ab) ab.click(); }
-      // Restore cadastre
-      if (state.cadastreOn && !isCadastreOn) { var cb = document.getElementById('cadastreToggleBtn'); if (cb) cb.click(); }
-      // Restore OSM buildings
-      if (state.buildingsOn && !_buildingsOn) { var bb = document.getElementById('buildingsToggleBtn'); if (bb) bb.click(); }
-      // Restore terrain contour layer
-      if (state.tcHadLayer && window._terrainContourLayer && window._map) window._terrainContourLayer.addTo(window._map);
-      // Restore noise canvas opacity
-      if (state.noiseOpacity !== null && _noiseCanvasLayer) _noiseCanvasLayer.setOpacity(state.noiseOpacity);
-      // Restore compliance canvas opacity
-      if (state.compOpacity !== null && _complianceCanvasLayer) _complianceCanvasLayer.setOpacity(state.compOpacity);
-      // Restore noise contour layer
-      if (state.noiseContour && _noiseContourLayer && window._map) _noiseContourLayer.addTo(window._map);
-    };
-
     /* --- PDF appendix: expose layer refs for whitelist-based zone map capture --- */
     /* Called at export time so dynamic refs (sourceParcelOutline) are current.    */
     window._getPdfZoneCaptureState = function() {
+      var saZonesOn = (currentState === 'SA') &&
+        typeof window._isPlanZonesOn === 'function' && window._isPlanZonesOn();
       return {
         streetLayer:         streetLayer,
         aerialLayer:         aerialLayer,
         isAerial:            isAerial,
         isZoneOn:            isZoneOn,
+        effectiveZoneOn:     isZoneOn || saZonesOn,
+        saZonesOn:           saZonesOn,
+        saZonesLayer:         (typeof window._getSaZonesLayer === 'function') ? window._getSaZonesLayer() : null,
+        saCanvasRenderer:     (typeof window._getSaCanvasRenderer === 'function') ? window._getSaCanvasRenderer() : null,
         activeZoneOverlay:   (typeof getActiveZoneOverlay === 'function') ? getActiveZoneOverlay() : null,
         zoneOutlineLayer:    zoneOutlineLayer,
         subzoneFeatureLayer: subzoneFeatureLayer,
@@ -39779,9 +39834,11 @@ if (window.pdfjsLib) {
   });
 
   /* ── Cross-IIFE zone toggle API ─────────────────────────────────────────── */
-  window._togglePlanZones = toggleZones;
-  window._isPlanZonesOn   = function() { return _planZonesOn; };
-  window._anefStyle       = anefStyle;
+  window._togglePlanZones    = toggleZones;
+  window._isPlanZonesOn      = function() { return _planZonesOn; };
+  window._getSaZonesLayer    = function() { return _zonesLayer; };
+  window._getSaCanvasRenderer = function() { return _canvasRenderer; };
+  window._anefStyle          = anefStyle;
 
   // Pre-warm zone cache at startup so criteria compute immediately on first
   // receiver placement regardless of whether "Show zones" layer is toggled on.
@@ -43443,6 +43500,63 @@ if (window.pdfjsLib) {
      in the current UI — revisit if multi-modal flows are added. */
   window._gisImport = { importGis: importGis, parseGisFile: parseGisFile, closeModal: closeModal };
 
+})();
+</script>
+
+<!-- ─── PDF map framing panel — must be outside #pdfArea (which is display:none when drawer closed) ── -->
+<div id="pdfFramingPanel" style="display:none;position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:10000;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.22);padding:16px 18px;min-width:280px;max-width:360px;flex-direction:column;gap:10px;">
+  <div style="font-weight:700;font-size:13px;color:#1e293b;">Prepare map for PDF</div>
+  <div style="font-size:12px;color:#475569;line-height:1.55;">Adjust the zoom and pan of the map to frame your site and receivers as they should appear in the PDF zone map figure. Click <b>Accept</b> when ready.</div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:2px;">
+    <button id="pdfFrameCancelBtn" style="padding:5px 14px;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer;">Cancel</button>
+    <button id="pdfFrameAcceptBtn" style="padding:5px 14px;font-size:12px;border:none;border-radius:6px;background:#1e293b;color:#fff;cursor:pointer;">Accept</button>
+  </div>
+</div>
+<script>
+/* ── PDF framing panel — show before export, let user adjust map view ───── */
+(function() {
+  var _panel = null, _resolve = null;
+  function getPanel() {
+    if (!_panel) _panel = document.getElementById('pdfFramingPanel');
+    return _panel;
+  }
+  // Move panel to document.body so it's not trapped inside #pdfArea (display:none)
+(function movePanelToBody() {
+  var p = document.getElementById('pdfFramingPanel');
+  if (p && p.parentElement && p.parentElement.id !== 'body' && p.parentElement !== document.body) {
+    document.body.appendChild(p);
+  }
+})();
+
+window._showPdfFramingPanel = function() {
+    return new Promise(function(resolve) {
+      var p = getPanel();
+      if (!p) { resolve(true); return; }
+      _resolve = resolve;
+      p.style.display = 'flex';
+      function onAccept() { cleanup(); resolve(true); }
+      function onCancel() { cleanup(); resolve(false); }
+      function cleanup() {
+        p.style.display = 'none';
+        var acc = document.getElementById('pdfFrameAcceptBtn');
+        var can = document.getElementById('pdfFrameCancelBtn');
+        if (acc) acc.removeEventListener('click', onAccept);
+        if (can) can.removeEventListener('click', onCancel);
+        p.removeEventListener('click', stopProp);
+        p.removeEventListener('mousedown', stopProp);
+        p.removeEventListener('wheel', stopProp);
+        _resolve = null;
+      }
+      var acc = document.getElementById('pdfFrameAcceptBtn');
+      var can = document.getElementById('pdfFrameCancelBtn');
+      if (acc) acc.addEventListener('click', onAccept);
+      if (can) can.addEventListener('click', onCancel);
+      function stopProp(e) { e.stopPropagation(); }
+      p.addEventListener('click', stopProp);
+      p.addEventListener('mousedown', stopProp);
+      p.addEventListener('wheel', stopProp, { passive: true });
+    });
+  };
 })();
 </script>
 
