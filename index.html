@@ -470,6 +470,9 @@ body.state-nsw span.nsw-only { display: inline-block !important; }
 .nsw-sleep-warn { color: #b91c1c; font-weight: 600; }
 /* NSW Lmax now shown — sleep disturbance screening */
 
+/* No state set (address empty / not yet geocoded) — hide SA-only elements */
+body:not(.state-sa):not(.state-vic):not(.state-nsw):not(.state-other) .sa-only { display: none !important; }
+
 /* OTHER state — manual criteria mode */
 body.state-other .sa-only { display: none !important; }
 body.state-other .vic-only { display: revert !important; }
@@ -7518,6 +7521,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
       el.classList.toggle('section-hidden', sections.indexOf(sectionId) === -1);
     });
     window._activeNavSection = sectionId;
+    if (typeof window._expandSectionCards === 'function') window._expandSectionCards();
   }
 
   (function initJumpNav() {
@@ -21898,7 +21902,35 @@ function setInitialCollapseState() {
     if (body) body.style.display = 'none';
     if (btn) btn.innerHTML = '\u25BC';
   });
+  // Re-expand cards in the currently active section after collapsing all
+  expandSectionCards();
 }
+
+function expandSectionCards() {
+  var dc = document.getElementById('drawer-content');
+  if (!dc) return;
+  // (1) initCollapse-managed card bodies visible in the active section
+  dc.querySelectorAll('.card-body').forEach(function(body) {
+    if (body.closest('.section-hidden')) return;
+    body.classList.remove('collapsed');
+    var card = body.closest('.card');
+    if (card) {
+      card.querySelectorAll('.collapse-btn').forEach(function(btn) {
+        if (!btn.getAttribute('onclick')) btn.innerHTML = '\u25B2';
+      });
+    }
+  });
+  // (2) Inline-toggle card bodies inside the drawer and in the active section
+  INLINE_TOGGLE_BODIES.forEach(function(it) {
+    var body = document.getElementById(it.bodyId);
+    var btn = document.getElementById(it.btnId);
+    if (!body || !dc.contains(body)) return;
+    if (body.closest('.section-hidden')) return;
+    body.style.display = '';
+    if (btn) btn.innerHTML = '\u25B2';
+  });
+}
+window._expandSectionCards = expandSectionCards;
 
 function expandAllPanels() {
   var dc = document.getElementById('drawer-content');

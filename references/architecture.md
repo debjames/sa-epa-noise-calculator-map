@@ -1278,6 +1278,10 @@ The handle lives on `#drawer-panel` (not `#drawer-content`). Both `_restoreForPd
 
 Anchors are inserted **inside** the drawer content structure, immediately before the `.grid2` ancestor of each target element. `#drawer-content` has `position: relative` so `anchor.offsetTop` resolves against drawer-content regardless of nesting depth.
 
+**Auto-expand on tab activation:** `activateSection(sectionId)` calls `window._expandSectionCards()` after setting section visibility. `expandSectionCards()` expands all `.card-body` elements and inline-toggle bodies (from `INLINE_TOGGLE_BODIES`) that are not inside a `.section-hidden` ancestor, skipping `objectsPanelBody` (floating panel, not in `drawer-content`). The window bridge is required because `activateSection` and `expandSectionCards` live in different `<script>` blocks. `setInitialCollapseState()` also calls `expandSectionCards()` after collapsing all panels so the initial Setup tab opens expanded. Manual collapse within a tab works normally; switching tabs re-expands.
+
+**SA-only card:** The `#pdcProvisionsSection` card ("Planning & Design Code — Interface between Land Uses") carries class `sa-only` and is only rendered when `currentState === 'SA'`. It is hidden by CSS for VIC, NSW, OTHER, and the initial null state (no address geocoded). The "Receivers & criteria" card immediately below it is always visible. The `sa-only` CSS pattern: three explicit `body.state-X .sa-only { display: none !important; }` rules cover VIC/NSW/OTHER; one `body:not(.state-sa):not(.state-vic):not(.state-nsw):not(.state-other) .sa-only` rule covers the null/empty-address state.
+
 **Nesting note:** One outer wrapper `<div class="grid2" data-section="criteria results">` spans from the "Receivers & criteria" card all the way through the results panels. Its `data-section="criteria results"` keeps it visible under both the Criteria and Results tabs. The inner "Receivers & criteria" `card.span2` carries `data-section="criteria"` so it hides under Results. Each nested panel manages its own visibility via its own `data-section` attribute.
 
 | Anchor ID | Target element | Group contents |
