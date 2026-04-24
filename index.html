@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self';">
 <title>Resonate | Environmental Noise Tool</title>
 <link rel="icon" type="image/png" href="R.png">
 <link rel="apple-touch-icon" href="R.png">
@@ -2072,7 +2073,7 @@ body.disclaimer-visible .container {
 
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" crossorigin="anonymous"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" integrity="sha384-NZLkVuBRMEeB4VeZz27WwTRvlhec30biQ8Xx7zG7JJnkvEKRg5qi6BNbEXo9ydwv" crossorigin="anonymous"/>
 <!-- ─── SUPABASE (disabled 2026-04-22) ────────────────────────────────────────
 <script src="supabase-config.js?v=1" onerror="console.info('[ResonateLib] supabase-config.js not present — offline snapshot only.')"></script>
 <script src="library-loader.js?v=1"></script>
@@ -3987,6 +3988,7 @@ body.disclaimer-visible .container {
 }
 </style>
 <script>
+var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
 (function() {
   var _methModalEl = null;
   var _methEscHandler = null;
@@ -4180,7 +4182,7 @@ body.disclaimer-visible .container {
   /* Accurate for areas < ~5km which is the typical working  */
   /* extent for a noise assessment viewport.                 */
   function latLngToLocal(lat, lng, cLat, cLng) {
-    var R = 6371000;           // Earth radius in metres
+    var R = EARTH_RADIUS_M;
     var D = Math.PI / 180;
     var x = (lng - cLng) * D * R * Math.cos(cLat * D);
     var z = -(lat - cLat) * D * R;
@@ -7709,7 +7711,7 @@ body.disclaimer-visible .container {
     'Regression: totalAtReceiver single source should match attenuatePoint');
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js" integrity="sha384-m5adk5PRgt3JjiYbYoG8oXxc3EgRFKc1aCBgKzyxqxnbYpdiAMlHkR0gVDp03Q/H" crossorigin="anonymous"></script>
 
 <!-- DEM (Digital Elevation Model) cache — WCS LiDAR primary, Open-Elevation fallback -->
 <script>
@@ -10162,7 +10164,7 @@ function _cortnFlatDistM(lat1, lng1, lat2, lng2) {
   if (typeof SharedCalc !== 'undefined' && typeof SharedCalc.flatDistM === 'function') {
     return SharedCalc.flatDistM(lat1, lng1, lat2, lng2);
   }
-  var R = 6371000;
+  var R = EARTH_RADIUS_M;
   var phi1 = lat1 * Math.PI / 180;
   var phi2 = lat2 * Math.PI / 180;
   var meanPhi = (phi1 + phi2) / 2;
@@ -10368,7 +10370,6 @@ if (document.location.search.indexOf('cortn_validate') !== -1) {
   try { _cortnRunValidation(); } catch (e) { console.warn('[CoRTN validation] error:', e); }
 }
 
-// ─── SUPABASE (disabled 2026-04-22) — hardcoded line source data removed ─────
 // LINE_SOURCE_LIBRARY_GROUPED is populated from Google Sheets via rebuildLineSourceGrouped().
 var LINE_SOURCE_LIBRARY = [];
 var LINE_SOURCE_LIBRARY_GROUPED = {};
@@ -11663,7 +11664,7 @@ var sourcePins = [{
   numUnits: { day: 1, eve: 1, night: 1, lmax: 1 },
   activeInPeriod: { day: true, eve: true, night: true, lmax: false }
 }];
-// TODO Chunk F: remove this alias once save/load is updated to use sourcePins
+// Legacy alias — callers use `sources` interchangeably with `sourcePins`
 var sources = sourcePins;
 /** ID/key prefix for source-scoped elements. Kept as stub for legacy DOM references. */
 function srcPrefix(sourceIdx) { return 's' + sourceIdx + '_'; }
@@ -11751,7 +11752,7 @@ function _updateSrcPanelTerrainDisplay(pinIdx) {
           el.innerHTML = 'Terrain elevation: ' + elev.toFixed(1) + ' m AHD (5m LiDAR) \u2014 Source: ' + srcAHD2 + ' m AHD';
         }
       }
-    }).catch(function() {});
+    }).catch(function(e) { console.warn('[DEMCache] Terrain elevation query failed:', e); });
   }
 }
 
@@ -14297,14 +14298,14 @@ async function generatePDFAppendix(btn) {
 
         chain = chain.then(function() {
           return Array.from(mapEl.querySelectorAll('.leaflet-marker-icon')).reduce(function(p, iconEl) {
-            return p.then(function() { var ir = iconEl.getBoundingClientRect(); if (!ir.width || !ir.height) return; var ix = Math.round(ir.left - mapRect.left), iy = Math.round(ir.top - mapRect.top); if (ix + ir.width <= 0 || iy + ir.height <= 0 || ix >= W || iy >= H) return; return html2canvas(iconEl, { useCORS: true, scale: dpr, logging: false, backgroundColor: null, removeContainer: true }).then(function(c) { ctx.drawImage(c, 0, 0, c.width, c.height, ix, iy, ir.width, ir.height); }).catch(function() {}); });
+            return p.then(function() { var ir = iconEl.getBoundingClientRect(); if (!ir.width || !ir.height) return; var ix = Math.round(ir.left - mapRect.left), iy = Math.round(ir.top - mapRect.top); if (ix + ir.width <= 0 || iy + ir.height <= 0 || ix >= W || iy >= H) return; return html2canvas(iconEl, { useCORS: true, scale: dpr, logging: false, backgroundColor: null, removeContainer: true }).then(function(c) { ctx.drawImage(c, 0, 0, c.width, c.height, ix, iy, ir.width, ir.height); }).catch(function(e) { console.warn('[PDF export] html2canvas failed:', e); }); });
           }, Promise.resolve());
         });
         // Only capture bottom-LEFT controls (zone legend, scale bar, attribution).
         // Skip bottom-RIGHT controls (noise map legend) — not wanted in zone map.
         chain = chain.then(function() {
           return Array.from(mapEl.querySelectorAll('.leaflet-bottom.leaflet-left .leaflet-control')).reduce(function(p, ctrl) {
-            return p.then(function() { if (!ctrl.offsetWidth || !ctrl.offsetHeight) return; return html2canvas(ctrl, { useCORS: true, scale: dpr, logging: false, backgroundColor: null, removeContainer: true }).then(function(c) { var r = pos(ctrl); ctx.drawImage(c, 0, 0, c.width, c.height, r.x, r.y, r.w, r.h); }).catch(function() {}); });
+            return p.then(function() { if (!ctrl.offsetWidth || !ctrl.offsetHeight) return; return html2canvas(ctrl, { useCORS: true, scale: dpr, logging: false, backgroundColor: null, removeContainer: true }).then(function(c) { var r = pos(ctrl); ctx.drawImage(c, 0, 0, c.width, c.height, r.x, r.y, r.w, r.h); }).catch(function(e) { console.warn('[PDF export] html2canvas failed:', e); }); });
           }, Promise.resolve());
         });
 
@@ -15135,8 +15136,7 @@ function renderSourcePins() {
   });
 }
 
-// Stub functions to prevent errors from cached load/save code
-// TODO Chunk F: remove these stubs after save/load is updated
+// Legacy stub — called from load/undo paths; delegates to renderSourcePins
 function renderSourceCards(expandIdx) { renderSourcePins(); }
 
 /* ==========================================
@@ -16692,7 +16692,7 @@ function calcClause20Adjustment(srcCode, recCode, interveningCodes, distM) {
 
 /** Inline haversine for use outside the initMap IIFE */
 function _haversineM(lat1, lng1, lat2, lng2) {
-  var R = 6371000, r = Math.PI / 180;
+  var R = EARTH_RADIUS_M, r = Math.PI / 180;
   var f1 = lat1 * r, f2 = lat2 * r;
   var df = (lat2 - lat1) * r, dl = (lng2 - lng1) * r;
   var s = Math.sin(df/2)*Math.sin(df/2) + Math.cos(f1)*Math.cos(f2)*Math.sin(dl/2)*Math.sin(dl/2);
@@ -22072,7 +22072,8 @@ setInitialCollapseState();
           concaweWindDirection: _concaweWindDirection,
           concaweTimeOfDay: _concaweTimeOfDay,
           concaweSolarRadiation: _concaweSolarRadiation,
-          concaweCloudCover: _concaweCloudCover
+          concaweCloudCover: _concaweCloudCover,
+          reflectionsOn: !!_reflectionsOn
         };
 
         // VIC-specific
@@ -22996,6 +22997,12 @@ setInitialCollapseState();
     }
 
     function loadAssessment(data) {
+      // Guard: warn if the file was saved by a future version of this app.
+      if (data._version && data._version > 2) {
+        console.warn('[loadAssessment] File is format v' + data._version +
+          ' (this app supports v2) — some fields may not load correctly.');
+      }
+
       // 0. Restore scenario snapshots BEFORE any other state.
       //    Scenarios are listed but NOT auto-applied; current state
       //    is still restored from the file root as normal.
@@ -23310,6 +23317,10 @@ setInitialCollapseState();
         _concaweTimeOfDay = data.propagation.concaweTimeOfDay || null;
         _concaweSolarRadiation = data.propagation.concaweSolarRadiation || null;
         _concaweCloudCover = data.propagation.concaweCloudCover || null;
+        // Restore reflections toggle
+        _reflectionsOn = !!(data.propagation.reflectionsOn);
+        var _reflBtn = document.getElementById('reflectionsBtn');
+        if (_reflBtn) _reflBtn.classList.toggle('active', _reflectionsOn);
         // Restore CONCAWE met panel UI
         var _cmpPanel = document.getElementById('concaweMetPanel');
         if (_cmpPanel) _cmpPanel.style.display = (propagationMethod === 'concawe') ? '' : 'none';
@@ -24550,6 +24561,7 @@ setInitialCollapseState();
   var _history   = [];   // [{label, state}]
   var _pointer   = -1;
   var MAX        = 50;
+  var _restoreGen = 0;  // incremented each restore; timeout only clears flag if gen matches
   window._undoRestoring = false;
 
   // ── Serialise current state to JSON string ─────────────────────────────
@@ -24641,7 +24653,8 @@ setInitialCollapseState();
         concaweWindDirection:  _concaweWindDirection,
         concaweTimeOfDay:      _concaweTimeOfDay,
         concaweSolarRadiation: _concaweSolarRadiation,
-        concaweCloudCover:     _concaweCloudCover
+        concaweCloudCover:     _concaweCloudCover,
+        reflectionsOn:         typeof _reflectionsOn !== 'undefined' ? !!_reflectionsOn : false
       };
 
       // VIC-specific
@@ -24884,13 +24897,17 @@ setInitialCollapseState();
     if (uBtn) { uBtn.style.opacity = '0.4'; uBtn.style.cursor = 'default'; }
     if (rBtn) { rBtn.style.opacity = '0.4'; rBtn.style.cursor = 'default'; }
     window._undoRestoring = true;
+    var gen = ++_restoreGen;
     try {
       window._loadAssessment(JSON.parse(json));
     } catch(e) {
       console.error('[undoManager] restoreState failed:', e);
     }
-    // Reset restoring flag after loadAssessment's async operations settle
-    setTimeout(function() { window._undoRestoring = false; updateButtons(); }, 1200);
+    // Only the most-recent restore clears the flag — a rapid second undo
+    // increments _restoreGen, making this timeout a no-op.
+    setTimeout(function() {
+      if (_restoreGen === gen) { window._undoRestoring = false; updateButtons(); }
+    }, 1200);
   }
 
   function undo() {
@@ -24989,13 +25006,13 @@ setInitialCollapseState();
 })();
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js" integrity="sha384-Xl/CUCfJbzsngMp0CFxkmF0VW/8C160IsGujqeQlIhaGxKz2+JsIGORFqtCPeldF" crossorigin="anonymous"></script>
 <!-- pdf.js UMD build: exposes window.pdfjsLib directly, no module magic needed -->
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.min.js" integrity="sha384-FvddpNfjntISy3Nx0eINbhVULmpFTv7tCY0hXpHLc12/Php7+tloiPLA/laRq/d1" crossorigin="anonymous"></script>
 <script>
 if (window.pdfjsLib) {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -25295,9 +25312,9 @@ if (window.pdfjsLib) {
 
 <!-- ===== LEAFLET MAP ===== -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js" integrity="sha384-JP5UPxIO2Tm2o79Fb0tGYMa44jkWar53aBoCbd8ah0+LcCDoohTIYr+zIXyfGIJN" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js" integrity="sha384-twf8YFpk0FSzm0AmW2GRJjjnqIuQ2y86vZXh2roYI8O+kFbEBjSUDUT6U72w8shL" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js" integrity="sha384-QDTA8MXPewzk8Ryt7UyfUmk+WcHcVYLcxAydowJk1WPgwjdXOIlJIDz25ITLVwTl" crossorigin="anonymous"></script>
 <script>
 (function () {
   'use strict';
@@ -25400,12 +25417,16 @@ if (window.pdfjsLib) {
     }
 
     /* ---- Cadastre / building outlines overlay (Geoscape PBF vector tiles) ---- */
+    /* SECURITY: This key is visible in client-side code (unavoidable for a static site).
+       Mitigate by restricting to HTTP Referer https://debjames.github.io in the PSMA portal.
+       If the key is compromised, rotate it at https://portal.psma.com.au and update here. */
+    var PSMA_CADASTRE_URL = 'https://api.psma.com.au/v1/maps/geoscape_v1/cadastre/{z}/{x}/{y}.pbf?key=mAKm81U5AjjAcZK3IMoK5q8Wskbp3M2N';
     var cadastreOverlay = null;
     var isCadastreOn = false;
     try {
       if (typeof L.vectorGrid !== 'undefined') {
         cadastreOverlay = L.vectorGrid.protobuf(
-          'https://api.psma.com.au/v1/maps/geoscape_v1/cadastre/{z}/{x}/{y}.pbf?key=mAKm81U5AjjAcZK3IMoK5q8Wskbp3M2N',
+          PSMA_CADASTRE_URL,
           {
             vectorTileLayerStyles: {
               /* Cadastral boundaries — thin dark grey lines */
@@ -30355,7 +30376,7 @@ if (window.pdfjsLib) {
           DEMCache.getElevation(mid2.lat, mid2.lng).then(function(elev) {
             if (elev !== null && Number.isFinite(elev) && el.isConnected)
               el.textContent = 'Terrain: ' + elev.toFixed(1) + '\u202fm\u202fAHD \u2014 Top: ' + (elev + b + h).toFixed(1) + '\u202fm\u202fAHD';
-          }).catch(function() {});
+          }).catch(function(e) { console.warn('[DEMCache] Terrain elevation query failed:', e); });
         }
       }
       panel.querySelector('#bpBase').addEventListener('input', _bpUpdateTop);
@@ -30488,7 +30509,7 @@ if (window.pdfjsLib) {
           DEMCache.getElevation(ctr2.lat, ctr2.lng).then(function(elev) {
             if (elev !== null && Number.isFinite(elev) && el.isConnected)
               el.textContent = 'Terrain: ' + elev.toFixed(1) + '\u202fm\u202fAHD \u2014 Roof: ' + (elev + b + h).toFixed(1) + '\u202fm\u202fAHD';
-          }).catch(function() {});
+          }).catch(function(e) { console.warn('[DEMCache] Terrain elevation query failed:', e); });
         }
       }
       panel.querySelector('#cbpBase').addEventListener('input', _cbpUpdateTop);
@@ -31651,7 +31672,7 @@ if (window.pdfjsLib) {
               el.innerHTML = 'Terrain elevation: ' + elev.toFixed(1) + ' m AHD (5m LiDAR) \u2014 Source: ' + srcAHD + ' m AHD';
             }
           }
-        }).catch(function() {});
+        }).catch(function(e) { console.warn('[DEMCache] Terrain elevation query failed:', e); });
       }
     }
 
@@ -32118,7 +32139,7 @@ if (window.pdfjsLib) {
     // ── Acoustic helpers ──────────────────────────────────────────────────────
 
     function _bsSegLen(v1, v2) {
-      var R = 6371000, lat1 = v1[0]*Math.PI/180, lat2 = v2[0]*Math.PI/180;
+      var R = EARTH_RADIUS_M, lat1 = v1[0]*Math.PI/180, lat2 = v2[0]*Math.PI/180;
       var dLat = (v2[0]-v1[0])*Math.PI/180, dLng = (v2[1]-v1[1])*Math.PI/180;
       var a = Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)*Math.sin(dLng/2);
       return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
@@ -33390,7 +33411,7 @@ if (window.pdfjsLib) {
                 el.innerHTML = 'Terrain: ' + elev.toFixed(1) + '\u202fm\u202fAHD \u2014 Roof: ' + roofAHD + '\u202fm\u202fAHD';
               }
             }
-          }).catch(function() {});
+          }).catch(function(e) { console.warn('[DEMCache] Terrain elevation query failed:', e); });
         }
       }
       _bsPanelUpdateTerrainInfo();
@@ -34041,7 +34062,7 @@ if (window.pdfjsLib) {
               el.innerHTML = 'Terrain elevation: ' + elev.toFixed(1) + ' m AHD (5m LiDAR) \u2014 Source: ' + srcAHD + ' m AHD';
             }
           }
-        }).catch(function() {});
+        }).catch(function(e) { console.warn('[DEMCache] Terrain elevation query failed:', e); });
       }
     }
 
@@ -34706,17 +34727,6 @@ if (window.pdfjsLib) {
       openLsPanel(newLs.id, cx, cy);
     });
 
-    // Finish on single click of last vertex: auto-complete once ≥2 vertices placed.
-    // Barrier uses L.Draw.Polyline's built-in dblclick/marker-click finish; line source
-    // instead hooks draw:drawvertex so the second click (placing vertex 2) is the finish
-    // click — no extra confirmation click on the vertex marker needed.
-    map.on('draw:drawvertex', function() {
-      if (!_lsDrawHandler) return;
-      var markers = _lsDrawHandler._markers;
-      if (!markers || markers.length < 2) return;
-      _lsDrawHandler.completeShape();
-    });
-
     // Cancel line source drawing on Escape
     map.on('draw:drawstop', function() {
       if (_lsDrawHandler) {
@@ -34759,7 +34769,7 @@ if (window.pdfjsLib) {
     /** Total polyline length in metres (haversine). */
     function _cortnTotalLength(verts) {
       if (!verts || verts.length < 2) return 0;
-      var R = 6371000, total = 0;
+      var R = EARTH_RADIUS_M, total = 0;
       for (var i = 0; i < verts.length - 1; i++) {
         var lat1 = verts[i][0] * Math.PI/180, lat2 = verts[i+1][0] * Math.PI/180;
         var dLat = lat2 - lat1;
@@ -36807,7 +36817,7 @@ if (window.pdfjsLib) {
       var periodMap2 = { day:'day', eve:'eve', night:'night', lmax:'lmax', who_16h:'day', music_trading:'day' };
       var casePeriod = periodMap2[c.period] || 'day';
 
-      var demSpacing = gridRes >= 25 ? 0.002 : gridRes >= 5 ? 0.001 : 0.0005;
+      var demSpacing = gridRes >= 25 ? 0.002 : gridRes >= 5 ? 0.001 : 0.0005; // ~222m / ~111m / ~55m DEM sample spacing
       var demPromise;
       if (_terrainEnabled && window.DEMCache) {
         if (noiseMapBtnC) noiseMapBtnC.textContent = 'Fetching terrain...';
@@ -36846,6 +36856,7 @@ if (window.pdfjsLib) {
 
           _nmGenMethod = propagationMethod;
           _nmGenMetCat = _concaweMetCategory;
+          if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
           _noiseWorker = new Worker('noise-worker.js');
           _noiseWorker.onmessage = function(e) {
             var msg = e.data;
@@ -39159,7 +39170,7 @@ if (window.pdfjsLib) {
                 ctx.drawImage(c, 0, 0, c.width, c.height,
                               ix, iy, ir.width, ir.height);
                 ctx.restore();
-              }).catch(function() {});
+              }).catch(function(e) { console.warn('[PDF export] html2canvas failed:', e); });
             });
           }, Promise.resolve());
         });
@@ -39184,7 +39195,7 @@ if (window.pdfjsLib) {
                 var r = pos(ctrl);
                 // c is at dpr scale; draw at logical size
                 ctx.drawImage(c, 0, 0, c.width, c.height, r.x, r.y, r.w, r.h);
-              }).catch(function() {});
+              }).catch(function(e) { console.warn('[PDF export] html2canvas failed:', e); });
             });
           }, Promise.resolve());
         });

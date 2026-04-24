@@ -1,5 +1,20 @@
 # UAT Tests
 
+## Line source — multi-vertex placement
+
+> Verify the polyline tool supports unlimited vertices matching barrier drawing behaviour.
+
+- [ ] **3-vertex line** — Activate line source tool. Click 3 distinct map points. Confirm preview polyline grows with each click and tool stays active. Click the 3rd (last-placed) vertex marker → line commits with exactly 3 vertices. No duplicate or extra vertex.
+- [ ] **6-vertex line** — Activate tool. Click 6 distinct points. Click vertex 6 marker → line commits with exactly 6 vertices and renders on the map correctly.
+- [ ] **Minimum 2 vertices enforced** — Activate tool. Click once (1 vertex placed). Click that vertex marker → tool does NOT finish; it continues waiting. Click a second point → 2 vertices placed. Click vertex 2 marker → line commits with 2 vertices (original 2-vertex case still works).
+- [ ] **Escape cancels** — Start a line, place 2+ vertices, press Escape → no line committed, preview removed, button de-activates, `_drawingActive` cleared.
+- [ ] **Save/load — 5-vertex line** — Place a 5-vertex line source. Save Assessment JSON. Reload JSON → all 5 vertices present, line renders correctly, calculations match pre-reload values.
+- [ ] **Existing 2-vertex lines load unchanged** — Load a saved assessment containing 2-vertex line sources → they load and render with no errors.
+- [ ] **Terrain re-fetch fires** — With Terrain ON, commit any multi-vertex line → `_fetchVertexElevations` is called (check console for terrain fetch log or observe elevation values appear).
+- [ ] **Panel opens on finish** — After committing any multi-vertex line, the floating edit panel opens (same as single-segment behaviour).
+- [ ] **No interference with barrier tool** — Draw a barrier polyline while line source tool is inactive → barrier finishes normally; no `draw:drawvertex` early-completion hook fires on the barrier.
+- [ ] **No console errors** — No JS errors during placement, finish, cancel, save, or load.
+
 ## Map-click mode — planning layer click-passthrough (generalised)
 
 > Verify with all three planning layers visible (Zones toggle ON, MBS 010 ON).
