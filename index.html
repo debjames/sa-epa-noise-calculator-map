@@ -386,43 +386,126 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 /* Zone legend control */
 .zone-legend {
   background: rgba(255,255,255,0.92);
-  border-radius: 16px;
+  border-radius: 8px;
   box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-  padding: 16px 20px;
-  font-size: 22px;
+  padding: 8px 10px;
+  font-size: 11px;
   line-height: 1.5;
-  max-height: 520px;
+  max-height: 260px;
   overflow-y: auto;
-  min-width: 280px;
-  max-width: 440px;
+  min-width: 140px;
+  max-width: 220px;
 }
 .zone-legend-title {
   font-weight: 700;
-  font-size: 22px;
-  margin-bottom: 10px;
+  font-size: 11px;
+  margin-bottom: 5px;
   color: #333;
   border-bottom: 1px solid #ddd;
-  padding-bottom: 8px;
+  padding-bottom: 4px;
 }
 .zone-legend-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 2px 0;
+  gap: 6px;
+  padding: 1px 0;
 }
 .zone-legend-swatch {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
   border: 1px solid rgba(0,0,0,0.25);
   flex-shrink: 0;
 }
 .zone-legend-name {
   color: #444;
-  font-size: 22px;
+  font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Noise / CoRTN dB scale legend */
+.noise-legend { padding: 8px 12px; border-radius: 6px; font-size: 11px; line-height: 1.6; }
+.noise-legend-sub { font-size: 10px; }
+.noise-legend-swatch {
+  display: inline-block;
+  width: 14px; height: 10px;
+  margin-right: 4px;
+  border: 1px solid rgba(0,0,0,0.25);
+  vertical-align: middle;
+  border-radius: 2px;
+}
+
+/* MBS 010 legend internals */
+.mbs-legend-title { font-weight: 700; margin-bottom: 4px; }
+.mbs-legend-row { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.mbs-legend-swatch { display: inline-block; width: 14px; height: 14px; opacity: 0.7; border-radius: 2px; flex-shrink: 0; }
+input[data-mbs-key] {
+  appearance: none; -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border: 1.5px solid #ccc; border-radius: 2px;
+  background: #fff; cursor: pointer;
+  position: relative; flex-shrink: 0; margin: 0;
+}
+input[data-mbs-key]:checked::after {
+  content: "\2713"; position: absolute;
+  top: -2px; left: 1px;
+  font-size: 12px; color: #999; font-weight: 700;
+}
+
+/* NSA VIC receiver legend */
+.nsaleg-wrapper { display: grid; gap: 6px; max-height: calc(100vh - 120px); overflow-y: auto; pointer-events: auto; }
+.nsaleg-card { max-width: 240px; min-width: 170px; margin: 0; border-left: 3px solid var(--nsaleg-col, #6b7280); }
+.nsaleg-type-row { display: flex; gap: 6px; margin-bottom: 3px; font-size: 8px; font-weight: 600; }
+.nsaleg-footer { font-size: 10px; font-weight: 600; color: #059669; margin-top: 3px; }
+.nsaleg-section { margin-bottom: 4px; }
+.nsaleg-zone-label { font-weight: 600; font-size: 10px; }
+.nsaleg-no-zones { color: var(--muted); font-size: 10px; }
+.nsaleg-badge-row { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+.nsaleg-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 500; }
+.nsaleg-frac { font-size: 9px; color: var(--muted); margin-top: 1px; }
+
+/* === Export-size legends: applied via body.legend-export (Save JPG) === */
+body.legend-export .zone-legend { font-size: 22px; padding: 16px 20px; border-radius: 16px; max-height: 520px; min-width: 280px; max-width: 440px; }
+body.legend-export .zone-legend-title { font-size: 22px; margin-bottom: 10px; padding-bottom: 8px; }
+body.legend-export .zone-legend-item { gap: 12px; padding: 2px 0; }
+body.legend-export .zone-legend-swatch { width: 28px; height: 28px; border-radius: 6px; }
+body.legend-export .zone-legend-name { font-size: 22px; }
+body.legend-export .noise-legend { font-size: 22px; padding: 16px 24px; border-radius: 12px; }
+body.legend-export .noise-legend-sub { font-size: 20px; }
+body.legend-export .noise-legend-swatch { width: 28px; height: 20px; margin-right: 8px; border-radius: 4px; }
+body.legend-export .mbs-legend-title { margin-bottom: 8px; }
+body.legend-export .mbs-legend-row { gap: 12px; }
+body.legend-export .mbs-legend-swatch { width: 28px; height: 28px; border-radius: 4px; }
+body.legend-export input[data-mbs-key] { width: 28px; height: 28px; border-width: 3px; border-radius: 4px; }
+body.legend-export input[data-mbs-key]:checked::after { top: -4px; left: 2px; font-size: 24px; }
+body.legend-export .nsaleg-wrapper { gap: 12px; }
+body.legend-export .nsaleg-card { max-width: 480px; min-width: 340px; border-left-width: 6px; }
+body.legend-export .nsaleg-type-row { font-size: 16px; gap: 12px; margin-bottom: 6px; }
+body.legend-export .nsaleg-footer { font-size: 20px; margin-top: 6px; }
+body.legend-export .nsaleg-section { margin-bottom: 8px; }
+body.legend-export .nsaleg-zone-label { font-size: 20px; }
+body.legend-export .nsaleg-no-zones { font-size: 20px; }
+body.legend-export .nsaleg-badge-row { gap: 6px; margin-top: 4px; }
+body.legend-export .nsaleg-badge { font-size: 18px; padding: 2px 10px; border-radius: 6px; }
+body.legend-export .nsaleg-frac { font-size: 18px; margin-top: 2px; }
+
+/* === Export-size legends: @media print (browser Ctrl+P) === */
+@media print {
+  .zone-legend { font-size: 22px !important; padding: 16px 20px !important; border-radius: 16px !important; max-height: 520px !important; min-width: 280px !important; max-width: 440px !important; }
+  .zone-legend-title { font-size: 22px !important; margin-bottom: 10px !important; padding-bottom: 8px !important; }
+  .zone-legend-item { gap: 12px !important; padding: 2px 0 !important; }
+  .zone-legend-swatch { width: 28px !important; height: 28px !important; border-radius: 6px !important; }
+  .zone-legend-name { font-size: 22px !important; }
+  .noise-legend { font-size: 22px !important; padding: 16px 24px !important; border-radius: 12px !important; }
+  .noise-legend-sub { font-size: 20px !important; }
+  .noise-legend-swatch { width: 28px !important; height: 20px !important; margin-right: 8px !important; border-radius: 4px !important; }
+  .mbs-legend-title { margin-bottom: 8px !important; }
+  .mbs-legend-row { gap: 12px !important; }
+  .mbs-legend-swatch { width: 28px !important; height: 28px !important; border-radius: 4px !important; }
+  input[data-mbs-key] { width: 28px !important; height: 28px !important; border-width: 3px !important; border-radius: 4px !important; }
+  input[data-mbs-key]:checked::after { top: -4px !important; left: 2px !important; font-size: 24px !important; }
 }
 
 /* ===== State-conditional visibility (SA vs VIC) ===== */
@@ -13946,10 +14029,17 @@ async function generatePDFAppendix(btn) {
         });
         // Only capture bottom-LEFT controls (zone legend, scale bar, attribution).
         // Skip bottom-RIGHT controls (noise map legend) — not wanted in zone map.
+        // body.legend-export switches legends to 2× export size during capture.
         chain = chain.then(function() {
+          document.body.classList.add('legend-export');
           return Array.from(mapEl.querySelectorAll('.leaflet-bottom.leaflet-left .leaflet-control')).reduce(function(p, ctrl) {
             return p.then(function() { if (!ctrl.offsetWidth || !ctrl.offsetHeight) return; return html2canvas(ctrl, { useCORS: true, scale: dpr, logging: false, backgroundColor: null, removeContainer: true }).then(function(c) { var r = pos(ctrl); ctx.drawImage(c, 0, 0, c.width, c.height, r.x, r.y, r.w, r.h); }).catch(function(e) { console.warn('[PDF export] html2canvas failed:', e); }); });
-          }, Promise.resolve());
+          }, Promise.resolve()).then(function() {
+            document.body.classList.remove('legend-export');
+          }, function(err) {
+            document.body.classList.remove('legend-export');
+            throw err;
+          });
         });
 
         chain.then(function() {
@@ -16601,19 +16691,19 @@ function _buildZoneListHTML(zones, fracs, label) {
   zones.forEach(function(z) {
     if (!seen[z.zoneCode]) { seen[z.zoneCode] = true; unique.push(z); }
   });
-  var html = '<div style="margin-bottom:8px;"><span style="font-weight:600;font-size:20px;">' + label + '</span>';
+  var html = '<div class="nsaleg-section"><span class="nsaleg-zone-label">' + label + '</span>';
   if (unique.length === 0) {
-    html += ' <span style="color:var(--muted);font-size:20px;">No zones detected</span>';
+    html += ' <span class="nsaleg-no-zones">No zones detected</span>';
   } else {
-    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">';
+    html += '<div class="nsaleg-badge-row">';
     unique.forEach(function(z) {
       var col = TYPE_COLORS[z.type] || '#6b7280';
-      html += '<span style="font-size:18px;padding:2px 10px;border-radius:6px;background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;font-weight:500;">' +
+      html += '<span class="nsaleg-badge" style="background:' + col + '18;color:' + col + ';border:1px solid ' + col + '40;">' +
               z.zoneCode + ' = ' + (TYPE_LABELS[z.type] || '?') + '</span>';
     });
     html += '</div>';
   }
-  html += '<div style="font-size:18px;color:var(--muted);margin-top:2px;">';
+  html += '<div class="nsaleg-frac">';
   html += 'T1: ' + Math.round(fracs[1] * 100) + '% · T2: ' + Math.round(fracs[2] * 100) + '% · T3: ' + Math.round(fracs[3] * 100) + '%';
   html += '</div></div>';
   return html;
@@ -26595,7 +26685,7 @@ if (window.pdfjsLib) {
       _mbs010LegendCtrl = L.control({ position: 'bottomleft' });
       _mbs010LegendCtrl.onAdd = function(map) {
         var div = L.DomUtil.create('div', 'zone-legend');
-        div.style.cssText = 'background:#fff;padding:16px 24px;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:24px;line-height:1.8;';
+        div.style.cssText = 'background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);line-height:1.8;';
         L.DomEvent.disableClickPropagation(div);
         L.DomEvent.disableScrollPropagation(div);
 
@@ -26610,12 +26700,11 @@ if (window.pdfjsLib) {
           { key: 'trams.geojson', label: 'Tram line', color: '#4a8a4a' }
         ];
 
-        var html = '<style>input[data-mbs-key]{appearance:none;-webkit-appearance:none;width:28px;height:28px;border:3px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;position:relative;flex-shrink:0;margin:0;}input[data-mbs-key]:checked::after{content:"\\2713";position:absolute;top:-4px;left:2px;font-size:24px;color:#999;font-weight:700;}</style>';
-        html += '<div style="font-weight:700;margin-bottom:8px;">MBS 010 Screening</div>';
+        var html = '<div class="mbs-legend-title">MBS 010 Screening</div>';
         layerGroups.forEach(function(lg) {
-          html += '<label style="display:flex;align-items:center;gap:12px;cursor:pointer;">' +
+          html += '<label class="mbs-legend-row">' +
             '<input type="checkbox" checked data-mbs-key="' + lg.key + '">' +
-            '<span style="display:inline-block;width:28px;height:28px;background:' + lg.color + ';opacity:0.7;border:1px solid ' + lg.color + ';border-radius:4px;flex-shrink:0;"></span> ' +
+            '<span class="mbs-legend-swatch" style="background:' + lg.color + ';border:1px solid ' + lg.color + ';"></span>' +
             lg.label + '</label>';
         });
         div.innerHTML = html;
@@ -28106,7 +28195,8 @@ if (window.pdfjsLib) {
         var wrapper = L.DomUtil.create('div', '');
         // Use 2-column grid when 3+ legends, single column for 1-2
         var cols = visibleIds.length >= 3 ? 2 : 1;
-        wrapper.style.cssText = 'display:grid;grid-template-columns:repeat(' + cols + ',1fr);gap:12px;max-height:calc(100vh - 120px);overflow-y:auto;pointer-events:auto;';
+        wrapper.className = 'nsaleg-wrapper';
+        wrapper.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)';
 
         visibleIds.forEach(function(id) {
           var data = window.autoIFDataPerReceiver[id];
@@ -28115,17 +28205,17 @@ if (window.pdfjsLib) {
           var col = RECV_CIRCLE_COLORS[id] || '#6b7280';
 
           var card = document.createElement('div');
-          card.className = 'zone-legend';
-          card.style.cssText = 'max-width:480px;min-width:340px;margin:0;border-left:6px solid ' + col + ';';
-          var html = '<div class="zone-legend-title" style="color:' + col + ';font-size:22px;">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</div>';
-          html += '<div style="display:flex;gap:12px;margin-bottom:6px;font-size:16px;font-weight:600;">';
+          card.className = 'zone-legend nsaleg-card';
+          card.style.setProperty('--nsaleg-col', col);
+          var html = '<div class="zone-legend-title" style="color:' + col + ';">' + recvName + ' \u2014 IF = ' + data.IF.toFixed(2) + '</div>';
+          html += '<div class="nsaleg-type-row">';
           html += '<span style="color:#059669;">\u25A0 T1 Res</span>';
           html += '<span style="color:#d97706;">\u25A0 T2 Com</span>';
           html += '<span style="color:#dc2626;">\u25A0 T3 Ind</span>';
           html += '</div>';
           html += _buildZoneListHTML(data.zones140, data.fracs140, '140 m circle');
           html += _buildZoneListHTML(data.zones400, data.fracs400, '400 m circle');
-          html += '<div style="font-size:20px;font-weight:600;color:#059669;margin-top:6px;">Computed IF = ' + data.IF.toFixed(2) + '</div>';
+          html += '<div class="nsaleg-footer">Computed IF = ' + data.IF.toFixed(2) + '</div>';
           card.innerHTML = html;
           wrapper.appendChild(card);
         });
@@ -36810,7 +36900,7 @@ if (window.pdfjsLib) {
         // elements incorrectly when the parent background is also semi-transparent.
         // Using #fff here makes the export match the on-screen appearance exactly
         // (the live view was rgba(255,255,255,0.92) — visually indistinguishable).
-        div.style.cssText = 'background:#fff;padding:16px 24px;border-radius:12px;font-size:22px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
+        div.style.cssText = 'background:#fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
         var legendTitle;
         if (_nmSelectedCase) {
           var _nmLegCase = (typeof assessmentCases !== 'undefined') ? assessmentCases.find(function(c){ return c.id === _nmSelectedCase; }) : null;
@@ -36819,7 +36909,7 @@ if (window.pdfjsLib) {
           legendTitle = (PERIOD_LABELS[_noiseMapPeriod] || 'Day L<sub>Aeq</sub>') + ' dB';
         }
         var s = '<b>' + legendTitle + '</b><br>';
-        s += '<span style="color:#888;font-size:20px;">' + _noiseMapHeight.toFixed(1) + 'm height</span><br>';
+        s += '<span class="noise-legend-sub" style="color:#888;">' + _noiseMapHeight.toFixed(1) + 'm height</span><br>';
         // Build legend from NOISE_COLOURS (skip transparent first entry).
         // Pre-composite each swatch colour against white so the swatches are fully
         // opaque — this makes the colours correct in both the live view (legend sits
@@ -36828,7 +36918,7 @@ if (window.pdfjsLib) {
           var nc = NOISE_COLOURS[li];
           var label = nc.max === Infinity ? '&gt;' + nc.min : nc.min + '\u2013' + nc.max;
           var swatchCol = _legendSwatchColor(nc.color);
-          s += '<span style="display:inline-block;width:28px;height:20px;background:' + swatchCol + ';margin-right:8px;border:1px solid rgba(0,0,0,0.25);vertical-align:middle;border-radius:4px;"></span>' + label + '<br>';
+          s += '<span class="noise-legend-swatch" style="background:' + swatchCol + ';"></span>' + label + '<br>';
         }
         div.innerHTML = s;
         return div;
@@ -38079,16 +38169,16 @@ if (window.pdfjsLib) {
       _cortnLegend = L.control({ position: 'bottomright' });
       _cortnLegend.onAdd = function() {
         var div = L.DomUtil.create('div', 'noise-legend');
-        div.style.cssText = 'background:#fff;padding:16px 24px;border-radius:12px;font-size:22px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
+        div.style.cssText = 'background:#fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
         var metricLabel = _cortnMapMetric === 'la10' ? 'L<sub>A10</sub>' : 'L<sub>Aeq</sub>';
         var periodLabel = _cortnMapPeriod === 'night' ? 'Night' : 'Day';
         var s = '<b>CoRTN ' + periodLabel + ' ' + metricLabel + ' dB(A)</b><br>';
-        s += '<span style="color:#888;font-size:20px;">' + _cortnMapHeight.toFixed(1) + 'm height</span><br>';
+        s += '<span class="noise-legend-sub" style="color:#888;">' + _cortnMapHeight.toFixed(1) + 'm height</span><br>';
         for (var li = 1; li < NOISE_COLOURS.length; li++) {
           var nc = NOISE_COLOURS[li];
           var label = nc.max === Infinity ? '&gt;' + nc.min : nc.min + '\u2013' + nc.max;
           var swatchCol = _legendSwatchColor(nc.color);
-          s += '<span style="display:inline-block;width:28px;height:20px;background:' + swatchCol + ';margin-right:8px;border:1px solid rgba(0,0,0,0.25);vertical-align:middle;border-radius:4px;"></span>' + label + '<br>';
+          s += '<span class="noise-legend-swatch" style="background:' + swatchCol + ';"></span>' + label + '<br>';
         }
         div.innerHTML = s;
         return div;
@@ -39515,7 +39605,10 @@ if (window.pdfjsLib) {
         // ── After map layers: draw HTML controls with html2canvas ─────────
         // Bottom controls (zone legend, scale bar, attribution) are same-origin
         // HTML — html2canvas handles these perfectly.
+        // body.legend-export switches all legends to their 2× export size while
+        // html2canvas captures them; class is removed immediately after.
         chain = chain.then(function() {
+          document.body.classList.add('legend-export');
           var bottomEls = Array.from(mapEl.querySelectorAll(
             '.leaflet-bottom .leaflet-control'
           ));
@@ -39534,7 +39627,12 @@ if (window.pdfjsLib) {
                 ctx.drawImage(c, 0, 0, c.width, c.height, r.x, r.y, r.w, r.h);
               }).catch(function(e) { console.warn('[PDF export] html2canvas failed:', e); });
             });
-          }, Promise.resolve());
+          }, Promise.resolve()).then(function() {
+            document.body.classList.remove('legend-export');
+          }, function(err) {
+            document.body.classList.remove('legend-export');
+            throw err;
+          });
         });
 
         // ── Finalise: restore clip, convert to JPEG blob, trigger download ─
