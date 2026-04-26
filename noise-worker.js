@@ -107,6 +107,8 @@ self.onmessage = function(e) {
       return totalLen > 0 ? wG / totalLen : defaultG;
     }
     function _wkPathG(srcLat, srcLng, recLat, recLng, srcH, recH, distM) {
+      // Per-region mode: groundFactor is already a {Gs,Gm,Gr} object — return directly
+      if (isoParams.groundFactor && typeof isoParams.groundFactor === 'object') return isoParams.groundFactor;
       if (!groundZones.length) return isoParams.groundFactor || 0.5;
       var dp = distM, dG = isoParams.groundFactor || 0.5;
       var t_sEnd   = Math.max(0, Math.min(1, Math.min(30 * srcH, dp / 2) / dp));
@@ -249,188 +251,21 @@ self.onmessage = function(e) {
       return e_s * (1 - tLat) + e_n * tLat;
     }
 
-    /* ── Terrain diffraction IL — Deygout 3-edge method ──
+    /* ── Terrain diffraction IL — Deygout 3-edge method (shared-calc.js) ──
      *
-     * Implements the Deygout principal-edge algorithm from ISO 9613-2 as used
-     * by SoundPLAN / CadnaA. The terrain profile is sampled adaptively (~1
-     * sample per 5 m of path, capped at 100 samples). All local maxima above
-     * the source→receiver line-of-sight are identified; the edge with the
-     * highest Fresnel number is selected as the principal edge. Secondary
-     * edges are then searched on the source-side sub-path (source → principal
-     * tip) and the receiver-side sub-path (principal tip → receiver).
-     *
-     * Per-band Maekawa IL is computed for each selected edge via the shared
-     * calcBarrierAttenuation() and summed across edges, capped at 25 dB per
-     * band (ISO 9613-2 practical terrain limit).
-     *
-     * Returns an 8-element array of octave-band IL values (63 Hz … 8 kHz),
-     * all zero when no obstruction is present or DEM data is missing. Callers
-     * that need a broadband value use band index 4 (1 kHz) as the
-     * representative value, matching the earlier single-ridge behaviour.
+     * findTerrainEdges, deygoutSelectEdges, and terrainILPerBand live in
+     * shared-calc.js so both the worker and the single-point receiver path
+     * in index.html use a single implementation.  The worker passes its own
+     * lookupElev closure so the algorithm is bit-identical to the previous
+     * local version.
      */
-    function _emptyBands() { return [0, 0, 0, 0, 0, 0, 0, 0]; }
-
-    /** Find every local maximum above the source→receiver LOS. */
-    function findTerrainEdges(srcLL, srcTip, recLL, recTip, totalDist) {
-      var N = Math.max(20, Math.min(100, Math.round(totalDist / 5)));
-      var profile = [];
-      for (var i = 1; i < N; i++) {
-        var t = i / N;
-        var lat = srcLL.lat + t * (recLL.lat - srcLL.lat);
-        var lng = srcLL.lng + t * (recLL.lng - srcLL.lng);
-        var elev = lookupElev(lat, lng);
-        if (elev === null) continue;
-        var losElev = srcTip + t * (recTip - srcTip);
-        profile.push({
-          t: t,
-          dist: t * totalDist,
-          elev: elev,
-          protrusion: elev - losElev
-        });
-      }
-
-      var edges = [];
-      for (var j = 0; j < profile.length; j++) {
-        var p = profile[j];
-        if (p.protrusion <= 0) continue;
-        var prevProt = (j > 0) ? profile[j - 1].protrusion : 0;
-        var nextProt = (j < profile.length - 1) ? profile[j + 1].protrusion : 0;
-        // Local maximum above LOS (ties included so plateaus still register)
-        if (p.protrusion >= prevProt && p.protrusion >= nextProt) {
-          edges.push({
-            t: p.t,
-            dist: p.dist,
-            elev: p.elev,
-            protrusion: p.protrusion,
-            d1: p.dist,
-            d2: totalDist - p.dist
-          });
-        }
-      }
-      return edges;
-    }
-
-    /** Deygout selection: principal edge + up to one edge on each sub-path. */
-    function deygoutSelectEdges(edges, srcTip, recTip, totalDist) {
-      if (edges.length === 0) return [];
-      if (edges.length === 1) return edges.slice();
-
-      // Principal edge: highest Fresnel number proxy.
-      // ν ∝ h × √(2 / (λ · d1·d2/(d1+d2))) — for ranking across edges at the
-      // same wavelength we can drop λ and rank by h² × (d1+d2)/(d1·d2).
-      var bestIdx = 0, bestScore = -Infinity;
-      for (var i = 0; i < edges.length; i++) {
-        var e = edges[i];
-        var score = e.protrusion * e.protrusion * (e.d1 + e.d2) / (e.d1 * e.d2);
-        if (score > bestScore) {
-          bestScore = score;
-          bestIdx = i;
-        }
-      }
-      var principal = edges[bestIdx];
-      var result = [principal];
-
-      // Source-side sub-path: source tip → principal edge tip.
-      var bestSrc = null, bestSrcScore = -Infinity;
-      for (var s = 0; s < edges.length; s++) {
-        var se = edges[s];
-        if (se.dist >= principal.dist - 1) continue;
-        var tRel = se.dist / principal.dist;
-        var losAtSe = srcTip + tRel * (principal.elev - srcTip);
-        var subProt = se.elev - losAtSe;
-        if (subProt <= 0) continue;
-        var sd1 = se.dist;
-        var sd2 = principal.dist - se.dist;
-        if (sd1 <= 0 || sd2 <= 0) continue;
-        var sScore = subProt * subProt * (sd1 + sd2) / (sd1 * sd2);
-        if (sScore > bestSrcScore) {
-          bestSrcScore = sScore;
-          bestSrc = {
-            t: se.t, dist: se.dist, elev: se.elev,
-            protrusion: subProt, d1: sd1, d2: sd2
-          };
-        }
-      }
-      if (bestSrc) result.unshift(bestSrc);
-
-      // Receiver-side sub-path: principal edge tip → receiver tip.
-      var bestRec = null, bestRecScore = -Infinity;
-      for (var r2 = 0; r2 < edges.length; r2++) {
-        var re = edges[r2];
-        if (re.dist <= principal.dist + 1) continue;
-        var tRel2 = (re.dist - principal.dist) / (totalDist - principal.dist);
-        var losAtRe = principal.elev + tRel2 * (recTip - principal.elev);
-        var subProt2 = re.elev - losAtRe;
-        if (subProt2 <= 0) continue;
-        var rd1 = re.dist - principal.dist;
-        var rd2 = totalDist - re.dist;
-        if (rd1 <= 0 || rd2 <= 0) continue;
-        var rScore = subProt2 * subProt2 * (rd1 + rd2) / (rd1 * rd2);
-        if (rScore > bestRecScore) {
-          bestRecScore = rScore;
-          bestRec = {
-            t: re.t, dist: re.dist, elev: re.elev,
-            protrusion: subProt2, d1: rd1, d2: rd2
-          };
-        }
-      }
-      if (bestRec) result.push(bestRec);
-
-      return result; // 1-3 edges, ordered source → receiver
-    }
-
-    /** Per-band terrain IL for a single source→receiver ray. Returns an
-     *  8-element array (one value per octave band, 63 Hz … 8 kHz) in dB. */
     function terrainILPerBand(srcLL, srcH, recLL, recH) {
-      if (!demCache || demCache.length === 0) return _emptyBands();
-
-      var srcElev = lookupElev(srcLL.lat, srcLL.lng);
-      var recElev = lookupElev(recLL.lat, recLL.lng);
-      // If elevation is unavailable, treat as flat — 0 dB terrain IL, render normally
-      if (srcElev === null || recElev === null) return _emptyBands();
-
-      var srcTip = srcElev + srcH;
-      var recTip = recElev + recH;
-      var totalDist = flatDistM(srcLL, recLL);
-      if (totalDist < 1) return _emptyBands();
-
-      var allEdges = findTerrainEdges(srcLL, srcTip, recLL, recTip, totalDist);
-      if (allEdges.length === 0) return _emptyBands();
-
-      var selected = deygoutSelectEdges(allEdges, srcTip, recTip, totalDist);
-      if (selected.length === 0) return _emptyBands();
-
-      var total = _emptyBands();
-      for (var e = 0; e < selected.length; e++) {
-        var edge = selected[e];
-        var d1 = edge.d1;
-        var d2 = edge.d2;
-        var prot = edge.protrusion;
-        // Fresnel path-length difference (same approximation as the earlier
-        // single-ridge code — retained so single-edge cases match exactly).
-        var d1_3d = Math.sqrt(d1 * d1 + prot * prot);
-        var d2_3d = Math.sqrt(d2 * d2 + prot * prot);
-        var delta = (d1_3d + d2_3d > 0) ? 2 * prot * prot / (d1_3d + d2_3d) : 0;
-        if (delta <= 0) continue;
-
-        // Per-band Maekawa IL via the shared (unchanged) formula.
-        var perBand = calcBarrierAttenuation(delta, ISO_FREQS, true);
-        for (var b = 0; b < 8; b++) {
-          var v = perBand[b];
-          if (v > 0) total[b] += v;
-        }
+      if (!demCache || demCache.length === 0) return [0, 0, 0, 0, 0, 0, 0, 0];
+      var bands = SharedCalc.terrainILPerBand(srcLL, srcH, recLL, recH, lookupElev);
+      if (debugTerrain && bands[4] > 0) {
+        console.log('[noise-worker] Terrain Deygout IL@1kHz=' + bands[4].toFixed(1) + 'dB');
       }
-
-      // Cap total terrain IL at 25 dB per band (ISO 9613-2 practical limit).
-      for (var b2 = 0; b2 < 8; b2++) {
-        if (total[b2] > 25) total[b2] = 25;
-      }
-
-      if (debugTerrain && selected.length > 0 && total[4] > 0) {
-        console.log('[noise-worker] Terrain Deygout: ' + selected.length +
-          ' edge(s), IL@1kHz=' + total[4].toFixed(1) + 'dB');
-      }
-      return total;
+      return bands;
     }
 
     /* ── Grid geometry ── */
@@ -508,8 +343,11 @@ self.onmessage = function(e) {
     var terrainSmoothed = null;
 
     if (terrainEnabled && demCache && demCache.length > 0) {
-      // Build separable Gaussian kernel: radius=2, σ=1.0, kernel size=5
-      var _KR = 2, _SIGMA = 1.0, _KS = 5;
+      // Build separable Gaussian kernel: radius=2, σ=0.5, kernel size=5
+      // Halved from 1.0 (commit 71aaea5) following empirical validation; bilinear
+      // DEM interpolation now provides the bulk of spike suppression. See
+      // references/smoothing-source-investigation-2026-04.md.
+      var _KR = 2, _SIGMA = 0.5, _KS = 5;
       var _kernel = new Float32Array(_KS);
       var _ksum = 0;
       for (var _ki = 0; _ki < _KS; _ki++) {

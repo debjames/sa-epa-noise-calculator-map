@@ -82,53 +82,92 @@ Attribution: added/removed via `map.attributionControl.addAttribution/removeAttr
 
 ## GIS Import
 
-Single-file module (inline `<script>` at end of `index.html`, wrapped in an IIFE). Entry point: `window._gisImport.importGis(file)`, wired to `#gisFileInput` change event. `window._gisImport.parseGisFile(file)` exposed for testing.
+Single-file module (inline `<script>` at end of `index.html`, wrapped in an IIFE).
+
+**Entry points (on `window._gisImport`):**
+- `importGis(fileOrList)` — accepts a single `File` (zip/geojson/kml) or a `FileList`/array of loose shapefile components
+- `importGisFiles(fileOrList)` — alias for `importGis`
+- `parseGisFile(fileOrList)` — exposed for testing
+- `closeModal()` — close the assignment modal programmatically
+
+**File input** (`#gisFileInput`): `accept=".zip,.shp,.dbf,.shx,.prj,.cpg,.geojson,.json,.kml"` with `multiple`. **Drag-and-drop** also wired on `#gisImportBtn` and the Leaflet map container.
 
 ### External libraries (CDN, lazy-loaded)
 
 | Library | Version | Purpose |
 |---|---|---|
 | proj4.js | 2.11.0 | CRS reprojection (loaded first; AU CRS defs registered before shpjs) |
-| shpjs | 6.1.0 | Shapefile `.zip` → GeoJSON (uses global `proj4` for `.prj`-driven reprojection) |
-| JSZip | 3.10.1 | Reads `.prj` files from zip before passing to shpjs |
+| shpjs | 6.1.0 | Shapefile `.zip` buffer → GeoJSON |
+| JSZip | 3.10.1 | Reads `.prj` files from zip; also used to assemble virtual zips from loose files |
 | @mapbox/togeojson | 0.16.0 | KML → GeoJSON |
 
-All four libraries loaded via `loadScriptOnce(url)` (Promise-caching, loads each URL once). Load order dependency: proj4 → `registerAuCrs()` → shpjs (sequential). JSZip loaded in parallel.
+All four libraries loaded via `loadScriptOnce(url)` (Promise-caching). Load order dependency: proj4 → `registerAuCrs()` → shpjs (sequential). JSZip loaded in parallel.
 
-### AU CRS pre-registration
+### External API
 
-Eight EPSG codes registered into `proj4` before shpjs loads:
-
-| EPSG | Name |
+| API | Purpose |
 |---|---|
-| 7844 | GDA2020 geographic |
-| 7853–7855 | GDA2020 MGA zones 53–55 |
-| 28353–28355 | GDA94 MGA zones 53–55 |
-| 3577 | GDA94 Australian Albers |
+| `https://epsg.io/{code}.proj4` | Fetch proj4 definition for user-entered EPSG codes not in the bundled list. Responses cached in `localStorage` under key `noiseTool.epsgCache`. |
+
+### AU CRS pre-registration (`AU_CRS_DEFS`)
+
+26 EPSG codes registered into `proj4` at startup:
+
+| Group | EPSG codes |
+|---|---|
+| Geographic | 4326 (WGS84), 4283 (GDA94), 7844 (GDA2020), 3857 (Web Mercator) |
+| GDA94 MGA | 28349–28356 (zones 49–56) |
+| GDA2020 MGA | 7849–7856 (zones 49–56) |
+| SA Lambert | 3107 (GDA94), 8059 (GDA2020) |
+| Other | 3577 (GDA94 Australian Albers) |
+
+Companion constants: `AU_CRS_LABELS` (display names) and `AU_CRS_GROUPS` (optgroup structure for the dropdown).
 
 ### Parse pipeline
 
-`parseGisFile(file)` dispatches by extension:
-- `.zip` → JSZip extracts `.prj` files (keyed by shapefile stem), then `shp(buf)` parses all shapefiles; CRS name extracted from `.prj` via regex `/^(PROJCS|GEOGCS)\["([^"]+)"/`
-- `.geojson`/`.json` → JSON.parse; `sourceCRS` from `crs.properties.name` or `'EPSG:4326'`
-- `.kml` → togeojson; `sourceCRS = 'EPSG:4326'`
-- `.kmz` → alert and abort
+`parseGisFile(fileOrList)` dispatches by input type:
 
-Post-parse: Multi* geometry expansion, polygon hole stripping (outer ring only), null geometry filtering. Coordinate sanity check: >10% outside ±180/±90 → abort; 1–10% → skip bad features with warning.
+**Loose shapefile components (FileList or array containing `.shp` etc.):**
+- `parseLooseFiles(files)` groups by stem, validates `.shp`+`.dbf`+`.shx` present, reads each as `ArrayBuffer` via `readFileAsArrayBuffer()`, assembles virtual zip via JSZip, parses with `shp(zipBuf)`.
 
-Each layer returned as `{name, sourceCRS, features, warnings}`.
+**Single `.zip`:**
+- JSZip extracts `.prj` files (keyed by shapefile stem); `shp(buf)` parses. `.prj` WKT matched to known EPSG via `matchEpsgFromWkt()`.
+
+**Single `.geojson`/`.json`:**
+- JSON.parse; `sourceCRS` from `crs.properties.name` or `'EPSG:4326'`.
+
+**Single `.kml`:**
+- togeojson; `sourceCRS = 'EPSG:4326'`.
+
+Post-parse for non-shapefiles only: coordinate sanity check (>10% outside ±180/±90 → abort; 1–10% → skip bad features with warning). Shapefiles skip this check — CRS may be projected and will be reprojected at import time.
+
+Each layer returned as `{name, sourceCRS, features, _prjText, _detectedEpsg, _has3DCoords, warnings}`.
+
+`_has3DCoords` (boolean) — transient flag set by `detectHas3D()` after `processLayer`; true if any feature vertex has a non-null third coordinate element (PointZ/LineStringZ/PolygonZ). Used only to render the inline Z-values notice in the import modal; not serialised.
+
+### EPSG matching (`matchEpsgFromWkt`)
+
+Parses WKT via `proj4.Proj(wktText)`, compares projection name + zone + datum-shift presence against each registered EPSG. Returns best-matching EPSG code or `null`.
 
 ### Assignment modal
 
-`openAssignmentModal(parsed)` builds the per-layer assignment UI. For each layer × geometry type (points / lines / polygons):
-- **Import as** select with geometry-appropriate options
-- **Source library** select (conditionally shown for Point/Line/Area source)
-- **Interior Lp** section for Building source (flat 75 dB placeholder or library entry)
-- **Movements** row for Line source (N/hr, speed km/h, operating %)
-- **Name from** / **Height from** selects (auto-detect or attribute key)
-- **Filter by attribute** (optional; dropdown ≤50 values, text input >50)
+`openAssignmentModal(parsed)` builds the per-layer assignment UI. For each layer:
 
-Live dashed-grey Leaflet preview layer (`_gisPreviewLayer`) updated on every form change. Import button disabled until all required fields filled (`_validateImport`). Escape key registered in capture phase.
+**CRS block** (`buildCrsBlock`, shapefile layers only):
+- If `.prj` present: shows detected EPSG label + "Override detected" toggle. Override reveals the EPSG dropdown.
+- If no `.prj`: shows warning + mandatory EPSG dropdown (Import disabled until set).
+- Dropdown populated from `AU_CRS_GROUPS`; last-used EPSG pre-selected with "(last used)" hint.
+- "Other EPSG…" option reveals a numeric input + "Look up" button → `resolveEpsg(code)` → epsg.io fetch → localStorage cache.
+- Resolved value stored in `<input type="hidden" id="_gResolvedCRS_{li}">`.
+
+**Per geometry type (points / lines / polygons):**
+- **Import as** select; **Source library** select; **Interior Lp** (Building source); **Movements** (Line source); **Name from** / **Height from**; **Filter by attribute**
+
+Live preview via `_gisPreviewLayer`. `_validateImport()` also checks CRS resolved for each shapefile layer. Escape key registered in capture phase.
+
+### Reprojection (import click handler)
+
+On Import click: for each layer with `selectedCRS !== 'EPSG:4326'`, calls `reprojectFeature(f, fromKey)` on each feature. `fromKey` is the EPSG string (e.g., `'EPSG:7854'`) or the raw WKT string when `selectedCRS === '_prj'`. Reprojection uses `proj4(fromKey, 'EPSG:4326', [x, y])`. After reprojection, last-used EPSG saved to `localStorage` (`noiseTool.lastImportEpsg`).
 
 ### Execution (`executeImport`)
 
@@ -2086,6 +2125,21 @@ Global `propagationMethod` can be `'simple'`, `'iso9613'`, or `'concawe'`.
 
 All serialised under `data.propagation.*` in save/load JSON.
 
+### ISO 9613-2 propagation state fields (index.html)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `iso_groundFactor` | `0.5` | Scalar ground factor G (0 = hard, 1 = soft/porous). Used when per-region mode is off. |
+| `_groundFactorPerRegion` | `{ enabled: false, Gs: 0.5, Gm: 0.5, Gr: 0.5 }` | Per-region ground factor state. When `enabled`, `_effectiveGroundFactor()` returns `{Gs,Gm,Gr}` instead of the scalar `iso_groundFactor`. Persisted in `localStorage('iso_perRegion')`. |
+
+`_effectiveGroundFactor()` — returns `{Gs, Gm, Gr}` when per-region mode is active, else `iso_groundFactor`. Called at all ISO engine entry points, both noise map `postMessage` calls, and in `_gzComputePathG()`.
+
+**Save format `_version: 3`** — The save JSON includes:
+```js
+data.propagation.groundFactorPerRegion = { enabled: bool, Gs: number, Gm: number, Gr: number }
+```
+`_version` was bumped from 2 → 3. Files without this key (v2) synthesise `{ enabled: false, Gs: G, Gm: G, Gr: G }` on load, where `G` is the loaded scalar ground factor (backward compatible).
+
 ### Meteorological input panel (`#concaweMetPanel`)
 
 Visible only when `propagationMethod === 'concawe'`. Two modes controlled by radio buttons:
@@ -2108,6 +2162,28 @@ spot checks, K5 with elevated source, and gamma interpolation checks.
 `window.testConcaweK4()` — prints K4 direct lookup table for all 6
 categories, Pasquill class tests, met category tests, and full-chain
 vector wind test.
+
+## Terrain Diffraction — `SharedCalc` (shared-calc.js)
+
+Three functions moved from `noise-worker.js` into `shared-calc.js` in April 2026 so both the grid worker and the single-point receiver path use a single implementation:
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `findTerrainEdges(srcLL, srcTip, recLL, recTip, totalDist, elevFn)` | → `edge[]` | Samples `N = clamp(round(dist/5), 20, 100)` profile points, returns all local-maximum protrusions above the source→receiver LOS. |
+| `deygoutSelectEdges(edges, srcTip, recTip, totalDist)` | → `edge[]` | Deygout principal-edge selection: up to 3 edges ordered source→receiver. |
+| `terrainILPerBand(srcLL, srcH, recLL, recH, elevFn)` | → `number[8]` | Full Deygout chain. Returns per-octave-band IL (63 Hz–8 kHz, dB), capped at 25 dB/band. Returns all-zero array if `elevFn` is null or elevations unavailable. |
+
+`elevFn(lat, lng) → number|null` — caller-supplied synchronous elevation lookup:
+- **Worker**: the bilinear `lookupElev` closure over the worker's flat `demCache` array.
+- **index.html**: nearest-neighbour over the pre-fetched profile from `getTerrainProfile()`.
+
+`noise-worker.js` wraps `SharedCalc.terrainILPerBand` in a thin local `terrainILPerBand` that guards on `demCache` and passes `lookupElev`. The worker call sites are unchanged.
+
+`updateTerrainIL()` in `index.html` fetches the terrain profile async (via `DEMCache.getElevations`), constructs the synchronous `elevFn`, then calls `SharedCalc.terrainILPerBand` synchronously. Profile sampling uses the same `N = clamp(round(dist/5), 20, 100)` formula.
+
+`detectDominantRidge()` and `calcTerrainDiffraction()` — **deleted April 2026**. Both were single-ridge only; the Deygout path supersedes them.
+
+**Note — worker-side Gaussian smoothing:** The worker post-processes the per-cell terrain IL grid with a separable Gaussian smoothing pass (noise-worker.js:~329–426, σ = 0.5 cell, radius 2 cells) before integrating terrain bands into `calcISOatPoint`. σ was reduced from 1.0 to 0.5 in April 2026 after empirical validation confirmed bilinear DEM interpolation handles the original spike-suppression role (see `references/smoothing-source-investigation-2026-04.md`). The single-point receiver path (`updateTerrainIL` / `calcISO9613forSourcePin`) does **not** smooth — it returns the exact unsmoothed Deygout IL at the receiver's lat/lng. As a result, the heatmap colour and the receiver panel can disagree at the same lat/lng in narrow terrain shadow zones by ~3–6 dB — the receiver panel value is authoritative. The always-visible receiver Lp badge (Option C) on each placed receiver marker shows the unsmoothed receiver-panel value on the map. See `references/heatmap-receiver-divergence-2026-04.md` for the root-cause analysis.
 
 ## Terrain Contour Helpers (`index.html`)
 

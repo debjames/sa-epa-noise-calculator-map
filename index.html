@@ -2629,7 +2629,7 @@ body.disclaimer-visible .container {
                 <div class="mp-sep"></div>
                 <!-- Group 2: Site elements -->
                 <button class="mp-btn" id="gisImportBtn" title="Import shapefile (.zip), GeoJSON, or KML file" onclick="document.getElementById('gisFileInput').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Import GIS file&hellip;</button>
-                <input type="file" id="gisFileInput" accept=".zip,.geojson,.json,.kml" style="display:none;">
+                <input type="file" id="gisFileInput" accept=".zip,.shp,.dbf,.shx,.prj,.cpg,.geojson,.json,.kml" multiple style="display:none;">
                 <button class="mp-btn" id="sitePlanOverlayBtn" title="Upload a site plan image or PDF and position it as a map overlay (PDF: page 1 rendered as image; address auto-detected)" onclick="soOpenPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Site plan overlay</button>
                 <input type="file" id="soFileInput" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" style="display:none;">
                 <button class="mp-btn" id="drawBuildingBtn" title="Draw a custom building polygon on the map (N)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> New building<span class="mp-kbd">N</span></button>
@@ -2765,13 +2765,46 @@ body.disclaimer-visible .container {
               <div id="iso9613Params" style="display:none;">
                 <div class="mp-sep"></div>
                 <div class="mp-sub-row"><span>Recv height:</span><input type="number" id="isoRecvHeight" value="1.5" min="0" max="50" step="0.5" style="width:52px;"><span>m</span></div>
-                <div class="mp-sub-row">
+                <div id="isoGroundTypeRow" class="mp-sub-row">
                   <span>Ground type:</span>
                   <select id="isoGroundType" style="flex:1;">
                     <option value="0">Hard (G=0)</option>
                     <option value="0.5" selected>Mixed (G=0.5)</option>
                     <option value="1">Soft (G=1)</option>
                   </select>
+                </div>
+                <div class="mp-sub-row" style="align-items:center;gap:4px;">
+                  <label style="display:flex;align-items:center;gap:3px;cursor:pointer;flex:1;">
+                    <input type="checkbox" id="isoPerRegionEnabled">
+                    <span style="font-size:10px;color:#9ca3af;">Per-region G (advanced)</span>
+                  </label>
+                  <span title="Per ISO 9613-2 §7.3.1, Agr can use independent ground factors for the source region (Gs), middle propagation region (Gm) and receiver region (Gr). Use this for paths crossing hard-to-soft transitions." style="cursor:help;color:#6b7280;font-size:11px;user-select:none;">?</span>
+                </div>
+                <div id="isoPerRegionInputs" style="display:none;">
+                  <div class="mp-sub-row">
+                    <span style="font-size:10px;min-width:24px;">G<sub>s</sub></span>
+                    <select id="isoGsType" style="flex:1;font-size:11px;">
+                      <option value="0">Hard (0)</option>
+                      <option value="0.5" selected>Mixed (0.5)</option>
+                      <option value="1">Soft (1)</option>
+                    </select>
+                  </div>
+                  <div class="mp-sub-row">
+                    <span style="font-size:10px;min-width:24px;">G<sub>m</sub></span>
+                    <select id="isoGmType" style="flex:1;font-size:11px;">
+                      <option value="0">Hard (0)</option>
+                      <option value="0.5" selected>Mixed (0.5)</option>
+                      <option value="1">Soft (1)</option>
+                    </select>
+                  </div>
+                  <div class="mp-sub-row">
+                    <span style="font-size:10px;min-width:24px;">G<sub>r</sub></span>
+                    <select id="isoGrType" style="flex:1;font-size:11px;">
+                      <option value="0">Hard (0)</option>
+                      <option value="0.5" selected>Mixed (0.5)</option>
+                      <option value="1">Soft (1)</option>
+                    </select>
+                  </div>
                 </div>
                 <div class="mp-sub-row"><span>Temperature:</span><input type="number" id="isoTemp" value="10" min="-20" max="50" step="1" style="width:46px;"><span>°C</span></div>
                 <div class="mp-sub-row"><span>Humidity:</span><input type="number" id="isoHumidity" value="70" min="10" max="100" step="5" style="width:46px;"><span>%RH</span></div>
@@ -8497,114 +8530,9 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     }
   }
 
-  /**
-   * Detect the dominant ridgeline from a terrain profile.
-   * @param {Array} profile - from getTerrainProfile
-   * @param {number} srcHeightAboveGround - source height above its ground (m)
-   * @param {number} recHeightAboveGround - receiver height above its ground (m)
-   * @returns {object|null} { index, lat, lng, distance_m, elevation_m, protrusion_m, delta_m }
-   *   or null if no point protrudes above the direct line of sight.
-   */
-  function detectDominantRidge(profile, srcHeightAboveGround, recHeightAboveGround) {
-    if (!profile || profile.length < 3) return null;
-    var srcElev = profile[0].elevation_m;
-    var recElev = profile[profile.length - 1].elevation_m;
-    if (srcElev === null || recElev === null) return null;
-
-    var srcTip = srcElev + srcHeightAboveGround;
-    var recTip = recElev + recHeightAboveGround;
-    var totalDist = profile[profile.length - 1].distanceFromSource_m;
-    if (totalDist <= 0) return null;
-
-    var bestIdx = -1;
-    var bestProtrusion = 0;
-    for (var i = 1; i < profile.length - 1; i++) {
-      var p = profile[i];
-      if (p.elevation_m === null) continue;
-      var t = p.distanceFromSource_m / totalDist;
-      var losElev = srcTip + t * (recTip - srcTip);
-      var protrusion = p.elevation_m - losElev;
-      if (protrusion > bestProtrusion) {
-        bestProtrusion = protrusion;
-        bestIdx = i;
-      }
-    }
-
-    if (bestIdx < 0) return null; // no obstruction
-
-    var ridge = profile[bestIdx];
-    // Compute path-length difference δ (3D distances using ASL heights)
-    var d1_horiz = ridge.distanceFromSource_m;
-    var d2_horiz = totalDist - d1_horiz;
-    var dh1 = ridge.elevation_m - srcTip;
-    var dh2 = ridge.elevation_m - recTip;
-    var d1_3d = Math.sqrt(d1_horiz * d1_horiz + dh1 * dh1);
-    var d2_3d = Math.sqrt(d2_horiz * d2_horiz + dh2 * dh2);
-    var dDirect = Math.sqrt(totalDist * totalDist + (recTip - srcTip) * (recTip - srcTip));
-
-    // Use Fresnel zone δ (consistent with building barrier implementation)
-    var a_perp = bestProtrusion; // perpendicular distance above LOS
-    var delta = (d1_3d + d2_3d > 0) ? 2 * a_perp * a_perp / (d1_3d + d2_3d) : 0;
-
-    return {
-      index: bestIdx,
-      lat: ridge.lat,
-      lng: ridge.lng,
-      distance_m: ridge.distanceFromSource_m,
-      elevation_m: ridge.elevation_m,
-      protrusion_m: bestProtrusion,
-      delta_m: delta
-    };
-  }
-
-  /**
-   * Compute terrain diffraction insertion loss for a source-receiver pair.
-   * Uses the existing Maekawa/ISO 9613-2 barrier formula.
-   * @param {Array} profile - from getTerrainProfile
-   * @param {number} srcH - source height above ground (m)
-   * @param {number} recH - receiver height above ground (m)
-   * @returns {object} { delta_m, insertionLoss_dB, ridge, perBand: number[8] }
-   *   insertionLoss_dB is the broadband (1kHz) IL. perBand is per octave band.
-   *   All zero if no ridge detected. perBand is null if SharedCalc not available.
-   */
-  function calcTerrainDiffraction(profile, srcH, recH) {
-    var result = { delta_m: 0, insertionLoss_dB: 0, ridge: null, perBand: null };
-    var ridge = detectDominantRidge(profile, srcH, recH);
-    if (!ridge || ridge.delta_m <= 0) {
-      if (window._debugTerrain) console.log('Terrain diffraction: no ridge detected (delta <= 0)');
-      return result;
-    }
-
-    if (window._debugTerrain) console.log('Terrain diffraction: ridge at ' + ridge.distance_m.toFixed(0) + 'm, ' +
-      'elev=' + ridge.elevation_m.toFixed(1) + 'm, protrusion=' + ridge.protrusion_m.toFixed(2) + 'm, ' +
-      'delta=' + ridge.delta_m.toFixed(4) + 'm');
-
-    result.ridge = ridge;
-    result.delta_m = ridge.delta_m;
-
-    // Use SharedCalc barrier formula (same as buildings)
-    if (typeof SharedCalc !== 'undefined') {
-      var freqs = SharedCalc.OCT_FREQ || [63, 125, 250, 500, 1000, 2000, 4000, 8000];
-      var abar = SharedCalc.calcBarrierAttenuation(ridge.delta_m, freqs, true);
-      result.perBand = abar;
-      // Broadband IL ≈ 1kHz band value
-      result.insertionLoss_dB = abar[4]; // 1kHz band
-      if (window._debugTerrain) console.log('Terrain IL per band:', abar.map(function(v) { return v.toFixed(1); }).join(', ') + ' dB');
-    } else {
-      // Fallback: simple Maekawa at 1kHz
-      var lambda = 0.343;
-      result.insertionLoss_dB = Math.max(0, Math.min(20,
-        10 * Math.log10(3 + 20 * ridge.delta_m / lambda)));
-    }
-
-    return result;
-  }
-
   // Public API
   window.getTerrainProfile = getTerrainProfile;
   window.renderTerrainProfileSVG = renderTerrainProfileSVG;
-  window.detectDominantRidge = detectDominantRidge;
-  window.calcTerrainDiffraction = calcTerrainDiffraction;
 })();
 </script>
 
@@ -9773,6 +9701,14 @@ let propagationMethod = 'simple'; // 'simple' | 'iso9613' | 'concawe'
 // ISO 9613-2 / CONCAWE shared parameters
 let iso_receiverHeight = 1.5; // metres (standard receiver height)
 let iso_groundFactor = 0.5;   // G: 0=hard, 0.5=mixed, 1.0=soft/porous
+// Per-region ground factor state (ISO 9613-2 §7.3.1)
+var _groundFactorPerRegion = { enabled: false, Gs: 0.5, Gm: 0.5, Gr: 0.5 };
+/** Returns {Gs,Gm,Gr} when per-region mode is active, else the scalar iso_groundFactor. */
+function _effectiveGroundFactor() {
+  return _groundFactorPerRegion.enabled
+    ? { Gs: _groundFactorPerRegion.Gs, Gm: _groundFactorPerRegion.Gm, Gr: _groundFactorPerRegion.Gr }
+    : iso_groundFactor;
+}
 
 // CONCAWE-specific state (Prompt 4 UI will populate these)
 var _concaweMetCategory = 4;          // 1–6, default 4 (neutral, K4=0)
@@ -11195,6 +11131,8 @@ function _gzWeightedG(lat0, lng0, lat1, lng1, t0, t1, defaultG, zones) {
 /** Compute {Gs, Gm, Gr} for a source→receiver path using the global ground zones.
  *  Returns the scalar iso_groundFactor (fast path) when no zones are defined. */
 function _gzComputePathG(srcLat, srcLng, recLat, recLng, srcH, recH, distM) {
+  if (_groundFactorPerRegion.enabled)
+    return { Gs: _groundFactorPerRegion.Gs, Gm: _groundFactorPerRegion.Gm, Gr: _groundFactorPerRegion.Gr };
   if (_groundZones.length === 0) return iso_groundFactor;
   var dp = distM;
   var t_sEnd = Math.max(0, Math.min(1, Math.min(30 * srcH, dp / 2) / dp));
@@ -11592,8 +11530,8 @@ function calcTotalISO9613(prefix, receiverIdx) {
 function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
   var totalLin = 0;
   var anySrc = false;
-  var gf = (groundFactorOverride !== undefined && Number.isFinite(groundFactorOverride))
-    ? groundFactorOverride : iso_groundFactor;
+  var gf = (groundFactorOverride !== undefined && groundFactorOverride !== null)
+    ? groundFactorOverride : _effectiveGroundFactor();
 
   sourcePins.forEach(function(pin, si) {
     if (pin.lat === null) return;
@@ -11947,10 +11885,12 @@ function _barrierHBar(bw) {
 }
 
 /** Compute and cache terrain diffraction for a source-receiver pair.
- *  Returns a Promise that resolves when the cache entry is updated. */
+ *  Uses Deygout 3-edge (ISO 9613-2 Annex B) via SharedCalc.terrainILPerBand —
+ *  the same algorithm as the noise-map grid worker. Returns a Promise that
+ *  resolves when the cache entry is updated. */
 function updateTerrainIL(srcIdx, recvIdx) {
   if (!_terrainEnabled) return Promise.resolve();
-  if (!window.getTerrainProfile || !window.calcTerrainDiffraction) return Promise.resolve();
+  if (!window.getTerrainProfile || typeof SharedCalc === 'undefined') return Promise.resolve();
   var src = sourcePins[srcIdx] || null;
   if (!src || src.lat === null) return Promise.resolve();
   var allLL = window._getAllLatLngs ? window._getAllLatLngs() : {};
@@ -11959,11 +11899,34 @@ function updateTerrainIL(srcIdx, recvIdx) {
 
   var srcH = src.height_m || 1.5;
   var recH = (typeof getReceiverHeight === 'function') ? getReceiverHeight(recvIdx) : 1.5;
+  var srcLL = { lat: src.lat, lng: src.lng };
 
-  return getTerrainProfile(src.lat, src.lng, recLL.lat, recLL.lng, 25).then(function(profile) {
-    var result = calcTerrainDiffraction(profile, srcH, recH);
+  // Sample density: match the worker (1 sample per 5 m, clamped 20-100).
+  var totalDist = SharedCalc.flatDistM(srcLL, recLL);
+  var N = Math.max(20, Math.min(100, Math.round(totalDist / 5)));
+
+  return getTerrainProfile(src.lat, src.lng, recLL.lat, recLL.lng, N).then(function(profile) {
+    // Build a synchronous elevation lookup from the pre-fetched profile.
+    // Nearest-neighbour: sub-sample-spacing error is negligible (<0.5 m).
+    var elevFn = function(lat, lng) {
+      var minD2 = Infinity, best = null;
+      for (var pi = 0; pi < profile.length; pi++) {
+        var p = profile[pi];
+        if (p.elevation_m === null) continue;
+        var dlat = p.lat - lat, dlng = p.lng - lng;
+        var d2 = dlat * dlat + dlng * dlng;
+        if (d2 < minD2) { minD2 = d2; best = p.elevation_m; }
+      }
+      return best;
+    };
+
+    var perBand = SharedCalc.terrainILPerBand(srcLL, srcH, recLL, recH, elevFn);
+    var il1k = perBand[4] || 0;
     if (!_terrainIL[srcIdx]) _terrainIL[srcIdx] = [];
-    _terrainIL[srcIdx][recvIdx] = (result.delta_m > 0) ? result : null;
+    _terrainIL[srcIdx][recvIdx] = (il1k > 0) ? {
+      insertionLoss_dB: il1k,
+      perBand: perBand
+    } : null;
   }).catch(function() { return null; });
 }
 
@@ -19775,6 +19738,9 @@ function render() {
   // Phase 2: update sticky compliance strip from the data collected above
   if (typeof updateComplianceStrip === 'function') updateComplianceStrip();
 
+  // Option C: update receiver Lp map labels from the _stripData just populated
+  if (typeof updateReceiverLpLabels === 'function') updateReceiverLpLabels();
+
   // Empty-state guidance toggles for key drawer panels
   if (typeof updateEmptyStates === 'function') updateEmptyStates();
 
@@ -20420,6 +20386,11 @@ function initPropagationMethod() {
   if (savedGround !== null) iso_groundFactor = Number(savedGround);
   if (savedTemp !== null) iso_temperature = Number(savedTemp);
   if (savedHumid !== null) iso_humidity = Number(savedHumid);
+  // Per-region ground factor
+  const savedPerRegion = localStorage.getItem('iso_perRegion');
+  if (savedPerRegion !== null) {
+    try { var _pr = JSON.parse(savedPerRegion); if (_pr && typeof _pr === 'object') _groundFactorPerRegion = _pr; } catch(e) {}
+  }
 
   // Set input values from restored state
   const recvHEl = document.getElementById('isoRecvHeight');
@@ -20635,6 +20606,61 @@ function initPropagationMethod() {
       localStorage.setItem('iso_ground', String(iso_groundFactor));
       localStorage.setItem('iso_temp', String(iso_temperature));
       localStorage.setItem('iso_humidity', String(iso_humidity));
+      render();
+      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+    });
+  });
+
+  // ── Per-region ground factor UI ──────────────────────────────────────────────
+  var prCkEl     = document.getElementById('isoPerRegionEnabled');
+  var prInputsEl = document.getElementById('isoPerRegionInputs');
+  var prRowEl    = document.getElementById('isoGroundTypeRow');
+  var gsEl       = document.getElementById('isoGsType');
+  var gmEl       = document.getElementById('isoGmType');
+  var grEl       = document.getElementById('isoGrType');
+
+  function _prApplyUI() {
+    var on = _groundFactorPerRegion.enabled;
+    if (prRowEl)    prRowEl.style.display    = on ? 'none' : '';
+    if (prInputsEl) prInputsEl.style.display = on ? '' : 'none';
+  }
+  function _prSave() {
+    localStorage.setItem('iso_perRegion', JSON.stringify(_groundFactorPerRegion));
+  }
+
+  // Restore UI from state
+  if (prCkEl) prCkEl.checked = _groundFactorPerRegion.enabled;
+  if (gsEl) gsEl.value = String(_groundFactorPerRegion.Gs);
+  if (gmEl) gmEl.value = String(_groundFactorPerRegion.Gm);
+  if (grEl) grEl.value = String(_groundFactorPerRegion.Gr);
+  _prApplyUI();
+
+  if (prCkEl) {
+    prCkEl.addEventListener('change', function() {
+      _groundFactorPerRegion.enabled = prCkEl.checked;
+      if (prCkEl.checked) {
+        // Initialise Gs/Gm/Gr to the current scalar G
+        _groundFactorPerRegion.Gs = iso_groundFactor;
+        _groundFactorPerRegion.Gm = iso_groundFactor;
+        _groundFactorPerRegion.Gr = iso_groundFactor;
+        if (gsEl) gsEl.value = String(iso_groundFactor);
+        if (gmEl) gmEl.value = String(iso_groundFactor);
+        if (grEl) grEl.value = String(iso_groundFactor);
+      }
+      _prApplyUI();
+      _prSave();
+      render();
+      if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+    });
+  }
+
+  [gsEl, gmEl, grEl].forEach(function(el) {
+    if (!el) return;
+    el.addEventListener('change', function() {
+      _groundFactorPerRegion.Gs = Number(gsEl.value);
+      _groundFactorPerRegion.Gm = Number(gmEl.value);
+      _groundFactorPerRegion.Gr = Number(grEl.value);
+      _prSave();
       render();
       if (window._recomputeNoiseMap) window._recomputeNoiseMap();
     });
@@ -22424,7 +22450,7 @@ setInitialCollapseState();
       try {
         var data = {};
         data._format = 'resonate-noise-tool';
-        data._version = 2;
+        data._version = 3;
         data._exportedAt = new Date().toISOString();
 
         // State
@@ -22541,6 +22567,7 @@ setInitialCollapseState();
           method: propagationMethod,
           receiverHeight: iso_receiverHeight,
           groundFactor: iso_groundFactor,
+          groundFactorPerRegion: JSON.parse(JSON.stringify(_groundFactorPerRegion)),
           temperature: iso_temperature,
           humidity: iso_humidity,
           concaweMetCategory: _concaweMetCategory,
@@ -23475,9 +23502,9 @@ setInitialCollapseState();
 
     function loadAssessment(data) {
       // Guard: warn if the file was saved by a future version of this app.
-      if (data._version && data._version > 2) {
+      if (data._version && data._version > 3) {
         console.warn('[loadAssessment] File is format v' + data._version +
-          ' (this app supports v2) — some fields may not load correctly.');
+          ' (this app supports v3) — some fields may not load correctly.');
       }
 
       // 0. Restore scenario snapshots BEFORE any other state.
@@ -23762,6 +23789,14 @@ setInitialCollapseState();
         propagationMethod = data.propagation.method || 'simple';
         iso_receiverHeight = data.propagation.receiverHeight || 1.5;
         iso_groundFactor = data.propagation.groundFactor || 0.5;
+        // Per-region ground factor — synthesise from scalar G if absent (v2 and earlier files)
+        var _loadedPR = data.propagation.groundFactorPerRegion;
+        if (_loadedPR && typeof _loadedPR === 'object') {
+          _groundFactorPerRegion = { enabled: !!_loadedPR.enabled, Gs: _loadedPR.Gs || iso_groundFactor, Gm: _loadedPR.Gm || iso_groundFactor, Gr: _loadedPR.Gr || iso_groundFactor };
+        } else {
+          _groundFactorPerRegion = { enabled: false, Gs: iso_groundFactor, Gm: iso_groundFactor, Gr: iso_groundFactor };
+        }
+        localStorage.setItem('iso_perRegion', JSON.stringify(_groundFactorPerRegion));
         iso_temperature = data.propagation.temperature || 10;
         iso_humidity = data.propagation.humidity || 70;
         localStorage.setItem('prop_method', propagationMethod);
@@ -23782,6 +23817,19 @@ setInitialCollapseState();
         if (rhEl) rhEl.value = iso_receiverHeight;
         var gfEl = document.getElementById('isoGroundType');
         if (gfEl) gfEl.value = iso_groundFactor;
+        // Per-region ground factor UI restore
+        var _prCkEl = document.getElementById('isoPerRegionEnabled');
+        var _prRowEl = document.getElementById('isoGroundTypeRow');
+        var _prInputsEl = document.getElementById('isoPerRegionInputs');
+        var _gsEl = document.getElementById('isoGsType');
+        var _gmEl = document.getElementById('isoGmType');
+        var _grEl = document.getElementById('isoGrType');
+        if (_prCkEl) _prCkEl.checked = _groundFactorPerRegion.enabled;
+        if (_gsEl) _gsEl.value = String(_groundFactorPerRegion.Gs);
+        if (_gmEl) _gmEl.value = String(_groundFactorPerRegion.Gm);
+        if (_grEl) _grEl.value = String(_groundFactorPerRegion.Gr);
+        if (_prRowEl) _prRowEl.style.display = _groundFactorPerRegion.enabled ? 'none' : '';
+        if (_prInputsEl) _prInputsEl.style.display = _groundFactorPerRegion.enabled ? '' : 'none';
         var tEl = document.getElementById('isoTemp');
         if (tEl) tEl.value = iso_temperature;
         var hEl = document.getElementById('isoHumidity');
@@ -25046,7 +25094,7 @@ setInitialCollapseState();
     try {
       var data = {};
       data._format  = 'resonate-noise-tool';
-      data._version = 2;
+      data._version = 3;
       data._exportedAt = new Date().toISOString();
       data.currentState  = typeof currentState  !== 'undefined' ? currentState  : 'SA';
       data.vicAreaType   = typeof vicAreaType   !== 'undefined' ? vicAreaType   : 'urban';
@@ -25122,6 +25170,9 @@ setInitialCollapseState();
         method:         typeof propagationMethod  !== 'undefined' ? propagationMethod  : 'simple',
         receiverHeight: typeof iso_receiverHeight !== 'undefined' ? iso_receiverHeight : 1.5,
         groundFactor:   typeof iso_groundFactor   !== 'undefined' ? iso_groundFactor   : 0.5,
+        groundFactorPerRegion: typeof _groundFactorPerRegion !== 'undefined'
+          ? JSON.parse(JSON.stringify(_groundFactorPerRegion))
+          : { enabled: false, Gs: 0.5, Gm: 0.5, Gr: 0.5 },
         temperature:    typeof iso_temperature    !== 'undefined' ? iso_temperature    : 10,
         humidity:       typeof iso_humidity       !== 'undefined' ? iso_humidity       : 70,
         concaweMetCategory:    _concaweMetCategory,
@@ -25955,6 +26006,7 @@ if (window.pdfjsLib) {
     var markers = {};   /* key -> L.marker  */
     var latlngs = {};   /* key -> {lat,lng} */
     var labelMarkers = {}; /* key -> L.marker (source dot label, separate from dot) */
+    var recvLabelMarkers = {}; /* key -> L.marker (receiver Lp label, below receiver pin) */
     var currentMode = null;
     var _drawingActive = false; // true while Leaflet.draw polygon is being drawn
 
@@ -27989,6 +28041,39 @@ if (window.pdfjsLib) {
       });
     }
 
+    /* ---- Receiver pin: Lp label icon (always-visible text below the circle) ---- */
+    function makeRecvLpIcon(text, color) {
+      return L.divIcon({
+        className: '',
+        html: '<div style="font-size:9px;font-weight:700;color:' + color + ';white-space:nowrap;text-align:center;pointer-events:none;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 2px #fff;">' + escapeHTML(text) + '</div>',
+        iconSize:   [36, 12],
+        iconAnchor: [18, -11],
+        popupAnchor: [0, 0]
+      });
+    }
+
+    /* ---- Refresh receiver Lp map labels from _stripData (called by render()) ---- */
+    window.updateReceiverLpLabels = function updateReceiverLpLabels() {
+      var data = window._stripData || [];
+      var recvModes = ['r1', 'r2', 'r3', 'r4'];
+      recvModes.forEach(function(mode, i) {
+        var lbl = recvLabelMarkers[mode];
+        if (!lbl) return;
+        var d = data[i];
+        var cfg = getModeCfg(mode);
+        var text = '\u2026';
+        if (d && d.placed) {
+          var vals = [d.day && d.day.pred, d.eve && d.eve.pred, d.night && d.night.pred]
+            .filter(function(v) { return v !== '' && v != null && Number.isFinite(Number(v)); })
+            .map(Number);
+          if (vals.length > 0) {
+            text = Math.round(Math.max.apply(null, vals)) + '\u202fdB';
+          }
+        }
+        lbl.setIcon(makeRecvLpIcon(text, cfg.color));
+      });
+    };
+
     /* ---- Haversine distance (metres) ---- */
     function haversine(a, b) {
       var R  = 6371000;
@@ -28522,9 +28607,10 @@ if (window.pdfjsLib) {
     function placeMarker(mode, latlng) {
       var cfg = getModeCfg(mode);
 
-      /* remove old markers (dot + label for sources) */
+      /* remove old markers (dot + label for sources; circle + Lp label for receivers) */
       if (markers[mode]) map.removeLayer(markers[mode]);
       if (labelMarkers[mode]) { map.removeLayer(labelMarkers[mode]); delete labelMarkers[mode]; }
+      if (recvLabelMarkers[mode]) { map.removeLayer(recvLabelMarkers[mode]); delete recvLabelMarkers[mode]; }
 
       var m;
       if (isSourceMode(mode)) {
@@ -28607,10 +28693,18 @@ if (window.pdfjsLib) {
           if (typeof window._subjectSiteOnPlaced === 'function') window._subjectSiteOnPlaced(latlng);
         }
       } else {
-        /* === Teardrop marker for receiver pins === */
+        /* === Circle marker for receiver pins === */
         m = L.marker(latlng, { icon: makeIcon(cfg), draggable: true, title: cfg.label })
           .bindPopup(buildRecvPopupHTML(mode, latlng), { maxWidth: 300, minWidth: 220 })
           .addTo(map);
+        /* Lp label: always-visible predicted level below the receiver circle */
+        var recvLbl = L.marker(latlng, {
+          icon: makeRecvLpIcon('\u2026', cfg.color),
+          draggable: false,
+          interactive: false,
+          zIndexOffset: 500
+        }).addTo(map);
+        recvLabelMarkers[mode] = recvLbl;
         /* Auto-open popup immediately on user placement (not on load from JSON) */
         if (_autoOpenRecvPopup) m.openPopup();
         /* Right-click context menu for receivers (no Duplicate — fixed r1–r4 slots) */
@@ -28654,6 +28748,7 @@ if (window.pdfjsLib) {
       if (typeof _allObjVisible !== 'undefined' && !_allObjVisible) {
         m.setOpacity(0);
         if (labelMarkers[mode]) labelMarkers[mode].setOpacity(0);
+        if (recvLabelMarkers[mode]) recvLabelMarkers[mode].setOpacity(0);
       }
 
       /* update on drag */
@@ -28662,6 +28757,7 @@ if (window.pdfjsLib) {
         latlngs[mode] = ll;
         syncSourceLatLng(mode, ll);
         if (labelMarkers[mode]) labelMarkers[mode].setLatLng(ll);
+        if (recvLabelMarkers[mode]) recvLabelMarkers[mode].setLatLng(ll);
         updateAll();
       });
       m.on('dragend', function (e) {
@@ -28669,6 +28765,7 @@ if (window.pdfjsLib) {
         latlngs[mode] = ll;
         syncSourceLatLng(mode, ll);
         if (labelMarkers[mode]) labelMarkers[mode].setLatLng(ll);
+        if (recvLabelMarkers[mode]) recvLabelMarkers[mode].setLatLng(ll);
         /* Update subject site reference if this is source index 0 */
         if (isSourceMode(mode) && sourceIdxFromMode(mode) === 0) {
           window._subjectSiteLatlng = ll;
@@ -28910,6 +29007,7 @@ if (window.pdfjsLib) {
       map.removeLayer(markers[mode]);
       delete markers[mode];
       if (labelMarkers[mode]) { map.removeLayer(labelMarkers[mode]); delete labelMarkers[mode]; }
+      if (recvLabelMarkers[mode]) { map.removeLayer(recvLabelMarkers[mode]); delete recvLabelMarkers[mode]; }
       delete latlngs[mode];
       if (typeof _recvZoneHTML !== 'undefined' && _recvZoneHTML[mode] !== undefined) {
         _recvZoneHTML[mode] = '';
@@ -29012,10 +29110,11 @@ if (window.pdfjsLib) {
         _allObjVisible = !_allObjVisible;
         var show = _allObjVisible;
 
-        // ── Point markers: source dots, source labels, receiver teardrops ──
+        // ── Point markers: source dots, source labels, receiver circles + Lp labels ──
         ORDER.forEach(function(mode) {
-          if (markers[mode])      markers[mode].setOpacity(show ? 1 : 0);
-          if (labelMarkers[mode]) labelMarkers[mode].setOpacity(show ? 1 : 0);
+          if (markers[mode])          markers[mode].setOpacity(show ? 1 : 0);
+          if (labelMarkers[mode])     labelMarkers[mode].setOpacity(show ? 1 : 0);
+          if (recvLabelMarkers[mode]) recvLabelMarkers[mode].setOpacity(show ? 1 : 0);
         });
         // ── source_0, source_1, … (dynamic point sources not in ORDER) ──────
         Object.keys(markers).forEach(function(k) {
@@ -29673,14 +29772,22 @@ if (window.pdfjsLib) {
       });
     }
 
-    // Map drag-and-drop for image files
+    // Map drag-and-drop for image files and GIS files
     ;(function() {
       var mc = map.getContainer();
       mc.addEventListener('dragover', function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
       mc.addEventListener('drop', function(e) {
         e.preventDefault();
-        var f = e.dataTransfer && e.dataTransfer.files[0];
-        if (f && (/^image\/(png|jpeg)$/.test(f.type) || f.type === 'application/pdf' || /\.pdf$/i.test(f.name))) _soProcessFile(f);
+        var files = e.dataTransfer && e.dataTransfer.files;
+        if (!files || !files.length) return;
+        var f = files[0];
+        /* Route GIS files to the GIS import module.
+           .json excluded — may be a saved assessment; use Import button for bare GeoJSON. */
+        if (/\.(zip|shp|dbf|shx|prj|cpg|geojson|kml)$/i.test(f.name)) {
+          if (window._gisImport) window._gisImport.importGisFiles(files);
+          return;
+        }
+        if (/^image\/(png|jpeg)$/.test(f.type) || f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) _soProcessFile(f);
       });
     })();
 
@@ -37326,7 +37433,7 @@ if (window.pdfjsLib) {
             bounds: { north: mapBounds.getNorth(), south: mapBounds.getSouth(), east: mapBounds.getEast(), west: mapBounds.getWest() },
             gridResolutionM: gridRes, sources: workerSources, buildings: _buildingsC,
             propagationMethod: propagationMethod,
-            isoParams: { receiverHeight: _noiseMapHeight || 1.5, groundFactor: iso_groundFactor, temperature: iso_temperature, humidity: iso_humidity },
+            isoParams: { receiverHeight: _noiseMapHeight || 1.5, groundFactor: _effectiveGroundFactor(), temperature: iso_temperature, humidity: iso_humidity },
             concaweMetCategory: _concaweMetCategory,
             demCache: demEntries, demSpacing: demSpacing, terrainEnabled: _terrainEnabled, debugTerrain: false,
             period: casePeriod, lmaxMethod: _lmaxMethod || 'simple', reflectionsEnabled: !!_reflectionsOn,
@@ -37502,7 +37609,7 @@ if (window.pdfjsLib) {
           propagationMethod: propagationMethod || 'simple',
           isoParams: {
             receiverHeight: _noiseMapHeight || 1.5,
-            groundFactor: iso_groundFactor,
+            groundFactor: _effectiveGroundFactor(),
             temperature: iso_temperature,
             humidity: iso_humidity
           },
@@ -42793,21 +42900,78 @@ if (window.pdfjsLib) {
       '.gis-btn-primary:hover:not(:disabled){background:#1d4ed8;}' +
       '.gis-btn-primary:disabled{background:#93c5fd;border-color:#93c5fd;cursor:not-allowed;}' +
       '.gis-btn-cancel{background:#fff;color:#374151;}' +
-      '.gis-btn-cancel:hover{background:#f3f4f6;}';
+      '.gis-btn-cancel:hover{background:#f3f4f6;}' +
+      '.gis-crs-block{border-top:1px solid #e5e7eb;padding:8px 10px;background:#fafbfc;}' +
+      '.gis-crs-status{font-size:11px;color:#374151;margin-bottom:2px;}' +
+      '.gis-crs-warn{color:#92400e;background:#fef9c3;border-radius:3px;padding:3px 6px;}' +
+      '.gis-crs-ok{color:#065f46;}' +
+      '.gis-crs-sel-row{margin-top:5px;}' +
+      '.gis-crs-sel-row label{font-size:11px;color:#6b7280;display:block;margin-bottom:2px;}' +
+      '.gis-crs-sel-row select{font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px;max-width:280px;width:100%;}' +
+      '.gis-crs-other-row{display:flex;align-items:center;gap:5px;margin-top:5px;flex-wrap:wrap;}' +
+      '.gis-crs-other-row input{width:80px;font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px;}' +
+      '.gis-crs-other-status{font-size:11px;color:#6b7280;}' +
+      '._gisDropOver{outline:2px dashed #2563eb !important;outline-offset:-2px;}';
     document.head.appendChild(s);
   })();
 
   /* ── Phase 1: CRS pre-registration ──────────────────────────────────── */
   var AU_CRS_DEFS = {
+    /* Geographic */
+    'EPSG:4326':  '+proj=longlat +datum=WGS84 +no_defs +type=crs',
+    'EPSG:3857':  '+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs +type=crs',
+    'EPSG:4283':  '+proj=longlat +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +no_defs +type=crs',
     'EPSG:7844':  '+proj=longlat +ellps=GRS80 +no_defs +type=crs',
-    'EPSG:7853':  '+proj=utm +zone=53 +south +ellps=GRS80 +units=m +no_defs +type=crs',
-    'EPSG:7854':  '+proj=utm +zone=54 +south +ellps=GRS80 +units=m +no_defs +type=crs',
-    'EPSG:7855':  '+proj=utm +zone=55 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    /* GDA94 / MGA zones 49–56 */
+    'EPSG:28349': '+proj=utm +zone=49 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
+    'EPSG:28350': '+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
+    'EPSG:28351': '+proj=utm +zone=51 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
+    'EPSG:28352': '+proj=utm +zone=52 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
     'EPSG:28353': '+proj=utm +zone=53 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
     'EPSG:28354': '+proj=utm +zone=54 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
     'EPSG:28355': '+proj=utm +zone=55 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
+    'EPSG:28356': '+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
+    /* GDA2020 / MGA zones 49–56 */
+    'EPSG:7849':  '+proj=utm +zone=49 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    'EPSG:7850':  '+proj=utm +zone=50 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    'EPSG:7851':  '+proj=utm +zone=51 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    'EPSG:7852':  '+proj=utm +zone=52 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    'EPSG:7853':  '+proj=utm +zone=53 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    'EPSG:7854':  '+proj=utm +zone=54 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    'EPSG:7855':  '+proj=utm +zone=55 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    'EPSG:7856':  '+proj=utm +zone=56 +south +ellps=GRS80 +units=m +no_defs +type=crs',
+    /* SA Lambert */
+    'EPSG:3107':  '+proj=lcc +lat_0=-32 +lon_0=135 +lat_1=-28 +lat_2=-36 +x_0=1000000 +y_0=2000000 +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs',
+    'EPSG:8059':  '+proj=lcc +lat_0=-32 +lon_0=135 +lat_1=-28 +lat_2=-36 +x_0=1000000 +y_0=2000000 +ellps=GRS80 +units=m +no_defs +type=crs',
+    /* Australian Albers */
     'EPSG:3577':  '+proj=aea +lat_0=0 +lon_0=132 +lat_1=-18 +lat_2=-36 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=-0.33,0.219,0.431,-0.4575,-0.0541,-0.3775,0.0 +units=m +no_defs +type=crs'
   };
+
+  var AU_CRS_LABELS = {
+    'EPSG:4326':  'WGS 84 \u2014 geographic (GPS)',
+    'EPSG:3857':  'Web Mercator',
+    'EPSG:4283':  'GDA94 \u2014 geographic',
+    'EPSG:7844':  'GDA2020 \u2014 geographic',
+    'EPSG:28349': 'GDA94 / MGA Zone 49', 'EPSG:28350': 'GDA94 / MGA Zone 50',
+    'EPSG:28351': 'GDA94 / MGA Zone 51', 'EPSG:28352': 'GDA94 / MGA Zone 52',
+    'EPSG:28353': 'GDA94 / MGA Zone 53', 'EPSG:28354': 'GDA94 / MGA Zone 54',
+    'EPSG:28355': 'GDA94 / MGA Zone 55', 'EPSG:28356': 'GDA94 / MGA Zone 56',
+    'EPSG:7849':  'GDA2020 / MGA Zone 49', 'EPSG:7850': 'GDA2020 / MGA Zone 50',
+    'EPSG:7851':  'GDA2020 / MGA Zone 51', 'EPSG:7852': 'GDA2020 / MGA Zone 52',
+    'EPSG:7853':  'GDA2020 / MGA Zone 53', 'EPSG:7854': 'GDA2020 / MGA Zone 54',
+    'EPSG:7855':  'GDA2020 / MGA Zone 55', 'EPSG:7856': 'GDA2020 / MGA Zone 56',
+    'EPSG:3107':  'GDA94 / SA Lambert',   'EPSG:8059': 'GDA2020 / SA Lambert',
+    'EPSG:3577':  'GDA94 / Australian Albers'
+  };
+
+  var AU_CRS_GROUPS = [
+    { label: 'Geographic',    codes: ['EPSG:4326','EPSG:4283','EPSG:7844'] },
+    { label: 'Web Mercator',  codes: ['EPSG:3857'] },
+    { label: 'GDA94 / MGA',  codes: ['EPSG:28349','EPSG:28350','EPSG:28351','EPSG:28352','EPSG:28353','EPSG:28354','EPSG:28355','EPSG:28356'] },
+    { label: 'GDA2020 / MGA',codes: ['EPSG:7849','EPSG:7850','EPSG:7851','EPSG:7852','EPSG:7853','EPSG:7854','EPSG:7855','EPSG:7856'] },
+    { label: 'SA Lambert',    codes: ['EPSG:3107','EPSG:8059'] },
+    { label: 'Other AU',      codes: ['EPSG:3577'] }
+  ];
 
   var _scriptCache = {};
   function loadScriptOnce(url) {
@@ -42828,6 +42992,114 @@ if (window.pdfjsLib) {
     Object.keys(AU_CRS_DEFS).forEach(function(code) {
       try { proj4.defs(code, AU_CRS_DEFS[code]); } catch(e) {}
     });
+  }
+
+  /* ── WKT → EPSG matching ─────────────────────────────────────────────── */
+  /* EPSG sets for datum-era bonus scoring (ESRI WKT has no TOWGS84, so
+     datum_params is empty for both GDA94 and GDA2020 exports from ESRI tools
+     like SoundPLAN/ArcGIS. Scanning the raw WKT text for known datum name
+     strings is the most reliable way to distinguish them.) */
+  var _GDA94_EPSG_SET  = {'EPSG:28349':1,'EPSG:28350':1,'EPSG:28351':1,'EPSG:28352':1,
+                          'EPSG:28353':1,'EPSG:28354':1,'EPSG:28355':1,'EPSG:28356':1,
+                          'EPSG:4283':1,'EPSG:3107':1,'EPSG:3577':1};
+  var _GDA2020_EPSG_SET = {'EPSG:7849':1,'EPSG:7850':1,'EPSG:7851':1,'EPSG:7852':1,
+                           'EPSG:7853':1,'EPSG:7854':1,'EPSG:7855':1,'EPSG:7856':1,
+                           'EPSG:7844':1,'EPSG:8059':1};
+
+  function matchEpsgFromWkt(wktText) {
+    if (!wktText || typeof proj4 === 'undefined') return null;
+    try {
+      /* Pre-scan WKT text for explicit datum-era keywords — more reliable than
+         datum_params which ESRI tools omit even for GDA94 exports. */
+      var isGda94Text   = /GDA_?1994|Geocentric_Datum_of_Australia_1994/i.test(wktText);
+      var isGda2020Text = /GDA_?2020/i.test(wktText);
+
+      var parsed = new proj4.Proj(wktText);
+      if (!parsed || !parsed.oProj) return null;
+      var pp = parsed.oProj;
+      var codes = Object.keys(AU_CRS_DEFS);
+      var bestScore = -1, bestCode = null;
+      for (var i = 0; i < codes.length; i++) {
+        var code = codes[i];
+        try {
+          var known = new proj4.Proj(AU_CRS_DEFS[code]);
+          if (!known || !known.oProj) continue;
+          var kp = known.oProj;
+          if (pp.projName !== kp.projName) continue;
+          var score = 1;
+          if (pp.projName === 'utm') {
+            if ((pp.zone || 0) !== (kp.zone || 0)) continue;
+            score++;
+          } else if (pp.projName === 'lcc') {
+            if (Math.abs((pp.lat0 || 0) - (kp.lat0 || 0)) > 0.001) continue;
+            if (Math.abs((pp.long0 || 0) - (kp.long0 || 0)) > 0.001) continue;
+            score++;
+          }
+          var hasDatum = !!(pp.datum_params && pp.datum_params.length);
+          var kHasDatum = !!(kp.datum_params && kp.datum_params.length);
+          if (hasDatum === kHasDatum) score++;
+          /* Datum-era bonus: +2 if WKT text matches code's known era, -2 if mismatched.
+             Handles ESRI WKT where TOWGS84 is absent and datum_params cannot distinguish
+             GDA94 from GDA2020 for the same UTM zone. */
+          if (isGda94Text)   { if (_GDA94_EPSG_SET[code])  score += 2; if (_GDA2020_EPSG_SET[code]) score -= 2; }
+          if (isGda2020Text) { if (_GDA2020_EPSG_SET[code]) score += 2; if (_GDA94_EPSG_SET[code])  score -= 2; }
+          if (score > bestScore) { bestScore = score; bestCode = code; }
+        } catch(e) {}
+      }
+      return bestCode;
+    } catch(e) { return null; }
+  }
+
+  /* ── EPSG localStorage cache + epsg.io fetch ─────────────────────────── */
+  var _EPSG_CACHE_KEY = 'noiseTool.epsgCache';
+  var _LAST_EPSG_KEY  = 'noiseTool.lastImportEpsg';
+
+  function _getCachedEpsg(code) {
+    try { return (JSON.parse(localStorage.getItem(_EPSG_CACHE_KEY) || '{}'))[code] || null; } catch(e) { return null; }
+  }
+  function _cacheEpsg(code, def) {
+    try {
+      var c = JSON.parse(localStorage.getItem(_EPSG_CACHE_KEY) || '{}');
+      c[code] = def; localStorage.setItem(_EPSG_CACHE_KEY, JSON.stringify(c));
+    } catch(e) {}
+  }
+
+  function resolveEpsg(code) {
+    if (!code) return Promise.reject(new Error('No EPSG code'));
+    var key = 'EPSG:' + code;
+    if (AU_CRS_DEFS[key]) return Promise.resolve(AU_CRS_DEFS[key]);
+    var cached = _getCachedEpsg(code);
+    if (cached) {
+      try { if (typeof proj4 !== 'undefined') proj4.defs(key, cached); } catch(e) {}
+      return Promise.resolve(cached);
+    }
+    return fetch('https://epsg.io/' + code + '.proj4')
+      .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function(text) {
+        text = (text || '').trim();
+        if (!text.startsWith('+proj=')) throw new Error('Invalid proj4 string returned');
+        if (typeof proj4 !== 'undefined') proj4.defs(key, text);
+        _cacheEpsg(code, text);
+        return text;
+      });
+  }
+
+  /* ── Coordinate reprojection ──────────────────────────────────────────── */
+  function _reprojectCoord(fromKey, coord) {
+    try { return proj4(fromKey, 'EPSG:4326', [coord[0], coord[1]]); } catch(e) { return coord; }
+  }
+  function _reprojectGeom(geom, fromKey) {
+    if (!geom || !geom.coordinates) return geom;
+    function walk(c) {
+      if (!c || !c.length) return c;
+      if (typeof c[0] === 'number') return _reprojectCoord(fromKey, c);
+      return c.map(walk);
+    }
+    return Object.assign({}, geom, { coordinates: walk(geom.coordinates) });
+  }
+  function reprojectFeature(f, fromKey) {
+    if (!f || !f.geometry) return f;
+    return Object.assign({}, f, { geometry: _reprojectGeom(f.geometry, fromKey) });
   }
 
   var _shpjsReady = null;
@@ -42908,6 +43180,18 @@ if (window.pdfjsLib) {
     return {total:total, outOfRange:outOfRange, pct: total > 0 ? outOfRange / total : 0};
   }
 
+  function detectHas3D(features) {
+    return features.some(function(f) {
+      if (!f || !f.geometry || !f.geometry.coordinates) return false;
+      function scan(c) {
+        if (!c || !c.length) return false;
+        if (typeof c[0] === 'number') return c.length > 2 && c[2] != null;
+        return c.some(scan);
+      }
+      return scan(f.geometry.coordinates);
+    });
+  }
+
   function processLayer(fc, name, sourceCRS) {
     var warnings = [], raw = (fc && fc.features) ? fc.features : [], nullCount = 0;
     raw = raw.filter(function(f) {
@@ -42938,19 +43222,21 @@ if (window.pdfjsLib) {
             return Promise.all(prjPromises).then(function() { return prjMap; });
           });
         }).then(function(prjMap) {
-          var globalWarnings = [];
-          if (Object.keys(prjMap).length === 0)
-            globalWarnings.push('No .prj file found in archive. Coordinates assumed to be WGS84 — verify positions on map after import.');
+          var noPrj = Object.keys(prjMap).length === 0;
           return shp(buf).then(function(result) {
             var fcs = Array.isArray(result) ? result : [result];
             var layers = fcs.map(function(fc) {
               var rawName = (fc && fc.fileName) ? fc.fileName : file.name.replace(/\.zip$/i, '');
               var stem = rawName.replace(/\.[^.]+$/, '').toLowerCase();
               var prjText = prjMap[stem] || null;
+              var detectedEpsg = prjText ? matchEpsgFromWkt(prjText) : null;
               var sourceCRS = null;
               if (prjText) { var m = prjText.match(/^(PROJCS|GEOGCS)\["([^"]+)"/); sourceCRS = m ? m[2] : null; }
               var lr = processLayer(fc, rawName, sourceCRS);
-              lr.warnings = lr.warnings.concat(globalWarnings);
+              if (noPrj) lr.warnings.push('No .prj file found in archive. Please select the source coordinate system.');
+              lr._prjText = prjText;
+              lr._detectedEpsg = detectedEpsg;
+              lr._has3DCoords = detectHas3D(lr.features);
               return lr;
             });
             resolve(layers);
@@ -43002,40 +43288,149 @@ if (window.pdfjsLib) {
     });
   }
 
-  async function parseGisFile(file) {
-    var ext = file.name.split('.').pop().toLowerCase();
-    if (ext === 'kmz') {
-      alert('KMZ not yet supported — please extract the .kml file from the archive first (rename to .zip, then open in QGIS or extract with 7-Zip).');
-      return null;
+  /* ── Loose file helpers ──────────────────────────────────────────────── */
+  function readFileAsArrayBuffer(file) {
+    return new Promise(function(resolve, reject) {
+      var r = new FileReader(); r.onload = function(e) { resolve(e.target.result); }; r.onerror = reject;
+      r.readAsArrayBuffer(file);
+    });
+  }
+  function readFileAsText(file) {
+    return new Promise(function(resolve, reject) {
+      var r = new FileReader(); r.onload = function(e) { resolve(e.target.result); }; r.onerror = reject;
+      r.readAsText(file);
+    });
+  }
+
+  function parseLooseFiles(fileList) {
+    return new Promise(function(resolve, reject) {
+      var files = Array.from(fileList);
+      /* Group files by lowercase stem (basename without extension) */
+      var groups = {};
+      files.forEach(function(f) {
+        var dotIdx = f.name.lastIndexOf('.');
+        var base = (dotIdx > 0 ? f.name.substring(0, dotIdx) : f.name).toLowerCase();
+        var ext  = (dotIdx > 0 ? f.name.substring(dotIdx + 1) : '').toLowerCase();
+        if (!groups[base]) groups[base] = { base: base };
+        groups[base][ext] = f;
+      });
+
+      /* Validate: require .shp + .dbf + .shx per group */
+      var validGroups = [], errors = [];
+      Object.keys(groups).forEach(function(base) {
+        var g = groups[base];
+        var missing = ['shp','dbf','shx'].filter(function(e) { return !g[e]; });
+        if (missing.length) {
+          errors.push('Shapefile import requires .shp, .dbf and .shx files for "' + base + '". Missing: ' + missing.map(function(e){return '.'+e;}).join(', ') + '.');
+        } else {
+          validGroups.push(g);
+        }
+      });
+
+      if (!validGroups.length) return reject(new Error(errors.join('\n') || 'No complete shapefile group found.'));
+      if (errors.length) console.warn('[GIS import] Incomplete groups skipped:\n' + errors.join('\n'));
+
+      /* For each group: read buffers, build virtual zip, parse with shpjs */
+      var groupPromises = validGroups.map(function(g) {
+        return Promise.all([
+          readFileAsArrayBuffer(g.shp), readFileAsArrayBuffer(g.dbf), readFileAsArrayBuffer(g.shx),
+          g.prj ? readFileAsText(g.prj) : Promise.resolve(null),
+          g.cpg ? readFileAsArrayBuffer(g.cpg) : Promise.resolve(null)
+        ]).then(function(bufs) {
+          var shpBuf = bufs[0], dbfBuf = bufs[1], shxBuf = bufs[2], prjText = bufs[3], cpgBuf = bufs[4];
+          return ensureJsZip().then(function() {
+            var zip = new JSZip();
+            zip.file(g.base + '.shp', shpBuf);
+            zip.file(g.base + '.dbf', dbfBuf);
+            zip.file(g.base + '.shx', shxBuf);
+            if (prjText) zip.file(g.base + '.prj', prjText);
+            if (cpgBuf) zip.file(g.base + '.cpg', cpgBuf);
+            return zip.generateAsync({ type: 'arraybuffer' });
+          }).then(function(zipBuf) {
+            return ensureShpjs().then(function() { return shp(zipBuf); }).then(function(result) {
+              var fcs = Array.isArray(result) ? result : [result];
+              var detectedEpsg = prjText ? matchEpsgFromWkt(prjText) : null;
+              var sourceCRS = null;
+              if (prjText) { var m = prjText.match(/^(PROJCS|GEOGCS)\["([^"]+)"/); sourceCRS = m ? m[2] : null; }
+              return fcs.map(function(fc) {
+                var lr = processLayer(fc, g.base, sourceCRS);
+                if (!prjText) lr.warnings.push('No .prj file \u2014 please select the source coordinate system.');
+                lr._prjText = prjText;
+                lr._detectedEpsg = detectedEpsg;
+                lr._has3DCoords = detectHas3D(lr.features);
+                return lr;
+              });
+            });
+          });
+        });
+      });
+
+      Promise.all(groupPromises).then(function(results) {
+        var all = []; results.forEach(function(r) { all = all.concat(r); });
+        resolve(all);
+      }).catch(reject);
+    });
+  }
+
+  /* parseGisFile accepts a single File (zip/geojson/kml) or a FileList/array
+     of loose shapefile components (.shp + .dbf + .shx etc.). */
+  async function parseGisFile(fileOrList) {
+    var isLoose = fileOrList && !(fileOrList instanceof File);
+    var layerResults, isShapefile;
+
+    if (isLoose) {
+      /* ── Loose shapefile components ── */
+      var files = Array.from(fileOrList);
+      /* If exactly one non-shapefile file was somehow passed, route to single-file path */
+      if (files.length === 1 && !/\.(shp|dbf|shx|prj|cpg)$/i.test(files[0].name)) {
+        return parseGisFile(files[0]);
+      }
+      isShapefile = true;
+      try {
+        await ensureShpjs();
+        layerResults = await parseLooseFiles(files);
+      } catch(err) { alert('Error parsing shapefile: ' + err.message); return null; }
+    } else {
+      /* ── Single file ── */
+      var file = fileOrList;
+      var ext = file.name.split('.').pop().toLowerCase();
+      if (ext === 'kmz') {
+        alert('KMZ not yet supported — please extract the .kml file from the archive first (rename to .zip, then open in QGIS or extract with 7-Zip).');
+        return null;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        if (!confirm('Large file (' + (file.size / 1048576).toFixed(1) + ' MB) — parsing may take several seconds. Continue?')) return null;
+      }
+      isShapefile = (ext === 'zip');
+      try {
+        if (ext === 'zip')                          layerResults = await parseZip(file);
+        else if (ext === 'geojson' || ext === 'json') layerResults = await parseGeojson(file);
+        else if (ext === 'kml')                     layerResults = await parseKml(file);
+        else throw new Error('Unsupported file type: .' + ext);
+      } catch(err) { alert('Error parsing file: ' + err.message); return null; }
     }
-    if (file.size > 10 * 1024 * 1024) {
-      if (!confirm('Large file (' + (file.size / 1048576).toFixed(1) + ' MB) — parsing may take several seconds. Continue?')) return null;
-    }
-    var layerResults;
-    try {
-      if (ext === 'zip')                   layerResults = await parseZip(file);
-      else if (ext === 'geojson' || ext === 'json') layerResults = await parseGeojson(file);
-      else if (ext === 'kml')              layerResults = await parseKml(file);
-      else throw new Error('Unsupported file type: .' + ext);
-    } catch(err) { alert('Error parsing file: ' + err.message); return null; }
 
     var warnings = [];
     layerResults.forEach(function(l) { l.warnings.forEach(function(w) { warnings.push('[' + l.name + '] ' + w); }); });
 
-    var sanity = coordSanityCheck(layerResults);
-    if (sanity.pct > 0.10) {
-      alert('Coordinates appear to be in a projected system that wasn\'t reprojected.\n\n' +
-        Math.round(sanity.pct * 100) + '% of coordinates are outside valid WGS84 range.\n\n' +
-        'Check that the .prj file is included in the .zip, or reproject to WGS84 in QGIS before exporting.');
-      return null;
-    } else if (sanity.pct > 0) {
-      warnings.push(sanity.outOfRange + ' coordinate(s) outside valid WGS84 range were skipped.');
-      layerResults.forEach(function(l) {
-        l.features = l.features.filter(function(f) {
-          var coords = collectCoords([f]);
-          return !coords.length || !coords.every(function(c) { return c[0]<-180||c[0]>180||c[1]<-90||c[1]>90; });
+    /* Coordinate sanity check — skipped for shapefiles because CRS may be
+       projected and the user will set the source EPSG in the import modal. */
+    if (!isShapefile) {
+      var sanity = coordSanityCheck(layerResults);
+      if (sanity.pct > 0.10) {
+        alert('Coordinates appear to be in a projected system.\n\n' +
+          Math.round(sanity.pct * 100) + '% of coordinates are outside valid WGS84 range.\n\n' +
+          'This file type must use WGS84 (EPSG:4326) coordinates. For projected data, use a Shapefile instead.');
+        return null;
+      } else if (sanity.pct > 0) {
+        warnings.push(sanity.outOfRange + ' coordinate(s) outside valid WGS84 range were skipped.');
+        layerResults.forEach(function(l) {
+          l.features = l.features.filter(function(f) {
+            var coords = collectCoords([f]);
+            return !coords.length || !coords.every(function(c) { return c[0]<-180||c[0]>180||c[1]<-90||c[1]>90; });
+          });
         });
-      });
+      }
     }
 
     var total = layerResults.reduce(function(s,l) { return s + l.features.length; }, 0);
@@ -43043,7 +43438,14 @@ if (window.pdfjsLib) {
     if (total > 300 && !confirm(total + ' features found across ' + layerResults.length + ' layer(s). Continuing may be slow. Proceed?')) return null;
     if (total === 0) { alert('No valid features found in the file.'); return null; }
 
-    return { layers: layerResults.map(function(l) { return {name:l.name, sourceCRS:l.sourceCRS, features:l.features}; }), warnings:warnings };
+    return {
+      layers: layerResults.map(function(l) {
+        return { name: l.name, sourceCRS: l.sourceCRS, features: l.features,
+                 _prjText: l._prjText || null, _detectedEpsg: l._detectedEpsg || null };
+      }),
+      warnings: warnings,
+      isShapefile: isShapefile
+    };
   }
 
   /* ── Status chip ─────────────────────────────────────────────────────── */
@@ -43183,6 +43585,14 @@ if (window.pdfjsLib) {
           if (ms&&!ms.value) { reason='Enter speed (km/h) for Line source'; return; }
         }
       });
+    });
+    /* CRS must be resolved for every shapefile layer */
+    if (!reason) _gisParsed.layers.forEach(function(layer, li) {
+      if (reason) return;
+      var crsEl = document.getElementById('_gResolvedCRS_' + li);
+      if (crsEl !== null && !crsEl.value) {
+        reason = 'Select source coordinate system for layer \u201c' + layer.name + '\u201d';
+      }
     });
     if (!reason && total===0) reason='No features selected to import';
     btn.disabled = !!reason;
@@ -43346,6 +43756,139 @@ if (window.pdfjsLib) {
   }
 
   /* ── Phase 2: Layer block ────────────────────────────────────────────── */
+  /* ── Phase 2: CRS block (shapefile layers only) ──────────────────────── */
+  function buildCrsBlock(li, layer) {
+    /* Only shown for shapefile layers (which carry _prjText/_detectedEpsg) */
+    if (layer._prjText === undefined && layer._detectedEpsg === undefined) return null;
+
+    var hasPrj = !!layer._prjText;
+    var detectedEpsg = layer._detectedEpsg || null;
+    var lastEpsg = null;
+    try { lastEpsg = localStorage.getItem(_LAST_EPSG_KEY); } catch(e) {}
+
+    var wrap = document.createElement('div'); wrap.className = 'gis-crs-block';
+
+    /* Status line */
+    var status = document.createElement('div'); status.className = 'gis-crs-status';
+    if (hasPrj) {
+      var detLabel = detectedEpsg
+        ? (AU_CRS_LABELS[detectedEpsg] || detectedEpsg) + ' (' + detectedEpsg + ')'
+        : 'custom (from .prj file)';
+      status.innerHTML = '<span class="gis-crs-ok">\u2713</span> Detected: ' + detLabel;
+    } else {
+      status.innerHTML = '<span class="gis-crs-warn">\u26A0 No .prj file \u2014 please select source coordinate system</span>';
+    }
+    wrap.appendChild(status);
+
+    /* Override toggle (only when .prj was found) */
+    if (hasPrj) {
+      var overRow = document.createElement('div');
+      overRow.style.cssText = 'display:flex;align-items:center;gap:5px;margin-top:4px;font-size:11px;color:#374151;';
+      var overCb = document.createElement('input'); overCb.type = 'checkbox'; overCb.id = '_gCRSOver_' + li;
+      var overLbl = document.createElement('label'); overLbl.htmlFor = '_gCRSOver_' + li;
+      overLbl.textContent = 'Override detected coordinate system'; overLbl.style.cursor = 'pointer';
+      overRow.appendChild(overCb); overRow.appendChild(overLbl);
+      wrap.appendChild(overRow);
+    }
+
+    /* CRS selector (hidden when .prj is auto-detected and no override) */
+    var selDiv = document.createElement('div'); selDiv.className = 'gis-crs-sel-row';
+    selDiv.id = '_gCRSSelDiv_' + li;
+    selDiv.style.display = hasPrj ? 'none' : '';
+
+    var selLbl = document.createElement('label'); selLbl.textContent = 'Source coordinate system:';
+    selDiv.appendChild(selLbl);
+
+    var sel = document.createElement('select'); sel.id = '_gCRSDropdown_' + li;
+    sel.className = 'gis-crs-dropdown';
+    var blankOpt = document.createElement('option'); blankOpt.value = ''; blankOpt.textContent = '-- select --';
+    sel.appendChild(blankOpt);
+    AU_CRS_GROUPS.forEach(function(grp) {
+      var og = document.createElement('optgroup'); og.label = grp.label;
+      grp.codes.forEach(function(code) {
+        if (!AU_CRS_DEFS[code]) return;
+        var opt = document.createElement('option'); opt.value = code;
+        var hint = (lastEpsg && lastEpsg === code) ? ' (last used)' : '';
+        opt.textContent = (AU_CRS_LABELS[code] || code) + ' \u2014 ' + code + hint;
+        og.appendChild(opt);
+      });
+      sel.appendChild(og);
+    });
+    var otherOpt = document.createElement('option'); otherOpt.value = '_other';
+    otherOpt.textContent = 'Other EPSG\u2026'; sel.appendChild(otherOpt);
+    selDiv.appendChild(sel);
+
+    /* "Other EPSG" lookup row */
+    var otherRow = document.createElement('div'); otherRow.className = 'gis-crs-other-row';
+    otherRow.id = '_gCRSOtherRow_' + li; otherRow.style.display = 'none';
+    var otherInp = document.createElement('input'); otherInp.type = 'number';
+    otherInp.id = '_gCRSOtherInp_' + li; otherInp.placeholder = 'e.g. 32754';
+    var otherBtn = document.createElement('button'); otherBtn.type = 'button';
+    otherBtn.className = 'gis-btn'; otherBtn.textContent = 'Look up';
+    otherBtn.style.cssText = 'padding:2px 8px;font-size:11px;';
+    var otherStatus = document.createElement('span'); otherStatus.className = 'gis-crs-other-status';
+    otherStatus.id = '_gCRSOtherStatus_' + li;
+    otherRow.appendChild(otherInp); otherRow.appendChild(otherBtn); otherRow.appendChild(otherStatus);
+    selDiv.appendChild(otherRow);
+
+    wrap.appendChild(selDiv);
+
+    /* Hidden resolved-CRS input — read by gatherAssignments + import handler */
+    var resolved = document.createElement('input'); resolved.type = 'hidden';
+    resolved.id = '_gResolvedCRS_' + li;
+    /* Initialise: .prj detected → use it; no .prj → try lastEpsg */
+    if (hasPrj) {
+      resolved.value = detectedEpsg || '_prj';
+    } else if (lastEpsg && AU_CRS_DEFS[lastEpsg]) {
+      resolved.value = lastEpsg; sel.value = lastEpsg;
+    } else {
+      resolved.value = '';
+    }
+    wrap.appendChild(resolved);
+
+    /* ── Event wiring ── */
+    function setResolved(v) { resolved.value = v; updatePreview(); }
+
+    sel.addEventListener('change', function() {
+      var v = sel.value;
+      otherRow.style.display = (v === '_other') ? 'flex' : 'none';
+      if (v && v !== '_other') setResolved(v);
+      else if (v === '') setResolved('');
+    });
+
+    otherBtn.addEventListener('click', function() {
+      var code = (otherInp.value || '').trim();
+      if (!code) { otherStatus.textContent = 'Enter an EPSG code.'; return; }
+      otherStatus.textContent = 'Looking up\u2026'; otherBtn.disabled = true; otherStatus.style.color = '#6b7280';
+      resolveEpsg(code).then(function() {
+        otherStatus.textContent = '\u2713 EPSG:' + code + ' registered.'; otherStatus.style.color = '#059669';
+        setResolved('EPSG:' + code);
+      }, function() {
+        otherStatus.textContent = 'Could not retrieve EPSG:' + code + '. Check the code or your network connection.';
+        otherStatus.style.color = '#dc2626'; setResolved('');
+      }).then(function() { otherBtn.disabled = false; });
+    });
+
+    if (hasPrj) {
+      wrap.addEventListener('change', function(e) {
+        if (e.target && e.target.id === '_gCRSOver_' + li) {
+          var ticked = e.target.checked;
+          selDiv.style.display = ticked ? '' : 'none';
+          if (!ticked) {
+            sel.value = detectedEpsg || '';
+            otherRow.style.display = 'none';
+            setResolved(detectedEpsg || '_prj');
+          } else {
+            /* Clear resolved CRS so Import is disabled until user picks a replacement */
+            setResolved('');
+          }
+        }
+      });
+    }
+
+    return wrap;
+  }
+
   function buildLayerBlock(li, layer) {
     var div = document.createElement('div'); div.className='gis-layer-block';
     var hdr = document.createElement('div'); hdr.className='gis-layer-hdr';
@@ -43367,6 +43910,19 @@ if (window.pdfjsLib) {
     var sum = document.createElement('div'); sum.className='gis-layer-geomsum';
     sum.textContent='Geometry: '+(sumParts.join(', ')||'none');
     div.appendChild(sum);
+
+    /* CRS block (shapefile layers only — before geometry-type blocks) */
+    var crsBlock = buildCrsBlock(li, layer);
+    if (crsBlock) div.appendChild(crsBlock);
+
+    /* 3D shapefile notice — informational only, does not block import */
+    if (layer._has3DCoords) {
+      var z3dNote = document.createElement('div');
+      z3dNote.style.cssText = 'font-size:11px;color:#6b7280;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:4px 8px;margin:4px 0;display:flex;gap:5px;align-items:flex-start;';
+      z3dNote.innerHTML = '<span style="color:#9ca3af;flex-shrink:0;">\u24d8</span>' +
+        '<span>This shapefile contains Z\u202f(elevation) values. They will be ignored \u2014 set object heights using the height fields after import.</span>';
+      div.appendChild(z3dNote);
+    }
 
     var attrKeys = detectAttributes(layer.features);
     var byType = {
@@ -43413,7 +43969,10 @@ if (window.pdfjsLib) {
           features:        applyFilter(layer.features, gType, attrKey, attrVal)
         };
       }
-      return {name:layer.name, sourceCRS:layer.sourceCRS, points:readGeom('points'), lines:readGeom('lines'), polygons:readGeom('polygons')};
+      var crsEl = document.getElementById('_gResolvedCRS_' + li);
+      return {name:layer.name, sourceCRS:layer.sourceCRS,
+              selectedCRS: crsEl ? crsEl.value : null,
+              points:readGeom('points'), lines:readGeom('lines'), polygons:readGeom('polygons')};
     });
     var zEl = document.getElementById('_gisZoom');
     return {zoomToImported:zEl?zEl.checked:true, layers:layers};
@@ -43800,6 +44359,28 @@ if (window.pdfjsLib) {
     importBtn.className='gis-btn gis-btn-primary'; importBtn.textContent='Import'; importBtn.disabled=true;
     importBtn.addEventListener('click', function() {
       var asgn = gatherAssignments();
+
+      /* Reproject features per layer if source CRS is not WGS84 */
+      asgn.layers.forEach(function(layer, li) {
+        var crs = layer.selectedCRS;
+        if (!crs || crs === 'EPSG:4326') return;
+        var fromKey = (crs === '_prj')
+          ? (_gisParsed.layers[li] && _gisParsed.layers[li]._prjText || null)
+          : crs;
+        if (!fromKey) return;
+        ['points','lines','polygons'].forEach(function(gType) {
+          if (layer[gType] && layer[gType].features) {
+            layer[gType].features = layer[gType].features.map(function(f) {
+              return reprojectFeature(f, fromKey);
+            });
+          }
+        });
+        /* Persist last-used EPSG (skip raw WKT) */
+        if (crs !== '_prj' && crs) {
+          try { localStorage.setItem(_LAST_EPSG_KEY, crs); } catch(e) {}
+        }
+      });
+
       /* Dismiss modal overlay (keep preview — executeImport clears it) */
       if (_gisModalEl._keyH) document.removeEventListener('keydown',_gisModalEl._keyH,true);
       _gisModalEl.remove(); _gisModalEl=null;
@@ -43818,25 +44399,68 @@ if (window.pdfjsLib) {
   }
 
   /* ── Main entry ──────────────────────────────────────────────────────── */
-  async function importGis(file) {
-    var chip = showStatusChip('Parsing '+file.name+'\u2026');
+  /* Accepts a single File or a FileList/Array of loose shapefile components */
+  async function importGis(fileOrList) {
+    var isLoose = fileOrList && !(fileOrList instanceof File);
+    var displayName = isLoose ? 'shapefile\u2026' : fileOrList.name + '\u2026';
+    var chip = showStatusChip('Parsing ' + displayName);
     var result;
-    try { result = await parseGisFile(file); } finally { removeStatusChip(); }
+    try { result = await parseGisFile(fileOrList); } finally { removeStatusChip(); }
     if (!result) return;
     var total = result.layers.reduce(function(s,l){return s+l.features.length;},0);
     if (total > 0) openAssignmentModal(result);
     else alert('No valid features found in the file.');
   }
 
-  /* ── Wire file input ─────────────────────────────────────────────────── */
+  /* ── Wire file input + drag-and-drop ────────────────────────────────── */
+  function _isGisFile(name) {
+    return /\.(zip|shp|dbf|shx|prj|cpg|geojson|json|kml)$/i.test(name);
+  }
+
+  function _handleFiles(files) {
+    if (!files || !files.length) return;
+    var arr = Array.from(files);
+    /* Single non-.shp file: existing single-file path */
+    if (arr.length === 1 && !/\.shp$/i.test(arr[0].name)) {
+      importGis(arr[0]);
+    } else {
+      importGis(files); /* FileList / array of loose components */
+    }
+  }
+
   function wireInput() {
     var input = document.getElementById('gisFileInput');
-    if (!input||input._gisWired) return;
-    input._gisWired=true;
+    if (!input || input._gisWired) return;
+    input._gisWired = true;
     input.addEventListener('change', function(e) {
-      var file=e.target.files&&e.target.files[0]; if(!file) return;
-      input.value=''; importGis(file);
+      var files = e.target.files; if (!files || !files.length) return;
+      input.value = ''; _handleFiles(files);
     });
+
+    /* Drag-and-drop on the Import GIS file button */
+    var btn = document.getElementById('gisImportBtn');
+    if (btn && !btn._gisDrop) {
+      btn._gisDrop = true;
+      btn.addEventListener('dragover', function(e) {
+        var dt = e.dataTransfer;
+        if (dt && dt.items && Array.from(dt.items).some(function(i) { return _isGisFile(i.getAsFile ? (i.getAsFile() || {name:''}).name || '' : ''); })) {
+          e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; btn.classList.add('_gisDropOver');
+        } else if (dt && dt.types && (dt.types.indexOf ? dt.types.indexOf('Files') >= 0 : dt.types.includes('Files'))) {
+          /* Can't inspect filenames during dragover in all browsers — allow it */
+          e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; btn.classList.add('_gisDropOver');
+        }
+      });
+      btn.addEventListener('dragleave', function() { btn.classList.remove('_gisDropOver'); });
+      btn.addEventListener('drop', function(e) {
+        btn.classList.remove('_gisDropOver');
+        var files = e.dataTransfer && e.dataTransfer.files;
+        if (!files || !files.length) return;
+        var hasGis = Array.from(files).some(function(f) { return _isGisFile(f.name); });
+        if (!hasGis) return;
+        e.preventDefault(); e.stopPropagation();
+        _handleFiles(files);
+      });
+    }
   }
   document.addEventListener('DOMContentLoaded', wireInput);
   wireInput();
@@ -43846,7 +44470,8 @@ if (window.pdfjsLib) {
      modal is open, the Escape capture handler will close the GIS import modal
      first. This is acceptable in v1 since no two modals can open concurrently
      in the current UI — revisit if multi-modal flows are added. */
-  window._gisImport = { importGis: importGis, parseGisFile: parseGisFile, closeModal: closeModal };
+  window._gisImport = { importGis: importGis, importGisFiles: importGis,
+                        parseGisFile: parseGisFile, closeModal: closeModal };
 
 })();
 </script>

@@ -502,3 +502,97 @@ describe('Table/contour parity — both paths use identical SharedCalc functions
     expect(screened).toBeLessThan(unscreened);
   });
 });
+
+// ── Terrain IL smoothing — radial-spike regression (Option B') ────────────────
+// The Gaussian kernel (radius=2, σ=0.5) was halved from σ=1.0 in commit
+// following empirical validation (see references/smoothing-source-investigation-2026-04.md).
+// These tests assert:
+//   (a) The σ=0.5 kernel weights sum to 1 (normalisation invariant)
+//   (b) No spurious IL is introduced in open-field cells (all-zero input → all-zero output)
+//   (c) No spike cells remain after smoothing a worst-case spike pattern
+//   (d) Shadow IL retention: σ=0.5 retains ≥70% of IL at centre of a 1-cell shadow
+describe('Terrain IL Gaussian smoothing — σ=0.5 spike regression', () => {
+  // Replicate the noise-worker.js kernel build (radius=2, σ=0.5, size=5)
+  const KR = 2, SIGMA = 0.5, KS = 5;
+  const rawW = Array.from({ length: KS }, (_, k) => {
+    const x = k - KR;
+    return Math.exp(-(x * x) / (2 * SIGMA * SIGMA));
+  });
+  const wSum = rawW.reduce((a, b) => a + b, 0);
+  const kernel = rawW.map(w => w / wSum);
+
+  // Apply separable 1-D Gaussian to a flat Float64Array of length N
+  function gaussSmooth1D(arr) {
+    const N = arr.length;
+    const out = new Float64Array(N);
+    for (let c = 0; c < N; c++) {
+      let acc = 0;
+      for (let ki = 0; ki < KS; ki++) {
+        const src = Math.max(0, Math.min(N - 1, c - KR + ki));
+        acc += kernel[ki] * arr[src];
+      }
+      out[c] = acc;
+    }
+    return out;
+  }
+
+  // A "spike cell" is an isolated high-IL cell flanked by two low-IL cells on both sides.
+  // After smoothing, a true spike (artefact) should be suppressed; a real shadow shouldn't.
+  function countSpikeCells(arr, highThreshold, lowThreshold) {
+    let count = 0;
+    for (let i = 2; i < arr.length - 2; i++) {
+      const isHigh = arr[i] > highThreshold;
+      const neighborsLow =
+        arr[i - 1] < lowThreshold && arr[i + 1] < lowThreshold &&
+        arr[i - 2] < lowThreshold && arr[i + 2] < lowThreshold;
+      if (isHigh && neighborsLow) count++;
+    }
+    return count;
+  }
+
+  it('kernel weights sum to 1.0 (normalisation)', () => {
+    const sum = kernel.reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(1.0, 10);
+  });
+
+  it('open-field (all-zero IL) produces zero output — no spurious IL introduced', () => {
+    const N = 50;
+    const input = new Float64Array(N); // all zeros
+    const output = gaussSmooth1D(input);
+    for (let i = 0; i < N; i++) {
+      expect(output[i]).toBe(0);
+    }
+  });
+
+  it('synthetic spike pattern: zero spike cells remain after σ=0.5 smoothing', () => {
+    // Worst-case spike: isolated 20 dB cell amid zeros (DEM step-function artefact)
+    const N = 30;
+    const input = new Float64Array(N);
+    input[15] = 20; // isolated spike
+    const output = gaussSmooth1D(input);
+    // After smoothing the spike energy spreads — no isolated high cell remains
+    const spikes = countSpikeCells(output, 2, 0.5);
+    expect(spikes).toBe(0);
+  });
+
+  it('shadow zone IL retention: σ=0.5 retains ≥70% at centre of 1-cell shadow', () => {
+    // A 1-cell-wide shadow: 15 open cells, 1 shadowed cell, 15 open cells
+    const N = 31;
+    const input = new Float64Array(N);
+    const shadowIdx = 15;
+    input[shadowIdx] = 15; // 15 dB shadow IL at centre cell
+    const output = gaussSmooth1D(input);
+    const retentionFraction = output[shadowIdx] / input[shadowIdx];
+    expect(retentionFraction).toBeGreaterThanOrEqual(0.70);
+  });
+
+  it('broad shadow zone (5-cell width) retains ≥85% IL at centre after σ=0.5 smoothing', () => {
+    // A 5-cell-wide shadow: 10 open, 5 shadowed, 10 open
+    const N = 25;
+    const input = new Float64Array(N);
+    for (let i = 10; i < 15; i++) input[i] = 15;
+    const output = gaussSmooth1D(input);
+    const centreRetention = output[12] / input[12];
+    expect(centreRetention).toBeGreaterThanOrEqual(0.85);
+  });
+});

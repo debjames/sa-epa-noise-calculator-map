@@ -1105,6 +1105,18 @@ Prerequisite: Phase 2 validation scenario already entered (AADT 23600, Speed 60,
 
 90. **Simple / ISO convergence for G=0** — With `groundFactor = 0`, no barrier, one source / one receiver, the ISO 9613-2 and simple propagation methods must still match within 0.5 dB (the `max(Dz, Agr_bar)` change is a no-op when no barrier is present).
 
+## Per-Region Ground Factor (Gs / Gm / Gr)
+
+1. **Toggle off — baseline unchanged** — With `groundFactorPerRegion.enabled = false` (default), confirm the predicted level at any receiver is identical to the pre-feature result using the same scalar G value. Verify: the "Per-region G (advanced)" checkbox in the Propagation map panel is unchecked, the Gs/Gm/Gr row is hidden, and `_effectiveGroundFactor()` returns the scalar `iso_groundFactor`.
+
+2. **Uniform Gs = Gm = Gr — matches scalar** — Check the "Per-region G (advanced)" checkbox. Set Gs = Gm = Gr to the same value as the current scalar G (e.g. all to 0.5). Predicted level must be identical to the scalar G result within floating-point precision. This validates the three-region path produces the same output as the scalar path when all three values are equal.
+
+3. **Mixed Gs / Gm / Gr — intermediate result** — Set Gs = 0 (hard), Gm = 0.5 (mixed), Gr = 1.0 (soft). Predicted level must lie strictly between the result for scalar G = 0 (all hard) and scalar G = 1 (all soft). Inspect per-band Agr: source-region bands should show hard-ground attenuation, receiver-region bands should show soft-ground attenuation.
+
+4. **Save → reload round-trip** — Enable per-region mode, set Gs = 0, Gm = 0.5, Gr = 1.0. Save Assessment JSON. Close tab / reload. Load the saved file. Verify: checkbox is checked, Gs/Gm/Gr dropdowns match 0 / 0.5 / 1.0, predicted levels are byte-identical to pre-save, and `localStorage('iso_perRegion')` contains `{"enabled":true,"Gs":0,"Gm":0.5,"Gr":1}`.
+
+5. **Backward-compat: v2 file synthesises correct defaults** — Open a `_version: 2` file (no `groundFactorPerRegion` key in `data.propagation`). After load: checkbox is unchecked, Gs/Gm/Gr are initialised to the loaded scalar G value, and predicted levels are unchanged. The re-saved file will have `_version: 3` and a `groundFactorPerRegion: { enabled: false, Gs: G, Gm: G, Gr: G }` block.
+
 ## 3D Scene Viewer
 
 ### Phase 1 — infrastructure
@@ -1379,11 +1391,45 @@ Prerequisite: Phase 2 validation scenario already entered (AADT 23600, Speed 60,
 
 211. **Terrain abort on re-import** — Start terrain-heavy import, then immediately start a second import. First terrain fetch aborts; second chip replaces first. No console errors.
 
-212. **Namespace** — `window.importGis` and `window.parseGisFile` are `undefined`. `window._gisImport.importGis` is a function. Toolbar button still imports correctly.
+212. **Namespace** — `window.importGis` and `window.parseGisFile` are `undefined`. `window._gisImport.importGis` is a function. `window._gisImport.importGisFiles` is a function. Toolbar button still imports correctly.
 
 213. **No console errors** — After all GIS import tests, console has zero errors.
 
+---
 
+### GIS Import — Loose files, EPSG override, reprojection (added April 2026)
+
+214. **Zip regression** — Import an existing `.zip` shapefile. Features land in the same place as before (no regression). If `.prj` is present, CRS block shows "Detected: …" with matched EPSG. Import button enabled.
+
+215. **Loose .shp — with .prj** — Select `.shp` + `.dbf` + `.shx` + `.prj` together via the file picker (all four files). Import succeeds; CRS block shows detected EPSG; features appear at the correct WGS84 location.
+
+216. **Loose .shp — without .prj** — Select `.shp` + `.dbf` + `.shx` only (no `.prj`). CRS block shows the "No .prj file" warning in amber. Import button is disabled until a CRS is selected from the dropdown. After selecting (e.g. EPSG:7854), Import button enables and import succeeds.
+
+217. **Missing required component** — Select only `.shp` + `.dbf` (no `.shx`). Alert shows: _"Shapefile import requires .shp, .dbf and .shx files for [basename]. Missing: .shx."_ Import does not proceed.
+
+218. **Drag-and-drop — loose files** — Drag a group of unzipped shapefile files onto the "Import GIS file" button. Same CRS-selection flow as file picker.
+
+219. **Drag-and-drop — single zip** — Drag a `.zip` shapefile onto the map canvas. Same import flow as file picker.
+
+220. **Drag-and-drop — GeoJSON** — Drag a `.geojson` file onto the map canvas. GeoJSON import proceeds unchanged (no CRS block shown in modal).
+
+221. **Override detected CRS** — Import a shapefile where `.prj` is present and EPSG is auto-detected. Tick "Override detected coordinate system". Dropdown becomes visible; select EPSG:4326. Features land at incorrect (raw northing/easting) location, confirming the override is honoured.
+
+222. **MGA Zone 54 reprojection accuracy** — Import an MGA Zone 54 shapefile (EPSG:7854) with no `.prj`, select EPSG:7854 in the dropdown. A known point (e.g. easting 322,000 / northing 6,100,000) should appear within ≤1 m of its expected WGS84 coordinate on the basemap.
+
+223. **Other EPSG — fetch from epsg.io** — Enter "Other EPSG" code 32754 (UTM Zone 54S). Look-up button fetches from epsg.io; status shows "✓ EPSG:32754 registered." Import proceeds correctly.
+
+224. **Other EPSG — served from localStorage cache** — After test 223, take the network offline (DevTools → offline). Re-open a new import and enter EPSG:32754 again. Succeeds from cache without a network request.
+
+225. **Invalid EPSG** — Enter EPSG code 99999. Status shows "Could not retrieve EPSG:99999. Check the code or your network connection." Import button remains disabled.
+
+226. **Last-used EPSG pre-select** — After importing with EPSG:7854, open a new shapefile import with no `.prj`. EPSG:7854 is pre-selected in the dropdown with "(last used)" hint.
+
+227. **Save → reload round-trip** — Import shapefile objects with reprojection. Save assessment JSON → reload. Imported objects preserved at the same WGS84 coordinates. (Coordinates are stored post-reprojection in the tool's data structures, so round-trip is unaffected.)
+
+228. **Override toggle clears CRS and disables Import** — Import a shapefile with a valid `.prj` (auto-detected to e.g. EPSG:28354). Confirm Import button is ENABLED. Tick "Override detected coordinate system" → dropdown becomes visible, dropdown value is blank, and Import button is **DISABLED**. Pick EPSG:7854 from the dropdown → Import button is ENABLED and honours EPSG:7854. Untick override → dropdown hides, Import button remains ENABLED with EPSG:28354 restored.
+
+229. **3D shapefile notice** — Import a PointZ or LineStringZ shapefile (any file with Z coordinates in vertex data). Confirm an inline notice appears under the CRS block reading "This shapefile contains Z (elevation) values. They will be ignored — set object heights using the height fields after import." Confirm import succeeds and the resulting placed features have no Z component in their stored coordinates. Confirm the notice does **not** appear when importing a 2D shapefile. If a multi-layer zip contains one 3D layer and one 2D layer, the notice appears only on the 3D layer block.
 
 ## Scenario Comparison — Phase 1: Infrastructure & Management
 
@@ -1514,3 +1560,95 @@ Prerequisite: Phase 1+2 tests pass. Two or more scenarios saved with receivers p
 21. **Horizontal overflow on narrow viewport** \u2014 Narrow browser to 600px. Table gets a horizontal scrollbar inside the modal; modal itself does not overflow viewport.
 
 22. **No console errors** \u2014 Across all steps above, no JS errors.
+
+## Terrain Diffraction — Gap 7 closure (Deygout single-point receiver)
+
+Tests for the April 2026 wiring of `SharedCalc.terrainILPerBand` into the single-point receiver path. Requires terrain enabled and a site with measured ridge elevation (or a synthetic test using the console).
+
+### Multi-ridge convergence
+
+Prerequisites: ISO 9613-2 method, terrain enabled, a source and receiver ~400 m apart with two visible terrain ridges along the path (both protruding at least 2 m above the direct line of sight), LiDAR or SRTM coverage at the site.
+
+1. **Place source and receiver** — Source A at one end, Receiver R1 at B, ~400 m apart. Ensure the terrain profile panel shows two distinct humps above the LOS line.
+
+2. **Record single-point receiver Lp** — After the terrain IL cache updates (`updateTerrainIL` resolves), note the predicted Lp from the compliance strip or receiver panel, to 0.1 dB.
+
+3. **Compute noise map** — Run the heatmap at the same propagation settings. Record the grid cell value at the receiver coordinates.
+
+4. **Verify convergence** — Pass criterion depends on shadow width relative to grid spacing:
+   - **Broad shadow scenario** (terrain shadow width > ~4× the heatmap grid spacing): heatmap and receiver panel must agree within **0.5 dB**.
+   - **Narrow shadow scenario** (shadow width ≤ ~2× grid spacing, e.g. receiver just behind a small hill crest): divergence of up to ~6 dB is **currently expected** due to the heatmap terrain-IL Gaussian smoothing (noise-worker.js:~329–426, σ = 0.5 cell). The receiver panel value is authoritative — the always-visible Lp badge on each receiver marker shows the panel value on the map. Document the divergence and note it is a partially-resolved known characterisation behaviour (changelog.md April 2026 Known Issues).
+
+5. **No console errors** — `console.error` or uncaught exceptions absent during heatmap computation and receiver panel update.
+
+### Single-ridge backward-compatibility
+
+Prerequisites: same setup but only one ridge between source and receiver.
+
+1. **Single-ridge scenario** — One ridge protruding 2-5 m above LOS. No secondary ridges along the path.
+
+2. **Record new Lp** — After update, note predicted Lp.
+
+3. **Compare against pre-Deygout reference** — For a 3 m ridge at 200 m on a 400 m path with flat terrain otherwise, the pre-Deygout single-ridge implementation would have returned approximately 10-12 dB terrain IL at 1 kHz. The new Deygout single-edge result should agree within **0.5 dB** (both use the same Fresnel delta approximation; agreement is typically < 0.1 dB for single-edge cases).
+
+4. **Verify convergence with heatmap** — For a broad single ridge (shadow width > ~4× grid spacing), heatmap value at receiver coordinates matches single-point Lp within **0.5 dB**. For a narrow ridge shadow (width ≤ ~2× grid spacing), divergence up to ~6 dB is currently expected (reduced from ~10 dB after σ = 1.0 → 0.5) — see Known Issues in changelog.md April 2026.
+
+5. **No console errors.**
+
+### Narrow shadow divergence — characterisation test
+
+This is a **characterisation test** of current behaviour (partially resolved). Option B' reduced σ from 1.0 to 0.5; maximum narrow-shadow divergence is now ~3–6 dB. Option C (receiver Lp badge) makes the authoritative panel value visible on the map without hover. Convert to a strict pass/fail test (criterion ≤ 0.5 dB) only if full smoothing removal is implemented.
+
+Prerequisites: ISO 9613-2 method, terrain enabled, a source and receiver separated by a terrain feature whose shadow zone is narrow (width ≤ 2× the heatmap grid spacing at the test grid resolution).
+
+1. **Set up scenario** — Place source on one side of a small hill or ridge crest. Place receiver R1 in the centre of the shadow zone, directly behind the crest. Confirm the terrain profile panel shows the ridge above the LOS.
+
+2. **Record receiver panel terrain IL** — In the browser console:
+   ```javascript
+   console.log('Exact terrain IL:', window._terrainIL[0][1]);
+   // Expect insertionLoss_dB ≥ 15 dB at 1 kHz for a meaningful ridge
+   ```
+
+3. **Verify receiver Lp badge** — The Lp badge below R1's map marker should show the same rounded value as the compliance strip for that receiver. Confirm it updates immediately when source levels change.
+
+4. **Compute noise map** — Run the heatmap at the same propagation settings. Record the grid cell colour / value at R1's coordinates.
+
+5. **Characterise divergence** — Expected behaviour post-Option B':
+   - Receiver panel / Lp badge: high terrain IL (≥ 15 dB at 1 kHz) → lower predicted Lp (e.g. ~36 dB)
+   - Heatmap at R1's grid cell: smoothed lower terrain IL → higher colour band (e.g. ~39–42 dB)
+   - Divergence of ~3–6 dB is currently expected for narrow shadows at default 50 m grid spacing (was 5–12 dB at σ = 1.0)
+
+6. **Document** — Record the measured divergence (receiver panel Lp, heatmap Lp, difference) in the test run log.
+
+7. **No console errors.**
+
+### Receiver Lp badge
+
+Prerequisites: one or more receivers placed, at least one source with Lw data entered.
+
+1. **Badge visible** — Each placed receiver (R1–R4) shows a small label below its circle icon with a predicted level (e.g. "36 dB"), colour-matched to the receiver.
+
+2. **Value matches compliance strip** — The rounded dB value shown in the badge matches the worst-case (highest) predicted level across Day / Eve / Night shown in the compliance strip for that receiver.
+
+3. **Placeholder on first placement** — Immediately after placing a receiver (before `render()` has run with source data), the badge shows "…".
+
+4. **Updates on change** — Changing source Lw, enabling/disabling terrain, or adding/removing sources causes the badge to update to the new rounded prediction.
+
+5. **Drag follows badge** — Dragging a receiver to a new position: the badge moves with the receiver circle and shows "…" briefly while terrain updates, then updates to the new predicted level.
+
+6. **Visibility toggle** — Clicking the pins toggle (eye icon) hides all markers including receiver Lp badges; toggling back restores them.
+
+7. **No console errors.**
+
+### Terrain IL Gaussian smoothing — spike regression (automated)
+
+Covered by the vitest suite: `iso17534.test.js` — describe block "Terrain IL Gaussian smoothing — σ=0.5 spike regression".
+
+Tests:
+- Kernel weights sum to 1.0 (normalisation)
+- Open-field (all-zero input) produces zero output — no spurious IL
+- Isolated spike cell (20 dB amid zeros) leaves zero spike cells after smoothing
+- 1-cell shadow IL retention ≥ 70% at centre
+- 5-cell broad shadow IL retention ≥ 85% at centre
+
+Run: `npm test` (all 5 tests included in the 238-test suite as of April 2026).

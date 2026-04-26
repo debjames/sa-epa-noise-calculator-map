@@ -10,13 +10,20 @@ digital elevation model (DEM) profiles. This is the same method used by
 SoundPLAN and CadnaA, and replaces the earlier single-highest-ridge
 implementation.
 
-### Algorithm — [`noise-worker.js:terrainILPerBand`](../noise-worker.js:385)
+### Algorithm — [`shared-calc.js:terrainILPerBand`](../shared-calc.js)
+
+`findTerrainEdges`, `deygoutSelectEdges`, and `terrainILPerBand` live in
+`shared-calc.js` and are exposed on `SharedCalc`. Both the noise-map grid
+worker (`noise-worker.js`) and the single-point receiver path (`index.html
+updateTerrainIL`) use this single implementation. The caller supplies an
+`elevFn(lat, lng) → number|null` — a synchronous elevation lookup scoped
+to the caller's DEM cache — so the algorithm remains context-free.
 
 1. **Sample the terrain profile** — `findTerrainEdges()` steps along the
    source→receiver line at `N = clamp(round(totalDist / 5), 20, 100)`
    fractional samples. At each sample `t ∈ (0, 1)` the DEM is queried via
-   the bilinear `lookupElev()` and the protrusion above the straight
-   line-of-sight `srcTip + t·(recTip − srcTip)` is recorded.
+   the caller-supplied `elevFn(lat, lng)` and the protrusion above the
+   straight line-of-sight `srcTip + t·(recTip − srcTip)` is recorded.
 
 2. **Collect all ridge candidates** — every sample whose protrusion is
    above LOS *and* is a local maximum (≥ both immediate neighbours) is
@@ -707,6 +714,8 @@ Table 3 purposes. The per-region ground factors are:
 |----------|----------------|-----------|------------------|
 | source → barrier | user `Gs` | user `Gm` | user `Gm` (barrier sits in the middle region) |
 | barrier → receiver | user `Gm` | user `Gm` | user `Gr` |
+
+**Per-region UI wiring (April 2026):** When `propagation.groundFactorPerRegion.enabled` is `true`, `_effectiveGroundFactor()` returns `{Gs, Gm, Gr}` and this object is passed directly to `calcAgrPerBand()` and `calcAgrBarrier()` in `shared-calc.js` (which already accepted the three-region form). The noise map worker (`_wkPathG` in `noise-worker.js`) detects an object-typed `isoParams.groundFactor` and returns it directly, bypassing ray-sampling from `groundZones[]`. When disabled, a scalar `iso_groundFactor` is used throughout (same behaviour as before this change).
 
 Both sub-path Agr spectra are summed per band to get the barrier-case ground
 effect, which is labelled `Agr_bar` in the code. The final combined term

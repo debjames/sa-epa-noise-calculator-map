@@ -1415,6 +1415,181 @@ var SharedCalc = (function() {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //  Terrain diffraction — Deygout 3-edge (ISO 9613-2 Annex B)
+  //
+  //  These three functions were previously local to noise-worker.js.
+  //  They are now the single source of truth, used by both the grid
+  //  worker and the single-point receiver path in index.html.
+  //
+  //  elevFn(lat, lng) → number|null  — synchronous elevation lookup
+  //  supplied by the caller so these functions remain context-free.
+  // ═══════════════════════════════════════════════════════════════
+
+  function _terrainEmptyBands() { return [0, 0, 0, 0, 0, 0, 0, 0]; }
+
+  /** Find every local maximum above the source→receiver LOS.
+   *  @param {function} elevFn - synchronous (lat,lng)→elev|null lookup */
+  function findTerrainEdges(srcLL, srcTip, recLL, recTip, totalDist, elevFn) {
+    var N = Math.max(20, Math.min(100, Math.round(totalDist / 5)));
+    var profile = [];
+    for (var i = 1; i < N; i++) {
+      var t = i / N;
+      var lat = srcLL.lat + t * (recLL.lat - srcLL.lat);
+      var lng = srcLL.lng + t * (recLL.lng - srcLL.lng);
+      var elev = elevFn(lat, lng);
+      if (elev === null) continue;
+      var losElev = srcTip + t * (recTip - srcTip);
+      profile.push({
+        t: t,
+        dist: t * totalDist,
+        elev: elev,
+        protrusion: elev - losElev
+      });
+    }
+
+    var edges = [];
+    for (var j = 0; j < profile.length; j++) {
+      var p = profile[j];
+      if (p.protrusion <= 0) continue;
+      var prevProt = (j > 0) ? profile[j - 1].protrusion : 0;
+      var nextProt = (j < profile.length - 1) ? profile[j + 1].protrusion : 0;
+      // Local maximum above LOS (ties included so plateaus still register)
+      if (p.protrusion >= prevProt && p.protrusion >= nextProt) {
+        edges.push({
+          t: p.t,
+          dist: p.dist,
+          elev: p.elev,
+          protrusion: p.protrusion,
+          d1: p.dist,
+          d2: totalDist - p.dist
+        });
+      }
+    }
+    return edges;
+  }
+
+  /** Deygout selection: principal edge + up to one edge on each sub-path. */
+  function deygoutSelectEdges(edges, srcTip, recTip, totalDist) {
+    if (edges.length === 0) return [];
+    if (edges.length === 1) return edges.slice();
+
+    // Principal edge: highest Fresnel number proxy.
+    // ν ∝ h × √(2 / (λ · d1·d2/(d1+d2))) — for ranking across edges at the
+    // same wavelength we can drop λ and rank by h² × (d1+d2)/(d1·d2).
+    var bestIdx = 0, bestScore = -Infinity;
+    for (var i = 0; i < edges.length; i++) {
+      var e = edges[i];
+      var score = e.protrusion * e.protrusion * (e.d1 + e.d2) / (e.d1 * e.d2);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = i;
+      }
+    }
+    var principal = edges[bestIdx];
+    var result = [principal];
+
+    // Source-side sub-path: source tip → principal edge tip.
+    var bestSrc = null, bestSrcScore = -Infinity;
+    for (var s = 0; s < edges.length; s++) {
+      var se = edges[s];
+      if (se.dist >= principal.dist - 1) continue;
+      var tRel = se.dist / principal.dist;
+      var losAtSe = srcTip + tRel * (principal.elev - srcTip);
+      var subProt = se.elev - losAtSe;
+      if (subProt <= 0) continue;
+      var sd1 = se.dist;
+      var sd2 = principal.dist - se.dist;
+      if (sd1 <= 0 || sd2 <= 0) continue;
+      var sScore = subProt * subProt * (sd1 + sd2) / (sd1 * sd2);
+      if (sScore > bestSrcScore) {
+        bestSrcScore = sScore;
+        bestSrc = {
+          t: se.t, dist: se.dist, elev: se.elev,
+          protrusion: subProt, d1: sd1, d2: sd2
+        };
+      }
+    }
+    if (bestSrc) result.unshift(bestSrc);
+
+    // Receiver-side sub-path: principal edge tip → receiver tip.
+    var bestRec = null, bestRecScore = -Infinity;
+    for (var r2 = 0; r2 < edges.length; r2++) {
+      var re = edges[r2];
+      if (re.dist <= principal.dist + 1) continue;
+      var tRel2 = (re.dist - principal.dist) / (totalDist - principal.dist);
+      var losAtRe = principal.elev + tRel2 * (recTip - principal.elev);
+      var subProt2 = re.elev - losAtRe;
+      if (subProt2 <= 0) continue;
+      var rd1 = re.dist - principal.dist;
+      var rd2 = totalDist - re.dist;
+      if (rd1 <= 0 || rd2 <= 0) continue;
+      var rScore = subProt2 * subProt2 * (rd1 + rd2) / (rd1 * rd2);
+      if (rScore > bestRecScore) {
+        bestRecScore = rScore;
+        bestRec = {
+          t: re.t, dist: re.dist, elev: re.elev,
+          protrusion: subProt2, d1: rd1, d2: rd2
+        };
+      }
+    }
+    if (bestRec) result.push(bestRec);
+
+    return result; // 1-3 edges, ordered source → receiver
+  }
+
+  /** Per-band terrain IL for a single source→receiver ray. Returns an
+   *  8-element array (one value per octave band, 63 Hz … 8 kHz) in dB.
+   *  @param {function} elevFn - synchronous (lat,lng)→elev|null lookup;
+   *                             pass null to skip (returns all-zero array). */
+  function terrainILPerBand(srcLL, srcH, recLL, recH, elevFn) {
+    if (!elevFn) return _terrainEmptyBands();
+
+    var srcElev = elevFn(srcLL.lat, srcLL.lng);
+    var recElev = elevFn(recLL.lat, recLL.lng);
+    // If elevation is unavailable, treat as flat — 0 dB terrain IL, render normally
+    if (srcElev === null || recElev === null) return _terrainEmptyBands();
+
+    var srcTip = srcElev + srcH;
+    var recTip = recElev + recH;
+    var totalDist = flatDistM(srcLL, recLL);
+    if (totalDist < 1) return _terrainEmptyBands();
+
+    var allEdges = findTerrainEdges(srcLL, srcTip, recLL, recTip, totalDist, elevFn);
+    if (allEdges.length === 0) return _terrainEmptyBands();
+
+    var selected = deygoutSelectEdges(allEdges, srcTip, recTip, totalDist);
+    if (selected.length === 0) return _terrainEmptyBands();
+
+    var total = _terrainEmptyBands();
+    for (var e = 0; e < selected.length; e++) {
+      var edge = selected[e];
+      var d1 = edge.d1;
+      var d2 = edge.d2;
+      var prot = edge.protrusion;
+      // Fresnel path-length difference (same approximation as the earlier
+      // single-ridge code — retained so single-edge cases match exactly).
+      var d1_3d = Math.sqrt(d1 * d1 + prot * prot);
+      var d2_3d = Math.sqrt(d2 * d2 + prot * prot);
+      var delta = (d1_3d + d2_3d > 0) ? 2 * prot * prot / (d1_3d + d2_3d) : 0;
+      if (delta <= 0) continue;
+
+      // Per-band Maekawa IL via the shared (unchanged) formula.
+      var perBand = calcBarrierAttenuation(delta, OCT_FREQ, true);
+      for (var b = 0; b < 8; b++) {
+        var v = perBand[b];
+        if (v > 0) total[b] += v;
+      }
+    }
+
+    // Cap total terrain IL at 25 dB per band (ISO 9613-2 practical limit).
+    for (var b2 = 0; b2 < 8; b2++) {
+      if (total[b2] > 25) total[b2] = 25;
+    }
+
+    return total;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //  Public API
   // ═══════════════════════════════════════════════════════════════
 
@@ -1442,6 +1617,10 @@ var SharedCalc = (function() {
     pointInPolygonLatLng: pointInPolygonLatLng,
     getIntersectingEdges: getIntersectingEdges,
     getDominantBarrier: getDominantBarrier,
+    // Terrain — Deygout 3-edge (ISO 9613-2 Annex B)
+    findTerrainEdges: findTerrainEdges,
+    deygoutSelectEdges: deygoutSelectEdges,
+    terrainILPerBand: terrainILPerBand,
     // Facade reflection
     getDominantReflection: getDominantReflection,
     // CONCAWE (Report 4/81)
