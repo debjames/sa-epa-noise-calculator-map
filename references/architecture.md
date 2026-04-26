@@ -1,5 +1,21 @@
 # Architecture
 
+## Custom Source Entry Wizard
+
+Custom sources are entered via a metric-selector wizard launched from the "Custom sources" floating panel. The wizard determines which data structure the source becomes:
+
+| Metric | Stores into | Notes |
+|--------|-------------|-------|
+| **Lw** (point source) | `_customSources[]` → `SOURCE_LIBRARY_GROUPED['Custom sources']` | Appears in all point-source dropdowns; persisted in `localStorage('customSources')` and serialised in assessment JSON |
+| **Lw/m** (line source) | `lineSources[]` | Created as unplaced (empty `vertices[]`); user draws line on map after saving |
+| **Lp** (building interior) | `buildingSources[]` | Created as unplaced; requires construction selection; user draws polygon after saving |
+
+Spectrum input is **dB(Z)** per band (63 Hz – 8 kHz). Broadband input is **dB(A)**. Stored values match the engine input convention exactly — no conversion at save or load. A-weighting is applied by the engine during propagation (`A_WEIGHTS_BANDS` in `shared-calc.js`).
+
+Wizard functions: `openCustomSourceWizard()`, `closeCustomSourceWizard()`, `cswSelectMetric(metric)`, `cswGoBack()`, `cswSave()`. Wizard modal HTML: `#customSrcWizardOverlay`.
+
+Flat dB(Z) spectrum derivation when bands are left blank: `_cswFlatSpectrumZ(lwA)` computes equal-energy-per-band values from the broadband dB(A) total using `X = Lw_A − 10·log10(Σ 10^(AW[i]/10))`.
+
 ## PlanSA Planning Layers (display only)
 
 Three display-only map layers sourced from SA Government open data (CC-BY 4.0). **No calculation impact.** Zone identification for criteria derivation now uses offline point-in-polygon against the local GeoJSON — no SAPPA API call is made for zone lookup at a point.
