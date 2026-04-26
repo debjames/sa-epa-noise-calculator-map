@@ -13811,21 +13811,20 @@ function _acCalcMusicCase(caseSourceItems, opPctOverrides, receiverIdx, critBand
     var effectiveOpPct = hasOverride ? opPctOverrides[src.id] : _getPinOpPct(src, period);
     var opAdj = 10 * Math.log10(effectiveOpPct > 0 ? effectiveOpPct / 100 : 1e-10);
 
-    // Normalise spectrum relative to entered broadband Lw
-    var specEnergyLin = 0;
-    for (var b = 0; b < spectrumA.length; b++) {
-      if (Number.isFinite(spectrumA[b])) specEnergyLin += Math.pow(10, spectrumA[b] / 10);
-    }
-    var specAdj = (specEnergyLin > 0) ? (lwVal - 10 * Math.log10(specEnergyLin)) : 0;
+    // Normalise spectrum relative to entered broadband Lw_A.
+    // Spectrum is stored as dB(Z) per band; energySumA converts to dB(A) energy for normalisation.
+    var eSumA = (window.SharedCalc && SharedCalc.energySumA) ? SharedCalc.energySumA(spectrumA) : -Infinity;
+    var specAdj = isFinite(eSumA) ? (lwVal - eSumA) : 0;
 
     // Use calcISO9613forSourcePin with temporary opPct override for total
     // For per-band: calculate IL at each band using SharedCalc if available
     var bandFreqs = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+    var awBands = (window.SharedCalc && SharedCalc.A_WEIGHTS_BANDS) ? SharedCalc.A_WEIGHTS_BANDS : [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
     spectrumA.forEach(function(lwBand, bIdx) {
       if (!Number.isFinite(lwBand)) return;
       if (bIdx >= freqs.length) return; // 8kHz band not in music criteria
       var freq = freqs[bIdx];
-      var lwBandAdj = lwBand + specAdj + opAdj; // normalised + opPct
+      var lwBandAdj = lwBand + awBands[bIdx] + specAdj + opAdj; // A-weighted + normalised + opPct
       // Simple IL: geometric spreading only (hemispherical) — attenuatePoint equivalent per band
       // For accuracy use SharedCalc.attenuatePoint if available, else fallback
       var lpBand;
