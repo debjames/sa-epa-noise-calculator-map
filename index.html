@@ -10904,8 +10904,8 @@ function _asGetLwM2Adj(as, period) {
 }
 
 /** Build dB(Z) octave-band spectrum for ISO 9613-2 propagation,
- *  scaled so that energy-sum equals targetLwA (after engine applies A-weighting).
- *  Spectrum stored in as.spectrum[period] is dB(Z) unweighted.
+ *  scaled so that energySumA(output) = targetLwA (engine applies A-weighting internally).
+ *  Spectrum stored in as.spectrum[period] is dB(Z) unweighted (spectrum_m2 from library).
  *  Returns array[8] of dB(Z) values, or null.
  *  Under Option B convention (April 2026), A-weighting is applied internally
  *  by calcISOatPoint / calcConcaweAtPoint via A_WEIGHTS_BANDS. */
@@ -10925,9 +10925,9 @@ function _asGetSpectrum(as, period, targetLwA) {
     return (v !== undefined && Number.isFinite(parseFloat(v))) ? parseFloat(v) : null;
   });
   if (rawZ.some(function(v) { return v === null; })) return null;
-  var sumLin = rawZ.reduce(function(s, v) { return s + Math.pow(10, v / 10); }, 0);
-  if (sumLin <= 0) return null;
-  var adj = targetLwA - 10 * Math.log10(sumLin);
+  var lwA = SharedCalc.energySumA(rawZ);
+  if (!isFinite(lwA)) return null;
+  var adj = targetLwA - lwA;
   return rawZ.map(function(v) { return v + adj; });
 }
 
@@ -11590,11 +11590,9 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
 
   if (hasSpectrum) {
     // Normalise spectrum to match the entered broadband Lw for this period.
-    var specEnergyLin = 0;
-    for (var b = 0; b < spectrumA.length; b++) {
-      if (Number.isFinite(spectrumA[b])) specEnergyLin += Math.pow(10, spectrumA[b] / 10);
-    }
-    var specAdj = (specEnergyLin > 0) ? (lwVal - 10 * log10(specEnergyLin)) : 0;
+    // A-weighted sum so specAdj ≈ 0 when spectrumA already matches lwVal in dB(A).
+    var specAdj = lwVal - SharedCalc.energySumA(spectrumA);
+    if (!isFinite(specAdj)) specAdj = 0;
 
     if (_barrierBaseH > 0 && _barrierGapDlt > 0) {
       // Floating barrier: energy-combine over-top and gap paths
@@ -11656,11 +11654,9 @@ function calcISO9613reflectedLevel(si, prefix, reflDistM, receiverIdx) {
     spectrumA.some(function(v) { return v !== null && Number.isFinite(v) && v !== 0; });
 
   if (hasSpectrum) {
-    var specEnergyLin = 0;
-    for (var b = 0; b < spectrumA.length; b++) {
-      if (Number.isFinite(spectrumA[b])) specEnergyLin += Math.pow(10, spectrumA[b] / 10);
-    }
-    var specAdj = (specEnergyLin > 0) ? (lwVal - 10 * log10(specEnergyLin)) : 0;
+    // A-weighted energy sum so specAdj ≈ 0 when spectrumA already matches lwVal in dB(A).
+    var specAdj = lwVal - SharedCalc.energySumA(spectrumA);
+    if (!isFinite(specAdj)) specAdj = 0;
     // No barrier (0), no terrain (null) for reflected path
     return calcISO9613single(spectrumA, srcHeight, reflDistM, opAdj + specAdj, 0, recHeight, 0, 0, null);
   } else {
@@ -11697,7 +11693,7 @@ function calcISO9613reflectedLmax(si, reflDistM, receiverIdx, gf) {
   var quantityAdjReflLmax = 10 * Math.log10(_getNumUnits(pin, 'lmax'));
 
   if (hasSpec) {
-    var specAdj = lwMax - SharedCalc.energySum(spectrumMax) + quantityAdjReflLmax;
+    var specAdj = lwMax - SharedCalc.energySumA(spectrumMax) + quantityAdjReflLmax;
     return SharedCalc.calcISOatPoint(spectrumMax, srcHeight, reflDistM, specAdj, 0, recHeight, isoP, 0, 0, null);
   } else {
     var flat = [];
@@ -11880,7 +11876,7 @@ function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
 
     var lp;
     if (hasSpectrum) {
-      var specAdj = lwMax - SharedCalc.energySum(spectrumMax) + quantityAdjLmax;
+      var specAdj = lwMax - SharedCalc.energySumA(spectrumMax) + quantityAdjLmax;
       if (_bBaseHLmax > 0 && _bGapDltLmax > 0) {
         if (_bInGapLmax) {
           lp = SharedCalc.calcISOatPoint(spectrumMax, srcHeight, d, specAdj,
@@ -37022,11 +37018,11 @@ if (window.pdfjsLib) {
         var quantityAdjWorker = 10 * Math.log10(_getNumUnits(pin, period));
         var specAdj = 0;
         if (spec) {
-          // Normalise spectrum to Lw and apply time/quantity adjustments for all periods.
+          // Normalise spectrum to Lw using A-weighted sum so sources hit declared Lw_A.
           // Matches calcISO9613forSourcePin: adjDB + specAdj where adjDB = opAdj + quantityAdj.
-          // For lmax: opAdj = 0, so specAdj = lwVal - energySum + quantityAdjWorker (unchanged).
+          // For lmax: opAdj = 0, so specAdj = lwVal - energySumA + quantityAdjWorker.
           // For Leq:  opAdj > 0, so specAdj includes time and numUnits adjustments.
-          specAdj = lwVal - SharedCalc.energySum(spec) + opAdj + quantityAdjWorker;
+          specAdj = lwVal - SharedCalc.energySumA(spec) + opAdj + quantityAdjWorker;
         }
 
         result.push({
@@ -37124,9 +37120,9 @@ if (window.pdfjsLib) {
           subSources.forEach(function(pt) {
             var lwPoint = lwM2Adj + 10 * Math.log10(pt.cellArea);
             var specA = _asGetSpectrum(as, period, lwPoint);
-            // _asGetSpectrum already normalises energySum(specA) = lwPoint,
-            // so specAdj ≈ 0; computed via SharedCalc for robustness.
-            var specAdj = specA ? lwPoint - SharedCalc.energySum(specA) : 0;
+            // specAdj ≈ 0 because _asGetSpectrum normalises energySumA(specA) = lwPoint.
+            // Computed via SharedCalc.energySumA for robustness.
+            var specAdj = specA ? lwPoint - SharedCalc.energySumA(specA) : 0;
             result.push({
               lat: pt.lat, lng: pt.lng,
               heightM: heightM,
@@ -37144,7 +37140,7 @@ if (window.pdfjsLib) {
           if (bs.activeInPeriod && bs.activeInPeriod[period] === false) return;
           var subSources = window._bsGenerateSubSources(bs, period);
           subSources.forEach(function(ss) {
-            var specAdj = ss.specA ? ss.lwBB - SharedCalc.energySum(ss.specA) : 0;
+            var specAdj = ss.specA ? ss.lwBB - SharedCalc.energySumA(ss.specA) : 0;
             result.push({
               lat: ss.lat, lng: ss.lng,
               heightM: ss.heightM,

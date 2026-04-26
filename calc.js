@@ -26,6 +26,7 @@ if (typeof SharedCalc !== 'undefined') {
 
 export const attenuatePoint         = SC.attenuatePoint;
 export const energySum              = SC.energySum;
+export const energySumA             = SC.energySumA;
 export const sourceCombinedLw       = SC.sourceCombinedLw;
 export const sourceContribution     = SC.sourceContribution;
 export const totalAtReceiver        = SC.totalAtReceiver;

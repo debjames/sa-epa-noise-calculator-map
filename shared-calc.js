@@ -32,6 +32,19 @@ var SharedCalc = (function() {
     );
   }
 
+  /** A-weighted energy sum of a dB(Z) per-band spectrum.
+   *  Returns 10·log10(Σ 10^((L[i] + AW[i])/10)) in dB(A).
+   *  Use for specAdj so spectral sources hit their declared Lw_A. */
+  function energySumA(spectrum) {
+    var sum = 0;
+    for (var i = 0; i < 8; i++) {
+      var v = spectrum[i];
+      if (v === null || v === undefined || !isFinite(v)) continue;
+      sum += Math.pow(10, (v + A_WEIGHTS_BANDS[i]) / 10);
+    }
+    return sum > 0 ? 10 * Math.log10(sum) : -Infinity;
+  }
+
   /** Combined Lw for one source's equipment list. */
   function sourceCombinedLw(equipment) {
     if (!equipment || equipment.length === 0) return -Infinity;
@@ -1605,6 +1618,7 @@ var SharedCalc = (function() {
     // Acoustic — simple
     attenuatePoint: attenuatePoint,
     energySum: energySum,
+    energySumA: energySumA,
     sourceCombinedLw: sourceCombinedLw,
     sourceContribution: sourceContribution,
     totalAtReceiver: totalAtReceiver,
