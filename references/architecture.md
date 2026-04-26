@@ -2140,6 +2140,22 @@ data.propagation.groundFactorPerRegion = { enabled: bool, Gs: number, Gm: number
 ```
 `_version` was bumped from 2 → 3. Files without this key (v2) synthesise `{ enabled: false, Gs: G, Gm: G, Gr: G }` on load, where `G` is the loaded scalar ground factor (backward compatible).
 
+**`migrateV2ToV3(saved, fromVersion)`** — Migration function added in Prompt B (April 2026). Defined in `index.html` just before `loadAssessment`. Called by a version ladder at the top of `loadAssessment`:
+```js
+var savedVersion = data._version || 1;
+if (savedVersion < 3) {
+  migrateV2ToV3(data, savedVersion);
+  data._version = 3;
+}
+```
+Migration actions:
+- **Point sources (`sourcePins[]`)**: Heuristic distinguishes custom-UI spectra (stored as dB(A) in v2) from library spectra (stored as dB(Z)). Heuristic: `energyDiff = lw − energySum(spectrum)`. If `energyDiff ≥ −1 dB` → custom dB(A), subtract `A_WEIGHTS_BANDS[i]` from each band (converting to dB(Z)). If `energyDiff` between −1 and −8 dB → grey zone, log warning and skip. If `energyDiff ≤ −8 dB` → library dB(Z), no change. Also handles `spectrum_max` using `lw_max` as the reference.
+- **Line sources**: `spectrum_m_base` was already the correct field name in v2 saves (values dB(Z) from library). No value change. Count logged only.
+- **Area sources**: `as.spectrum[period]` values were dB(Z) from library. No change. Count logged only.
+- **Building sources**: No spectrum stored in save file (computed from `interiorLp + construction Rw`). No-op.
+- Logs `console.info('[migrateV2ToV3] vN→3. Converted: { point, line, area, building }')`.
+- Tests: `migrate-v2-v3.test.js` (25 tests; covers custom, library, line, area, building, mixed, round-trip, edge cases).
+
 ### Meteorological input panel (`#concaweMetPanel`)
 
 Visible only when `propagationMethod === 'concawe'`. Two modes controlled by radio buttons:
