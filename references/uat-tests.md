@@ -1,5 +1,34 @@
 # UAT Tests
 
+## Option B Prompt B — Save format migration v2→v3
+
+> Manual verification of `migrateV2ToV3` on a real v2 assessment file.
+
+### Automated tests (run first)
+
+- [ ] **`migrate-v2-v3.test.js` passes** — Run `npm test`. All 263 tests pass including the 25 new migration tests. No grey-zone warnings for library sources with energyDiff ≤ −8 dB.
+
+### Load v2 file: custom point source migration
+
+- [ ] **Prepare v2 fixture** — Open the app on a version _before_ Prompt A (or manually craft a JSON file with `"_version": 2` containing one custom point source: name="Custom fan", lw.day=69, spectrum.day=[60,60,60,60,60,60,60,60] for all periods).
+- [ ] **Load v2 file** — Load the JSON via the Import Assessment button.
+- [ ] **Check console** — `console.info` shows `[migrateV2ToV3] v2→3. Converted: { point: 3, line: 0, area: 0, building: 0 }`.
+- [ ] **Verify Lp unchanged** — Place R1 at 50m from the source. Note the predicted Lp. This should equal the pre-Prompt-A prediction (the migration preserves the broadband Lw; only the per-band shape changes to dB(Z) convention).
+- [ ] **Save as v3** — Save the loaded assessment. Open the JSON file. Verify `"_version": 3`. Verify the spectrum arrays contain dB(Z) values (band 0 ≈ 86.2 for the flat-60 fixture, not 60).
+
+### Load v3 file: no re-migration (idempotent)
+
+- [ ] **Reload the v3 file** — Load the saved v3 JSON. Console does NOT show a `[migrateV2ToV3]` log. Lp values are identical to those after the first load.
+
+### Load v2 file: library point source (no change expected)
+
+- [ ] **Prepare library source v2 fixture** — Create a v2 JSON with one library source (e.g. spectrum.day=[90.2,88.1,85.6,82.2,79,76.8,73,67.1], lw.day=85.1 — Carpark exhaust fan values).
+- [ ] **Load v2 file** — Console shows `{ point: 0, ... }` — no conversion. Spectrum values unchanged after load.
+
+### Grey zone manual check
+
+- [ ] **Grey zone fixture** — If a source has energyDiff between −1 and −8 dB (unusual — not expected in normal use), console shows `[migrateV2ToV3] Grey zone point source ...` warning. The spectrum is NOT converted.
+
 ## Line source — multi-vertex placement
 
 > Verify the polyline tool supports unlimited vertices matching barrier drawing behaviour.

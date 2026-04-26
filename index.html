@@ -23515,11 +23515,155 @@ setInitialCollapseState();
       }
     }
 
+    /*
+     * migrateV2ToV3(saved, fromVersion)
+     * ─────────────────────────────────
+     * Converts a v2 (or earlier) saved assessment to v3 format in-place.
+     *
+     * STEP 0 — Distinguisher audit findings (2026-04):
+     * ─────────────────────────────────────────────────
+     * There is NO explicit librarySourceId / isLibrary field on sourcePins[].
+     * The distinguisher is a heuristic based on energySum(spectrum) vs lw:
+     *
+     *   energySum(spectrum) - lw  ≤ 1 dB  → custom UI spectrum stored as dB(A)
+     *                                         → subtract A_WEIGHTS to get dB(Z)
+     *   energySum(spectrum) - lw  > 8 dB  → library spectrum already dB(Z)
+     *                                         → leave alone
+     *   energySum(spectrum) - lw  1–8 dB  → grey zone: log warning, do not convert
+     *
+     * Rationale: custom UI (sfp-band-* inputs) originally stored user-entered
+     * dB(A) values directly in pin.spectrum[period] without conversion. After
+     * Prompt A, the UI handler at line ~16173 converts dB(A)→dB(Z) at input
+     * time. Old v2 saves therefore have custom-source spectra in dB(A).
+     * Library sources (SOURCE_LIBRARY_GROUPED) were always stored as dB(Z)
+     * internally (the engine normalized them), giving energySum >> lw.
+     *
+     * Line / area sources:
+     *   - spectrum_m_base on lineSources[] was already the correct field name
+     *     in v2 saves; values are dB(Z) from the library → no change needed.
+     *   - area sources save libraryEntry: { name } only; as.spectrum[period]
+     *     is dB(Z) from the library → no change needed.
+     *   - spectrum_unweighted appeared only on runtime libraryEntry objects,
+     *     NOT in the persisted JSON → no rename needed in saved data.
+     *
+     * Building sources:
+     *   - Spectra are computed dynamically from interiorLp + construction Rw.
+     *   - No spectrum is stored in the save file → no-op.
+     *   - C1 fix (Prompt A) corrected _bsOctavSpecZ to return dB(Z); all
+     *     v2 saves postdate the Supabase library era where building spectra
+     *     were computed, not stored.
+     */
+    function migrateV2ToV3(saved, fromVersion) {
+      var AW = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
+      var counts = { point: 0, line: 0, area: 0, building: 0 };
+      var GREY_WARNINGS = 0;
+
+      // ── Point sources ──────────────────────────────────────────────────────
+      // Custom UI sources have energySum(spectrum) ≈ lw (dB(A) stored).
+      // Library sources have energySum(spectrum) − lw ≈ 5–7 dB (dB(Z) stored).
+      var pins = saved.sourcePins;
+      if (Array.isArray(pins)) {
+        pins.forEach(function(pin) {
+          ['day', 'eve', 'night'].forEach(function(period) {
+            var spec = pin.spectrum && pin.spectrum[period];
+            if (!Array.isArray(spec) || spec.length !== 8) return;
+            var lw = pin.lw && Number.isFinite(pin.lw[period]) ? pin.lw[period] : null;
+            if (lw === null) return;
+
+            // energySum of the raw spectrum as stored
+            var sumLin = 0;
+            var allFinite = true;
+            for (var i = 0; i < 8; i++) {
+              if (!Number.isFinite(spec[i])) { allFinite = false; break; }
+              sumLin += Math.pow(10, spec[i] / 10);
+            }
+            if (!allFinite || sumLin <= 0) return;
+            var energyDiff = Math.round((lw - 10 * Math.log10(sumLin)) * 10) / 10;
+
+            if (energyDiff >= -1.0) {
+              // energySum ≈ lw → custom dB(A) spectrum → convert to dB(Z)
+              for (var j = 0; j < 8; j++) {
+                pin.spectrum[period][j] = spec[j] - AW[j];
+              }
+              counts.point++;
+            } else if (energyDiff > -8.0) {
+              // Grey zone: 1–8 dB below lw — uncertain convention
+              GREY_WARNINGS++;
+              console.warn('[migrateV2ToV3] Grey zone point source "' + (pin.name || '?') +
+                '" period=' + period + ': energyDiff=' + energyDiff.toFixed(1) +
+                ' dB — skipping conversion. Manual review required.');
+            }
+            // else: energyDiff ≤ -8 dB → library dB(Z) → no change
+          });
+          // Also migrate spectrum_max (Lmax band input, same convention as day)
+          var specMax = pin.spectrum_max;
+          var lwMax = Number.isFinite(pin.lw_max) ? pin.lw_max : null;
+          if (Array.isArray(specMax) && specMax.length === 8 && lwMax !== null) {
+            var smLin = 0, smOk = true;
+            for (var k = 0; k < 8; k++) {
+              if (!Number.isFinite(specMax[k])) { smOk = false; break; }
+              smLin += Math.pow(10, specMax[k] / 10);
+            }
+            if (smOk && smLin > 0) {
+              var smDiff = Math.round((lwMax - 10 * Math.log10(smLin)) * 10) / 10;
+              if (smDiff >= -1.0) {
+                for (var m = 0; m < 8; m++) {
+                  pin.spectrum_max[m] = specMax[m] - AW[m];
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // ── Line sources ───────────────────────────────────────────────────────
+      // spectrum_m_base is already dB(Z) from the library and already uses
+      // the correct field name → no value change or rename needed.
+      // Count for logging only.
+      var lines = saved.lineSources;
+      if (Array.isArray(lines)) {
+        lines.forEach(function(ls) {
+          var smb = ls.spectrum_m_base;
+          if (smb && typeof smb === 'object') counts.line++;
+        });
+      }
+
+      // ── Area sources ───────────────────────────────────────────────────────
+      // as.spectrum[period] dB(Z) from library → no change.
+      // Count for logging only.
+      var areas = saved.areaSources;
+      if (Array.isArray(areas)) {
+        areas.forEach(function(as) {
+          if (as.spectrum && typeof as.spectrum === 'object') counts.area++;
+        });
+      }
+
+      // ── Building sources ───────────────────────────────────────────────────
+      // No spectrum stored — computed from interiorLp + construction Rw.
+      // C1 fix (Prompt A) corrected _bsOctavSpecZ. No-op.
+      var bldgs = saved.buildingSources;
+      if (Array.isArray(bldgs)) {
+        counts.building = bldgs.length;
+      }
+
+      if (GREY_WARNINGS > 0) {
+        console.warn('[migrateV2ToV3] ' + GREY_WARNINGS + ' grey-zone spectrum(s) were skipped. Check console for details.');
+      }
+      console.info('[migrateV2ToV3] v' + fromVersion + '\u21923. Converted:', counts);
+    }
+
     function loadAssessment(data) {
       // Guard: warn if the file was saved by a future version of this app.
       if (data._version && data._version > 3) {
         console.warn('[loadAssessment] File is format v' + data._version +
           ' (this app supports v3) — some fields may not load correctly.');
+      }
+
+      // Version ladder: migrate older saves before any other processing.
+      var savedVersion = data._version || 1;
+      if (savedVersion < 3) {
+        migrateV2ToV3(data, savedVersion);
+        data._version = 3;
       }
 
       // 0. Restore scenario snapshots BEFORE any other state.
