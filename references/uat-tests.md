@@ -1,5 +1,46 @@
 # UAT Tests
 
+## Option B Prompt C — Custom source wizard
+
+### Wizard UI
+
+- [ ] **Open wizard** — Click "Custom sources" panel in LHS, click "+ Add custom source…". Wizard modal appears with 3 metric cards (Lw / Lw/m / Lp).
+- [ ] **Cancel from Step 1** — Click Cancel. Modal closes. No source is created.
+- [ ] **Back from Step 2** — Click Lw card, then click ← Back. Step 1 metric selector is shown again.
+- [ ] **Cancel from Step 2** — Click Lw card, enter data, click Cancel. Modal closes. No source added.
+- [ ] **Escape key** — Clicking the × button closes the modal.
+
+### Lw (point source)
+
+- [ ] **Basic add** — Enter name "Test Fan", Lw=85, bands blank. Click Save. Wizard closes. "Test Fan — Lw 85 dB(A)" appears in the custom sources list. Source appears in the point source dropdown.
+- [ ] **Band values stored as dB(Z)** — Enter name "Band Fan", Lw=85, bands [73,75,80,82,80,77,73,70]. Click Save. Open the source in the point source panel and confirm bands display 73, 75, 80, 82, 80, 77, 73, 70 (not A-weighted).
+- [ ] **Flat spectrum when blank** — Enter Lw=85 with blank bands. The stored spectrum should produce energySum(spectrum + A_WEIGHTS) ≈ 85 dB(A) within ±0.1 dB.
+- [ ] **Validation** — Leave name blank → error "Enter a source name". Enter Lw=-5 → error "Enter a valid broadband level".
+- [ ] **Save/load round-trip** — Add a custom Lw source. Save assessment. Reload assessment. The source name and spectrum values are identical. Predicted Lp at a receiver is unchanged within 0.01 dB.
+
+### Custom vs library equivalence (point source)
+
+- [ ] **Equivalence check** — Find a library source (e.g. Small exhaust fan, Lw=60.4, spectrum=[63.2,59.1,56.6,56.2,56,52.8,50,44.1]). Add a custom Lw source with the same Lw and same dB(Z) band values. Place both on the map at the same location and height. Place R1 at 50m. Predicted Lp for both sources at R1 must be within 0.01 dB of each other.
+
+### Lw/m (line source)
+
+- [ ] **Basic add** — Enter name "Custom Conveyor", Lw/m=55. Click Save. Toast "draw it on the map" appears. Objects window shows "Custom Conveyor — not placed — click to place".
+- [ ] **Place line** — Click the unplaced entry in Objects window. Draw a 2-vertex line on the map. Line appears. Open the floating panel. Manual Lw/m override is ON, value=55 dB(A).
+- [ ] **Bands stored as dB(Z)** — Enter bands [70,72,75,77,75,72,68,62] for Custom Conveyor. Save. Open the line source panel. Band inputs show these dB(Z) values (read-only base spectrum display).
+- [ ] **Validation** — Leave name blank → error. Lw/m=-5 → error.
+
+### Lp (building interior)
+
+- [ ] **Basic add** — Select a construction, enter name "Plant Room", Lp=75. Click Save. Toast appears. Objects window shows "Plant Room — not placed — click to place" under Building sources.
+- [ ] **Place building** — Click the unplaced entry. Draw a polygon. Building source appears on map. Open the floating panel. Interior Lp = 75 dB(A) for all periods. Construction matches what was selected.
+- [ ] **No construction → error** — Leave construction selector blank, click Save → error "Select a facade construction".
+
+### Per-band label audit
+
+- [ ] **Custom source panel** — LHS mp-customsrc panel footer says "Octave bands dB(Z)" (not dB(A)).
+- [ ] **Wizard band inputs** — Band inputs in Step 2 are labelled "Octave band spectrum, dB(Z)" for all three metric types.
+- [ ] **Source pin floating panel** — Band inputs in the sfp (source pin floating panel) accept dB(Z) per band with no conversion.
+
 ## Option B Prompt B — Save format migration v2→v3
 
 > Manual verification of `migrateV2ToV3` on a real v2 assessment file.

@@ -2877,41 +2877,9 @@ body.disclaimer-visible .container {
             </div>
             <div class="mp-body">
               <div id="customSrcBody">
-                <div class="mp-sub-row" style="flex-wrap:wrap;">
-                  <span>Name:</span>
-                  <input type="text" id="customSrcName" placeholder="e.g. Pump XYZ" style="flex:1;min-width:80px;">
-                </div>
                 <div class="mp-sub-row">
-                  <span>Lw:</span>
-                  <input type="number" id="customSrcLw" step="0.1" placeholder="85" style="width:52px;">
-                  <span>dB(A)</span>
+                  <button type="button" class="mp-btn" style="margin-left:auto;padding:3px 10px;justify-content:center;" onclick="openCustomSourceWizard()">+ Add custom source&hellip;</button>
                 </div>
-                <div class="mp-sep"></div>
-                <div style="padding:2px 8px;font-size:9px;color:#6b7280;display:grid;grid-template-columns:repeat(8,1fr);gap:2px;">
-                  <span style="text-align:center;">63</span><span style="text-align:center;">125</span>
-                  <span style="text-align:center;">250</span><span style="text-align:center;">500</span>
-                  <span style="text-align:center;">1k</span><span style="text-align:center;">2k</span>
-                  <span style="text-align:center;">4k</span><span style="text-align:center;">8k</span>
-                </div>
-                <div style="padding:0 8px 2px;display:grid;grid-template-columns:repeat(8,1fr);gap:2px;">
-                  <input type="number" id="customSrcBand0" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                  <input type="number" id="customSrcBand1" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                  <input type="number" id="customSrcBand2" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                  <input type="number" id="customSrcBand3" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                  <input type="number" id="customSrcBand4" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                  <input type="number" id="customSrcBand5" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                  <input type="number" id="customSrcBand6" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                  <input type="number" id="customSrcBand7" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;padding:2px 1px;">
-                </div>
-                <div style="padding:1px 8px 4px;font-size:9px;color:#6b7280;">Octave bands dB(A) — leave blank for flat spectrum</div>
-                <div class="mp-sep"></div>
-                <div class="mp-sub-row">
-                  <span>Height:</span>
-                  <input type="number" id="customSrcHeight" step="0.1" value="1.5" min="0" style="width:48px;">
-                  <span>m</span>
-                  <button type="button" class="mp-btn" style="margin-left:auto;padding:3px 10px;justify-content:center;" onclick="addCustomSource()">Add</button>
-                </div>
-                <span id="customSrcError" style="font-size:10px;color:#f87171;display:none;padding:0 8px;"></span>
                 <div class="mp-sep"></div>
                 <div id="customSrcList"></div>
                 <button type="button" class="mp-btn" onclick="exportCustomSources()">Export library</button>
@@ -2924,6 +2892,59 @@ body.disclaimer-visible .container {
 
           </div>
           <!-- ── End floating panels ── -->
+
+          <!-- ── Custom Source Wizard Modal ── -->
+          <div id="customSrcWizardOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9000;align-items:center;justify-content:center;">
+            <div id="customSrcWizardModal" style="background:#fff;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.28);width:420px;max-width:96vw;max-height:90vh;overflow-y:auto;font-size:13px;line-height:1.4;">
+              <!-- Wizard Step 1: metric selector -->
+              <div id="cswStep1">
+                <div style="background:#1a1a2e;border-radius:10px 10px 0 0;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+                  <span style="font-weight:700;font-size:14px;color:#fff;">Add custom source — select type</span>
+                  <button onclick="closeCustomSourceWizard()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer;padding:0 2px;line-height:1;" title="Cancel">&times;</button>
+                </div>
+                <div style="padding:18px 18px 10px;">
+                  <div style="font-size:11px;color:#6b7280;margin-bottom:14px;">Choose the noise metric that describes this source. The wizard will collect the appropriate data.</div>
+                  <div style="display:flex;flex-direction:column;gap:10px;">
+                    <button onclick="cswSelectMetric('Lw')" style="display:flex;align-items:flex-start;gap:14px;text-align:left;padding:14px 16px;border:2px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;transition:border-color 0.15s;" onmouseenter="this.style.borderColor='#3b82f6'" onmouseleave="this.style.borderColor='#e5e7eb'">
+                      <div style="font-size:18px;font-weight:700;color:#1a1a2e;min-width:52px;">Lw</div>
+                      <div><div style="font-weight:600;color:#111827;">Point source</div><div style="font-size:11px;color:#6b7280;margin-top:2px;">Fan, pump, compressor, condenser, plant item</div></div>
+                    </button>
+                    <button onclick="cswSelectMetric('Lw/m')" style="display:flex;align-items:flex-start;gap:14px;text-align:left;padding:14px 16px;border:2px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;transition:border-color 0.15s;" onmouseenter="this.style.borderColor='#d32f2f'" onmouseleave="this.style.borderColor='#e5e7eb'">
+                      <div style="font-size:18px;font-weight:700;color:#d32f2f;min-width:52px;">Lw/m</div>
+                      <div><div style="font-weight:600;color:#111827;">Line source</div><div style="font-size:11px;color:#6b7280;margin-top:2px;">Conveyor, pipeline, road (custom Lw/m)</div></div>
+                    </button>
+                    <button onclick="cswSelectMetric('Lp')" style="display:flex;align-items:flex-start;gap:14px;text-align:left;padding:14px 16px;border:2px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;transition:border-color 0.15s;" onmouseenter="this.style.borderColor='#059669'" onmouseleave="this.style.borderColor='#e5e7eb'">
+                      <div style="font-size:18px;font-weight:700;color:#059669;min-width:52px;">Lp</div>
+                      <div><div style="font-weight:600;color:#111827;">Building interior</div><div style="font-size:11px;color:#6b7280;margin-top:2px;">Plant room, substation — interior sound pressure level</div></div>
+                    </button>
+                  </div>
+                </div>
+                <div style="padding:10px 18px 16px;display:flex;justify-content:flex-end;">
+                  <button onclick="closeCustomSourceWizard()" class="mp-btn" style="padding:5px 16px;">Cancel</button>
+                </div>
+              </div>
+
+              <!-- Wizard Step 2: data entry form (populated by cswSelectMetric) -->
+              <div id="cswStep2" style="display:none;">
+                <div style="background:#1a1a2e;border-radius:10px 10px 0 0;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+                  <span id="cswStep2Title" style="font-weight:700;font-size:14px;color:#fff;">Add source</span>
+                  <button onclick="closeCustomSourceWizard()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer;padding:0 2px;line-height:1;" title="Cancel">&times;</button>
+                </div>
+                <div id="cswStep2Body" style="padding:16px 18px 10px;">
+                  <!-- populated by JS -->
+                </div>
+                <div style="padding:8px 18px 16px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #f0f0f0;">
+                  <button onclick="cswGoBack()" class="mp-btn" style="padding:5px 14px;">&#8592; Back</button>
+                  <div style="display:flex;gap:8px;align-items:center;">
+                    <span id="cswError" style="font-size:11px;color:#dc2626;display:none;"></span>
+                    <button onclick="closeCustomSourceWizard()" class="mp-btn" style="padding:5px 14px;">Cancel</button>
+                    <button onclick="cswSave()" class="mp-btn" style="padding:5px 16px;background:#1a1a2e;color:#fff;border-color:#1a1a2e;">Save source</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ── End Custom Source Wizard Modal ── -->
 
           <!-- ── Fullscreen Objects sidebar (only visible in maximised mode) ── -->
           <div id="mapFullscreenSidebar" style="display:none;">
@@ -3703,7 +3724,7 @@ body.disclaimer-visible .container {
       <div class="card">
         <h2>Custom sources (hidden — see LHS Custom sources panel)</h2>
         <div id="customSrcBody">
-          <div class="p" style="margin:8px 0 10px;">Add custom noise sources with name, overall Lw, and octave band spectrum (A-weighted). Custom sources persist across sessions and appear in all source dropdowns.</div>
+          <div class="p" style="margin:8px 0 10px;">Add custom noise sources with name, overall Lw, and octave band spectrum (dB(Z) per band). Custom sources persist across sessions and appear in all source dropdowns.</div>
 
           <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
             <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
@@ -3717,7 +3738,7 @@ body.disclaimer-visible .container {
               </div>
             </div>
             <div style="margin-top:8px;">
-              <label style="font-size:11px;font-weight:600;">Octave band spectrum, dB(A)  <span style="font-weight:400;color:var(--muted);">(leave blank to use flat spectrum)</span></label>
+              <label style="font-size:11px;font-weight:600;">Octave band spectrum, dB(Z)  <span style="font-weight:400;color:var(--muted);">(leave blank to use flat spectrum)</span></label>
               <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-top:4px;">
                 <div style="text-align:center;font-size:10px;font-weight:600;">63 Hz</div>
                 <div style="text-align:center;font-size:10px;font-weight:600;">125 Hz</div>
@@ -3983,7 +4004,7 @@ body.disclaimer-visible .container {
         </div>
       </div>
       <div id="spectrumChartBody" class="card-body collapsed">
-        <div class="p" style="margin:8px 0 8px;">A-weighted sound power level per octave band (63 Hz – 8 kHz) for each selected source, with combined prediction at each receiver.</div>
+        <div class="p" style="margin:8px 0 8px;">Unweighted sound power level per octave band, dB(Z) (63 Hz – 8 kHz) for each selected source, with combined prediction at each receiver.</div>
         <div><canvas id="spectrumChart"></canvas></div>
         <div id="spectrumChartEmpty" style="display:none;text-align:center;color:var(--muted);font-size:13px;padding:40px 0;">Select sources in the table above to view the octave band spectrum.</div>
       </div>
@@ -9462,67 +9483,323 @@ rebuildSourceLibraries();
 
 /* ── Custom source management functions ── */
 
-function addCustomSource() {
-  var nameEl = document.getElementById('customSrcName');
-  var lwEl = document.getElementById('customSrcLw');
-  var heightEl = document.getElementById('customSrcHeight');
-  var errEl = document.getElementById('customSrcError');
+/*
+ * Custom Source Wizard — STEP 0 inventory (Option B Prompt C, April 2026)
+ * -------------------------------------------------------------------------
+ * LAUNCH POINT : "Add custom source…" button in the LHS mp-customsrc floating
+ *   panel (id="mp-customsrc"). No map context-menu launch exists.
+ * CUSTOM POINT-SOURCE FLOW: was an inline form in mp-customsrc; now replaced
+ *   by a modal wizard opened by openCustomSourceWizard().
+ * CUSTOM LINE-SOURCE FLOW: did not exist — wizard adds Lw/m path for the first time.
+ * CUSTOM BUILDING-SOURCE FLOW: did not exist — wizard adds Lp path for the first time.
+ * DATA CONVENTION: spectrum stored as dB(Z) per band, no A-weighting at save.
+ *   A-weighting is applied by the engine (A_WEIGHTS_BANDS in shared-calc.js).
+ */
+
+/** Open the metric-selector wizard (Step 1). */
+function openCustomSourceWizard() {
+  var overlay = document.getElementById('customSrcWizardOverlay');
+  if (!overlay) return;
+  _cswResetToStep1();
+  overlay.style.display = 'flex';
+}
+
+/** Close and reset the wizard without saving. */
+function closeCustomSourceWizard() {
+  var overlay = document.getElementById('customSrcWizardOverlay');
+  if (overlay) overlay.style.display = 'none';
+  _cswResetToStep1();
+}
+
+/** Show wizard step 1 (metric selector). */
+function _cswResetToStep1() {
+  var s1 = document.getElementById('cswStep1');
+  var s2 = document.getElementById('cswStep2');
+  if (s1) s1.style.display = '';
+  if (s2) s2.style.display = 'none';
+  _cswCurrentMetric = null;
+}
+
+/** Current selected metric ('Lw' | 'Lw/m' | 'Lp'). */
+var _cswCurrentMetric = null;
+
+/** Called when user clicks a metric card in Step 1. */
+function cswSelectMetric(metric) {
+  _cswCurrentMetric = metric;
+  var s1 = document.getElementById('cswStep1');
+  var s2 = document.getElementById('cswStep2');
+  var titleEl = document.getElementById('cswStep2Title');
+  var bodyEl  = document.getElementById('cswStep2Body');
+  var errEl   = document.getElementById('cswError');
+  if (!s2 || !bodyEl) return;
+
+  if (errEl) errEl.style.display = 'none';
+  if (s1) s1.style.display = 'none';
+  s2.style.display = '';
+
+  var bandHelp = '<div style="font-size:10px;color:#6b7280;margin-top:4px;">' +
+    'Per-band values are unweighted (dB(Z)). A-weighting is applied during propagation per ISO\u00a09613-2.</div>';
+  var freqLabels = ['63 Hz','125 Hz','250 Hz','500 Hz','1 kHz','2 kHz','4 kHz','8 kHz'];
+  var freqHeader = freqLabels.map(function(f) {
+    return '<div style="text-align:center;font-size:10px;font-weight:600;">' + f + '</div>';
+  }).join('');
+  var bandInputs = [0,1,2,3,4,5,6,7].map(function(i) {
+    return '<input type="number" id="csw_band_' + i + '" step="0.1" style="width:100%;box-sizing:border-box;text-align:center;font-size:11px;padding:3px 1px;border:1px solid var(--border);border-radius:4px;" placeholder="\u2014">';
+  }).join('');
+  var bandGrid = '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;margin-top:4px;">' +
+    freqHeader + bandInputs + '</div>' + bandHelp;
+
+  var nameRow = '<div style="margin-bottom:8px;">' +
+    '<label style="font-size:11px;font-weight:600;">Source name</label>' +
+    '<input type="text" id="csw_name" placeholder="e.g. Pump XYZ" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;margin-top:3px;"></div>';
+
+  if (metric === 'Lw') {
+    if (titleEl) titleEl.textContent = 'Add point source (Lw)';
+    bodyEl.innerHTML = nameRow +
+      '<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:end;margin-bottom:8px;">' +
+        '<div><label style="font-size:11px;font-weight:600;">Overall Lw, dB(A)</label>' +
+          '<input type="number" id="csw_lw" step="0.1" placeholder="85" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;margin-top:3px;"></div>' +
+        '<div><label style="font-size:11px;font-weight:600;">Height (m)</label>' +
+          '<input type="number" id="csw_height" step="0.1" value="1.5" min="0" style="width:64px;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;margin-top:3px;"></div>' +
+      '</div>' +
+      '<div style="margin-bottom:4px;"><label style="font-size:11px;font-weight:600;">Octave band spectrum, dB(Z) <span style="font-weight:400;color:var(--muted);">(leave blank for flat spectrum)</span></label>' +
+      bandGrid + '</div>';
+
+  } else if (metric === 'Lw/m') {
+    if (titleEl) titleEl.textContent = 'Add line source (Lw/m)';
+    bodyEl.innerHTML = nameRow +
+      '<div style="margin-bottom:8px;">' +
+        '<label style="font-size:11px;font-weight:600;">Overall Lw/m, dB(A)/m</label>' +
+        '<input type="number" id="csw_lw" step="0.1" placeholder="60" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;margin-top:3px;"></div>' +
+      '<div style="margin-bottom:4px;"><label style="font-size:11px;font-weight:600;">Octave band spectrum, dB(Z) <span style="font-weight:400;color:var(--muted);">(leave blank for flat spectrum)</span></label>' +
+      bandGrid + '</div>' +
+      '<div style="background:#fef9c3;border:1px solid #fcd34d;border-radius:6px;padding:8px 10px;font-size:11px;color:#78350f;margin-top:8px;">' +
+        'After saving, draw the line source on the map to place it. Length is determined by the drawn line.' +
+      '</div>';
+
+  } else if (metric === 'Lp') {
+    if (titleEl) titleEl.textContent = 'Add building interior source (Lp)';
+    bodyEl.innerHTML = nameRow +
+      '<div style="margin-bottom:8px;">' +
+        '<label style="font-size:11px;font-weight:600;">Overall Lp, dB(A)</label>' +
+        '<input type="number" id="csw_lw" step="0.1" placeholder="75" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;margin-top:3px;"></div>' +
+      '<div style="margin-bottom:4px;"><label style="font-size:11px;font-weight:600;">Octave band spectrum, dB(Z) <span style="font-weight:400;color:var(--muted);">(leave blank for flat spectrum)</span></label>' +
+      bandGrid + '</div>' +
+      '<div style="margin-bottom:8px;">' +
+        '<label style="font-size:11px;font-weight:600;">Facade construction (R<sub>w</sub>)</label>' +
+        '<select id="csw_construction" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;margin-top:3px;">' +
+          _cswBuildConstructionOptions() +
+        '</select></div>' +
+      '<div style="background:#fef9c3;border:1px solid #fcd34d;border-radius:6px;padding:8px 10px;font-size:11px;color:#78350f;margin-top:4px;">' +
+        'After saving, draw the building polygon on the map to place it. Facade area is determined by the drawn polygon and building height.' +
+      '</div>';
+  }
+}
+
+/** Build &lt;option&gt; HTML for construction library select. */
+function _cswBuildConstructionOptions() {
+  var opts = '<option value="">— Select construction —</option>';
+  if (window.CONSTRUCTION_LIBRARY_GROUPED && Object.keys(CONSTRUCTION_LIBRARY_GROUPED).length > 0) {
+    Object.keys(CONSTRUCTION_LIBRARY_GROUPED).forEach(function(cat) {
+      opts += '<optgroup label="' + cat + '">';
+      (CONSTRUCTION_LIBRARY_GROUPED[cat] || []).forEach(function(e) {
+        opts += '<option value="' + e.name + '">' + e.name + '</option>';
+      });
+      opts += '</optgroup>';
+    });
+  } else {
+    // Fallback: no library loaded yet
+    opts += '<option value="__none__">Library not loaded — enter Rw below</option>';
+  }
+  return opts;
+}
+
+/** Go back from Step 2 to Step 1. */
+function cswGoBack() {
+  _cswResetToStep1();
+}
+
+/** Show wizard error message. */
+function _cswShowError(msg) {
+  var el = document.getElementById('cswError');
+  if (el) { el.textContent = msg; el.style.display = ''; }
+}
+
+/** Read band inputs from wizard Step 2 — returns dB(Z) array[8] (null = blank). */
+function _cswReadBands() {
+  var bands = [];
+  for (var i = 0; i < 8; i++) {
+    var el = document.getElementById('csw_band_' + i);
+    var val = el ? el.value.trim() : '';
+    bands.push(val === '' ? null : parseFloat(val));
+  }
+  return bands;
+}
+
+/** Derive a flat dB(Z) spectrum from a broadband dB(A) Lw total.
+ *  Uses equal energy per band: Lw_z_per_band = Lw_A - Aw_mean + offset
+ *  Simple approach: flat unweighted bands that sum to approx Lw_A dB(A)
+ *  via energy sum with A-weights applied. Iterative or closed-form:
+ *  If all 8 bands have value X (dB(Z)), then
+ *    Lw_A = 10·log10( sum_i(10^((X + AW[i])/10)) ) = X + 10·log10(sum_i(10^(AW[i]/10)))
+ *  So X = Lw_A - 10·log10(sum_i(10^(AW[i]/10))). */
+function _cswFlatSpectrumZ(lwA) {
+  var AW = SharedCalc && SharedCalc.A_WEIGHTS_BANDS
+    ? SharedCalc.A_WEIGHTS_BANDS
+    : [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
+  var sumLin = 0;
+  AW.forEach(function(a) { sumLin += Math.pow(10, a / 10); });
+  var X = lwA - 10 * Math.log10(sumLin);
+  var v = Math.round(X * 10) / 10;
+  return [v, v, v, v, v, v, v, v];
+}
+
+/** Save handler for the wizard — dispatches to correct data structure. */
+function cswSave() {
+  var metric = _cswCurrentMetric;
+  var nameEl = document.getElementById('csw_name');
+  var lwEl = document.getElementById('csw_lw');
+  var errEl = document.getElementById('cswError');
+  if (errEl) errEl.style.display = 'none';
 
   var name = nameEl ? nameEl.value.trim() : '';
-  var lw = lwEl ? Number(lwEl.value) : NaN;
+  var lw = lwEl ? parseFloat(lwEl.value) : NaN;
 
-  if (!name) { showCustomSrcError('Enter a source name'); return; }
-  if (!Number.isFinite(lw)) { showCustomSrcError('Enter a valid Lw value'); return; }
+  // Validate name
+  if (!name) { _cswShowError('Enter a source name.'); return; }
+  // Validate broadband level
+  if (!Number.isFinite(lw) || lw < 0) { _cswShowError('Enter a valid broadband level (\u2265 0).'); return; }
 
-  // Check for duplicate name
-  if (_customSources.some(function(s) { return s.name === name; })) {
-    showCustomSrcError('A custom source with this name already exists'); return;
+  // Read per-band dB(Z) spectrum — blank = null, parseFloat only, no conversion
+  var bands = _cswReadBands();
+  var anyBand = bands.some(function(v) { return v !== null; });
+  // Flat dB(Z) spectrum if no bands entered
+  var spectrum = anyBand ? bands : _cswFlatSpectrumZ(lw);
+
+  if (metric === 'Lw') {
+    // --- Point source: add to custom source library ---
+    var heightEl = document.getElementById('csw_height');
+    var height = heightEl ? parseFloat(heightEl.value) : 1.5;
+    if (!Number.isFinite(height) || height < 0) height = 1.5;
+
+    // Check duplicate
+    var displayName = name + ' \u2014 Lw ' + Math.round(lw) + ' dB(A)';
+    if (_customSources.some(function(s) { return s.name === displayName; })) {
+      _cswShowError('A custom source with this name already exists.'); return;
+    }
+
+    _customSources.push({ name: displayName, lw: lw, spectrum: spectrum, height: height });
+    _saveCustomSources();
+    rebuildSourceLibraries();
+    renderCustomSourceList();
+    if (typeof refreshAllSourceDropdowns === 'function') refreshAllSourceDropdowns();
+    closeCustomSourceWizard();
+
+  } else if (metric === 'Lw/m') {
+    // --- Line source: create an unplaced line source entry ---
+    if (typeof lineSources === 'undefined') {
+      _cswShowError('Line source feature not available.'); return;
+    }
+    var lsIdCtr = (typeof _lsIdCtr !== 'undefined') ? ++_lsIdCtr : Date.now();
+    var newLs = {
+      id: 'ls_' + lsIdCtr,
+      name: name,
+      vertices: [],              // unplaced — user draws line after saving
+      libraryEntry: null,
+      height_m: 1.5,
+      movements: {
+        day:   { N:1, speed:10, operatingPct:100 },
+        eve:   { N:1, speed:10, operatingPct:100 },
+        night: { N:1, speed:10, operatingPct:100 }
+      },
+      lw_m_base:       { day: lw,       eve: lw,       night: lw       },
+      spectrum_m_base: { day: spectrum, eve: spectrum, night: spectrum },
+      manualOverride:  { day: true, eve: true, night: true },
+      manualLwm:       { day: lw,  eve: lw,  night: lw  },
+      manualSpectrum:  { day: {}, eve: {}, night: {} },
+      activeInPeriod:  { day: true, eve: true, night: true },
+      _userEdited:     { eve: false, night: false }
+    };
+    // Populate manualSpectrum from band array (keyed by Hz)
+    var hzKeys = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+    ['day','eve','night'].forEach(function(p) {
+      newLs.manualSpectrum[p] = {};
+      hzKeys.forEach(function(hz, i) {
+        newLs.manualSpectrum[p][hz] = spectrum[i] !== null ? spectrum[i] : '';
+      });
+    });
+    lineSources.push(newLs);
+    // Trigger UI refresh via window API (render functions are IIFE-scoped)
+    if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+    if (typeof window._renderObjectList === 'function') window._renderObjectList();
+    if (typeof window._undoPushState === 'function') window._undoPushState('Add line source (wizard)');
+    // Force a map redraw cycle so the Objects list shows the unplaced entry
+    if (typeof window.updateAll === 'function') window.updateAll();
+    closeCustomSourceWizard();
+    if (typeof showToast === 'function') showToast('Line source \u201c' + name + '\u201d added \u2014 draw it on the map to place it.', 3500);
+
+  } else if (metric === 'Lp') {
+    // --- Building source: create an unplaced building source ---
+    if (typeof buildingSources === 'undefined') {
+      _cswShowError('Building source feature not available.'); return;
+    }
+    var consEl = document.getElementById('csw_construction');
+    var consName = consEl ? consEl.value : '';
+    if (!consName || consName === '__none__') {
+      _cswShowError('Select a facade construction.'); return;
+    }
+    // Look up construction object
+    var consObj = null;
+    if (window.CONSTRUCTION_LIBRARY_GROUPED) {
+      Object.keys(CONSTRUCTION_LIBRARY_GROUPED).forEach(function(cat) {
+        (CONSTRUCTION_LIBRARY_GROUPED[cat] || []).forEach(function(e) {
+          if (e.name === consName) consObj = e;
+        });
+      });
+    }
+    if (!consObj) { _cswShowError('Construction not found in library.'); return; }
+
+    // Build octave object for interiorLp
+    var hzKeys2 = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
+    var octObj = {};
+    hzKeys2.forEach(function(hz, i) { octObj[hz] = spectrum[i] !== null ? spectrum[i] : null; });
+
+    var bsIdCtr = (typeof _bsIdCtr !== 'undefined') ? ++_bsIdCtr : Date.now();
+    var defCons = JSON.parse(JSON.stringify(consObj));
+    var newBs = {
+      id: 'bs_' + bsIdCtr,
+      name: name,
+      vertices: [],              // unplaced — user draws building polygon after saving
+      baseHeightM: 0,
+      height_m: 6,
+      lpSource: 'octave',
+      interiorLp: {
+        day:   { broadband: lw, octave: JSON.parse(JSON.stringify(octObj)) },
+        eve:   { broadband: lw, octave: JSON.parse(JSON.stringify(octObj)) },
+        night: { broadband: lw, octave: JSON.parse(JSON.stringify(octObj)) }
+      },
+      activeInPeriod: { day: true, eve: true, night: true },
+      operatingPct: { day: 100, eve: 100, night: 100 },
+      defaultConstruction: defCons,
+      facadeOverrides: {},
+      roofConstruction: Object.assign(JSON.parse(JSON.stringify(consObj)), { enabled: true }),
+      roofElements: [],
+      manualOverride: { day: false, eve: false, night: false }
+    };
+    buildingSources.push(newBs);
+    // Trigger UI refresh via window API (render functions are IIFE-scoped)
+    if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+    if (typeof window._renderObjectList === 'function') window._renderObjectList();
+    if (typeof window._undoPushState === 'function') window._undoPushState('Add building source (wizard)');
+    if (typeof window.updateAll === 'function') window.updateAll();
+    closeCustomSourceWizard();
+    if (typeof showToast === 'function') showToast('Building source \u201c' + name + '\u201d added \u2014 draw it on the map to place it.', 3500);
   }
+}
 
-  // Read spectrum bands
-  var spectrum = [];
-  var anyBand = false;
-  for (var i = 0; i < 8; i++) {
-    var bandEl = document.getElementById('customSrcBand' + i);
-    var bv = bandEl && bandEl.value !== '' ? Number(bandEl.value) : null;
-    if (bv !== null && !Number.isFinite(bv)) bv = null;
-    if (bv !== null) anyBand = true;
-    spectrum.push(bv);
-  }
-
-  // If no spectrum entered, derive flat spectrum from overall Lw
-  // Lw_per_band = Lw - 10*log10(8) ≈ Lw - 9.0 dB
-  if (!anyBand) {
-    var perBand = Math.round((lw - 10 * log10(8)) * 10) / 10;
-    spectrum = [perBand, perBand, perBand, perBand, perBand, perBand, perBand, perBand];
-  }
-
-  var height = heightEl ? Number(heightEl.value) : 1.5;
-  if (!Number.isFinite(height) || height < 0) height = 1.5;
-
-  // Append Lw to name for consistency with built-in sources
-  var displayName = name + ' \u2014 Lw ' + Math.round(lw) + ' dB(A)';
-
-  _customSources.push({
-    name: displayName,
-    lw: lw,
-    spectrum: spectrum,
-    height: height
-  });
-  _saveCustomSources();
-  rebuildSourceLibraries();
-  renderCustomSourceList();
-  refreshAllSourceDropdowns();
-
-  // Clear form
-  if (nameEl) nameEl.value = '';
-  if (lwEl) lwEl.value = '';
-  for (var j = 0; j < 8; j++) {
-    var be = document.getElementById('customSrcBand' + j);
-    if (be) be.value = '';
-  }
-  if (heightEl) heightEl.value = '1.5';
-  if (errEl) errEl.style.display = 'none';
+/** Legacy: addCustomSource() — retained for any external call sites. Now delegates to wizard. */
+function addCustomSource() {
+  openCustomSourceWizard();
 }
 
 function deleteCustomSource(idx) {
@@ -16161,16 +16438,14 @@ function attachSrcPeriodListeners(pin, pinIdx, period, panel) {
       var freq = this.dataset.freq;
       var val = this.value.trim();
       var bandIdx = SFP_FREQS.indexOf(freq);
-      // Temporary: user enters dB(A) per band; engine now expects dB(Z).
-      // TODO (Prompt C): Remove this conversion when UI is redesigned.
-      var localAW = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
+      // Band inputs accept dB(Z) per band directly; A-weighting is applied by
+      // the engine (calcISOatPoint / calcConcaweAtPoint via A_WEIGHTS_BANDS).
       if (!pin.spectrum) pin.spectrum = {};
       if (!pin.spectrum[period]) pin.spectrum[period] = Array(8).fill(null);
       if (val === '') {
         if (Array.isArray(pin.spectrum[period])) { pin.spectrum[period][bandIdx] = null; }
       } else {
-        var v = parseFloat(val);
-        if (Array.isArray(pin.spectrum[period])) { pin.spectrum[period][bandIdx] = isFinite(v) ? v - localAW[bandIdx] : v; }
+        if (Array.isArray(pin.spectrum[period])) { pin.spectrum[period][bandIdx] = parseFloat(val); }
       }
       // Auto-copy day spectrum to eve/night if not user-edited
       if (period === 'day') {
@@ -16180,7 +16455,7 @@ function attachSrcPeriodListeners(pin, pinIdx, period, panel) {
             if (!pin.spectrum[p]) pin.spectrum[p] = Array(8).fill(null);
             if (Array.isArray(pin.spectrum[p])) {
               if (val === '') { pin.spectrum[p][bandIdx] = null; }
-              else { var v2 = parseFloat(val); pin.spectrum[p][bandIdx] = isFinite(v2) ? v2 - localAW[bandIdx] : v2; }
+              else { pin.spectrum[p][bandIdx] = parseFloat(val); }
             }
             var otherEl = panel.querySelector('.sfp-band-' + p + '[data-freq="' + freq + '"]');
             if (otherEl) otherEl.value = val;
