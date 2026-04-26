@@ -15893,7 +15893,7 @@ function srcPanelPeriodSectionHTML(pin, period, periodLabel) {
       '</label>' +
     '</div>' +
     '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
-      '<label style="font-size:11px;white-space:nowrap;">Lw (dB):</label>' +
+      '<label style="font-size:11px;white-space:nowrap;">Lw dB(A):</label>' +
       '<input type="number" class="sfp-lw-' + period + '" value="' + lwVal + '" style="width:64px;text-align:center;font-size:13px;">' +
       '<label style="font-size:11px;white-space:nowrap;margin-left:4px;">Quantity: <input type="number" class="sfp-units-' + period + '" value="' + (_getNumUnits(pin, period)) + '" min="1" step="1" style="width:54px;text-align:center;font-size:12px;"></label>' +
     '</div>' +
@@ -15949,7 +15949,7 @@ function srcPanelLmaxSectionHTML(pin) {
         '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
-        '<label style="font-size:11px;white-space:nowrap;">Lw,max (dB):</label>' +
+        '<label style="font-size:11px;white-space:nowrap;">Lw,max dB(A):</label>' +
         '<input type="number" class="sfp-lw-lmax" value="' + lwMax + '" placeholder="\u2014" style="width:64px;text-align:center;font-size:13px;">' +
         '<label style="font-size:11px;white-space:nowrap;margin-left:4px;">Quantity: <input type="number" class="sfp-units-lmax" value="' + (_getNumUnits(pin, 'lmax')) + '" min="1" step="1" style="width:54px;text-align:center;font-size:12px;"></label>' +
       '</div>' +
@@ -32489,7 +32489,7 @@ if (window.pdfjsLib) {
       var coordStr = (as.vertices && as.vertices.length) ? ctr.lat.toFixed(5) + ', ' + ctr.lng.toFixed(5) : '\u2014';
       var heightVal = as.height_m || 0.5;
       var lwMode    = as.lwMode || 'per_m2';
-      var lwLabel   = lwMode === 'per_m2' ? 'Lw/m\u00b2 (dB):' : 'Total Lw (dB):';
+      var lwLabel   = lwMode === 'per_m2' ? 'Lw/m\u00b2 dB(A):' : 'Total Lw dB(A):';
 
       var libOpts = '<option value="">\u2014 Custom / manual \u2014</option>';
       Object.keys(AREA_SOURCE_LIBRARY_GROUPED).forEach(function(cat) {
@@ -32771,7 +32771,7 @@ if (window.pdfjsLib) {
             var lwInp = document.getElementById('asPanelLw_' + p);
             if (lwInp) lwInp.value = found.lw_m2_dba;
             var lbl = document.getElementById('asPanelLwLbl_' + p);
-            if (lbl) lbl.childNodes[0].textContent = 'Lw/m\u00b2 (dB): ';
+            if (lbl) lbl.childNodes[0].textContent = 'Lw/m\u00b2 dB(A): ';
             bands.forEach(function(f) {
               as.spectrum[p][f] = found.spectrum_m2[f] !== undefined ? found.spectrum_m2[f] : '';
               var bandEl = document.getElementById('asPanelBand_' + p + '_' + f);
@@ -32806,7 +32806,7 @@ if (window.pdfjsLib) {
             });
           }
           var lbl = document.getElementById('asPanelLwLbl_' + p);
-          if (lbl) lbl.childNodes[0].textContent = (newMode === 'per_m2' ? 'Lw/m\u00b2 (dB): ' : 'Total Lw (dB): ');
+          if (lbl) lbl.childNodes[0].textContent = (newMode === 'per_m2' ? 'Lw/m\u00b2 dB(A): ' : 'Total Lw dB(A): ');
         });
         as.lwMode = newMode;
         triggerRecompute();
