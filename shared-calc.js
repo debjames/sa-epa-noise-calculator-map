@@ -66,6 +66,12 @@ var SharedCalc = (function() {
   var OCT_FREQ = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
   var ALPHA_DEFAULT = [0.1, 0.4, 1.0, 1.9, 3.7, 9.7, 32.8, 117.0];
 
+  /** A-weighting per IEC 61672-1, octave bands 63 Hz through 8 kHz.
+   *  Applied inside calcISOatPoint and calcISOatPointDetailed to convert
+   *  dB(Z) per-band input to dB(A) at output (Option B convention, April 2026).
+   *  See references/engine-convention-audit-2026-04.md. */
+  var A_WEIGHTS_BANDS = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
+
   /**
    * ISO 9613-2 Table 3 ground attenuation (detailed method, §7.3.1).
    * Agr = As + Ar + Am (source, receiver, and middle regions).
@@ -582,7 +588,7 @@ var SharedCalc = (function() {
   /**
    * ISO 9613-2 prediction for a single source at a receiver point.
    * All parameters are explicit — no global state dependencies.
-   * @param {number[]} spectrum - A-weighted Lw per octave band [63..8k]
+   * @param {number[]} spectrum - Unweighted Lw per octave band [63..8kHz] in dB(Z). A-weighting is applied internally.
    * @param {number} srcHeight - source height above ground (m)
    * @param {number} distM - distance source to receiver (m)
    * @param {number} adjDB - adjustment (quantity + opTime) in dB
@@ -658,7 +664,7 @@ var SharedCalc = (function() {
         AgrBar_f = Agr[i];
       }
       var A_f = Adiv + Aatm_f + AgrBar_f;
-      sumLin += Math.pow(10, (Lw_f + (adjDB || 0) - A_f) / 10);
+      sumLin += Math.pow(10, (Lw_f + A_WEIGHTS_BANDS[i] + (adjDB || 0) - A_f) / 10);
       anyBand = true;
     }
     if (!anyBand) return NaN;
@@ -668,6 +674,7 @@ var SharedCalc = (function() {
   /**
    * Detailed ISO 9613-2 prediction returning per-band intermediate values.
    * Same calculation as calcISOatPoint but returns full breakdown for §5.2.2 compliance.
+   * @param {number[]} spectrum - Unweighted Lw per octave band [63..8kHz] in dB(Z). A-weighting is applied internally.
    * @returns {object} { total, bands: [{ freq, Lw, Adiv, Aatm, Agr, Abar, AgrBar, Lp, LA }] }
    */
   function calcISOatPointDetailed(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand) {
@@ -718,11 +725,11 @@ var SharedCalc = (function() {
         AgrBar_f = Agr[i];
       }
       var A_f = Adiv + Aatm_f + AgrBar_f;
-      var Lp_f = Lw_f + (adjDB || 0) - A_f;
+      var Lp_f = Lw_f + A_WEIGHTS_BANDS[i] + (adjDB || 0) - A_f;
       sumLin += Math.pow(10, Lp_f / 10);
       bands.push({
         freq: OCT_FREQ[i],
-        Lw: Lw_f + (adjDB || 0),
+        Lw: Lw_f + A_WEIGHTS_BANDS[i] + (adjDB || 0),
         Adiv: Adiv,
         Aatm: Aatm_f,
         Agr: Agr_bar ? Agr_bar[i] : Agr[i],
@@ -752,7 +759,7 @@ var SharedCalc = (function() {
    * Lp(f) = Lw(f) + adj − (K1 + K2 + K3 + K4 + K5 + Kscreen)
    * where Kscreen = max(K6_barrier, Aterr).
    *
-   * @param {number[]} spectrum  - 8-band Lw (A-weighted) [63–8000 Hz]
+   * @param {number[]} spectrum  - Unweighted Lw per octave band [63..8kHz] in dB(Z). A-weighting is applied internally.
    * @param {number} srcHeight   - source height above ground (m)
    * @param {number} distM       - source-receiver distance (m)
    * @param {number} adjDB       - broadband adjustment (opTime + quantity)
@@ -822,7 +829,7 @@ var SharedCalc = (function() {
 
       // CONCAWE: K3 is always applied (no §7.4 insertion-loss interaction)
       var A_f = K1 + K2_f + K3_f + K4_f + K5_f + Kscreen_f;
-      sumLin += Math.pow(10, (Lw_f + (adjDB || 0) - A_f) / 10);
+      sumLin += Math.pow(10, (Lw_f + A_WEIGHTS_BANDS[i] + (adjDB || 0) - A_f) / 10);
       anyBand = true;
     }
     if (!anyBand) return NaN;
@@ -832,6 +839,7 @@ var SharedCalc = (function() {
   /**
    * Detailed CONCAWE prediction returning per-band intermediate values.
    * Same calculation as calcConcaweAtPoint but returns full breakdown.
+   * @param {number[]} spectrum - Unweighted Lw per octave band [63..8kHz] in dB(Z). A-weighting is applied internally.
    */
   function calcConcaweAtPointDetailed(spectrum, srcHeight, distM, adjDB, barrierDelta,
     recvHeight, concaweParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand) {
@@ -879,11 +887,11 @@ var SharedCalc = (function() {
         continue;
       }
       var A_f = K1 + K2_f + K3_f + K4_f + K5_f + Kscreen_f;
-      var Lp_f = Lw_f + (adjDB || 0) - A_f;
+      var Lp_f = Lw_f + A_WEIGHTS_BANDS[i] + (adjDB || 0) - A_f;
       sumLin += Math.pow(10, Lp_f / 10);
       bands.push({
         freq: freq,
-        Lw: Lw_f + (adjDB || 0),
+        Lw: Lw_f + A_WEIGHTS_BANDS[i] + (adjDB || 0),
         K1: K1, K2: K2_f, K3: K3_f, K4: K4_f, K5: K5_f,
         K6: K6_f, Aterr: Aterr_f, Lp: Lp_f
       });
@@ -1428,6 +1436,7 @@ var SharedCalc = (function() {
     // ISO 9613-2
     OCT_FREQ: OCT_FREQ,
     ALPHA_DEFAULT: ALPHA_DEFAULT,
+    A_WEIGHTS_BANDS: A_WEIGHTS_BANDS,
     calcAgrPerBand: calcAgrPerBand,
     calcAgrBarrier: calcAgrBarrier,
     calcAlphaAtm: calcAlphaAtm,

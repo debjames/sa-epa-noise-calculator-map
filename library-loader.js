@@ -91,7 +91,7 @@
     return {
       name:               row.name,
       category:           row.display_group || categoryNameMap[row.category_id] || 'Other',
-      spectrum_unweighted: rowBandsObject(row),
+      spectrum_m:         rowBandsObject(row),
       lw_m_dba:           overallLwA(bands),
       height_m:           (row.height_m !== null && row.height_m !== undefined) ? row.height_m : 0.5
     };
@@ -103,7 +103,7 @@
     return {
       name:               row.name,
       category:           row.display_group || categoryNameMap[row.category_id] || 'Other',
-      spectrum_unweighted: rowBandsObject(row),
+      spectrum_m2:        rowBandsObject(row),
       lw_m2_dba:          overallLwA(bands),
       height_m:           (row.height_m !== null && row.height_m !== undefined) ? row.height_m : 1.0
     };
