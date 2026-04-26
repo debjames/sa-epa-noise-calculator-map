@@ -234,7 +234,11 @@ describe('calcBarrierAttenuation', () => {
 // ---------------------------------------------------------------------------
 // calcISOatPoint — shared ISO 9613-2 prediction
 // ---------------------------------------------------------------------------
-const ISO_SPECTRUM = [37, 43, 48, 53, 56, 54, 51, 43]; // small exhaust fan reference
+// ISO_SPECTRUM: dB(Z) unweighted per band (converted from dB(A) April 2026, Option B convention).
+// Engine applies A-weighting internally; expected Lp values are unchanged.
+// Original dB(A): [37, 43, 48, 53, 56, 54, 51, 43]
+// Converted dBZ[i] = dBA[i] - AW[i]: AW=[-26.2,-16.1,-8.6,-3.2,0,1.2,1.0,-1.1]
+const ISO_SPECTRUM = [63.2, 59.1, 56.6, 56.2, 56.0, 52.8, 50.0, 44.1]; // small exhaust fan reference, dB(Z)
 
 describe('calcISOatPoint', () => {
   it('returns a finite number for valid inputs', () => {

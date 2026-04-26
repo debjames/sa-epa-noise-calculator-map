@@ -18,9 +18,12 @@ const A_WEIGHT = [-26.2, -16.1, -8.6, -3.2, 0, 1.2, 1.0, -1.1];
 const dp = Math.sqrt(190 * 190 + 40 * 40); // 194.16 m
 const Adiv = 20 * Math.log10(dp) + 11;      // 56.76 dB
 
-// Lw = 93 dB all bands (unweighted octave band sound power level)
-// NOTE: calcISOatPoint takes A-weighted Lw as used in the tool's source library.
-// For ISO reference tests we need unweighted Lw and must apply A-weighting to the output.
+// Lw = 93 dB all bands (unweighted octave band sound power level, dB(Z))
+// NOTE: Under Option B (April 2026), calcISOatPoint accepts dB(Z) per-band input and
+// applies A-weighting internally via A_WEIGHTS_BANDS. The ISO reference validation
+// uses the independent computePerBandLA helper (which also applies A-weighting externally
+// to unweighted input) — not calcISOatPoint directly — so reference values are unaffected.
+// The parity tests below pass LW_UNWEIGHTED to calcISOatPoint for self-consistency checks only.
 const LW_UNWEIGHTED = [93, 93, 93, 93, 93, 93, 93, 93];
 
 // Source height 1m, receiver height 4m

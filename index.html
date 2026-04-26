@@ -9224,147 +9224,150 @@ function getNSWModifyingFactors() {
 // immediately overwritten by rebuildSourceLibraries() which pulls from Google
 // Sheets (SourceLibrary). This declaration is retained only as a fallback
 // during the brief parse phase before any SourceLibrary data is available.
+// Per-band spectrum values are dB(Z) (unweighted). Engine applies A-weighting
+// internally via A_WEIGHTS_BANDS (Option B convention, April 2026).
+// Broadband 'lw' values are dB(A). Converted from dB(A) April 2026.
 var SOURCE_LIBRARY_GROUPED = {
   "Mechanical units": [
-    {"name":"Small exhaust fan (toilet, garbage room)—Lw 60 dB(A)","lw":60.4,"spectrum":[37,43,48,53,56,54,51,43],"height":1},
-    {"name":"Small kitchen exhaust fan—Lw 70 dB(A)","lw":70.4,"spectrum":[47,53,58,63,66,64,61,53],"height":1},
-    {"name":"Carpark exhaust fan—outlet—Lw 85 dB(A)","lw":85.1,"spectrum":[64,72,77,79,79,78,74,66],"height":1},
-    {"name":"Large General exhaust fan—Lw 94 dB(A) / Lp 75 dB(A) at 3m","lw":94.0,"spectrum":[67,76,83,85,88,90,84,null],"height":1},
-    {"name":"Smoke Spill Fans—outlet—Lw 102 dB(Z) / Lw 95 dB(A) / Lp 75 dB(A) @ 3m","lw":95.5,"spectrum":[72,77,86,88,90,90,85,79],"height":1},
-    {"name":"Large Dust Extractor—Lw 97 dB(A) / 75 dB(A) @ 5m","lw":96.5,"spectrum":[65,80,87,92,92,88,80,72],"height":1},
-    {"name":"Medium Dust Extractor—Lw 91 dB(A) / 68 dB(A) @ 5m","lw":90.5,"spectrum":[59,74,81,86,86,82,74,66],"height":1},
+    {"name":"Small exhaust fan (toilet, garbage room)—Lw 60 dB(A)","lw":60.4,"spectrum":[63.2,59.1,56.6,56.2,56,52.8,50,44.1],"height":1},
+    {"name":"Small kitchen exhaust fan—Lw 70 dB(A)","lw":70.4,"spectrum":[73.2,69.1,66.6,66.2,66,62.8,60,54.1],"height":1},
+    {"name":"Carpark exhaust fan—outlet—Lw 85 dB(A)","lw":85.1,"spectrum":[90.2,88.1,85.6,82.2,79,76.8,73,67.1],"height":1},
+    {"name":"Large General exhaust fan—Lw 94 dB(A) / Lp 75 dB(A) at 3m","lw":94.0,"spectrum":[93.2,92.1,91.6,88.2,88,88.8,83,null],"height":1},
+    {"name":"Smoke Spill Fans—outlet—Lw 102 dB(Z) / Lw 95 dB(A) / Lp 75 dB(A) @ 3m","lw":95.5,"spectrum":[98.2,93.1,94.6,91.2,90,88.8,84,80.1],"height":1},
+    {"name":"Large Dust Extractor—Lw 97 dB(A) / 75 dB(A) @ 5m","lw":96.5,"spectrum":[91.2,96.1,95.6,95.2,92,86.8,79,73.1],"height":1},
+    {"name":"Medium Dust Extractor—Lw 91 dB(A) / 68 dB(A) @ 5m","lw":90.5,"spectrum":[85.2,90.1,89.6,89.2,86,80.8,73,67.1],"height":1},
 
-    {"name":"Condenser—small single fan outdoor unit—Lw 65 dB(A)","lw":65.7,"spectrum":[42,54,59,61,60,54,52,null],"height":1},
-    {"name":"Condenser—medium double fan outdoor unit—Lw 70 dB(A)","lw":70.7,"spectrum":[47,59,64,66,65,59,57,null],"height":1},
-    {"name":"Condenser—large double fan outdoor unit—Lw 76 dB(A)","lw":75.7,"spectrum":[52,64,69,71,70,64,62,null],"height":1},
+    {"name":"Condenser—small single fan outdoor unit—Lw 65 dB(A)","lw":65.7,"spectrum":[68.2,70.1,67.6,64.2,60,52.8,51,null],"height":1},
+    {"name":"Condenser—medium double fan outdoor unit—Lw 70 dB(A)","lw":70.7,"spectrum":[73.2,75.1,72.6,69.2,65,57.8,56,null],"height":1},
+    {"name":"Condenser—large double fan outdoor unit—Lw 76 dB(A)","lw":75.7,"spectrum":[78.2,80.1,77.6,74.2,70,62.8,61,null],"height":1},
 
-    {"name":"Air Conditioning Condenser (High Fan Speed)—Supermarket—Lw 85 dB(A)","lw":84.5,"spectrum":[null,69,73,79,80,78,71,null],"height":1},
-    {"name":"Refrigeration Condenser (High Fan Speed)—Supermarket—Lw 88 dB(A)","lw":87.6,"spectrum":[null,70,77,80,84,81,75,null],"height":1},
+    {"name":"Air Conditioning Condenser (High Fan Speed)—Supermarket—Lw 85 dB(A)","lw":84.5,"spectrum":[null,85.1,81.6,82.2,80,76.8,70,null],"height":1},
+    {"name":"Refrigeration Condenser (High Fan Speed)—Supermarket—Lw 88 dB(A)","lw":87.6,"spectrum":[null,86.1,85.6,83.2,84,79.8,74,null],"height":1},
 
-    {"name":"Evaporative cooler—Braemar RPB600 Radiated—Lw 80 dB(A)","lw":80.3,"spectrum":[54,64,69,71,74,76,72,60],"height":1.52},
-    {"name":"Evaporative cooler—Braemar RPB700 Radiated—Lw 78 dB(A)","lw":77.9,"spectrum":[52,62,67,69,71,74,69,57],"height":1.52},
-    {"name":"Evaporative cooler—Braemar RPB900 Radiated—Lw 84 dB(A)","lw":84.6,"spectrum":[56,66,70,74,78,81,77,65],"height":1.52},
-    {"name":"Evaporative cooler—Braemar RPB1000 Radiated—Lw 89 dB(A)","lw":89.9,"spectrum":[62,72,77,82,85,85,80,70],"height":1.52},
-    {"name":"Evaporative cooler—Braemar RPB1200 Radiated—Lw 88 dB(A)","lw":88.9,"spectrum":[63,73,77,82,84,83,79,71],"height":1.52},
-    {"name":"Evaporative cooler—Braemar RPB1300 Radiated—Lw 89 dB(A)","lw":89.9,"spectrum":[64,74,78,83,85,84,80,72],"height":1.52},
-    {"name":"Evaporative cooler—Braemar RPB1400 Radiated—Lw 93 dB(A)","lw":92.9,"spectrum":[67,77,81,86,88,87,83,75],"height":1.52},
-    {"name":"Evaporative cooler—Braemar RPB1500 Radiated—Lw 94 dB(A)","lw":94.3,"spectrum":[69,79,83,88,89,88,85,77],"height":1.52},
-    {"name":"Evaporative cooler—Braemar RPB1800 Radiated—Lw 96 dB(A)","lw":96.5,"spectrum":[71,81,85,90,91,90,88,81],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB600 Radiated—Lw 80 dB(A)","lw":80.3,"spectrum":[80.2,80.1,77.6,74.2,74,74.8,71,61.1],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB700 Radiated—Lw 78 dB(A)","lw":77.9,"spectrum":[78.2,78.1,75.6,72.2,71,72.8,68,58.1],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB900 Radiated—Lw 84 dB(A)","lw":84.6,"spectrum":[82.2,82.1,78.6,77.2,78,79.8,76,66.1],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1000 Radiated—Lw 89 dB(A)","lw":89.9,"spectrum":[88.2,88.1,85.6,85.2,85,83.8,79,71.1],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1200 Radiated—Lw 88 dB(A)","lw":88.9,"spectrum":[89.2,89.1,85.6,85.2,84,81.8,78,72.1],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1300 Radiated—Lw 89 dB(A)","lw":89.9,"spectrum":[90.2,90.1,86.6,86.2,85,82.8,79,73.1],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1400 Radiated—Lw 93 dB(A)","lw":92.9,"spectrum":[93.2,93.1,89.6,89.2,88,85.8,82,76.1],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1500 Radiated—Lw 94 dB(A)","lw":94.3,"spectrum":[95.2,95.1,91.6,91.2,89,86.8,84,78.1],"height":1.52},
+    {"name":"Evaporative cooler—Braemar RPB1800 Radiated—Lw 96 dB(A)","lw":96.5,"spectrum":[97.2,97.1,93.6,93.2,91,88.8,87,82.1],"height":1.52},
 
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard—Lw 99 dB(A)","lw":99.0,"spectrum":[null,78,84,92,96,92,87,null],"height":2.3},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15—Lw 95 dB(A)","lw":95.0,"spectrum":[null,78,83,90,91,87,81,null],"height":2.3},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15LS—Lw 91 dB(A)","lw":91.0,"spectrum":[null,74,84,85,87,82,70,null],"height":2.3},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15LS+—Lw 89 dB(A)","lw":88.8,"spectrum":[null,71,83,82,85,78,68,null],"height":2.3},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard—Lw 99 dB(A)","lw":99.1,"spectrum":[null,79,85,89,98,87,81,null],"height":2.3},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard+Option15—Lw 94 dB(A)","lw":94.0,"spectrum":[null,78,84,88,91,84,79,null],"height":2.3},
-    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard+Option15LS—Lw 87 dB(A)","lw":87.1,"spectrum":[null,69,80,80,84,77,66,null],"height":2.3},
-    {"name":"Daikin air cooled single screw chiller / heat pump—Lw 102 dB(A)","lw":102.4,"spectrum":[64,78,87,94,99,97,93,88],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard—Lw 99 dB(A)","lw":99.0,"spectrum":[null,94.1,92.6,95.2,96,90.8,86,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15—Lw 95 dB(A)","lw":95.0,"spectrum":[null,94.1,91.6,93.2,91,85.8,80,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15LS—Lw 91 dB(A)","lw":91.0,"spectrum":[null,90.1,92.6,88.2,87,80.8,69,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15LS+—Lw 89 dB(A)","lw":88.8,"spectrum":[null,87.1,91.6,85.2,85,76.8,67,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard—Lw 99 dB(A)","lw":99.1,"spectrum":[null,95.1,93.6,92.2,98,85.8,80,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard+Option15—Lw 94 dB(A)","lw":94.0,"spectrum":[null,94.1,92.6,91.2,91,82.8,78,null],"height":2.3},
+    {"name":"Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard+Option15LS—Lw 87 dB(A)","lw":87.1,"spectrum":[null,85.1,88.6,83.2,84,75.8,65,null],"height":2.3},
+    {"name":"Daikin air cooled single screw chiller / heat pump—Lw 102 dB(A)","lw":102.4,"spectrum":[90.2,94.1,95.6,97.2,99,95.8,92,89.1],"height":2.3},
 
-    {"name":"Cooling Tower (single unit, 5.5kW, 2.28x2.28x3.25mm)—Lw 87 dB(A)","lw":87.4,"spectrum":[58,62,72,79,80,82,81,78],"height":1},
+    {"name":"Cooling Tower (single unit, 5.5kW, 2.28x2.28x3.25mm)—Lw 87 dB(A)","lw":87.4,"spectrum":[84.2,78.1,80.6,82.2,80,80.8,80,79.1],"height":1},
 
-    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@75% load—Lw 96 dB(A)","lw":95.8,"spectrum":[77,83,91,88,88,88,86,78],"height":1},
-    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@100% load—Lw 97 dB(A)","lw":96.6,"spectrum":[79,85,92,89,89,89,87,78],"height":1},
-    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@110% load—Lw 97 dB(A)","lw":96.8,"spectrum":[78,85,92,89,89,89,88,81],"height":1},
-    {"name":"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime—engine, no exhaust no muffler)—Lw 117 dB(A)","lw":117.1,"spectrum":[82,98,105,107,111,112,109,108],"height":1},
-    {"name":"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime—open exhaust)—Lw 126 dB(A)","lw":126.1,"spectrum":[108,115,112,119,117,119,121,113],"height":1},
+    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@75% load—Lw 96 dB(A)","lw":95.8,"spectrum":[103.2,99.1,99.6,91.2,88,86.8,85,79.1],"height":1},
+    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@100% load—Lw 97 dB(A)","lw":96.6,"spectrum":[105.2,101.1,100.6,92.2,89,87.8,86,79.1],"height":1},
+    {"name":"Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed with genset mounted muffler)—@110% load—Lw 97 dB(A)","lw":96.8,"spectrum":[104.2,101.1,100.6,92.2,89,87.8,87,82.1],"height":1},
+    {"name":"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime—engine, no exhaust no muffler)—Lw 117 dB(A)","lw":117.1,"spectrum":[108.2,114.1,113.6,110.2,111,110.8,108,109.1],"height":1},
+    {"name":"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime—open exhaust)—Lw 126 dB(A)","lw":126.1,"spectrum":[134.2,131.1,120.6,122.2,117,117.8,120,114.1],"height":1},
 
-    {"name":"Firepump PowerMaXX DP4400N 2400 RPM—Lw 112 dB(A)","lw":111.7,"spectrum":[87,92,100,104,107,107,100,88],"height":1}
+    {"name":"Firepump PowerMaXX DP4400N 2400 RPM—Lw 112 dB(A)","lw":111.7,"spectrum":[113.2,108.1,108.6,107.2,107,105.8,99,89.1],"height":1}
   ],
 
   "Trucks": [
-    {"name":"Small truck idling","lw":90.3,"spectrum":[65,74,78,83,86,85,78,66],"height":1.5},
-    {"name":"Small truck driving slowly (Lw/m)","lw":99.3,"spectrum":[74,83,87,92,95,94,87,75],"height":1.5},
-    {"name":"Small truck exhaust (Lw/m)","lw":91.3,"spectrum":[66,75,79,84,87,86,79,67],"height":3.6},
-    {"name":"Small truck accelerating - Lmax","lw":106.3,"spectrum":[81,90,94,99,102,101,94,82],"height":1.5},
+    {"name":"Small truck idling","lw":90.3,"spectrum":[91.2,90.1,86.6,86.2,86,83.8,77,67.1],"height":1.5},
+    {"name":"Small truck driving slowly (Lw/m)","lw":99.3,"spectrum":[100.2,99.1,95.6,95.2,95,92.8,86,76.1],"height":1.5},
+    {"name":"Small truck exhaust (Lw/m)","lw":91.3,"spectrum":[92.2,91.1,87.6,87.2,87,84.8,78,68.1],"height":3.6},
+    {"name":"Small truck accelerating - Lmax","lw":106.3,"spectrum":[107.2,106.1,102.6,102.2,102,99.8,93,83.1],"height":1.5},
 
-    {"name":"Medium truck idling","lw":93.5,"spectrum":[68,77,81,86,89,88,83,71],"height":1.5},
-    {"name":"Medium truck driving slowly (Lw/m)","lw":102.3,"spectrum":[77,86,90,95,98,97,90,78],"height":1.5},
-    {"name":"Medium truck exhaust (Lw/m)","lw":94.3,"spectrum":[69,78,82,87,90,89,82,70],"height":3.6},
-    {"name":"Medium truck accelerating - Lmax","lw":109.2,"spectrum":[83,93,97,102,105,104,97,85],"height":1.5},
+    {"name":"Medium truck idling","lw":93.5,"spectrum":[94.2,93.1,89.6,89.2,89,86.8,82,72.1],"height":1.5},
+    {"name":"Medium truck driving slowly (Lw/m)","lw":102.3,"spectrum":[103.2,102.1,98.6,98.2,98,95.8,89,79.1],"height":1.5},
+    {"name":"Medium truck exhaust (Lw/m)","lw":94.3,"spectrum":[95.2,94.1,90.6,90.2,90,87.8,81,71.1],"height":3.6},
+    {"name":"Medium truck accelerating - Lmax","lw":109.2,"spectrum":[109.2,109.1,105.6,105.2,105,102.8,96,86.1],"height":1.5},
 
-    {"name":"Large truck idling","lw":96.1,"spectrum":[73,80,82,91,91,90,85,72],"height":1.5},
-    {"name":"Large truck driving slowly (Lw/m)","lw":105.2,"spectrum":[79,89,93,98,101,100,93,81],"height":1.5},
-    {"name":"Large truck exhaust (Lw/m)","lw":97.2,"spectrum":[71,81,85,90,93,92,85,73],"height":3.6},
-    {"name":"Large truck accelerating - Lmax","lw":112.2,"spectrum":[86,96,100,105,108,107,100,88],"height":1.5},
+    {"name":"Large truck idling","lw":96.1,"spectrum":[99.2,96.1,90.6,94.2,91,88.8,84,73.1],"height":1.5},
+    {"name":"Large truck driving slowly (Lw/m)","lw":105.2,"spectrum":[105.2,105.1,101.6,101.2,101,98.8,92,82.1],"height":1.5},
+    {"name":"Large truck exhaust (Lw/m)","lw":97.2,"spectrum":[97.2,97.1,93.6,93.2,93,90.8,84,74.1],"height":3.6},
+    {"name":"Large truck accelerating - Lmax","lw":112.2,"spectrum":[112.2,112.1,108.6,108.2,108,105.8,99,89.1],"height":1.5},
 
-    {"name":"Refrigerated truck condenser (small/medium truck)","lw":92.4,"spectrum":[73,80,82,88,86,85,80,70],"height":3},
-    {"name":"Refrigerated truck condenser (large truck)","lw":98.5,"spectrum":[88,91,88,94,91,88,83,77],"height":3},
-    {"name":"Truck air brake release Lmax","lw":111.1,"spectrum":[88,99,105,103,107,102,85,71],"height":0.5},
-    {"name":"Truck air horn Lmax","lw":118.7,"spectrum":[65,73,98,116,113,111,99,88],"height":3.6},
+    {"name":"Refrigerated truck condenser (small/medium truck)","lw":92.4,"spectrum":[99.2,96.1,90.6,91.2,86,83.8,79,71.1],"height":3},
+    {"name":"Refrigerated truck condenser (large truck)","lw":98.5,"spectrum":[114.2,107.1,96.6,97.2,91,86.8,82,78.1],"height":3},
+    {"name":"Truck air brake release Lmax","lw":111.1,"spectrum":[114.2,115.1,113.6,106.2,107,100.8,84,72.1],"height":0.5},
+    {"name":"Truck air horn Lmax","lw":118.7,"spectrum":[91.2,89.1,106.6,119.2,113,109.8,98,89.1],"height":3.6},
 
-    {"name":"Car idling","lw":75.0,"spectrum":[58,65,66,67,70,68,62,56],"height":0.5},
-    {"name":"Car driving slowly (Lw/m)","lw":81.0,"spectrum":[64,71,72,73,76,74,68,62],"height":0.5},
-    {"name":"Van idling","lw":80.0,"spectrum":[63,70,71,72,75,73,67,61],"height":0.5},
-    {"name":"Van driving slowly","lw":86.0,"spectrum":[69,76,77,78,81,79,73,67],"height":0.5},
-    {"name":"Car engine start - Lmax","lw":98.3,"spectrum":[69,78,77,84,93,94,92,86],"height":0.5},
-    {"name":"Car door slam - Lmax","lw":98.0,"spectrum":[61,74,84,91,94,91,88,82],"height":1}
+    {"name":"Car idling","lw":75.0,"spectrum":[84.2,81.1,74.6,70.2,70,66.8,61,57.1],"height":0.5},
+    {"name":"Car driving slowly (Lw/m)","lw":81.0,"spectrum":[90.2,87.1,80.6,76.2,76,72.8,67,63.1],"height":0.5},
+    {"name":"Van idling","lw":80.0,"spectrum":[89.2,86.1,79.6,75.2,75,71.8,66,62.1],"height":0.5},
+    {"name":"Van driving slowly","lw":86.0,"spectrum":[95.2,92.1,85.6,81.2,81,77.8,72,68.1],"height":0.5},
+    {"name":"Car engine start - Lmax","lw":98.3,"spectrum":[95.2,94.1,85.6,87.2,93,92.8,91,87.1],"height":0.5},
+    {"name":"Car door slam - Lmax","lw":98.0,"spectrum":[87.2,90.1,92.6,94.2,94,89.8,87,83.1],"height":1}
   ],
 
   "Fast food outlets": [
-    {"name":"Speaker box","lw":83.8,"spectrum":[52,61,58,76,79,80,70,64],"height":1},
-    {"name":"Speaker box - Lmax","lw":99.7,"spectrum":[62,74,73,92,95,96,86,80],"height":1},
-    {"name":"Voice at pickup window","lw":68.2,"spectrum":[null,35,51,63,65,61,46,null],"height":1}
+    {"name":"Speaker box","lw":83.8,"spectrum":[78.2,77.1,66.6,79.2,79,78.8,69,65.1],"height":1},
+    {"name":"Speaker box - Lmax","lw":99.7,"spectrum":[88.2,90.1,81.6,95.2,95,94.8,85,81.1],"height":1},
+    {"name":"Voice at pickup window","lw":68.2,"spectrum":[null,51.1,59.6,66.2,65,59.8,45,null],"height":1}
   ],
 
   "Industrial (forklifts / warehouse)": [
-    {"name":"Electric forklift - typical activity","lw":84.1,"spectrum":[55,66,78,76,77,76,76,72],"height":1.5},
-    {"name":"Gas forklift - typical activity","lw":91.7,"spectrum":[68,76,84,84,87,85,83,72],"height":1.5},
-    {"name":"Diesel forklift - typical activity","lw":100.1,"spectrum":[82,86,89,93,96,93,89,null],"height":1.5},
+    {"name":"Electric forklift - typical activity","lw":84.1,"spectrum":[81.2,82.1,86.6,79.2,77,74.8,75,73.1],"height":1.5},
+    {"name":"Gas forklift - typical activity","lw":91.7,"spectrum":[94.2,92.1,92.6,87.2,87,83.8,82,73.1],"height":1.5},
+    {"name":"Diesel forklift - typical activity","lw":100.1,"spectrum":[108.2,102.1,97.6,96.2,96,91.8,88,null],"height":1.5},
     {"name":"Electric forklift - driving (Lw/m)","lw":53.0,"height":1.5},
     {"name":"Gas forklift - driving (Lw/m)","lw":62.0,"height":1.5},
     {"name":"Diesel forklift - driving (Lw/m)","lw":62.2,"height":1.5},
-    {"name":"Forklift clanging forks - Lmax","lw":110.8,"spectrum":[82,93,105,103,104,103,103,null],"height":0.5},
-    {"name":"Forklift horn - Lmax","lw":111.3,"spectrum":[57,66,79,103,90,107,108,null],"height":0.5},
-    {"name":"Warehouse - internal reverberant level","lw":80.7,"spectrum":[50,55,56,72,75,77,72,64],"height":0},
-    {"name":"Vacuum","lw":88.1,"spectrum":[54,60,66,71,75,87,78,70],"height":1}
+    {"name":"Forklift clanging forks - Lmax","lw":110.8,"spectrum":[108.2,109.1,113.6,106.2,104,101.8,102,null],"height":0.5},
+    {"name":"Forklift horn - Lmax","lw":111.3,"spectrum":[83.2,82.1,87.6,106.2,90,105.8,107,null],"height":0.5},
+    {"name":"Warehouse - internal reverberant level","lw":80.7,"spectrum":[76.2,71.1,64.6,75.2,75,75.8,71,65.1],"height":0},
+    {"name":"Vacuum","lw":88.1,"spectrum":[80.2,76.1,74.6,74.2,75,85.8,77,71.1],"height":1}
   ],
 
   "Car wash": [
-    {"name":"Car wash - manual","lw":96.0,"spectrum":[40,61,75,82,87,92,91,88],"height":0.5},
-    {"name":"Car wash - auto","lw":91.2,"spectrum":[35,56,70,77,82,87,86,83],"height":0.5}
+    {"name":"Car wash - manual","lw":96.0,"spectrum":[66.2,77.1,83.6,85.2,87,90.8,90,89.1],"height":0.5},
+    {"name":"Car wash - auto","lw":91.2,"spectrum":[61.2,72.1,78.6,80.2,82,85.8,85,84.1],"height":0.5}
   ],
 
   "Dog wash": [
-    {"name":"Dog wash","lw":86.0,"spectrum":[49,62,66,71,77,84,80,72],"height":1},
-    {"name":"Dog barking - SEL per bark","lw":101.0,"spectrum":[65,70,80,96,97,93,82,74],"height":0.5},
-    {"name":"Dog barking - Lmax","lw":95.0,"spectrum":[59,64,74,90,91,87,76,68],"height":0.5}
+    {"name":"Dog wash","lw":86.0,"spectrum":[75.2,78.1,74.6,74.2,77,82.8,79,73.1],"height":1},
+    {"name":"Dog barking - SEL per bark","lw":101.0,"spectrum":[91.2,86.1,88.6,99.2,97,91.8,81,75.1],"height":0.5},
+    {"name":"Dog barking - Lmax","lw":95.0,"spectrum":[85.2,80.1,82.6,93.2,91,85.8,75,69.1],"height":0.5}
   ],
 
   "Childcare": [
-    {"name":"10 children: 0 - 2 years","lw":77.6,"spectrum":[28,44,57,69,74,72,68,63],"height":1},
-    {"name":"10 children: 2 - 3 years","lw":84.6,"spectrum":[35,51,64,76,81,79,75,69],"height":1},
-    {"name":"10 children: 3 - 5 years","lw":86.6,"spectrum":[38,54,66,78,83,81,77,71],"height":1}
+    {"name":"10 children: 0 - 2 years","lw":77.6,"spectrum":[54.2,60.1,65.6,72.2,74,70.8,67,64.1],"height":1},
+    {"name":"10 children: 2 - 3 years","lw":84.6,"spectrum":[61.2,67.1,72.6,79.2,81,77.8,74,70.1],"height":1},
+    {"name":"10 children: 3 - 5 years","lw":86.6,"spectrum":[64.2,70.1,74.6,81.2,83,79.8,76,72.1],"height":1}
   ],
 
   "Patrons": [
-    {"name":"Outdoor patron","lw":74.2,"spectrum":[null,41,57,69,71,67,52,null],"height":1.5},
-    {"name":"Patron in bar setting (SA)","lw":74.2,"spectrum":[null,41,57,69,71,67,52,null],"height":1.5},
-    {"name":"Vertical consumption ('worst-case' crowd) - per person","lw":88.0,"spectrum":[null,55,71,83,85,81,66,null],"height":1.5},
-    {"name":"Taverns with significant food offerings - per person","lw":83.0,"spectrum":[null,50,66,78,80,76,61,null],"height":1.5},
-    {"name":"Restaurant dining - per person","lw":78.0,"spectrum":[null,45,61,73,75,71,56,null],"height":1},
-    {"name":"Small smoking areas (<40 patrons) - per person","lw":73.0,"spectrum":[null,40,56,68,70,66,51,null],"height":1.5},
-    {"name":"Male talker - normal vocal effort","lw":58.0,"spectrum":[20.8,30.9,47.4,54.8,52,49.2,45,37.9],"height":1.5},
-    {"name":"Male talker - raised vocal effort","lw":66.3,"spectrum":[29.8,39.9,54.4,61.8,62,58.2,53,44.9],"height":1.5},
-    {"name":"Male talker - loud vocal effort","lw":75.6,"spectrum":[32.8,42.9,58.4,69.8,72,68.2,63,51.9],"height":1.5}
+    {"name":"Outdoor patron","lw":74.2,"spectrum":[null,57.1,65.6,72.2,71,65.8,51,null],"height":1.5},
+    {"name":"Patron in bar setting (SA)","lw":74.2,"spectrum":[null,57.1,65.6,72.2,71,65.8,51,null],"height":1.5},
+    {"name":"Vertical consumption ('worst-case' crowd) - per person","lw":88.0,"spectrum":[null,71.1,79.6,86.2,85,79.8,65,null],"height":1.5},
+    {"name":"Taverns with significant food offerings - per person","lw":83.0,"spectrum":[null,66.1,74.6,81.2,80,74.8,60,null],"height":1.5},
+    {"name":"Restaurant dining - per person","lw":78.0,"spectrum":[null,61.1,69.6,76.2,75,69.8,55,null],"height":1},
+    {"name":"Small smoking areas (<40 patrons) - per person","lw":73.0,"spectrum":[null,56.1,64.6,71.2,70,64.8,50,null],"height":1.5},
+    {"name":"Male talker - normal vocal effort","lw":58.0,"spectrum":[47,47,56,58,52,48,44,39],"height":1.5},
+    {"name":"Male talker - raised vocal effort","lw":66.3,"spectrum":[56,56,63,65,62,57,52,46],"height":1.5},
+    {"name":"Male talker - loud vocal effort","lw":75.6,"spectrum":[59,59,67,73,72,67,62,53],"height":1.5}
   ],
 
   "Music": [
-    {"name":"Background music - conversation and normal effort - Leq","lw":70.0,"spectrum":[49,59,59,63,64,64,58,55],"height":0},
-    {"name":"Background music - conversation and normal effort - L10","lw":72.0,"spectrum":[51,61,61,65,66,66,60,57],"height":0},
-    {"name":"Background music - conversation and raised effort - Leq","lw":75.0,"spectrum":[54,64,64,68,69,69,63,60],"height":0},
-    {"name":"Background music - conversation and raised effort - L10","lw":77.0,"spectrum":[56,66,66,70,71,71,65,62],"height":0},
-    {"name":"Foreground music - Acoustic amplified - Leq","lw":80.0,"spectrum":[61,72,72,73,74,71,69,64],"height":0},
-    {"name":"Foreground music - Acoustic amplified - L10","lw":82.0,"spectrum":[63,74,74,75,76,73,71,66],"height":0},
-    {"name":"Foreground music - Ambient DJ - Leq","lw":85.2,"spectrum":[68,78,77,78,78,77,75,73],"height":0},
-    {"name":"Foreground music - Ambient DJ - L10","lw":87.2,"spectrum":[70,80,79,80,80,79,77,75],"height":0},
-    {"name":"Foreground music - Function room / wedding - Leq","lw":89.6,"spectrum":[66,80,84,83,81,82,79,73],"height":0},
-    {"name":"Foreground music - Function room / wedding - L10","lw":91.6,"spectrum":[68,82,86,85,83,84,81,75],"height":0},
-    {"name":"Foreground music - nightclub - Leq","lw":95.4,"spectrum":[74,85,88,90,86,88,87,80],"height":0},
-    {"name":"Foreground music - nightclub - L10","lw":97.4,"spectrum":[76,87,90,92,88,90,89,82],"height":0}
+    {"name":"Background music - conversation and normal effort - Leq","lw":70.0,"spectrum":[75.2,75.1,67.6,66.2,64,62.8,57,56.1],"height":0},
+    {"name":"Background music - conversation and normal effort - L10","lw":72.0,"spectrum":[77.2,77.1,69.6,68.2,66,64.8,59,58.1],"height":0},
+    {"name":"Background music - conversation and raised effort - Leq","lw":75.0,"spectrum":[80.2,80.1,72.6,71.2,69,67.8,62,61.1],"height":0},
+    {"name":"Background music - conversation and raised effort - L10","lw":77.0,"spectrum":[82.2,82.1,74.6,73.2,71,69.8,64,63.1],"height":0},
+    {"name":"Foreground music - Acoustic amplified - Leq","lw":80.0,"spectrum":[87.2,88.1,80.6,76.2,74,69.8,68,65.1],"height":0},
+    {"name":"Foreground music - Acoustic amplified - L10","lw":82.0,"spectrum":[89.2,90.1,82.6,78.2,76,71.8,70,67.1],"height":0},
+    {"name":"Foreground music - Ambient DJ - Leq","lw":85.2,"spectrum":[94.2,94.1,85.6,81.2,78,75.8,74,74.1],"height":0},
+    {"name":"Foreground music - Ambient DJ - L10","lw":87.2,"spectrum":[96.2,96.1,87.6,83.2,80,77.8,76,76.1],"height":0},
+    {"name":"Foreground music - Function room / wedding - Leq","lw":89.6,"spectrum":[92.2,96.1,92.6,86.2,81,80.8,78,74.1],"height":0},
+    {"name":"Foreground music - Function room / wedding - L10","lw":91.6,"spectrum":[94.2,98.1,94.6,88.2,83,82.8,80,76.1],"height":0},
+    {"name":"Foreground music - nightclub - Leq","lw":95.4,"spectrum":[100.2,101.1,96.6,93.2,86,86.8,86,81.1],"height":0},
+    {"name":"Foreground music - nightclub - L10","lw":97.4,"spectrum":[102.2,103.1,98.6,95.2,88,88.8,88,83.1],"height":0}
   ],
 
   "Gymnasium": [
-    {"name":"Gymnasium - general sporting activity, overall reverberant level","lw":75.2,"spectrum":[50,60,57,65,69,70,70,null],"height":0}
+    {"name":"Gymnasium - general sporting activity, overall reverberant level","lw":75.2,"spectrum":[76.2,76.1,65.6,68.2,69,68.8,69,null],"height":0}
   ]
 };
 
@@ -10404,7 +10407,7 @@ function rebuildLineSourceGrouped() {
         return {
           name: row.name, category: row.category,
           lw_m_dba: row.lp_dba,
-          spectrum_unweighted: {
+          spectrum_m: {
             63: row.hz_63, 125: row.hz_125, 250: row.hz_250, 500: row.hz_500,
             1000: row.hz_1000, 2000: row.hz_2000, 4000: row.hz_4000, 8000: row.hz_8000
           },
@@ -10480,7 +10483,7 @@ function rebuildAreaSourceGrouped() {
         return {
           name: row.name, category: row.category,
           lw_m2_dba: row.lp_dba,
-          spectrum_unweighted: {
+          spectrum_m2: {
             63: row.hz_63, 125: row.hz_125, 250: row.hz_250, 500: row.hz_500,
             1000: row.hz_1000, 2000: row.hz_2000, 4000: row.hz_4000, 8000: row.hz_8000
           },
@@ -10623,31 +10626,32 @@ function _asGetLwM2Adj(as, period) {
   }
 }
 
-/** Build A-weighted octave-band spectrum for ISO 9613-2 propagation,
- *  scaled so that energy-sum equals targetLwA.
- *  Spectrum stored in as.spectrum[period] is UNWEIGHTED (from library_unweighted).
- *  Returns array[8] or null. */
-function _asGetSpectrumA(as, period, targetLwA) {
+/** Build dB(Z) octave-band spectrum for ISO 9613-2 propagation,
+ *  scaled so that energy-sum equals targetLwA (after engine applies A-weighting).
+ *  Spectrum stored in as.spectrum[period] is dB(Z) unweighted.
+ *  Returns array[8] of dB(Z) values, or null.
+ *  Under Option B convention (April 2026), A-weighting is applied internally
+ *  by calcISOatPoint / calcConcaweAtPoint via A_WEIGHTS_BANDS. */
+function _asGetSpectrum(as, period, targetLwA) {
   var bands = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
-  var AW    = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
   var specObj = null;
   if (as.manualOverride && as.manualOverride[period] && as.spectrum && as.spectrum[period]) {
     specObj = as.spectrum[period];
-  } else if (as.libraryEntry && as.libraryEntry.spectrum_unweighted) {
-    specObj = as.libraryEntry.spectrum_unweighted;
+  } else if (as.libraryEntry && as.libraryEntry.spectrum_m2) {
+    specObj = as.libraryEntry.spectrum_m2;
   } else if (as.spectrum && as.spectrum[period]) {
     specObj = as.spectrum[period];
   }
   if (!specObj) return null;
-  var rawA = bands.map(function(f, i) {
+  var rawZ = bands.map(function(f) {
     var v = specObj[f];
-    return (v !== undefined && Number.isFinite(parseFloat(v))) ? parseFloat(v) + AW[i] : null;
+    return (v !== undefined && Number.isFinite(parseFloat(v))) ? parseFloat(v) : null;
   });
-  if (rawA.some(function(v) { return v === null; })) return null;
-  var sumLin = rawA.reduce(function(s, v) { return s + Math.pow(10, v / 10); }, 0);
+  if (rawZ.some(function(v) { return v === null; })) return null;
+  var sumLin = rawZ.reduce(function(s, v) { return s + Math.pow(10, v / 10); }, 0);
   if (sumLin <= 0) return null;
   var adj = targetLwA - 10 * Math.log10(sumLin);
-  return rawA.map(function(v) { return v + adj; });
+  return rawZ.map(function(v) { return v + adj; });
 }
 
 /** Grid spacing (m) for area source subdivision based on polygon area. */
@@ -10786,7 +10790,7 @@ function calcAreaSourceAtReceiver(as, period, ri) {
       : iso_groundFactor;
     var isoP = { temperature: iso_temperature, humidity: iso_humidity, groundFactor: gf };
 
-    var specA = _asGetSpectrumA(as, period, lwPoint);
+    var specA = _asGetSpectrum(as, period, lwPoint);
     var lp;
     if (specA && propagationMethod === 'concawe') {
       lp = SharedCalc.calcConcaweAtPoint(specA, effectiveH, d, 0, barrierDelta, recHt,
@@ -10836,8 +10840,11 @@ function _lsGetEffectiveLwm(ls, period) {
   return _lsCalcLwmAdj(base, mvt.N, mvt.speed, mvt.operatingPct);
 }
 
+/** Returns dB(Z) per-band Lw/m spectrum for a line source and period, or null.
+ *  Returns array[8] of unweighted dB(Z) values. A-weighting is applied by the
+ *  engine (Option B convention, April 2026). */
 function _lsGetEffectiveSpectrum(ls, period) {
-  // Returns array of 8 values [b63, b125, ...] or null
+  // Returns array of 8 dB(Z) values [b63, b125, ...] or null
   var mvt = (ls.movements && ls.movements[period]) || { N:1, speed:10, operatingPct:100 };
   var adj = 10*Math.log10((mvt.operatingPct||100)/100) + 10*Math.log10((mvt.N||1)) + 10*Math.log10(10/(mvt.speed||10));
   if (ls.manualOverride && ls.manualOverride[period] && ls.manualSpectrum && ls.manualSpectrum[period]) {
@@ -16154,12 +16161,16 @@ function attachSrcPeriodListeners(pin, pinIdx, period, panel) {
       var freq = this.dataset.freq;
       var val = this.value.trim();
       var bandIdx = SFP_FREQS.indexOf(freq);
+      // Temporary: user enters dB(A) per band; engine now expects dB(Z).
+      // TODO (Prompt C): Remove this conversion when UI is redesigned.
+      var localAW = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
       if (!pin.spectrum) pin.spectrum = {};
       if (!pin.spectrum[period]) pin.spectrum[period] = Array(8).fill(null);
       if (val === '') {
         if (Array.isArray(pin.spectrum[period])) { pin.spectrum[period][bandIdx] = null; }
       } else {
-        if (Array.isArray(pin.spectrum[period])) { pin.spectrum[period][bandIdx] = parseFloat(val); }
+        var v = parseFloat(val);
+        if (Array.isArray(pin.spectrum[period])) { pin.spectrum[period][bandIdx] = isFinite(v) ? v - localAW[bandIdx] : v; }
       }
       // Auto-copy day spectrum to eve/night if not user-edited
       if (period === 'day') {
@@ -16167,7 +16178,10 @@ function attachSrcPeriodListeners(pin, pinIdx, period, panel) {
         ['eve', 'night'].forEach(function(p) {
           if (!pin._userEdited[p]) {
             if (!pin.spectrum[p]) pin.spectrum[p] = Array(8).fill(null);
-            if (Array.isArray(pin.spectrum[p])) { pin.spectrum[p][bandIdx] = val === '' ? null : parseFloat(val); }
+            if (Array.isArray(pin.spectrum[p])) {
+              if (val === '') { pin.spectrum[p][bandIdx] = null; }
+              else { var v2 = parseFloat(val); pin.spectrum[p][bandIdx] = isFinite(v2) ? v2 - localAW[bandIdx] : v2; }
+            }
             var otherEl = panel.querySelector('.sfp-band-' + p + '[data-freq="' + freq + '"]');
             if (otherEl) otherEl.value = val;
           }
@@ -18171,8 +18185,9 @@ window.runUAT = async function() {
   C[6] = { label:'ISO 9613-2 calcISOatPoint', pass:0, fail:0, lines:[] };
   (function(){
     var hS=1, hR=4, dp=Math.sqrt(190*190+40*40);
-    var AW6 = [-26.2,-16.1,-8.6,-3.2,0,1.2,1.0,-1.1];
-    var spec = AW6.map(function(w){ return 93+w; }), adj = 0;
+    // Option B: engine applies A-weighting internally — pass flat dB(Z) Lw=93 per band.
+    // Reference values (44.29, 41.53, 39.14) are unchanged (same physical source).
+    var spec = [93,93,93,93,93,93,93,93], adj = 0;
     var ip0  = { groundFactor:0,   temperature:20, humidity:70 };
     var ip05 = { groundFactor:0.5, temperature:20, humidity:70 };
     var ip1  = { groundFactor:1,   temperature:20, humidity:70 };
@@ -32081,7 +32096,7 @@ if (window.pdfjsLib) {
         var bands      = [63,125,250,500,1000,2000,4000,8000];
         var bandLabels = ['63','125','250','500','1k','2k','4k','8k'];
         var specObj    = as.spectrum && as.spectrum[pKey] ? as.spectrum[pKey] : null;
-        var libSpec    = as.libraryEntry ? as.libraryEntry.spectrum_unweighted : null;
+        var libSpec    = as.libraryEntry ? as.libraryEntry.spectrum_m2 : null;
         var bandInputs = bands.map(function(f, i) {
           var val, roAttr, roStyle;
           if (isOverride) {
@@ -32344,7 +32359,7 @@ if (window.pdfjsLib) {
             var lbl = document.getElementById('asPanelLwLbl_' + p);
             if (lbl) lbl.childNodes[0].textContent = 'Lw/m\u00b2 (dB): ';
             bands.forEach(function(f) {
-              as.spectrum[p][f] = found.spectrum_unweighted[f] !== undefined ? found.spectrum_unweighted[f] : '';
+              as.spectrum[p][f] = found.spectrum_m2[f] !== undefined ? found.spectrum_m2[f] : '';
               var bandEl = document.getElementById('asPanelBand_' + p + '_' + f);
               if (bandEl) { bandEl.value = as.spectrum[p][f]; }
             });
@@ -32814,9 +32829,10 @@ if (window.pdfjsLib) {
 
     // ── Propagation helpers ───────────────────────────────────────────────────
 
-    /** A-weighted octave-band Lw spectrum for one facade element.
-     *  Returns array[8] of Lw_A per band, or null if octave data unavailable. */
-    function _bsOctavSpecA(lpOct, cons, elements, facadeArea, hemCorrection) {
+    /** Unweighted dB(Z) octave-band Lw spectrum for one facade element.
+     *  Returns array[8] of Lw dB(Z) per band, or null if octave data unavailable.
+     *  A-weighting is applied by the engine (Option B convention, April 2026). */
+    function _bsOctavSpecZ(lpOct, cons, elements, facadeArea, hemCorrection) {
       if (!lpOct || !cons || !cons.octaveR || facadeArea <= 0) return null;
       if (!Number.isFinite(hemCorrection)) hemCorrection = 6;
       var allValid = BS_OCTAVE_BANDS.every(function(b) {
@@ -33007,7 +33023,7 @@ if (window.pdfjsLib) {
             var elLwBB = _bsCalcOneFacade(lpBB, lpOct, el.construction, el._clampedArea, null, 6);
             if (!Number.isFinite(elLwBB)) return;
             elLwBB += pctAdj;
-            var elSpecA = _bsOctavSpecA(lpOct, el.construction, null, el._clampedArea, 6);
+            var elSpecA = _bsOctavSpecZ(lpOct, el.construction, null, el._clampedArea, 6);
             if (elSpecA && pct < 100) elSpecA = elSpecA.map(function(v){ return isFinite(v) ? v + pctAdj : v; });
 
             var positions = _elSubPositions(el);
@@ -33029,7 +33045,7 @@ if (window.pdfjsLib) {
             var residLwBB = _bsCalcOneFacade(lpBB, lpOct, cons, residualArea, null, 6);
             if (Number.isFinite(residLwBB)) {
               residLwBB += pctAdj;
-              var residSpecA = _bsOctavSpecA(lpOct, cons, null, residualArea, 6);
+              var residSpecA = _bsOctavSpecZ(lpOct, cons, null, residualArea, 6);
               if (residSpecA && pct < 100) residSpecA = residSpecA.map(function(v){ return isFinite(v) ? v + pctAdj : v; });
               var rows2 = _vertRows(wallHt), numH2 = _numH(wallLen);
               var residPts = [];
@@ -33059,14 +33075,14 @@ if (window.pdfjsLib) {
           var lwFacade = _bsCalcOneFacade(lpBB, lpOct, cons, wallArea, null, 6);
           if (!Number.isFinite(lwFacade)) continue;
           lwFacade += pctAdj;
-          var specA_facade = _bsOctavSpecA(lpOct, cons, null, wallArea, 6);
-          if (specA_facade && pct < 100) specA_facade = specA_facade.map(function(v){ return isFinite(v) ? v + pctAdj : v; });
+          var spec_facade = _bsOctavSpecZ(lpOct, cons, null, wallArea, 6);
+          if (spec_facade && pct < 100) spec_facade = spec_facade.map(function(v){ return isFinite(v) ? v + pctAdj : v; });
 
           var numH  = _numH(wallLen);
           var vertP = _vertRows(wallHt);
           var numSub  = numH * vertP.length;
           var lwSubBB = lwFacade - 10 * Math.log10(numSub);
-          var specA_sub = specA_facade ? specA_facade.map(function(v){ return isFinite(v) ? v - 10*Math.log10(numSub) : v; }) : null;
+          var specA_sub = spec_facade ? spec_facade.map(function(v){ return isFinite(v) ? v - 10*Math.log10(numSub) : v; }) : null;
 
           for (var hi = 0; hi < numH; hi++) {
             var t = (hi + 0.5) / numH;
@@ -33089,8 +33105,8 @@ if (window.pdfjsLib) {
           var lwRoof = _bsCalcOneFacade(lpBB, lpOct, bs.roofConstruction, roofArea, null, 6);
           if (Number.isFinite(lwRoof)) {
             lwRoof += pctAdj;
-            var specA_roof = _bsOctavSpecA(lpOct, bs.roofConstruction, null, roofArea, 6);
-            if (specA_roof && pct < 100) specA_roof = specA_roof.map(function(v){ return isFinite(v) ? v + pctAdj : v; });
+            var spec_roof = _bsOctavSpecZ(lpOct, bs.roofConstruction, null, roofArea, 6);
+            if (spec_roof && pct < 100) spec_roof = spec_roof.map(function(v){ return isFinite(v) ? v + pctAdj : v; });
 
             var roofSpacing = roofArea < 100 ? 2 : (roofArea < 1000 ? 5 : 10);
             var minRL=Infinity,maxRL=-Infinity,minRG=Infinity,maxRG=-Infinity;
@@ -33108,7 +33124,7 @@ if (window.pdfjsLib) {
 
             var nRS = roofPts.length;
             var lwRS   = lwRoof - 10*Math.log10(nRS);
-            var specRS = specA_roof ? specA_roof.map(function(v){ return isFinite(v) ? v - 10*Math.log10(nRS) : v; }) : null;
+            var specRS = spec_roof ? spec_roof.map(function(v){ return isFinite(v) ? v - 10*Math.log10(nRS) : v; }) : null;
             roofPts.forEach(function(pt) {
               result.push({ lat: pt[0], lng: pt[1], heightM: bsHeight,
                 lwBB: lwRS, specA: specRS, facadeIdx: -1, isRoof: true });
@@ -33232,7 +33248,7 @@ if (window.pdfjsLib) {
     window._bsNearestWallDist         = _bsNearestWallDist;
     window._bsCalcDerived             = _bsCalcDerived;
     window._bsCalcOneFacade           = _bsCalcOneFacade;
-    window._bsOctavSpecA              = _bsOctavSpecA;
+    window._bsOctavSpecZ              = _bsOctavSpecZ;
     window._bsPerimeter               = _bsPerimeter;
     window._calcBuildingSourceAtReceiver = calcBuildingSourceAtReceiver;
     window._bsPerFacadeAtReceiver     = _bsPerFacadeAtReceiver;
@@ -34694,7 +34710,7 @@ if (window.pdfjsLib) {
               if (!ls.lw_m_base) ls.lw_m_base = {};
               ls.lw_m_base[p] = found.lw_m_dba;
               if (!ls.spectrum_m_base) ls.spectrum_m_base = {};
-              ls.spectrum_m_base[p] = found.spectrum_unweighted;
+              ls.spectrum_m_base[p] = found.spectrum_m;
             });
             ls.height_m = found.height_m;
             var htEl = document.getElementById('lsPanelHeight');
@@ -36688,8 +36704,8 @@ if (window.pdfjsLib) {
 
           subSources.forEach(function(pt) {
             var lwPoint = lwM2Adj + 10 * Math.log10(pt.cellArea);
-            var specA = _asGetSpectrumA(as, period, lwPoint);
-            // _asGetSpectrumA already normalises energySum(specA) = lwPoint,
+            var specA = _asGetSpectrum(as, period, lwPoint);
+            // _asGetSpectrum already normalises energySum(specA) = lwPoint,
             // so specAdj ≈ 0; computed via SharedCalc for robustness.
             var specAdj = specA ? lwPoint - SharedCalc.energySum(specA) : 0;
             result.push({
@@ -41213,9 +41229,9 @@ if (window.pdfjsLib) {
           lw_m_base:       { day: lib ? lib.lw_m_dba : null,
                              eve: lib ? lib.lw_m_dba : null,
                              night: lib ? lib.lw_m_dba : null },
-          spectrum_m_base: { day: lib ? lib.spectrum_unweighted : null,
-                             eve: lib ? lib.spectrum_unweighted : null,
-                             night: lib ? lib.spectrum_unweighted : null },
+          spectrum_m_base: { day: lib ? lib.spectrum_m : null,
+                             eve: lib ? lib.spectrum_m : null,
+                             night: lib ? lib.spectrum_m : null },
           manualOverride: { day: false, eve: false, night: false },
           manualLwm:      { day: null, eve: null, night: null },
           manualSpectrum: { day: null, eve: null, night: null },
@@ -41239,9 +41255,9 @@ if (window.pdfjsLib) {
           lwValue:  { day: lib ? lib.lw_m2_dba : null,
                       eve: lib ? lib.lw_m2_dba : null,
                       night: lib ? lib.lw_m2_dba : null },
-          spectrum: { day: lib ? lib.spectrum_unweighted : null,
-                      eve: lib ? lib.spectrum_unweighted : null,
-                      night: lib ? lib.spectrum_unweighted : null },
+          spectrum: { day: lib ? lib.spectrum_m2 : null,
+                      eve: lib ? lib.spectrum_m2 : null,
+                      night: lib ? lib.spectrum_m2 : null },
           activeInPeriod: { day: true, eve: true, night: true },
           operatingPct:   { day: 100, eve: 100, night: 100 },
           quantity:       { day: 1, eve: 1, night: 1 },

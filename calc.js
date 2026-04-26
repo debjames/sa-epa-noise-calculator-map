@@ -51,3 +51,4 @@ export const getPasquillClass       = SC.getPasquillClass;
 export const pasquillToGroup        = SC.pasquillToGroup;
 export const getConcaweMetCategory  = SC.getConcaweMetCategory;
 export const calcConcaweK4FromMet   = SC.calcConcaweK4FromMet;
+export const A_WEIGHTS_BANDS        = SC.A_WEIGHTS_BANDS;

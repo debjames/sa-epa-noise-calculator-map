@@ -60,8 +60,11 @@ const D_S1_R = [50, 100, 200];
 const D_S2_R = [30, 80, 180];
 
 // ─── Source definitions ───────────────────────────────────────────────────────
-// S1 A-weighted Lw per octave band [63,125,250,500,1k,2k,4k,8k]
-const S1_SPEC_DAY = [64, 72, 77, 82, 85, 83, 79, 70];
+// S1 unweighted Lw per octave band [63,125,250,500,1k,2k,4k,8k] in dB(Z).
+// Option B convention (April 2026): engine applies A-weighting internally.
+// Converted from original dB(A): [64,72,77,82,85,83,79,70] by subtracting AW[i].
+// AW = [-26.2,-16.1,-8.6,-3.2,0,1.2,1.0,-1.1]
+const S1_SPEC_DAY = [90.2, 88.1, 85.6, 85.2, 85.0, 81.8, 78.0, 71.1];
 // S1 broadband lw values (used to normalise spectrum per period)
 const S1_LW_DAY   = 85;
 const S1_LW_EVE   = 82;
@@ -583,13 +586,15 @@ describe('Test 7 — ISO 9613-2 per-band breakdown at R1 (S1, d=50m, G=0.5)', ()
     }
   });
 
-  it('per-band Lp = Lw - (Adiv + Aatm*d + Agr) for each band (no barrier, adjDB=0)', () => {
+  it('per-band Lp = Lw + AW - (Adiv + Aatm*d + Agr) for each band (no barrier, adjDB=0)', () => {
+    // Option B: engine applies A-weighting internally, so det.bands[i].Lp includes AW[i].
+    const A_WEIGHTS = [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
     const det   = calcISOatPointDetailed(S1_SPEC_DAY, S1_HEIGHT, d, 0, 0, RECV_HEIGHT, ISO);
     const alpha = calcAlphaAtm(ISO.temperature, ISO.humidity);
     const Agr   = calcAgrPerBand(S1_HEIGHT, RECV_HEIGHT, d, ISO.groundFactor);
     const Adiv  = 20 * Math.log10(d) + 11;
     for (var i = 0; i < 8; i++) {
-      const expected = S1_SPEC_DAY[i] - (Adiv + alpha[i] * d + Agr[i]);
+      const expected = S1_SPEC_DAY[i] + A_WEIGHTS[i] - (Adiv + alpha[i] * d + Agr[i]);
       expect(Math.abs(det.bands[i].Lp - expected)).toBeLessThan(1e-9);
     }
   });
@@ -637,12 +642,9 @@ describe('Test 8 — ISO/TR 17534-3 T01–T03 cross-reference via calcISOatPoint
   const hS  = 1, hR = 4;
   const T   = 20, RH = 70;
 
-  // A-weighting corrections per octave band
-  const AW = [-26.2, -16.1, -8.6, -3.2, 0, 1.2, 1.0, -1.1];
-
-  // Convert unweighted uniform Lw=93 to A-weighted spectrum
-  // calcISOatPoint takes A-weighted Lw → pass (93 + AW[i]) per band
-  const LW_A = AW.map(a => 93 + a);
+  // Option B: calcISOatPoint takes dB(Z) (unweighted) and applies A-weighting internally.
+  // Pass flat dB(Z) spectrum Lw=93 per band — engine applies AW internally.
+  const LW_A = [93, 93, 93, 93, 93, 93, 93, 93];
 
   it('dp = 194.16 m (correct Cartesian geometry)', () => {
     expect(dp).toBeCloseTo(194.16, 2);
