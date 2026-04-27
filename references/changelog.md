@@ -2,6 +2,16 @@
 
 ## April 2026
 
+- Added regression test for radial-spike artefacts in the worker output pipeline
+  (worker-pipeline-spike.test.js — covers the gap that allowed σ changes to ship
+  without end-to-end worker pipeline verification).
+- Added regression test for main-thread vs worker convention parity
+  (worker-parity.test.js — covers the cache-coherency gap that allowed Option B to
+  ship with a stale cached worker engine producing a 7-12 dB heatmap mismatch).
+- Added cache-bust convention enforcement test for worker importScripts calls
+  (cache-bust-convention.test.js — fails if any local shared-calc.js importScripts
+  call is missing a ?v=N version parameter).
+
 - **specAdj corrected to use A-weighted energy sum (energySumA) at all 6 normalisation sites. Spectral sources now hit their declared Lw_A (~2 dB correction). `energySumA` helper added to `shared-calc.js` and exported from `calc.js`.** — `shared-calc.js`: `energySumA(spectrum)` function added alongside `energySum`; returns 10·log10(Σ 10^((L[i]+AW[i])/10)) in dB(A); exposed on `SharedCalc` return object. `calc.js`: `energySumA` exported. `index.html`: 6 specAdj sites updated — (1) `calcISO9613forSourcePin` Leq path (inline loop replaced by `SharedCalc.energySumA(spectrumA)`); (2) `calcISO9613reflectedLevel` Leq path (same); (3) `calcISO9613reflectedLmax` (`SharedCalc.energySum(spectrumMax)` → `SharedCalc.energySumA`); (4) `calcISO9613forSourcePin` Lmax path (same); (5) `buildWorkerSources` point path (`SharedCalc.energySum(spec)` → `SharedCalc.energySumA`); (6) `buildWorkerSources` building path (`SharedCalc.energySum(ss.specA)` → `SharedCalc.energySumA`). Numerical: flat [78 dB(Z)×8] with Lw=85 → `energySumA`=84.99 dB(A), `specAdj`=+0.01 dB (was −2.03 dB with plain sum).
 
 - **Area source spectrum builder (`_asGetSpectrum`) normalisation fixed to use A-weighted energy sum.** — `_asGetSpectrum` normalisation updated: `adj = targetLwA − energySumA(rawZ)` replaces `adj = targetLwA − 10·log10(Σ 10^(v/10))`. This ensures `energySumA(output) = targetLwA` rather than `energySum(output) = targetLwA`, so the engine's internal A-weighting produces the correct broadband result. JSDoc updated. `spectrum_unweighted` field lookup was already fixed to `spectrum_m2` (Prompt A). Area source specAdj in `buildWorkerSources` similarly updated to `SharedCalc.energySumA`.

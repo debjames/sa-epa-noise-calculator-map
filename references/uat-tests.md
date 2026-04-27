@@ -1722,3 +1722,17 @@ Tests:
 - 5-cell broad shadow IL retention ≥ 85% at centre
 
 Run: `npm test` (all 5 tests included in the 238-test suite as of April 2026).
+
+## Regression Test Backfill — April 2026
+
+### Radial-spike regression (worker pipeline)
+
+- [ ] **Radial-spike regression: run heatmap on a flat-terrain scenario, verify no visible spike pattern in any open propagation zone** — With terrain enabled, generate a noise map on flat terrain (place source on flat ground, no ridge). Inspect heatmap colour contours: they should be smooth concentric circles. Any isolated bright spot surrounded by darker neighbours is a radial spike. Automated coverage: `worker-pipeline-spike.test.js` (12 tests) exercises the 2D separable Gaussian kernel and verifies: kernel normalisation, zero-output on zero input, isolated spike suppressed to <75% at centre, shadow zone IL retention ≥55% at 1-cell centre (≥85% at 3×3 block centre).
+
+### Main-thread vs worker parity
+
+- [ ] **Main-thread vs worker parity: place a point source, compare receiver panel Lp to heatmap value at same lat/lng on flat ground, confirm agreement within 0.5 dB** — On flat terrain (terrain enabled but no elevation relief), place a point source and a receiver at 200 m. Note the Lp in the receiver panel. Generate the heatmap. Hover over the receiver lat/lng on the heatmap. The displayed colour level should match the receiver panel value within approximately 0.5 dB (residual difference from Gaussian smoothing on perfectly flat terrain is near zero). Automated coverage: `worker-parity.test.js` (9 tests) confirms `calcISOatPoint` and `A_WEIGHTS_BANDS` are bit-identical between two independent `vm.runInNewContext` evaluations of `shared-calc.js`.
+
+### Cache-bust convention
+
+- [ ] **Cache-bust convention: after any change to shared-calc.js, verify `?v=N` parameter is incremented in all three load sites** — Check `noise-worker.js` line 15, `cortn-worker.js` line 28, and `index.html` shared-calc.js script tag. All three must show the same (or higher) version number. Automated coverage: `cache-bust-convention.test.js` (7 tests) fails if any importScripts call in a worker file omits the `?v=N` parameter, and if any local script tag in index.html omits it.

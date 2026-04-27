@@ -2225,3 +2225,18 @@ Functions defined at top-level script scope, adjacent to `generateTerrainContour
 |----------|-----------|---------|
 | `gaussianSmoothGrid(grid, width, height, sigma)` | `(Float32Array, number, number, number) → Float32Array` | Separable 1D Gaussian smooth over a flat elevation grid. Returns a new array; input is not mutated. Uses normalised convolution so NaN (no-coverage) cells don't propagate. Called on `ctGridLidar` and `ctGridSrtm` before marching squares in `generateTerrainContours`. Controlled by `TERRAIN_CONTOUR_SMOOTH_SIGMA` (default 1.5 grid cells). |
 | `generateTerrainContours()` | `() → void` | Builds merged LiDAR + SRTM elevation grids from `DEMCache`, applies Gaussian pre-smooth, runs marching squares, applies Chaikin smoothing, and adds polylines to `_terrainContourLayer`. |
+
+## Cache Invalidation Convention
+
+Any change to `shared-calc.js`, `noise-worker.js`, or `cortn-worker.js` requires a `?v=N` version parameter bump on all consumer load sites:
+
+| Consumer | Load site | How to bump |
+|----------|-----------|-------------|
+| Browser main thread | `<script src="shared-calc.js?v=N">` in `index.html` | Increment N in the script tag |
+| noise-worker.js | `importScripts('shared-calc.js?v=N')` at top of file | Increment N in the importScripts call |
+| cortn-worker.js | `importScripts('shared-calc.js?v=N')` at top of file | Increment N in the importScripts call |
+| Other workers | Any future worker loading shared-calc.js | Must include ?v=N |
+
+The `cache-bust-convention.test.js` test suite enforces this for all `importScripts` calls in worker files (fails if any local shared-calc.js call is missing `?v=N`) and for all local `<script src>` tags in `index.html`. Script tags in `index.html` must be updated manually whenever the loaded file changes.
+
+**Why this matters:** Without coordinated cache busting, the browser may serve the old cached engine to a worker while the main thread loads the updated one — producing a receiver-vs-heatmap mismatch (observed as 7–12 dB divergence during the Option B rollout before `?v=3` was added).
