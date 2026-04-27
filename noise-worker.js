@@ -109,8 +109,8 @@ self.onmessage = function(e) {
     function _wkPathG(srcLat, srcLng, recLat, recLng, srcH, recH, distM) {
       // Per-region mode: groundFactor is already a {Gs,Gm,Gr} object — return directly
       if (isoParams.groundFactor && typeof isoParams.groundFactor === 'object') return isoParams.groundFactor;
-      if (!groundZones.length) return isoParams.groundFactor || 0.5;
-      var dp = distM, dG = isoParams.groundFactor || 0.5;
+      if (!groundZones.length) return isoParams.groundFactor ?? 0.5;
+      var dp = distM, dG = isoParams.groundFactor ?? 0.5;
       var t_sEnd   = Math.max(0, Math.min(1, Math.min(30 * srcH, dp / 2) / dp));
       var t_rStart = Math.max(0, Math.min(1, Math.max(dp - 30 * recH, dp / 2) / dp));
       return {
@@ -587,7 +587,7 @@ self.onmessage = function(e) {
             // Lmax ISO: full ISO 9613-2 with optional groundFactor override
             var isoParamsLmax = {
               receiverHeight: recvHeight,
-              groundFactor: (lmaxMethod === 'iso9613_g0') ? 0 : (isoParams.groundFactor || 0.5),
+              groundFactor: (lmaxMethod === 'iso9613_g0') ? 0 : (isoParams.groundFactor ?? 0.5),
               temperature: isoParams.temperature || 10,
               humidity: isoParams.humidity || 70
             };
@@ -660,7 +660,7 @@ self.onmessage = function(e) {
             if (r === 0 && c === 0) console.log('[WORKER] CONCAWE catch-all branch, metCat=' + concaweMetCategory);
             var flatCWN = [];
             for (var fcbn = 0; fcbn < 8; fcbn++) flatCWN.push(src.combinedLw - 9.03);
-            var concParamsWN = { receiverHeight: recvHeight, groundFactor: isoParams.groundFactor || 0.5,
+            var concParamsWN = { receiverHeight: recvHeight, groundFactor: isoParams.groundFactor ?? 0.5,
                 temperature: isoParams.temperature, humidity: isoParams.humidity,
                 metCategory: concaweMetCategory };
             var _bBaseWCN = _barrierW ? (_barrierW.baseHeightM || 0) : 0;
@@ -680,7 +680,7 @@ self.onmessage = function(e) {
             // ISO with spectrum — per-band terrain/barrier screening inside calcISOatPoint.
             // Compute per-region ground G from custom zones for this src→gridpoint path
             var _pathGW = _wkPathG(src.lat, src.lng, lat, lng, src.heightM, recvHeight, dist);
-            var isoParamsSrc = (_pathGW === (isoParams.groundFactor || 0.5))
+            var isoParamsSrc = (_pathGW === (isoParams.groundFactor ?? 0.5))
               ? isoParams
               : { receiverHeight: recvHeight, groundFactor: _pathGW,
                   temperature: isoParams.temperature, humidity: isoParams.humidity };

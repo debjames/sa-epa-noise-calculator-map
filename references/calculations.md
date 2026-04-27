@@ -994,3 +994,66 @@ From Pasquill group + vector wind speed (m/s, positive = downwind):
 The convenience wrapper `calcConcaweK4FromMet()` computes vectorWind,
 derives Pasquill class → group → met category, and returns K4 plus all
 intermediate values.
+
+---
+
+## Building Source Radiation
+
+### Convention
+
+Building sources use the Strutt/Bies-Hansen/VDI 3760 simplified inside-to-outside transmission formula:
+
+```
+Lw,surface = Lp_in − TL_surface + 10·log₁₀(S_surface) − 6
+```
+
+**Parameters:**
+- `Lp_in` — reverberant (diffuse-field) interior SPL in dB(A). This is the well-mixed, spatially averaged level measured away from sources and hard surfaces in the central zone of the space. It must NOT be the level near a source, at a wall surface, or in a free-field environment.
+- `TL_surface` — transmission loss of the surface in dB (broadband Rw, or per-octave-band R values)
+- `S_surface` — radiating area of the surface in m²
+- `−6` — diffuse-field-SPL to radiated-intensity-per-unit-area constant
+
+**Derivation of the −6 constant:** In a diffuse reverberant sound field, the normal-component acoustic intensity incident on a surface is I = p²/(4ρc), where the factor of 4 reduces the isotropic free-field intensity p²/(ρc) by 4 (= 6 dB). The transmitted power per unit area is I / TL_linear, giving Lw = Lp_in − TL + 10·log₁₀(S) − 6. This is the standard result in Strutt (Arup internal), Bies & Hansen "Engineering Noise Control" (§8.3), and VDI 3760 (simplified mode).
+
+**Warning:** Using a free-field Lp (measured at a given distance from the source) as the `Lp_in` input will give grossly incorrect results. The input convention is strictly the reverberant-field SPL.
+
+### Surface types
+
+The same formula applies to **façades** and **roofs**. There is no surface-orientation-dependent constant — the −6 dB derives from the diffuse-field input convention, not from the radiation geometry. Downstream geometry (source height, distance, ground factor Agr) is handled by the standard ISO 9613-2 propagation chain.
+
+### Sub-source generation
+
+`_bsGenerateSubSources` (index.html) converts the building polygon and height into discrete point sub-sources for propagation:
+
+- **Façade sub-sources**: placed 0.5 m outward from each wall face. Vertical positions from `_vertRows(wallHt)`:
+  - Wall height ≤ 4 m: one sub-source at mid-height (H/2)
+  - Wall height ≤ 8 m: two sub-sources at H/3 and 2H/3
+  - Wall height > 8 m: three sub-sources at H×0.25, H×0.5, H×0.75
+  - Horizontal: evenly spaced with spacing ≤ 3 m (walls < 10 m), ≤ 5 m (10–30 m), ≤ 10 m (> 30 m)
+- **Roof sub-sources**: distributed on a grid over the polygon footprint (spacing 2–10 m depending on area) at height = `baseHeightM + height_m` (absolute roof elevation)
+- Each sub-source carries a fraction of the total surface Lw: `Lw_sub = Lw_total − 10·log₁₀(N_sub)`
+- Façade sub-sources have an outward wall-normal and only radiate into the outward half-space (directivity filter in `_bsPropagateSub`)
+
+### Propagation
+
+Each sub-source is propagated to the receiver via `SharedCalc.calcISOatPoint` (or Concawe if the propagation method is set to Concawe). Source height `ss.heightM` is passed directly as `srcHeight`, so `calcAgrPerBand` correctly reduces ground interaction for elevated sources (e.g. roof at 8 m has minimal Agr contribution relative to a 0.5 m source). No building-source-specific bypass of the ISO 9613-2 chain exists.
+
+### Octave-band path
+
+When interior Lp is entered as octave-band values, `_bsOctavSpecZ` returns an unweighted dB(Z) spectrum per band:
+
+```
+Lw_Z(f) = Lp_in(f) − R(f) + 10·log₁₀(S) − 6
+```
+
+A-weighting is applied downstream by `calcISOatPoint` (Option B convention). The broadband `_bsCalcOneFacade` path applies A-weighting inside the octave summation and is used for the derived-Lw display panel only; the propagation chain always uses the octave path when octave Lp data is available.
+
+### Regression tests
+
+`building-source-radiation.test.js` (vitest) covers:
+- Strutt worked example: Lp=80, TL=30, S=100 m² → Lw,facade = 64.0 dB(A)
+- Roof example: Lp=85, TL=40, S=64 m² → Lw,roof = 57.06 dB(A)
+- Per-band formula: Lw_Z(1 kHz) = Lp(1 kHz) − R(1 kHz) + 10·log₁₀(S) − 6
+- Sign guard: Lw(TL=0, S=1, Lp=80) = 74 dB (not 86 dB — verifies −6 not +6)
+- Area sensitivity: doubling S increases Lw by 3.01 dB
+- TL sensitivity: +10 dB TL reduces Lw by exactly 10 dB

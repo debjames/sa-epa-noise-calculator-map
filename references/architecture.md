@@ -644,6 +644,20 @@ if (window._setCortnRoads) {
 
 Line sources continue to work exactly as before; CoRTN roads layer on top without touching anything.
 
+## Shared Source-Panel UI Components
+
+Five CSS classes provide a consistent visual language across all floating source panels (Point, Line, Area). The Building source panel is the visual reference; do not modify its HTML when updating these patterns.
+
+| Class | Purpose |
+|-------|---------|
+| `.src-section-header` | UPPERCASE small-caps section divider (`font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#6d28d9`) |
+| `.src-period-card` | Bordered period card (`border:1px solid #e9d5ff; border-radius:6px; padding:8px; margin-bottom:8px`) |
+| `.src-metric-grid` | Two-column header metric row — height input + read-only computed field (`display:grid; gap:6px; padding:8px; background:#f5f3ff; border-radius:6px; border:1px solid #e9d5ff`) |
+| `.src-band-sublabel` | Sub-label above octave grid (`font-size:11px; color:#6b7280; font-weight:600; margin-bottom:3px`) |
+| `.src-lib-row` | Flex row for library label left / search box full-width (`display:flex; align-items:center; justify-content:space-between`) |
+
+All four floating source panels use `display:flex; flex-direction:column; overflow:hidden` on the outer container, with a `flex-shrink:0` sticky header, a `flex:1; min-height:0; overflow-y:auto` scrollable body, and a `flex-shrink:0` sticky footer containing Delete (red outline: `background:#fee2e2; border:1px solid #fca5a5; color:#b91c1c`) and Close (grey outline: `background:#f3f4f6; border:1px solid #ddd`) buttons. All panels are 360 px wide.
+
 ## UI Layout — Fixed collapsible LHS side panel + top-right atom buttons
 
 The map area (inside `#map-column`) is flanked by two panels:

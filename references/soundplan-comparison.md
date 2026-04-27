@@ -128,17 +128,21 @@ Active simplifications as of April 2026. See "Last reconciled" note at end of fi
 
 ---
 
-### 9. Building source interior absorption — +6 dB hemisphere hardcoded
+### 9. Building source radiation — Strutt/VDI 3760 simplified formula
 
-**Tool:** Reverberant-to-radiated conversion uses a fixed +6 dB hemisphere correction (ISO 9613-2 §7.3.2) regardless of interior room absorption. No user input for room constant or absorption coefficient.
+**Tool:** Building sources radiate via the Strutt/Bies-Hansen/VDI 3760 simplified formula:
 
-**SoundPLAN:** Accepts per-room Sabine constant or absorption coefficient, computes the hemispherical correction as `10·log10(1 + S·α / A)`.
+```
+Lw,surface = Lp_in − TL_surface + 10·log₁₀(S_surface) − 6
+```
 
-**Impact:** Up to 3 dB over-prediction for acoustically absorptive interiors (lined plant rooms, open-structure sheds); under-prediction is possible for highly reverberant interiors (bare concrete, corrugated steel) where the true correction exceeds 6 dB.
+where `Lp_in` is the reverberant (diffuse-field) interior SPL entered by the user. The −6 dB constant is the diffuse-field-SPL to radiated-intensity-per-unit-area conversion (normal-component intensity in a diffuse field = p²/(4ρc), giving −6 dB relative to the free-field SPL). The same constant applies to façades and roof. Each surface's Lw,surface is propagated to the receiver via the standard ISO 9613-2 chain (`calcISOatPoint`). Interior room absorption is not modelled — the user's Lp input is assumed to already represent the well-mixed reverberant field.
 
-**Conservative?** Usually conservative (over-predicts for typical plant rooms). Non-conservative for unusually reverberant interiors.
+**SoundPLAN:** Same Strutt formula in simplified mode. Full VDI 3760 interior calculation available when interior sources, surface absorptions, and hall reverberation are explicitly modelled (SoundBUILD module).
 
-> **Flag:** This simplification is a candidate for the next implementation cycle (Gap 6 in `acoustic-gaps-audit-2026-04.md`). Once Gap 6 is implemented, the "Tool" description above becomes "Sabine formula with user-supplied interior absorption" and this entry should be downgraded to `<1 dB` impact.
+**Impact:** Within ±1 dB of SoundPLAN's simplified building-source mode when the interior Lp is correctly characterised as the reverberant-field level. The full VDI 3760 calculation (modelling interior sources, surface absorptions, Sabine correction) can differ by 2–5 dB when the interior is acoustically absorptive (lined plant rooms, open-structure sheds) or unusually reverberant (bare concrete). In those cases, use SoundPLAN.
+
+**Conservative?** Variable — depends entirely on the accuracy of the user-supplied interior Lp. The tool formula itself is not inherently conservative or non-conservative relative to SoundPLAN's simplified mode.
 
 ---
 
@@ -180,4 +184,4 @@ Deltas outside these ranges warrant investigation before the result is used in a
 
 ---
 
-*Last reconciled: 2026-04 (updated April 2026 post-Option B' implementation). Simplification 3: σ reduced from 1.0 to 0.5; narrow-shadow heatmap divergence revised from 8–12 dB to ~3–6 dB; Option C receiver Lp badge noted. Remaining residuals: Simplification 3 lateral-path diffraction (receiver panel only); Simplification 3 residual heatmap smoothing artefact (~3–6 dB, partial). Per-region G factor and Agr/Abar interaction previously removed (resolved). 9 simplifications remain.*
+*Last reconciled: 2026-04 (updated April 2026 post-Gap 6 implementation). Simplification 9 updated: +6 dB hemisphere constant replaced with correct Strutt/VDI 3760 −6 dB diffuse-field constant (Gap 6 closed). Building source predictions now ~12 dB lower. Simplification 9 now describes an accepted approximation (no interior absorption model) rather than a numerical error. Remaining open simplifications: 1 (Cmet), 2 (directivity), 3 (single-ridge terrain), 4 (single-barrier), 5 (Amisc), 6 (no interior absorption model), 7 (first-order reflection only), 8 (line source segmentation). 9 simplifications remain.*

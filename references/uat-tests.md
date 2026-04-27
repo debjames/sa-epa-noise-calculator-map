@@ -1736,3 +1736,62 @@ Run: `npm test` (all 5 tests included in the 238-test suite as of April 2026).
 ### Cache-bust convention
 
 - [ ] **Cache-bust convention: after any change to shared-calc.js, verify `?v=N` parameter is incremented in all three load sites** — Check `noise-worker.js` line 15, `cortn-worker.js` line 28, and `index.html` shared-calc.js script tag. All three must show the same (or higher) version number. Automated coverage: `cache-bust-convention.test.js` (7 tests) fails if any importScripts call in a worker file omits the `?v=N` parameter, and if any local script tag in index.html omits it.
+
+---
+
+## Gap 6 — Building Source Diffuse-Field Convention (April 2026)
+
+### Formula regression (automated)
+
+Covered by the vitest suite: `building-source-radiation.test.js` — describe block "Building source diffuse-field radiation formula".
+
+Tests (12 total):
+- **Strutt worked example — wall façade:** Lp=80, TL=30, S=100 m² → Lw,facade = **64.0 dB(A) ± 0.01 dB**
+- **Strutt worked example — roof:** Lp=85, TL=40, S=64 m² → Lw,roof = **57.06 dB(A) ± 0.01 dB**
+- **Formula/constant match:** computed result equals `Lp_in − TL + 10·log₁₀(S) + DIFFUSE_FIELD_CORR`
+- **Surface-type independence:** same formula applies to façade and roof (no surface-orientation differentiation)
+- **Per-band formula:** Lw_Z(1 kHz) = Lp(1 kHz) − R(1 kHz) + 10·log₁₀(S) − 6 within 4 decimal places
+- **Per-band TL=0 S=1:** each band gives Lp − 6
+- **Sign guard:** Lw(TL=0, S=1, Lp=80) = **74 dB** (not 86 dB — confirms −6 not +6)
+- **DIFFUSE_FIELD_CORR = −6** (constant value assertion)
+- **Area sensitivity:** doubling S increases Lw by 10·log₁₀(2) ≈ 3.01 dB
+- **10× area:** Lw increases by exactly 10 dB
+- **Zero area:** returns null (no radiation)
+- **TL sensitivity:** +10 dB TL reduces Lw by exactly 10 dB
+
+Run: `npm test` (all 12 tests included in the 303-test suite as of April 2026).
+
+### UI label check (manual)
+
+- [ ] **Diffuse-field convention label visible** — Open any building source edit panel. The heading for the interior level section must read **"Reverberant Interior Noise Levels"** (not "Interior Noise Levels"). A grey help text below the heading must describe the diffuse-field measurement convention.
+
+### Save → reload round-trip (manual)
+
+- [ ] **Save/reload preserves building source predictions within 0.01 dB** — Place a building source with known interior Lp, note the receiver Lp prediction. Save assessment. Reload. Confirm receiver Lp matches to within 0.01 dB (no state loss from round-trip).
+
+### ~12 dB reduction check (manual)
+
+- [ ] **Net ~12 dB reduction vs pre-fix assessments** — If an assessment was created before April 2026 with the +6 convention, reloading it should show building source contributions approximately 12 dB lower than previously recorded. This is the correction, not a regression. Verify against the pre-fix baseline value recorded before the change was applied.
+
+## April 2026 Cleanup — Three residual bug fixes
+
+### STEP 1 — 3D viewer source/receiver rendering (no-terrain case)
+
+- [ ] **Sources visible without terrain** — Open the 3D viewer with terrain disabled (or outside LiDAR/SRTM coverage). Place one point source at any location. Open 3D viewer. The red source sphere must be visible near Y=0 (the fallback plane), not floating 50+ metres above it.
+- [ ] **Receivers visible without terrain** — Place R1 at any location. Open 3D viewer (no terrain). The receiver sphere must appear at Y ≈ 1.5 m above the fallback plane, not at the ASL elevation.
+- [ ] **Sources correct with terrain** — With terrain enabled, the source sphere must be positioned at the correct terrain-relative height (groundElevation_m − terrainMin + height_m). This path is unchanged.
+- [ ] **No console errors** — No JS errors opening the 3D viewer in either the terrain or no-terrain case.
+
+### STEP 2 — G=0 ground-factor preservation in worker
+
+- [ ] **G=0 hard-ground calculation** — Set ground factor to G=0 (hard ground). Generate the noise map. Confirm the predicted levels are consistent with a fully hard ground (Agr = 0 at all distances). Previously, G=0 was silently upgraded to G=0.5 inside the worker.
+- [ ] **G=0.5 unchanged** — Set G=0.5. Run noise map. Levels should be unchanged from before this fix (0.5 is still the default fallback when groundFactor is null/undefined).
+- [ ] **G=0 with ground zones** — Draw a ground zone with G=0. Outside the zone, default G applies. Inside the zone, G=0 is preserved. Previously the `_wkPathG` function returned 0.5 for the global default even when explicitly set to 0.
+- [ ] **Lmax ISO path with G=0** — Set Lmax method to iso9613 (not iso9613_g0). Set G=0. Run heatmap. Lmax path should use G=0, not G=0.5.
+
+### STEP 3 — Building source sub-source elevation for elevated buildings
+
+- [ ] **Elevated building wall height** — Place a building source with baseHeightM=3m and height_m=6m. The wall sub-sources must be at 3+1.5, 3+3, 3+4.5 m above ground (not 1.5, 3, 4.5 m). Previously, `wallHt` used `bsHeight=9m` (base+height), causing wall area to be 9m × length instead of 6m × length.
+- [ ] **Ground-level building unchanged** — Place a building source with baseHeightM=0 (or unset). Sub-source heights must be identical to before: 1.5, 3, 4.5 m for height_m=6m. The `(bs.baseHeightM || 0)` offset adds 0 in this case.
+- [ ] **Roof sub-source height unchanged** — Roof sub-sources use `heightM: bsHeight` (line 33564), which is `baseHeightM + height_m`. This is correct and was NOT changed — confirm roof sub-sources are still at 9m for base=3, height=6.
+- [ ] **No console errors** — No errors generating building source sub-sources in either the elevated or ground-level case.
