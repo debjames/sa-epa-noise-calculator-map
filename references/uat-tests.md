@@ -1795,3 +1795,57 @@ Run: `npm test` (all 12 tests included in the 303-test suite as of April 2026).
 - [ ] **Ground-level building unchanged** — Place a building source with baseHeightM=0 (or unset). Sub-source heights must be identical to before: 1.5, 3, 4.5 m for height_m=6m. The `(bs.baseHeightM || 0)` offset adds 0 in this case.
 - [ ] **Roof sub-source height unchanged** — Roof sub-sources use `heightM: bsHeight` (line 33564), which is `baseHeightM + height_m`. This is correct and was NOT changed — confirm roof sub-sources are still at 9m for base=3, height=6.
 - [ ] **No console errors** — No errors generating building source sub-sources in either the elevated or ground-level case.
+
+## Recent Assessments Dropdown (April 2026)
+
+localStorage key: `sa-epa-recent-v1`. Up to 5 entries, each `{name, timestamp, content}`.
+
+### Button labels
+
+- [ ] **Save renamed** — The "Save Assessment" button now reads "Save".
+- [ ] **Open renamed** — The "Load Assessment" button now reads "Open". The ▾ chevron appears alongside it.
+- [ ] **File dialog unchanged** — Clicking the "Open" button still opens the browser file picker; file-dialog load still works.
+
+### Dropdown — empty state
+
+- [ ] **No recent on fresh origin** — In a private/incognito window (or after clearing localStorage), click ▾ → dropdown shows "No recent assessments. Use Open to load a saved file."
+
+### Dropdown — after save
+
+- [ ] **Entry appears after Save** — Save an assessment. Click ▾ → the assessment name appears as the top entry with a relative timestamp ("Just now"). Timestamp updates correctly.
+- [ ] **Name source** — The entry name matches the address-derived filename used by the Save handler (e.g. "Noise Assessment - Adelaide CBD"). If no address is entered the name is "Noise Assessment".
+
+### Dropdown — after file-dialog load
+
+- [ ] **Entry appears after Open** — Load a file via the Open file-picker. Click ▾ → the filename (without `.json` extension) appears at the top of the recent list.
+
+### Deduplication
+
+- [ ] **Re-save same name moves to top** — Save assessment "Test A". Save it again with the same name. The dropdown shows only one "Test A" entry (no duplicate), and it is at the top with a fresh timestamp.
+
+### 5-item limit
+
+- [ ] **Oldest falls off at 6** — Save 6 different assessments (different names). The dropdown shows exactly 5 entries — the 6 most-recently saved minus the oldest one.
+
+### Remove entry
+
+- [ ] **× removes entry** — With ≥1 recent entry, click ▾ to open the dropdown. Click the × on an entry. That entry disappears from the list immediately. Other entries are unaffected. The dropdown stays open.
+- [ ] **Removal persists across refresh** — After removing an entry, refresh the page. Click ▾. The removed entry does not reappear.
+
+### Load from recent
+
+- [ ] **One-click load** — With a recent entry in the list, click its name. The assessment loads (sources, receivers, zones, barriers all match the saved state). The dropdown closes.
+- [ ] **Timestamp updated** — After loading from recent, the loaded entry moves to the top of the list with a fresh "Just now" timestamp.
+
+### Persistence
+
+- [ ] **Persists across refresh** — Save an assessment. Refresh the page. Click ▾. The saved entry still appears.
+- [ ] **Incognito isolated** — Open the tool in incognito. Click ▾. The list is empty (does not inherit the normal-window recent list).
+
+### Quota handling
+
+- [ ] **Quota-exceeded graceful** — (Stress test) Simulate full localStorage by saving 5 very large assessments. The save operation completes without JS errors. The newest entry appears in the list. The UI shows no breakage.
+
+### Save format
+
+- [ ] **Save format unchanged** — Save an assessment via the Save button. Load the saved `.json` file via the Open file-dialog (not via the recent list). The file loads correctly with all state intact. The JSON content is identical to what it was before this feature was added (no new fields added to the save format).

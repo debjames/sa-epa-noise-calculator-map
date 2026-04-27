@@ -2,6 +2,8 @@
 
 ## April 2026
 
+- **Recent assessments dropdown added to the Open (formerly "Load Assessment") button.** Up to 5 most recently opened or saved assessments stored in browser localStorage under key `sa-epa-recent-v1`; one-click reload from dropdown. Save Assessment button renamed to "Save"; Load Assessment renamed to "Open". The dropdown chevron (▾) appears beside the Open button and shows relative timestamps ("2 mins ago", "3 days ago"). Entries deduplicated by name; oldest falls off when list exceeds 5. Per-entry remove (×) button. Per-browser, per-device, per-origin; no backend. Quota-exceeded errors handled gracefully by trimming the list. `index.html` — HTML, CSS, storage helpers, and hooks into the save and file-dialog load handlers.
+
 - **Cleanup — three residual bugs fixed:**
   1. **3D viewer source/receiver rendering (no-terrain case):** `buildPointSources` and `buildReceivers` were placing spheres at Y = `groundElevation_m` (ASL metres, e.g. 50m) above the fallback plane at Y=0, putting them far outside the camera's view. Fixed: stored ASL elevation is now only used when `_3dTerrainMesh` exists and `_3dReferenceElevation` has been set to the terrain minimum. When no terrain, both functions fall through to `sampleTerrainAt() || 0` (Y=0 on the fallback plane). `index.html` — `buildPointSources` and `buildReceivers`.
   2. **G=0 ground-factor silently replaced with G=0.5 in worker:** Five `||` falsy-coalesce sites in `noise-worker.js` treated `groundFactor=0` as falsy and substituted 0.5, making hard-ground assessments (G=0) silently compute with G=0.5. Fixed: changed to `??` (nullish coalescing) at lines 112, 113, 590, 663, 683 in `_wkPathG`, the Lmax ISO path, and the CONCAWE catch-all path. `noise-worker.js`.

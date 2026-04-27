@@ -1435,6 +1435,7 @@ The page loads with the original HTML structure intact, then an inline `<script>
 |-----|--------|---------|
 | `resonate_drawer_open` | `"true"` / `"false"` | Persists drawer open/closed state (default: collapsed — only opens if value is exactly `"true"`) |
 | `resonate_disclaimer_accepted` | `"true"` | Hides disclaimer banner on subsequent visits |
+| `sa-epa-recent-v1` | JSON array of `{name, timestamp, content}` | Recent assessments cache — up to 5 entries (RECENT_LIMIT). Each entry stores the full assessment JSON object, the display name (derived from address search field on save, or filename on file-dialog load), and a Unix ms timestamp. Oldest entry falls off when the list exceeds 5. Quota-exceeded errors handled by trimming and retrying; on final failure the recent list silently gives up (the file dialog path is unaffected). Cache is per-browser, per-device, per-origin; incognito windows have their own empty cache. |
 
 ### Keyboard shortcut
 

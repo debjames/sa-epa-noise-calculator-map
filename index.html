@@ -94,6 +94,35 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 }
 .pdf-btn {background:#fff;border: 1px solid var(--border);border-radius:10px;padding: 10px 16px;border-radius: 10px;font-size: 13px;font-weight: 600;cursor: pointer;margin-bottom: 16px;}
 .pdf-btn:hover {opacity: 0.9;}
+/* ── Open split button + Recent dropdown ─────────────────────────── */
+.open-split-wrap { position:relative; display:inline-flex; gap:4px; }
+.open-chevron { padding:5px 8px !important; font-size:11px !important; }
+.recent-dropdown {
+  display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:9999;
+  background:#fff; border:1px solid var(--border); border-radius:10px;
+  box-shadow:0 4px 16px rgba(0,0,0,.12); min-width:260px; max-width:380px;
+}
+.recent-dropdown.open { display:block; }
+.recent-hdr {
+  padding:8px 12px 6px; font-size:11px; font-weight:700; color:#6b7280;
+  text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid var(--border);
+}
+.recent-list { list-style:none; margin:0; padding:4px 0; }
+.recent-list li { display:flex; align-items:center; }
+.recent-item {
+  flex:1; display:flex; align-items:baseline; gap:8px;
+  background:none; border:none; text-align:left; padding:7px 12px;
+  cursor:pointer; font-family:inherit; font-size:13px; min-width:0;
+}
+.recent-item:hover { background:#f3f4f6; }
+.recent-name { font-weight:500; color:#1f2937; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0; }
+.recent-time { font-size:11px; color:#9ca3af; white-space:nowrap; flex-shrink:0; }
+.recent-remove {
+  background:none; border:none; cursor:pointer; color:#d1d5db; font-size:16px;
+  padding:4px 10px 4px 4px; line-height:1; flex-shrink:0;
+}
+.recent-remove:hover { color:#ef4444; }
+.recent-empty { padding:14px 12px; font-size:13px; color:#9ca3af; text-align:center; line-height:1.5; }
 .link-btn {display: inline-block;background:#fff;border: 1px solid var(--border);border-radius:10px;padding: 10px 16px;font-size: 13px;font-weight: 600;cursor: pointer;margin-bottom: 16px;}
 
 /* --- Tooltip styling --- */
@@ -836,6 +865,24 @@ body.map-fs-active { overflow: hidden; }
 .src-lib-row {
   display:flex; align-items:center; justify-content:space-between; margin:4px 0 3px;
 }
+
+/* ── Per-panel colour themes (header accent drives section/card/grid colours) ── */
+/* Point source — blue */
+#srcFloatPanel .src-section-header { color:#1d4ed8; }
+#srcFloatPanel .src-period-card    { border-color:#bfdbfe; }
+#srcFloatPanel .src-metric-grid    { background:#eff6ff; border-color:#bfdbfe; }
+/* Line source — red */
+#lsFloatPanel .src-section-header  { color:#b91c1c; }
+#lsFloatPanel .src-period-card     { border-color:#fca5a5; }
+#lsFloatPanel .src-metric-grid     { background:#fef2f2; border-color:#fca5a5; }
+/* Area source — orange */
+#asFloatPanel .src-section-header  { color:#d97706; }
+#asFloatPanel .src-period-card     { border-color:#fed7aa; }
+#asFloatPanel .src-metric-grid     { background:#fffbeb; border-color:#fed7aa; }
+/* Building source — purple (default, explicit for clarity) */
+#bsFloatPanel .src-section-header  { color:#6d28d9; }
+#bsFloatPanel .src-period-card     { border-color:#e9d5ff; }
+#bsFloatPanel .src-metric-grid     { background:#f5f3ff; border-color:#e9d5ff; }
 
 /* ── Floating objects panel ──────────────────────────────────────────── */
 #objectsFloatPanel {
@@ -2209,8 +2256,12 @@ body.disclaimer-visible .container {
 
   <!-- Save / Load standalone row -->
   <div style="display:flex;gap:8px;margin:10px 0;">
-    <button class="pdf-btn" id="exportJsonBtn" type="button">Save Assessment</button>
-    <button class="pdf-btn" id="importJsonBtn" type="button">Load Assessment</button>
+    <button class="pdf-btn" id="exportJsonBtn" type="button">Save</button>
+    <div class="open-split-wrap">
+      <button class="pdf-btn" id="importJsonBtn" type="button">Open</button>
+      <button class="pdf-btn open-chevron" id="openRecentBtn" type="button" title="Recent assessments">▾</button>
+      <div class="recent-dropdown" id="recentDropdown"></div>
+    </div>
     <button class="pdf-btn" id="scenariosBtn" type="button" title="Save and compare named scenario snapshots">Scenarios</button>
     <button class="pdf-btn" id="generateReportBtn" type="button" style="display:none">Generate Report</button>
     <button class="pdf-btn" id="savePdfBtn" type="button" title="Export A4 criteria appendix PDF for acoustic reports" onclick="generatePDFAppendix(this)">Save PDF</button>
@@ -15901,7 +15952,7 @@ function srcPanelPeriodSectionHTML(pin, period, periodLabel) {
     }
     return '<label style="display:flex;flex-direction:column;align-items:center;font-size:10px;gap:2px;">' +
       f + '<input type="number" class="sfp-band-' + period + '" data-freq="' + f + '" value="' + v + '" ' +
-      'style="width:38px;text-align:center;padding:2px 0;font-size:11px;" placeholder="\u2014"></label>';
+      'style="width:100%;box-sizing:border-box;text-align:center;padding:2px 0;font-size:11px;" placeholder="\u2014"></label>';
   }).join('');
 
   return '<div class="sfp-period-section src-period-card" data-period="' + period + '" style="' + (!active ? 'opacity:0.5;' : '') + '">' +
@@ -15935,7 +15986,7 @@ function srcPanelLmaxSectionHTML(pin) {
     var v = (spectrum[idx] !== null && spectrum[idx] !== undefined && Number.isFinite(spectrum[idx])) ? spectrum[idx] : '';
     return '<label style="display:flex;flex-direction:column;align-items:center;font-size:10px;gap:2px;">' +
       f + '<input type="number" class="sfp-band-lmax" data-freq="' + f + '" value="' + v + '" ' +
-      'style="width:38px;text-align:center;padding:2px 0;font-size:11px;" placeholder="\u2014"></label>';
+      'style="width:100%;box-sizing:border-box;text-align:center;padding:2px 0;font-size:11px;" placeholder="\u2014"></label>';
   }).join('');
 
   var lmaxLibOpts = '<option value="">\u2014 Select from Lmax library\u2026 \u2014</option>';
@@ -22750,6 +22801,132 @@ setInitialCollapseState();
   var _scenarios = [];
   var SCENARIO_SCHEMA_VERSION = 1;
 
+  /* ── Recent assessments ─────────────────────────────────────────── */
+  var RECENT_KEY   = 'sa-epa-recent-v1';
+  var RECENT_LIMIT = 5;
+
+  function getRecentAssessments() {
+    try {
+      var raw = localStorage.getItem(RECENT_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.warn('[recent] Read failed:', e);
+      return [];
+    }
+  }
+
+  function _recentRelTime(ts) {
+    var diff = Date.now() - ts, sec = Math.floor(diff / 1000),
+        min  = Math.floor(sec / 60), hr = Math.floor(min / 60),
+        day  = Math.floor(hr / 24);
+    if (sec < 60) return 'Just now';
+    if (min < 60) return min + (min > 1 ? ' mins' : ' min') + ' ago';
+    if (hr  < 24) return hr  + (hr  > 1 ? ' hours' : ' hour') + ' ago';
+    if (day <  7) return day + (day > 1 ? ' days' : ' day') + ' ago';
+    var d = new Date(ts);
+    return d.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul',
+      'Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+  }
+
+  function renderRecentDropdown() {
+    var el = document.getElementById('recentDropdown');
+    if (!el) return;
+    var list = getRecentAssessments();
+    el.innerHTML = '';
+    if (list.length === 0) {
+      el.innerHTML = '<div class="recent-empty">No recent assessments.<br>Use Open to load a saved file.</div>';
+      return;
+    }
+    var hdr = document.createElement('div');
+    hdr.className = 'recent-hdr';
+    hdr.textContent = 'Recent';
+    el.appendChild(hdr);
+    var ul = document.createElement('ul');
+    ul.className = 'recent-list';
+    list.forEach(function(entry) {
+      var li  = document.createElement('li');
+      var btn = document.createElement('button');
+      btn.className = 'recent-item';
+      btn.type = 'button';
+      btn.title = entry.name;
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'recent-name';
+      nameSpan.textContent = entry.name;
+      var timeSpan = document.createElement('span');
+      timeSpan.className = 'recent-time';
+      timeSpan.textContent = _recentRelTime(entry.timestamp);
+      btn.appendChild(nameSpan);
+      btn.appendChild(timeSpan);
+      btn.addEventListener('click', function() {
+        var dd = document.getElementById('recentDropdown');
+        try {
+          var data = JSON.parse(JSON.stringify(entry.content));
+          if (!data || data._format !== 'resonate-noise-tool') throw new Error('Invalid format');
+          if (typeof window._loadAssessment === 'function') window._loadAssessment(data);
+          addRecentAssessment(entry.name, entry.content); // bring to top
+          if (dd) dd.classList.remove('open');
+        } catch (err) {
+          console.error('[recent] Load error:', err);
+          alert('Could not load \u201c' + entry.name + '\u201d \u2014 the assessment may be corrupted.');
+        }
+      });
+      var rmBtn = document.createElement('button');
+      rmBtn.className = 'recent-remove';
+      rmBtn.type = 'button';
+      rmBtn.setAttribute('aria-label', 'Remove from recent');
+      rmBtn.textContent = '\u00d7';
+      rmBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        removeRecentAssessment(entry.name);
+      });
+      li.appendChild(btn);
+      li.appendChild(rmBtn);
+      ul.appendChild(li);
+    });
+    el.appendChild(ul);
+  }
+
+  function addRecentAssessment(name, content) {
+    var list = getRecentAssessments().filter(function(item) { return item.name !== name; });
+    list.unshift({ name: name, timestamp: Date.now(), content: content });
+    list = list.slice(0, RECENT_LIMIT);
+    try {
+      localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+    } catch (e) {
+      console.warn('[recent] Write failed (quota?):', e);
+      if (list.length > 1) {
+        list = list.slice(0, list.length - 1);
+        try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e2) {}
+      }
+    }
+    renderRecentDropdown();
+  }
+
+  function removeRecentAssessment(name) {
+    var list = getRecentAssessments().filter(function(item) { return item.name !== name; });
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) {}
+    renderRecentDropdown();
+  }
+
+  // Wire chevron toggle and outside-click dismiss
+  document.addEventListener('DOMContentLoaded', function() {
+    var chevron  = document.getElementById('openRecentBtn');
+    var dropdown = document.getElementById('recentDropdown');
+    if (chevron && dropdown) {
+      renderRecentDropdown();
+      chevron.addEventListener('click', function(e) {
+        e.stopPropagation();
+        renderRecentDropdown(); // refresh relative timestamps on each open
+        dropdown.classList.toggle('open');
+      });
+      document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target) && e.target !== chevron) {
+          dropdown.classList.remove('open');
+        }
+      });
+    }
+  });
+
   document.addEventListener('DOMContentLoaded', function() {
 
     /* ── EXPORT ── */
@@ -23179,6 +23356,8 @@ setInitialCollapseState();
           var city = parts.length > 2 ? parts.slice(0, parts.length - 2) : parts.slice(0, 1);
           fname += ' - ' + city.join(', ');
         }
+
+        addRecentAssessment(fname, data);
 
         if (window.showSaveFilePicker) {
           window.showSaveFilePicker({
@@ -23776,6 +23955,7 @@ setInitialCollapseState();
               return;
             }
             loadAssessment(data);
+            addRecentAssessment(file.name.replace(/\.json$/i, ''), data);
           } catch(err) {
             console.error('Import error:', err);
             alert('Failed to load assessment — check console for details.');
@@ -32514,15 +32694,7 @@ if (window.pdfjsLib) {
       var lwMode    = as.lwMode || 'per_m2';
       var lwLabel   = lwMode === 'per_m2' ? 'Lw/m\u00b2 dB(A):' : 'Total Lw dB(A):';
 
-      var libOpts = '<option value="">\u2014 Custom / manual \u2014</option>';
-      Object.keys(AREA_SOURCE_LIBRARY_GROUPED).forEach(function(cat) {
-        libOpts += '<optgroup label="' + escapeHTML(cat) + '">';
-        AREA_SOURCE_LIBRARY_GROUPED[cat].forEach(function(entry) {
-          var sel = (as.libraryEntry && as.libraryEntry.name === entry.name) ? ' selected' : '';
-          libOpts += '<option value="' + escapeHTML(entry.name) + '"' + sel + '>' + escapeHTML(entry.name) + '</option>';
-        });
-        libOpts += '</optgroup>';
-      });
+      var asLibInitVal = as.libraryEntry ? as.libraryEntry.name : '';
 
       function asPeriodBlock(pKey, pLabel) {
         var active    = as.activeInPeriod ? as.activeInPeriod[pKey] !== false : true;
@@ -32539,12 +32711,12 @@ if (window.pdfjsLib) {
           if (isOverride) {
             val     = specObj && specObj[f] !== undefined ? specObj[f] : '';
             roAttr  = '';
-            roStyle = 'width:38px;text-align:center;padding:2px 0;font-size:11px;';
+            roStyle = 'width:100%;box-sizing:border-box;text-align:center;padding:2px 0;font-size:11px;';
           } else {
             val     = specObj && specObj[f] !== undefined ? specObj[f] :
                       (libSpec && libSpec[f] !== undefined ? libSpec[f] : '');
             roAttr  = ' readonly';
-            roStyle = 'width:38px;text-align:center;padding:2px 0;font-size:11px;background:#f5f5f5;color:#555;cursor:default;';
+            roStyle = 'width:100%;box-sizing:border-box;text-align:center;padding:2px 0;font-size:11px;background:#f5f5f5;color:#555;cursor:default;';
           }
           return '<label style="display:flex;flex-direction:column;align-items:center;font-size:10px;gap:2px;">' +
             bandLabels[i] +
@@ -32615,9 +32787,12 @@ if (window.pdfjsLib) {
           '</div>' +
           '<div id="asPanelTerrainInfo" style="font-size:11px;color:#6b7280;min-height:0;margin-bottom:4px;"></div>' +
           '<div id="asPanelBuildingOverlap" style="font-size:11px;min-height:0;margin-bottom:4px;"></div>' +
-          '<div class="src-lib-row" style="gap:6px;margin-bottom:4px;">' +
-            '<label style="font-size:11px;color:#666;white-space:nowrap;">Source library:</label>' +
-            '<select id="asPanelLibSel" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;">' + libOpts + '</select>' +
+          '<div class="src-lib-row" style="margin-bottom:4px;">' +
+            '<label style="font-size:11px;color:#666;">Source library:</label>' +
+          '</div>' +
+          '<div style="position:relative;margin-bottom:4px;">' +
+            '<input id="asPanelLibCombo" type="text" placeholder="Search library\u2026" autocomplete="off" value="' + escapeHTML(asLibInitVal) + '" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;">' +
+            '<div id="asPanelLibDrop" style="position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-top:none;border-radius:0 0 4px 4px;z-index:200;display:none;box-shadow:0 4px 8px rgba(0,0,0,0.1);"></div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">' +
             '<label style="font-size:11px;color:#555;white-space:nowrap;">Power input:</label>' +
@@ -32760,17 +32935,12 @@ if (window.pdfjsLib) {
         });
       }
 
-      var libSel = document.getElementById('asPanelLibSel');
-      if (libSel) libSel.addEventListener('change', function() {
-        var selName = this.value;
-        var found = null;
-        if (selName) {
-          Object.values(AREA_SOURCE_LIBRARY_GROUPED).forEach(function(arr) {
-            arr.forEach(function(e) { if (e.name === selName && !found) found = e; });
-          });
-        }
-        as.libraryEntry = found || null;
-        if (found) {
+      // Library combo
+      var asLibCombo = document.getElementById('asPanelLibCombo');
+      var asLibDrop  = document.getElementById('asPanelLibDrop');
+      if (asLibCombo && asLibDrop) {
+        function _applyAsLibEntry(found) {
+          as.libraryEntry = found;
           if (!as._nameManuallyEdited) {
             as.name = found.name;
             var nameInpEl = document.getElementById('asPanelName');
@@ -32800,9 +32970,58 @@ if (window.pdfjsLib) {
               if (bandEl) { bandEl.value = as.spectrum[p][f]; }
             });
           });
+          triggerRecompute();
         }
-        triggerRecompute();
-      });
+        function _buildAsLibDrop(q) {
+          asLibDrop.innerHTML = '';
+          var hasAny = false;
+          if (!q) {
+            var customItem = document.createElement('div');
+            customItem.textContent = '\u2014 Custom / manual \u2014';
+            customItem.style.cssText = 'padding:4px 8px;font-size:12px;cursor:pointer;border-bottom:1px solid #f0f0f0;color:#888;white-space:nowrap;';
+            customItem.addEventListener('mouseenter', function() { this.style.background = '#f0f7ff'; });
+            customItem.addEventListener('mouseleave', function() { this.style.background = ''; });
+            customItem.addEventListener('mousedown', function(e) {
+              e.preventDefault();
+              asLibCombo.value = '';
+              asLibDrop.style.display = 'none';
+              as.libraryEntry = null;
+              triggerRecompute();
+            });
+            asLibDrop.appendChild(customItem);
+            hasAny = true;
+          }
+          Object.keys(AREA_SOURCE_LIBRARY_GROUPED).forEach(function(grp) {
+            var filtered = (AREA_SOURCE_LIBRARY_GROUPED[grp] || []).filter(function(e) {
+              return !q || e.name.toLowerCase().indexOf(q) !== -1;
+            });
+            if (!filtered.length) return;
+            var hdr = document.createElement('div');
+            hdr.textContent = grp;
+            hdr.style.cssText = 'padding:4px 8px 2px;font-size:10px;font-weight:bold;color:#888;background:#f5f5f5;text-transform:uppercase;letter-spacing:0.5px;pointer-events:none;white-space:nowrap;';
+            asLibDrop.appendChild(hdr);
+            filtered.forEach(function(entry) {
+              var item = document.createElement('div');
+              item.textContent = entry.name;
+              item.style.cssText = 'padding:4px 8px 4px 14px;font-size:12px;cursor:pointer;border-bottom:1px solid #f0f0f0;white-space:nowrap;';
+              item.addEventListener('mouseenter', function() { this.style.background = '#f0f7ff'; });
+              item.addEventListener('mouseleave', function() { this.style.background = ''; });
+              item.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                asLibCombo.value = entry.name;
+                asLibDrop.style.display = 'none';
+                _applyAsLibEntry(entry);
+              });
+              asLibDrop.appendChild(item);
+            });
+            hasAny = true;
+          });
+          asLibDrop.style.display = hasAny ? 'block' : 'none';
+        }
+        asLibCombo.addEventListener('input', function() { _buildAsLibDrop(this.value.toLowerCase().trim()); });
+        asLibCombo.addEventListener('focus', function() { _buildAsLibDrop(this.value.toLowerCase().trim()); });
+        asLibCombo.addEventListener('blur', function() { setTimeout(function() { asLibDrop.style.display = 'none'; }, 150); });
+      }
 
       var lwModeEl = document.getElementById('asPanelLwMode');
       if (lwModeEl) lwModeEl.addEventListener('change', function() {
@@ -34926,11 +35145,11 @@ if (window.pdfjsLib) {
           if (isOverride) {
             val = ms[f] !== undefined ? ms[f] : '';
             roAttr = '';
-            roStyle = 'width:38px;text-align:center;padding:2px 0;font-size:11px;';
+            roStyle = 'width:100%;box-sizing:border-box;text-align:center;padding:2px 0;font-size:11px;';
           } else {
             val = (baseSpectrum && baseSpectrum[i] !== undefined && baseSpectrum[i] !== null) ? baseSpectrum[i] : '';
             roAttr = ' readonly';
-            roStyle = 'width:38px;text-align:center;padding:2px 0;font-size:11px;background:#f5f5f5;color:#555;cursor:default;';
+            roStyle = 'width:100%;box-sizing:border-box;text-align:center;padding:2px 0;font-size:11px;background:#f5f5f5;color:#555;cursor:default;';
           }
           return '<label style="display:flex;flex-direction:column;align-items:center;font-size:10px;gap:2px;">' +
             bandLabels[i] +
@@ -35005,7 +35224,7 @@ if (window.pdfjsLib) {
           '</div>' +
           '<div style="position:relative;margin-bottom:8px;">' +
             '<input id="lsPanelLibCombo" type="text" placeholder="Search library\u2026" autocomplete="off" value="' + escapeHTML(lsLibInitVal) + '" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px;padding:5px 8px;font-size:12px;">' +
-            '<div id="lsPanelLibDrop" style="position:absolute;top:100%;left:0;min-width:100%;width:max-content;max-height:200px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-top:none;border-radius:0 0 4px 4px;z-index:200;display:none;box-shadow:0 4px 8px rgba(0,0,0,0.1);"></div>' +
+            '<div id="lsPanelLibDrop" style="position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-top:none;border-radius:0 0 4px 4px;z-index:200;display:none;box-shadow:0 4px 8px rgba(0,0,0,0.1);"></div>' +
           '</div>' +
           '<div class="src-section-header" style="margin-top:0;">Sound Power Levels</div>' +
           periodBlock('day', 'Day') +
