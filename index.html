@@ -11273,18 +11273,16 @@ function calcLineSourceAtReceiver(ls, period, ri) {
       // Build per-band spectrum for this segment
       var specA;
       if (specArr && specArr.length === 8) {
-        // specArr is already movement-adjusted Lw/m; scale by segment length
+        // specArr is dB(Z)/m per band; scale by segment length then normalise
+        // using A-weighted sum so energySumA(specA) = lwSeg (declared dB(A)).
         var segSpecArr = specArr.map(function(v) { return v + 10*Math.log10(seg.length); });
-        var specEnergy = segSpecArr.reduce(function(sum, v) { return sum + Math.pow(10, v/10); }, 0);
-        var specTotal = 10*Math.log10(specEnergy);
-        var segSpecAdj = lwSeg - specTotal;
+        var segSpecAdj = lwSeg - SharedCalc.energySumA(segSpecArr);
         specA = segSpecArr.map(function(v) { return v + segSpecAdj; });
-      } else if (specArr && specArr.length === 8) {
-        var specAdj2 = lwSeg - SharedCalc.energySum(specArr);
-        specA = specArr.map(function(v) { return v + specAdj2; });
       } else {
-        // Flat spectrum: uniform distribution across 8 bands
-        var flatVal = lwSeg - 10 * Math.log10(8);
+        // No spectrum: build flat dBZ spectrum so engine produces lwSeg dB(A).
+        // flatVal = lwSeg - 10·log10(Σ 10^(AW[i]/10)) ensures energySumA(flat×8) = lwSeg.
+        var awSum = SharedCalc.A_WEIGHTS_BANDS.reduce(function(s, w) { return s + Math.pow(10, w / 10); }, 0);
+        var flatVal = lwSeg - 10 * Math.log10(awSum);
         specA = [flatVal, flatVal, flatVal, flatVal, flatVal, flatVal, flatVal, flatVal];
       }
 
@@ -37046,11 +37044,8 @@ if (window.pdfjsLib) {
         segs.forEach(function(seg) {
           var lwSeg = lwm + 10*Math.log10(seg.length);
           var segSpecArr = specArr ? specArr.map(function(v) { return v + 10*Math.log10(seg.length); }) : null;
-          var segSpecAdj = 0;
-          if (segSpecArr) {
-            var specEnergy = segSpecArr.reduce(function(s,v) { return s + Math.pow(10, v/10); }, 0);
-            segSpecAdj = lwSeg - 10*Math.log10(specEnergy);
-          }
+          // Normalise using A-weighted sum so energySumA(segSpecArr) = lwSeg (dB(A)).
+          var segSpecAdj = segSpecArr ? lwSeg - SharedCalc.energySumA(segSpecArr) : 0;
           result.push({
             lat: seg.lat, lng: seg.lng,
             heightM: ls.height_m || ls.heightM || 1.5,

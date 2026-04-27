@@ -25,7 +25,7 @@
  */
 
 /* eslint-env worker */
-importScripts('shared-calc.js');
+importScripts('shared-calc.js?v=3');
 
 var calcCortnFreeField           = SharedCortn.calcCortnFreeField;
 var calcCortnRoadPeriod          = SharedCortn.calcCortnRoadPeriod;
