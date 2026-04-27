@@ -1,0 +1,657 @@
+﻿Name,Description,Review,Data type,Category,Source Citation,Source Description,63 Hz,125 Hz,250 Hz,500 Hz,1000 Hz,2000 Hz,4000 Hz,8000 Hz
+Fantech SBL2,Acoustic Louvre,Reviewed,Insertion Loss,Louvres,Manufacturer Data,Fantech 2019,5,10,14,22,27,25,21,17
+Fantech SBL1,Acoustic Louvre,Reviewed,Insertion Loss,Louvres,Manufacturer Data,Fantech 2019,4,7,9,13,14,12,12,8
+Fantech ASB Aerosound Louvre,Acoustic Louvre,Reviewed,Insertion Loss,Louvres,Manufacturer Data,Fantech 2019,1,3,7,11,12,10,10,9
+"People per person, raised voice—Lw 74 dB(A)","For raised voice (-6 for normal, +6 for shouting)",Reviewed,"Lw, dB(Z)",,Guideline Document,AAAC SA guide—Music Venues and Outdoor Areas,57,57,66,72,71,66,51,51
+"Children per 10, 0 - 2 years—Lw 78 dB(A) per 10",,Reviewed,"Lw, dB(Z)",,Guideline Document,AAAC Guideline for Child Care Centre Acoustic Assessment V3.0,54,60,66,72,74,71,67,64
+"Children per 10, 2 - 3 years—Lw 85 dB(A) per 10",,Reviewed,"Lw, dB(Z)",,Guideline Document,AAAC Guideline for Child Care Centre Acoustic Assessment V3.1,61,67,73,79,81,78,74,70
+"Children per 10, 3 - 5 years—Lw 87 dB(A) per 10",,Reviewed,"Lw, dB(Z)",,Guideline Document,AAAC Guideline for Child Care Centre Acoustic Assessment V3.2,64,70,75,81,83,80,76,72
+MBS010 Road Type A (60km/hr),,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,95,89,86,83,83,80,75,75
+MBS010 Road Type A (90km/hr),,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,97,91,88,85,85,82,77,77
+MBS010 Road Type A (110km/hr),,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,99,93,90,87,87,84,79,79
+MBS010 Road Type B (60km/hr),,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,92,86,83,80,80,77,72,72
+MBS010 Road Type B (90km/hr),,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,94,88,85,82,82,79,74,74
+MBS010 Road Type B (110km/hr),,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,96,90,87,84,84,81,76,76
+MBS010 Road Type R (60km/hr),,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,89,83,80,77,77,74,69,69
+MBS010 Road Type R (90km/hr),,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,91,85,82,79,79,76,71,71
+MBS010 Road Type R (110km/hr),,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,93,87,84,81,81,78,73,73
+MBS010 Train ,,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,83,84,76,75,74,69,63,63
+MBS010 Tram,,Reviewed,"Lw, dB(Z)",Traffic Noise,Guideline Document,Ministerial Building Standard MBS 010 – May 2023,78,75,75,70,66,68,64,64
+"Mitsubishi PWFY-P100,200VM-E-AU",Water Unit - Hot Water Supply (Water HEX unit),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,56,46,47,39,36.5,28.5,29,26
+Mitsubishi PWFY-P100VM-E-BU,Water Unit- Hot Water Supply (Booster unit),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,55,67.5,51,56,53,46,41.5,41
+Mitsubishi PFD-P500VM-E,Close control system - Downflow unit,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,96.8,84.5,79.6,71,69.1,65.1,58.7,51.9
+Mitsubishi PFD-P250VM-E,Close control system - Downflow unit,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,84.6,76.7,74.5,70.1,68.8,59.7,53.7,46.9
+Mitsubishi PFFY-P63VLRMM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,52.24,50.54,55.37,52.18,45.48,39.61,33.87,29.25
+Mitsubishi PFFY-P50VLRMM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,51.14,48.64,52.87,50.01,42.94,34.77,27.98,24.8
+Mitsubishi PFFY-P40VLRMM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,48.32,48.67,54.14,50.28,44.26,34.75,25.95,23.11
+Mitsubishi PFFY-P32VLRMM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,52.54,45.88,51.7,47.61,40.71,30.97,23.29,21.16
+Mitsubishi PFFY-P25VLRMM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,57.87,51,55.56,54.86,44.52,35.67,29.46,27.84
+Mitsubishi PFFY-P20VLRMM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,57.87,51,55.56,54.86,44.52,35.67,29.46,27.84
+Mitsubishi PFFY-P63VLRM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,52.96,54.96,54.5,56,47.5,41.5,35.96,30.96
+Mitsubishi PFFY-P50VLRM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,49.46,50.46,51.46,52,46.46,39.46,32.46,28.46
+Mitsubishi PFFY-P40VLRM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,50.46,53.46,51.46,52,46.46,39.46,31.46,27.46
+Mitsubishi PFFY-P32VLRM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,49.46,52.46,48,49.5,42,37,28.46,26.46
+Mitsubishi PFFY-P25VLRM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,47.5,46.5,45.5,48.5,44,39.5,30.5,26.5
+Mitsubishi PFFY-P20VLRM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,47.5,46.5,45.5,48.5,44,39.5,30.5,26.5
+Mitsubishi PFFY-P63VLEM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,52.96,54.96,54.5,56,47.5,41.5,35.96,30.96
+Mitsubishi PFFY-P50VLEM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,49.46,50.46,51.46,52,46.46,39.46,32.46,28.46
+Mitsubishi PFFY-P40VLEM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,50.46,53.46,51.46,52,46.46,39.46,31.46,27.46
+Mitsubishi PFFY-P32VLEM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,49.46,52.46,48,49.5,42,37,28.46,26.46
+Mitsubishi PFFY-P25VLEM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,47.5,46.5,45.5,48.5,44,39.5,30.5,26.5
+Mitsubishi PFFY-P20VLEM-E,Indoor Unit- Floor Standing,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,47.5,46.5,45.5,48.5,44,39.5,30.5,26.5
+Mitsubishi PEFY-P200VMH-E-F,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,74.05,74.07,62.35,60.15,59.69,54.5,45.63,36.93
+Mitsubishi PEFY-P140VMH-E-F,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,73.6,71.86,58.96,62.62,61.67,57.88,50.58,39.07
+Mitsubishi PEFY-P80VMH-E-F,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,70.95,71.86,59.81,59.65,61.67,58.85,51.4,41.51
+Mitsubishi PEFY-P250VMHS-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,61.75,64.25,66.25,62,57.5,51,47.98,38.52
+Mitsubishi PEFY-P200VMHS-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,58.25,62.25,62.25,58.5,55.5,49.5,48,38.54
+Mitsubishi PEFY-P200VMH-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,66.5,67,66,62,60.5,56,54.5,46
+Mitsubishi PEFY-P140VMH-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,60,65.5,60.5,57,54,49,46,37
+Mitsubishi PEFY-P125VMH-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,60,65.5,60.5,57,54,49,46,37
+Mitsubishi PEFY-P100VMH-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,60,65.5,60.5,57,54,49,46,37
+Mitsubishi PEFY-P80VMH-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,58,64.5,62.5,56,53,50,47,38.5
+Mitsubishi PEFY-P71VMH-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,56,62,59,52,52,50,46,38.5
+Mitsubishi PEFY-P63VMH-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,58,62.5,60,56.5,52.5,44.5,42.5,34.5
+Mitsubishi PEFY-P50VMH-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,56,61.5,56,53,46,42,33.5,32.5
+Mitsubishi PEFY-P40VMH-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,56,61.5,56,53,46,42,33.5,32.5
+Mitsubishi PEFY-P140VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,75.51,73.01,72.01,70.51,66.51,63.01,56.01,50.01
+Mitsubishi PEFY-P125VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,74.51,73.01,72.51,70.01,67.51,62.01,54.01,50.01
+Mitsubishi PEFY-P100VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,73.01,73.01,72.51,69.01,66.01,60.51,54.01,49.01
+Mitsubishi PEFY-P80VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,68.01,67.51,65.01,63.01,58.51,52.01,42.51,40.01
+Mitsubishi PEFY-P71VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,68.01,67.51,65.01,63.01,58.51,52.01,42.51,40.01
+Mitsubishi PEFY-P63VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,68.01,66.01,65.51,61.51,57.01,52.01,42.51,37.01
+Mitsubishi PEFY-P50VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,67.01,66.01,65.01,61.01,58.01,51.51,43.01,36.01
+Mitsubishi PEFY-P40VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,62.01,65.01,64.01,58.01,55.01,51.51,43.51,35.51
+Mitsubishi PEFY-P32VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,61.01,63.51,59.51,57.01,54.01,49.01,41.01,35.01
+Mitsubishi PEFY-P25VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,59.51,60.01,56.51,56.01,51.51,47.01,39.01,33.01
+Mitsubishi PEFY-P20VMM-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,59.51,60.01,56.51,56.01,51.51,47.01,39.01,33.01
+"Mitsubishi PEFY-P32VMR-E(-L,R)",Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,48.8,48.5,48,44.8,41.3,30.7,23.7,18.3
+"Mitsubishi PEFY-P25VMR-E(-L,R)",Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,46.2,45.9,45.7,42.2,38.8,27.8,20.9,15.5
+"Mitsubishi PEFY-P20VMR-E(-L,R)",Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,46.2,45.9,45.7,42.2,38.8,27.8,20.9,15.5
+Mitsubishi PEFY-P63VMS1L-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,59.65,61.75,57.25,54.25,57.05,47.75,39.65,31.05
+Mitsubishi PEFY-P50VMS1L-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,57.75,57.15,56.95,54.45,57.15,47.15,40.35,30.85
+Mitsubishi PEFY-P40VMS1L-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,55.25,54.65,54.15,51.65,53.95,43.85,36.15,27.95
+Mitsubishi PEFY-P32VMS1L-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,60.6,50.13,49.13,53.43,53.25,45.96,38.29,27.77
+Mitsubishi PEFY-P25VMS1L-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,59.53,50.9,49.3,51.26,49.93,43.75,37.13,27.83
+Mitsubishi PEFY-P20VMS1L-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,59.26,49.88,47.34,50.17,49.03,43.75,37.13,27.77
+Mitsubishi PEFY-P15VMS1L-E,Indoor Unit- Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,60.15,48.85,47.17,49.19,47.72,41.65,36.87,27.77
+Mitsubishi PEFY-P63VMS1-E,Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,59.65,61.75,57.25,54.25,57.05,47.75,39.65,31.05
+Mitsubishi PEFY-P50VMS1-E,Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,57.75,57.15,56.95,54.45,57.15,47.15,40.35,30.85
+Mitsubishi PEFY-P40VMS1-E,Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,55.25,54.65,54.15,51.65,53.95,43.85,36.15,27.95
+Mitsubishi PEFY-P32VMS1-E,Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,60.6,50.13,49.13,53.43,53.25,45.96,38.29,27.77
+Mitsubishi PEFY-P25VMS1-E,Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,59.53,50.9,49.3,51.26,49.93,43.75,37.13,27.83
+Mitsubishi PEFY-P20VMS1-E,Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,59.26,49.88,47.34,50.17,49.03,43.75,37.13,27.77
+Mitsubishi PEFY-P15VMS1-E,Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,60.15,48.85,47.17,49.19,47.72,41.65,36.87,27.77
+Mitsubishi PLFY-P125VLMD-E,Indoor Unit- Cassette Type (2 Ways Flow),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,57,63,66,63,58,53,45,36
+Mitsubishi PLFY-P100VLMD-E,Indoor Unit- Cassette Type (2 Ways Flow),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,54,60,62,60,56,50,40,33
+Mitsubishi PLFY-P80VLMD-E,Indoor Unit- Cassette Type (2 Ways Flow),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,55,60,62,61,55.5,46,38,32
+Mitsubishi PLFY-P63VLMD-E,Indoor Unit- Cassette Type (2 Ways Flow),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,50,57,58.5,57.5,49,44,36,31
+Mitsubishi PLFY-P50VLMD-E,Indoor Unit- Cassette Type (2 Ways Flow),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,53,55.5,58,56,49,43,35.5,31
+Mitsubishi PLFY-P40VLMD-E,Indoor Unit- Cassette Type (2 Ways Flow),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,49,55,56,54,47,40,32.5,31
+Mitsubishi PLFY-P32VLMD-E,Indoor Unit- Cassette Type (2 Ways Flow),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,49,52,55.5,55,45,39,32.5,31
+Mitsubishi PLFY-P25VLMD-E,Indoor Unit- Cassette Type (2 Ways Flow),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,49,53,54.5,54,43.5,38,32,31
+Mitsubishi PLFY-P20VLMD-E,Indoor Unit- Cassette Type (2 Ways Flow),Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,49,53,54.5,54,43.5,38,32,31
+Mitsubishi PQRY-P500YSGM-A,Outdoor Unit- WR2 Series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,75,71,65.5,62.5,60,59,58.5,57
+Mitsubishi PQRY-P400YSGM-A,Outdoor Unit- WR2 Series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,73,69,63,59,57,56,55.5,54
+Mitsubishi PQRY-P250YGM-A,Outdoor Unit- WR2 Series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,78.5,66.5,64.5,57.5,49.5,48,46.5,48.5
+Mitsubishi PQRY-P200YGM-A,Outdoor Unit- WR2 Series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,77.5,65.5,63.5,56.5,48.5,47,45.5,47.5
+Mitsubishi PURY-EP700YSJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,85.5,85,86,80,78,75,73,65
+Mitsubishi PURY-EP650YSJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,85,84.5,79.5,77.5,75,74,66.5
+Mitsubishi PURY-EP600YSJM-A1(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,85,84.5,79.5,77.5,75,74,66.5
+Mitsubishi PURY-EP600YSJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91,85,82.5,79,77,75,74.5,67
+Mitsubishi PURY-EP550YSJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91,85,82.5,79,77,75,74.5,67
+Mitsubishi PURY-EP500YSJM-A1(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91,85,82.5,79,77,75,74.5,67
+Mitsubishi PURY-EP500YSJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88.5,84,82,78,76,73.5,72.5,66
+Mitsubishi PURY-EP450YSJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88.5,83.5,82,78,76,73.5,72.5,66
+Mitsubishi PURY-EP400YSJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,83.5,82.5,81.5,76,74.5,71.5,68,64
+Mitsubishi PURY-EP350YJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,82.5,82,83,77,75,72,70,62
+Mitsubishi PURY-EP300YJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88,82,79.5,76,74,72,71.5,64
+Mitsubishi PURY-EP250YJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88,81.5,79.5,76,74,72,71.5,64
+Mitsubishi PURY-EP200YJM-A(-BS),Outdoor Unit - New R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,80.5,79.5,78.5,73,71.5,68.5,65,61
+Mitsubishi PURY-P900YSJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,84.5,85.5,87,81,78.5,76,76,67
+Mitsubishi PURY-P850YSJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89.5,85.5,85.5,80.5,78.5,76,76,67.5
+Mitsubishi PURY-P800YSJM-A1(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,85,85.5,80,78,75.5,75.5,67
+Mitsubishi PURY-P800YSJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92,86,83.5,80,78,76,75.5,68
+Mitsubishi PURY-P750YSJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91.5,85,83,79.5,77.5,75.5,75,67.5
+Mitsubishi PURY-P700YSJM-A1(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91,85,82.5,79,77,75,74.5,67
+Mitsubishi PURY-P700YSJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89.5,84.5,83,79,77,74.5,74.5,69
+Mitsubishi PURY-P650YSJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88.5,84,82.5,78.5,77,74,74,68.5
+Mitsubishi PURY-P600YSJM-A1(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88,83.5,82,78,76,73.5,72.5,65.5
+Mitsubishi PURY-P600YSJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,83.5,83,82,78,76.5,73,73,69.5
+Mitsubishi PURY-P550YSJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,81.5,82.5,82,77.5,75.5,72,71.5,67.5
+Mitsubishi PURY-P500YSJM-A1(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,82.5,82,81,77,75.5,72,71,67.5
+Mitsubishi PURY-P500YSJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,78,82,81.5,76.5,74.5,71,69.5,62.5
+Mitsubishi PURY-P450YJM-A1(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,80,81.5,81,76,74,71,68.5,63
+Mitsubishi PURY-P450YJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,81.5,82.5,84,78,75.5,73,73,64
+Mitsubishi PURY-P400YJM-A1(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,81.5,81,80,75.5,73.5,70.5,67.5,63.5
+Mitsubishi PURY-P400YJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,82.5,80.5,77,75,73,72.5,65
+Mitsubishi PURY-P350YJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88,81.5,79.5,76,74,72,71.5,64
+Mitsubishi PURY-P300YJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,80.5,80,79,75,73.5,70,70,66.5
+Mitsubishi PURY-P250YJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,75,79,78.5,73.5,71.5,68,66.5,59.5
+Mitsubishi PURY-P200YJM-A(-BS),Outdoor Unit - New R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,78.5,78,77,72.5,70.5,67.5,64.5,60.5
+Mitsubishi PURY-EP600YSHM-A(-BS),Outdoor Unit -R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92,85,81.5,77,73.5,70,66.5,60
+Mitsubishi PURY-EP550YSHM-A(-BS),Outdoor Unit -R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,84,81,76,72.5,68.5,64.5,58
+Mitsubishi PURY-EP500YSHM-A(-BS),Outdoor Unit -R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89.5,84,81,75.5,72.5,68.5,64.5,58.5
+Mitsubishi PURY-EP450YSHM-A(-BS),Outdoor Unit -R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,82,82.5,80,74,70.5,66,60.5,56
+Mitsubishi PURY-EP400YSHM-A(-BS),Outdoor Unit -R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,84,82.5,80,73.5,70.5,66,59.5,56.5
+Mitsubishi PURY-EP300YHM-A(-BS),Outdoor Unit -R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,82,78.5,74,70.5,67,63.5,57
+Mitsubishi PURY-EP200YHM-A(-BS),Outdoor Unit -R2 Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,81,79.5,77,70.5,67.5,63,56.5,53.5
+Mitsubishi PURY-P800YSHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,93,86,82.5,78,74.5,71,67.5,61
+Mitsubishi PURY-P750YSHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92.5,85.5,82,77.5,74,70.5,67,60.5
+Mitsubishi PURY-P700YSHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90.5,85,82,77,73.5,70,66.5,62
+Mitsubishi PURY-P650YSHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,84.5,81.5,76.5,73,69.5,66,61.5
+Mitsubishi PURY-P600YSHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,85,83.5,81,76,73,68.5,65,62.5
+Mitsubishi PURY-P550YSHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,83,83,80.5,75,72,67.5,63.5,60.5
+Mitsubishi PURY-P500YSHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,79,82,80,74,70.5,66,61,55
+Mitsubishi PURY-P450YSHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,81.5,82,79.5,74,70.5,66,60.5,56
+Mitsubishi PURY-P400YHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,83,79.5,75,71.5,68,64.5,58
+Mitsubishi PURY-P350YHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,82,78.5,74,70.5,67,63.5,57
+Mitsubishi PURY-P300YHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,82,80.5,78,73,70,65.5,62,59.5
+Mitsubishi PURY-P250YHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,76,79,77,71,67.5,63,58,52
+Mitsubishi PURY-P200YHM-A(-BS),Outdoor Unit- R2 Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,79.5,78,75.5,70,67,62.5,56,53
+Mitsubishi PUHY-HP500YSHM-A(-BS),Outdoor Unit - Zuba Dan Y series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,79,82,80,74,70.5,66,61,55
+Mitsubishi PUHY-HP400YSHM-A(-BS),Outdoor Unit - Zuba Dan Y series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,82.5,81,78.5,73,70,65.5,59,56
+Mitsubishi PUHY-HP250YHM-A(-BS),Outdoor Unit - Zuba Dan Y series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,76,79,77,71,67.5,63,58,52
+Mitsubishi PUHY-HP200YHM-A(-BS),Outdoor Unit - Zuba Dan Y series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,79.5,78,75.5,70,67,62.5,56,53
+Mitsubishi PQHY-P500YSGM-A,Outdoor Unit - WY Series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,75,71,65.5,62.5,60,59,58.5,57
+Mitsubishi PQHY-P400YSGM-A,Outdoor Unit - WY Series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,73,69,63,59,57,56,55.5,54
+Mitsubishi PQHY-P250YGM-A,Outdoor Unit - WY Series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,78.5,66.5,64.5,57.5,49.5,48,46.5,48.5
+Mitsubishi PQHY-P200YGM-A,Outdoor Unit - WY Series,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,77.5,65.5,63.5,56.5,48.5,47,45.5,47.5
+Mitsubishi PUHY-EP900YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,89.5,86,82.5,80,77.5,76,69
+Mitsubishi PUHY-EP850YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91,88.5,85.5,82,79.5,77,76,67.5
+Mitsubishi PUHY-EP800YSJM-A1(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91.5,87,84.5,81,79,77,76,68
+Mitsubishi PUHY-EP800YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88.5,88,85,82,79,76.5,74.5,66.5
+Mitsubishi PUHY-EP750YSJM-A1(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92.5,86.5,84.5,81,79,77,76,69
+Mitsubishi PUHY-EP750YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,87,84.5,81,78.5,76,75,67.5
+Mitsubishi PUHY-EP700YSJM-A1(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91,85.46,83.96,79.96,78,76,75,68
+Mitsubishi PUHY-EP700YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,87.5,86.5,84.5,80,77.5,75,72.5,66
+Mitsubishi PUHY-EP650YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,85,83.5,79,77,75,73,67
+Mitsubishi PUHY-EP600YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88,87.5,83.96,81,78,75.5,74,65
+Mitsubishi PUHY-EP550YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89.5,86.5,83.5,80,77.5,75,74,66
+Mitsubishi PUHY-EP500YSJM-A1(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90.5,84.46,82.46,78.96,76.96,74.96,74.46,67
+Mitsubishi PUHY-EP500YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,86.4,85.5,83,79.5,76.5,74,72,64.5
+Mitsubishi PUHY-EP450YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88.5,83.5,82,78,76,74,72.5,66
+Mitsubishi PUHY-EP400YSJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,83.5,82.5,81.5,76,74.5,71.5,68,64
+Mitsubishi PUHY-EP300YJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,85,84.5,81,77.96,75,72.5,71,62
+Mitsubishi PUHY-EP250YJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,87.5,81.46,79.46,75.96,73.96,71.96,71.46,64
+Mitsubishi PUHY-EP200YJM-A(-BS),Outdoor Unit - New Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,80.5,79.5,78.5,73,71.5,68.5,65,61
+Mitsubishi PUHY-P1250YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89.5,87,87.5,82,79.5,77.5,77,68.5
+Mitsubishi PUHY-P1200YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92,87,86.5,82,80,77.5,77,69
+Mitsubishi PUHY-P1150YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91,86.5,86,81.5,79.5,77,76.5,69
+Mitsubishi PUHY-P1100YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92.5,86.46,84.46,80.96,78.96,76.96,76.46,69
+Mitsubishi PUHY-P1050YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92,86.54,84.54,81.04,79.04,76.54,76.04,70
+Mitsubishi PUHY-P1000YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,86,84.5,80.5,78.5,76,75.5,71
+Mitsubishi PUHY-P950YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,86,84.5,80.5,78.5,76,75.5,69.5
+Mitsubishi PUHY-P900YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,84.5,85.5,87,81,78.5,76,76,67
+Mitsubishi PUHY-P850YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89.5,85.5,85.46,80.46,78.46,76,75.5,67.5
+Mitsubishi PUHY-P800YSJM-A1(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92,85.5,83.5,80,78,75.5,75.5,68
+Mitsubishi PUHY-P800YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88.5,85,85.3,80,77.5,75.5,75,67
+Mitsubishi PUHY-P750YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91.46,84.96,82.96,79.46,77.46,75.46,74.96,67.46
+Mitsubishi PUHY-P700YSJM-A1(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89.5,84.5,82.5,79,77,74.5,74.5,68.5
+Mitsubishi PUHY-P700YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90.5,84.45,82.45,78.95,76.95,74.95,74.45,67
+Mitsubishi PUHY-P650YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88.5,84,82.5,78.5,76.5,74,73.5,68.5
+Mitsubishi PUHY-P600YSJM-A1(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,87.5,83.5,82,78,76,74,73,65.5
+Mitsubishi PUHY-P600YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,83.5,83,82,77.96,76.5,73,73,69.5
+Mitsubishi PUHY-P550YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,81.5,83,82,77.5,76,72.5,72,67.5
+Mitsubishi PUHY-P500YSJM-A1(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,83,82.5,81,77,75.5,72,71.5,67.5
+Mitsubishi PUHY-P500YSJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,79,83,82,77,75.5,72.5,70.5,63.5
+Mitsubishi PUHY-P450YJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,81.5,82.5,84,78,75.5,73,73,64
+Mitsubishi PUHY-P400YJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,82.5,80.5,77,75,72.5,72.5,65
+Mitsubishi PUHY-P350YJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,87.5,81.5,79.5,76,74,72,71.5,64
+Mitsubishi PUHY-P300YJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,80.5,79.96,78.95,74.96,73.46,70,70,66.5
+Mitsubishi PUHY-P250YJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,76,80,79,74,72.5,69.5,67.5,60.5
+Mitsubishi PUHY-P200YJM-A(-BS),Outdoor Unit - New Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,78.5,78,76.5,72.5,70.5,67.5,64.5,60.5
+Mitsubishi PUHY-EP900YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,94,87,83.5,79,75.5,72,68.5,62
+Mitsubishi PUHY-EP850YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92,86,83,78,74.5,70.5,67,60.5
+Mitsubishi PUHY-EP800YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92.5,86,83,78,74.5,71,67,61
+Mitsubishi PUHY-EP750YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,85,82.5,77,73.5,69.5,65,59.5
+Mitsubishi PUHY-EP700YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,85.5,82.5,77,73.5,69.5,65,60
+Mitsubishi PUHY-EP650YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92,85,81.5,77,73.5,70,66.5,60
+Mitsubishi PUHY-EP600YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,85,82,77,73.5,69.5,65.5,59
+Mitsubishi PUHY-EP550YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,84,81,76,72.5,68.5,64.5,58
+Mitsubishi PUHY-EP500YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,81,84,82,76,72.5,68,63,57
+Mitsubishi PUHY-EP450YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,82,82.5,80,74,70.5,66,60.5,56
+Mitsubishi PUHY-EP400YSHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,84,82.5,80,73.5,70.5,66,59.5,56.5
+Mitsubishi PUHY-EP300YHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,82,78.5,74,70.5,67,63.5,57
+Mitsubishi PUHY-EP200YHM-A(-BS),Outdoor Unit - Y Series Hi COP,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,81,79.5,77,70.5,67.5,63,56.5,53.5
+Mitsubishi PUHY-P1250YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,94,87,84,79.5,76,72.5,70,63
+Mitsubishi PUHY-P1200YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,94,87,83.5,79,75.5,72,69,62.5
+Mitsubishi PUHY-P1150YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,93,86,83,78.5,75,71.5,68.5,61.5
+Mitsubishi PUHY-P1100YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,93,86,82.5,78,74.5,71,67.5,61
+Mitsubishi PUHY-P1050YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92,86,82.5,78,74.5,71,67.5,62
+Mitsubishi PUHY-P1000YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,91,86,83,78,74.5,70.5,67,63
+Mitsubishi PUHY-P950YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90.5,86,83,78,74.5,70.5,67,62
+Mitsubishi PUHY-P900YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,93,86,83,78.5,75,71.5,69,62
+Mitsubishi PUHY-P850YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,93,86,83,78.5,75,71.5,68.5,61.5
+Mitsubishi PUHY-P800YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92.5,85.5,82.5,78,74.5,71,68,61
+Mitsubishi PUHY-P750YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,92,85,81.5,77,73.5,70,66.5,60
+Mitsubishi PUHY-P700YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,83,79.5,75,71.5,68,64.5,58
+Mitsubishi PUHY-P650YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,88,83,80,75,71.5,67.5,64,60
+Mitsubishi PUHY-P600YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,87.5,82.5,80,74.5,71,67,63,57
+Mitsubishi PUHY-P550YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,82.5,82.5,80,74.5,71,67,62.5,59.5
+Mitsubishi PUHY-P500YSHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,79,82,80,74,70.5,66,61,55
+Mitsubishi PUHY-P450YHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90.5,83.5,80.5,76,72.5,69,66.5,59.5
+Mitsubishi PUHY-P400YHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,90,83,79.5,75,71.5,68,64.5,58
+Mitsubishi PUHY-P350YHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,89,82,78.5,74,70.5,67,63.5,57
+Mitsubishi PUHY-P300YHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,82,80.5,78,73,70,65.5,62,59.5
+Mitsubishi PUHY-P250YHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,76,79,77,71,67.5,63,58,52
+Mitsubishi PUHY-P200YHM-A(-BS),Outdoor Unit- Y Series Standard,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,79.5,78,75.5,70,67,62.5,56,53
+Daikin FDYQ250LV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,74,73.5,66.5,59.5,58.5,53.5,48.5,39
+Daikin FDYQ250LV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,83,79,76.5,68.5,67.5,64.5,62.5,52.5
+Daikin FDYQ250LV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,79,78,74.5,73.5,72.5,70,67.5,56
+Daikin FDYQ200LV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,68,68.5,61.5,55,52,47.5,41,30.5
+Daikin FDYQ200LV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,78.5,74.5,71.5,68,65,60.5,57.5,47
+Daikin FDYQ200LV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,76,74.5,71,70.5,69.5,65,61.5,51.5
+Daikin FDYQ180LV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,68.5,69,62,55.5,53.5,50,42.5,31
+Daikin FDYQ180LV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,78,75,71.5,66.5,63.5,60,55.5,45
+Daikin FDYQ180LV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,77,76,72,71,70,66.5,63,52
+Daikin FDYQ140LV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,69.5,67,63.5,59.5,58,54,50.5,40.5
+Daikin FDYQ140LV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,78,79.5,76,71,68,65.5,63,55.5
+Daikin FDYQ140LV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,75,75,75,72,72.5,68,65,61
+Daikin FDYQ125LV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,65.5,63,59.5,56,54.5,51,48,35.5
+Daikin FDYQ125LV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,75.5,76.5,73,68,65.5,63,60,52
+Daikin FDYQ125LV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,71,71.5,71.2,69,69.5,64.5,61.5,56
+Daikin FDYQ100LV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,62,62,57,54,53.5,49.5,39.5,32
+Daikin FDYQ100LV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,72.5,74,73.5,66.5,62,59,57,49.5
+Daikin FDYQ100LV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,71.5,72,69.5,68,67.5,61.5,59,55
+Daikin FDYQ71LV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,63.5,61.5,57,50.5,51,46,38,30
+Daikin FDYQ71LV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,68,71.5,66,59.5,59,55.5,51.5,44
+Daikin FDYQ71LV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,64,67,66.5,63,62,55.5,53.4,47.5
+Daikin FDYQ60DV1 Breakout,Indoor Unit - Casing Radiation,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,64,61.2,58.3,48.8,46,42.2,35,24
+Daikin FDYQ60DV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,69,66.9,62.9,57.2,58.8,57.4,52.3,43.1
+Daikin FDYQ60DV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,62,62,62.9,58,59.7,57.4,52.3,43.1
+Daikin FDYQ50DV1 Breakout,Indoor Unit - Casing Radiation,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,63,60.2,57.3,48.3,45.2,41.7,34.4,22.9
+Daikin FDYQ50DV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,69,66.5,62.4,56.1,57.9,56.7,51.5,42.1
+Daikin FDYQ50DV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01- 0712,63,62,62.5,57.8,59,55.4,49.3,40.7
+Daikin FDYQN160LBV1 Breakout,Indoor Unit - Casing Radiation,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,73.5,72.5,67.5,62,59,52.5,46,38.5
+Daikin FDYQN160LBV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,81.5,83,79,74.5,72,69,66.5,59
+Daikin FDYQN160LBV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,79,80,78.5,78.5,77.5,74,69,64.5
+Daikin FDYQN140LBV1 Breakout,Indoor Unit - Casing Radiation,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,72,70.5,65.5,60,57,51,44,36.5
+Daikin FDYQN140LBV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,79.5,81,77,73,70,67,64.5,57.5
+Daikin FDYQN140LBV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,77,78,77,76.5,75.5,72,67,62.5
+Daikin FDYQN125LAV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,65.5,63,59.5,56,54.5,51,48,35.5
+Daikin FDYQN125LAV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,75.5,76.5,73,68,65.5,63,60,52
+Daikin FDYQN125LAV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,71,71.5,71.2,69,69.5,64.5,61.5,56
+Daikin FDYQN100LAV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,62,62,57,54,53.5,49.5,39.5,32
+Daikin FDYQN100LAV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,72.5,74,73.5,66.5,62,59,57,49.5
+Daikin FDYQN100LAV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,71.5,72,69.5,68,67.5,61.5,59,55
+Daikin FDYQN71LAV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,63.5,61.5,57,50.5,51,46,38,30
+Daikin FDYQN71LAV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,68,71.5,66,59.5,59,55.5,51.5,44
+Daikin FDYQN71LAV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU01-1114,64,67,66.5,63,62,55.5,53.5,47.5
+Daikin FDYQN250LBV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU11-0615,74,73.5,66.5,59.5,58.5,53.5,48.5,39
+Daikin FDYQN250LBV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU11-0615,83,79,76.5,68.5,67.5,64.5,62.5,52.5
+Daikin FDYQN250LBV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU11-0615,79,78,74.5,73.5,72.5,70,67.5,56
+Daikin FDYQN200LBV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU11-0615,68,68.5,61.5,55,52,47.5,41,30.5
+Daikin FDYQN200LBV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU11-0615,78.5,74.5,71.5,68,65,60.5,57.5,47
+Daikin FDYQN200LBV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU11-0615,76,74.5,71,70.5,69.5,65,61.5,51.5
+Daikin FDYQN180LBV1 Breakout,Indoor Unit - Case Breakout,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU11-0615,68.5,69,62,55.5,53.5,50,42.5,31
+Daikin FDYQN180LBV1 Return,Indoor Unit - Inlet,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU11-0615,78,75,71.5,66.5,63.5,60,55.5,45
+Daikin FDYQN180LBV1 Supply,Indoor Unit - Discharge,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,EDAU11-0615,77,76,72,71,70,66.5,63,52
+Mitsubishi PEFY-P250VMH-E-F,Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,78.02,75.39,64.05,63.61,61.18,56.43,47.69,36.62
+Mitsubishi PEFY-P250VMH-E,Indoor Unit - Ceiling Concealed,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,City Multi Series AC&R 2011 spreadsheet,67,71,66,64,65,59,57.5,47
+Temperzone HWP 36Y 10V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,62,62,62,58,59,57,53,53
+Temperzone HWP 36Y 10V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,66,66,64,59,56,56,53,53
+Temperzone HWP 36Y 10V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,61,63,62,46,40,39,35,30
+Temperzone HWP 36Y 8V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,61,61,59,55,55,54,50,50
+Temperzone HWP 36Y 8V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,64,64,61,56,53,54,50,50
+Temperzone HWP 36Y 8V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,59,61,59,43,37,37,32,27
+Temperzone HWP 36Y 6V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,54,54,51,48,49,46,41,41
+Temperzone HWP 36Y 6V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,59,59,54,50,48,47,43,43
+Temperzone HWP 36Y 6V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,54,56,52,37,32,30,25,20
+Temperzone HWP 36Y 4V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,49,49,46,40,39,35,28,28
+Temperzone HWP 36Y 4V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,56,56,50,46,44,43,43,43
+Temperzone HWP 36Y 4V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,51,53,48,33,28,26,25,20
+Temperzone HWP 48Y 10V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,62,62,62,58,59,57,53,53
+Temperzone HWP 48Y 10V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,66,66,64,59,56,56,53,53
+Temperzone HWP 48Y 10V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,61,63,62,46,40,39,35,30
+Temperzone HWP 48Y 8V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,61,61,59,55,55,54,50,50
+Temperzone HWP 48Y 8V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,64,64,61,56,53,54,50,50
+Temperzone HWP 48Y 8V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,59,61,59,43,37,37,32,27
+Temperzone HWP 48Y 6V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,54,54,51,48,49,46,41,41
+Temperzone HWP 48Y 6V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,59,59,54,50,48,47,43,43
+Temperzone HWP 48Y 6V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,54,56,52,37,32,30,25,20
+Temperzone HWP 48Y 4V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,49,49,46,40,39,35,28,28
+Temperzone HWP 48Y 4V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,56,56,50,46,44,43,43,43
+Temperzone HWP 48Y 4V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,51,53,48,33,28,26,25,20
+Temperzone HWP 59Y 10V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,63,63,63,57,58,54,50,50
+Temperzone HWP 59Y 10V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,66,66,61,59,59,56,49,49
+Temperzone HWP 59Y 10V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,61,63,59,46,43,39,31,26
+Temperzone HWP 59Y 8V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,63,63,63,57,58,54,50,50
+Temperzone HWP 59Y 8V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,64,64,58,56,55,53,44,44
+Temperzone HWP 59Y 8V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,59,61,56,43,39,36,26,21
+Temperzone HWP 59Y 6V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,60,60,57,52,51,47,43,43
+Temperzone HWP 59Y 6V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,63,63,55,55,53,50,41,41
+Temperzone HWP 59Y 6V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,58,60,53,42,37,33,23,18
+Temperzone HWP 59Y 4V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,57,57,51,45,42,38,35,35
+Temperzone HWP 59Y 4V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,61,61,53,53,51,48,38,38
+Temperzone HWP 59Y 4V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,56,58,51,40,35,31,20,15
+Temperzone HWP 79Y 10V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,67,67,68,66,67,64,60,60
+Temperzone HWP 79Y 10V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,66,66,66,63,62,60,55,55
+Temperzone HWP 79Y 10V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,61,63,64,50,46,43,37,32
+Temperzone HWP 79Y 8V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,63,63,62,61,62,59,54,54
+Temperzone HWP 79Y 8V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,63,63,60,58,58,55,49,49
+Temperzone HWP 79Y 8V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,58,60,58,45,42,38,31,26
+Temperzone HWP 79Y 6V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,56,56,55,54,54,50,45,45
+Temperzone HWP 79Y 6V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,60,60,54,53,51,48,42,42
+Temperzone HWP 79Y 6V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,55,57,52,40,35,31,24,19
+Temperzone HWP 79Y 4V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,50,50,46,44,43,38,32,32
+Temperzone HWP 79Y 4V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,59,59,48,50,43,42,39,39
+Temperzone HWP 79Y 4V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,54,56,46,37,27,25,21,16
+Temperzone HWP 98Y 10V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,68,68,69,66,67,64,60,60
+Temperzone HWP 98Y 10V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,66,66,66,62,62,60,55,55
+Temperzone HWP 98Y 10V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,61,63,64,49,46,43,37,32
+Temperzone HWP 98Y 8V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,63,63,62,60,61,57,53,53
+Temperzone HWP 98Y 8V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,62,62,60,57,57,54,48,48
+Temperzone HWP 98Y 8V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,57,59,58,44,41,37,30,25
+Temperzone HWP 98Y 6V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,55,55,53,53,53,49,43,43
+Temperzone HWP 98Y 6V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,59,59,52,52,51,48,42,42
+Temperzone HWP 98Y 6V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,54,56,50,39,35,31,24,19
+Temperzone HWP 98Y 4V Supply,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,48,48,45,42,42,38,29,29
+Temperzone HWP 98Y 4V Return,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,56,56,48,50,44,43,41,41
+Temperzone HWP 98Y 4V Breakout,,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,51,53,46,37,28,26,23,18
+Small truck idling,,Reviewed,"Lw, dB(Z)",Vehicle,,,91,90,87,86,86,84,77,67
+Small truck driving slowly,,Reviewed,"Lw/m, dB(Z)/m",Vehicle,,,100,99,96,95,95,93,86,76
+Small truck exhaust,,Reviewed,"Lw/m, dB(Z)/m",Vehicle,,,92,91,88,87,87,85,78,68
+Small truck accelerating - Lmax,,Reviewed,"Lw, dB(Z)",Vehicle,,,107,106,103,102,102,100,93,83
+Medium truck idling,,Reviewed,"Lw, dB(Z)",Vehicle,,,94,93,90,89,89,87,82,72
+Medium truck driving slowly,,Reviewed,"Lw/m, dB(Z)/m",Vehicle,,,103,102,99,98,98,96,89,79
+Medium truck exhaust,,Reviewed,"Lw/m, dB(Z)/m",Vehicle,,,95,94,91,90,90,88,81,71
+Medium truck accelerating - Lmax,,Reviewed,"Lw, dB(Z)",Vehicle,,,109.6,108.6,105.5,104.8,105,102.8,96.1,85.9
+Large truck idling,,Reviewed,"Lw, dB(Z)",Vehicle,,,99,95.6,91,94,91,89,84,72.9
+Large truck driving slowly,,Reviewed,"Lw/m, dB(Z)/m",Vehicle,,,105.6,104.6,101.5,100.8,101,98.8,92.1,81.9
+Large truck exhaust,,Reviewed,"Lw/m, dB(Z)/m",Vehicle,,,97.6,96.6,93.5,92.8,93,90.8,84.1,73.9
+Large truck accelerating - Lmax,,Reviewed,"Lw, dB(Z)",Vehicle,,,112.6,111.6,108.5,107.8,108,105.8,99.1,88.9
+Refrigerated truck condenser (small/medium truck),,Reviewed,"Lw, dB(Z)",Vehicle,,,99,96,91,91,86,84,79,71
+Refrigerated truck condenser (large truck),,Reviewed,"Lw, dB(Z)",Vehicle,,,114,107,97,97,91,87,82,78
+Truck air brake release Lmax,,Reviewed,"Lw, dB(Z)",Vehicle,,,114,115,114,106,107,101,84,72
+Truck air horn Lmax,,Reviewed,"Lw, dB(Z)",Vehicle,,,90.74030061,89.13789808,106.7014992,119.5105589,112.5157333,110.0236357,98.04404848,89.26370054
+Car idling,,Reviewed,"Lw, dB(Z)",Vehicle,,,84.2,81.2,74.2,70.2,70.2,67.2,61.2,57.2
+Car driving slowly,,Reviewed,"Lw/m, dB(Z)/m",Vehicle,,,90.2,87.2,80.2,76.2,76.2,73.2,67.2,63.2
+Van idling,,Reviewed,"Lw, dB(Z)",Vehicle,,,89.2,86.2,79.2,75.2,75.2,72.2,66.2,62.2
+Van driving slowly,,Reviewed,"Lw/m, dB(Z)/m",Vehicle,,,95.2,92.2,85.2,81.2,81.2,78.2,72.2,68.2
+Car engine start - Lmax,,Reviewed,"Lw, dB(Z)",Vehicle,,,95.29699707,93.79999542,85.93099976,86.73300171,93,92.80000305,91.1289978,86.70800018
+Car door slam - Lmax,,Reviewed,"Lw, dB(Z)",Vehicle,,,87.6969986,90.29999542,93.03099823,94.33300018,94.30000305,89.80000305,87.02899933,83.50800323
+Speaker box,,Reviewed,"Lw, dB(Z)",Fast food outlet,,,77.8,76.9,66.4,78.8,79,79.2,69,65
+Speaker box - Lmax,,Reviewed,"Lw, dB(Z)",Fast food outlet,,,88,90,82,95,95,95,85,81
+Outdoor patron,,Reviewed,"Lw, dB(Z)",Fast food outlet,,,0,57,66,72,71,66,51,0
+Voice at pickup window,,Reviewed,"Lw, dB(Z)",Fast food outlet,,,0,51,60,66,65,60,45,0
+Electric forklift - typical activity,,Reviewed,"Lw, dB(Z)",Warehouse / loading dock,,,81,82,87,79,77,75,75,73
+Gas forklift - typical activity ,,Reviewed,"Lw, dB(Z)",Warehouse / loading dock,,,94.5,92,92.5,87.5,86.5,83.5,81.5,73
+Diesel forklift - typical activity ,,Reviewed,"Lw, dB(Z)",Warehouse / loading dock,,,108,102,98,96,96,92,88,0
+Forklift clanging forks - Lmax,,Reviewed,"Lw, dB(Z)",Warehouse / loading dock,,,108,109,114,106,104,102,102,0
+Forklift horn - Lmax,,Reviewed,"Lw, dB(Z)",Warehouse / loading dock,,,83,82,88,106,90,106,107,0
+Warehouse - internal reverberant level,,Reviewed,"Lw, dB(Z)",Warehouse / loading dock,,,76,71,65,75,75,76,71,65
+Vacuum,,Reviewed,"Lw, dB(Z)",Car wash,,,80,76,75,74,75,86,77,71
+Dog barking - SEL per bark,,Reviewed,"Lw, dB(Z)",Car wash,,,91,86,89,99,97,92,81,75
+Dog barking - Lmax,,Reviewed,"Lw, dB(Z)",Car wash,,,85,80,83,93,91,86,75,69
+Dog wash,,Reviewed,"Lw, dB(Z)",Car wash,,,75,78,75,74,77,83,79,73
+Car wash - manual ,,Reviewed,"Lw, dB(Z)",Car wash,,,65.8,76.8,83.8,84.8,86.8,90.8,89.8,88.8
+Car wash - auto,,Reviewed,"Lw, dB(Z)",Car wash,,,61,72,79,80,82,86,85,84
+Air Conditioning Condenser (High Fan Speed) - Supermarket Lw 85 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,"https://www.acoustics.org.nz/sites/www.acoustics.org.nz/files/journal/pdfs/Harwood,_M_NZA2009.pdf",0,85,82,82,80,77,70,0
+Refrigeration Condenser (High Fan Speed) - Supermarket Lw 88 dB(A) ,,Reviewed,"Lw, dB(Z)",Building Services,,"https://www.acoustics.org.nz/sites/www.acoustics.org.nz/files/journal/pdfs/Harwood,_M_NZA2009.pdf",0,86,86,83,84,80,74,0
+"Small exhaust fan (toilet, garbage room) - Lw 60 dB(A)",,Reviewed,"Lw, dB(Z)",Building Services,,AAAC Guideline for Child Care Centre Acoustic Assessment Version 3.0. Spectrum based on Fantech TEF for A190707.,63,59,57,56,56,53,50,44
+Small kitchen exhaust fan - Lw 70 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,AAAC Guideline for Child Care Centre Acoustic Assessment Version 3.0. Spectrum based on Fantech TEF for A190707.,73,69,67,66,66,63,60,54
+Carpark exhaust fan Lw 85 dB(A) - outlet,,Reviewed,"Lw, dB(Z)",Building Services,,AAAC Guideline for Child Care Centre Acoustic Assessment Version 3.0. Spectrum based on Fantech APGV0808CP12/32 outlet,90,88,86,82,79,77,73,67
+Large General exhaust fan—Lw 94 dB(A) / Lp 75 dB(A) at 3m,,Reviewed,"Lw, dB(Z)",Building Services,,Based on Fantech Fantech HC1808DP6/20,93,92,92,88,88,89,83,0
+Condenser - small single fan outdoor unit (Lw 65 dB(A)),,Reviewed,"Lw, dB(Z)",Building Services,,AAAC Guideline for Child Care Centre Acoustic Assessment Version 3.0. Spectrum based on Daikin REYQ8PY1,68,70,68,64,60,53,51,0
+Condenser - medium double fan outdoor unit (Lw 70 dB(A)),,Reviewed,"Lw, dB(Z)",Building Services,,AAAC Guideline for Child Care Centre Acoustic Assessment Version 3.0. Spectrum based on Daikin REYQ8PY2,73,75,73,69,65,58,56,0
+Condenser - large double fan outdoor unit (Lw 80 dB(A)),,Reviewed,"Lw, dB(Z)",Building Services,,AAAC Guideline for Child Care Centre Acoustic Assessment Version 3.0. Spectrum based on Daikin REYQ8PY3,78,80,78,74,70,63,61,0
+Evaporative cooler—Braemar RPB600 Radiated—Lw 80 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,Braemar technical data sheet,80,80,78,74,74,75,71,61
+Evaporative cooler—Braemar RPB700 Radiated—Lw 78 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,Braemar technical data sheet,78,78,76,72,71,73,68,58
+Evaporative cooler—Braemar RPB900 Radiated—Lw 84 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,Braemar technical data sheet,82,82,79,77,78,80,76,66
+Evaporative cooler—Braemar RPB1000 Radiated—Lw 89 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,Braemar technical data sheet,88,88,86,85,85,84,79,71
+Evaporative cooler—Braemar RPB1200 Radiated—Lw 88 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,Braemar technical data sheet,89,89,86,85,84,82,78,72
+Evaporative cooler—Braemar RPB1300 Radiated—Lw 89 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,Braemar technical data sheet,90,90,87,86,85,83,79,73
+Evaporative cooler—Braemar RPB1400 Radiated—Lw 93 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,Braemar technical data sheet,93,93,90,89,88,86,82,76
+Evaporative cooler—Braemar RPB1500 Radiated—Lw 94 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,Braemar technical data sheet,95,95,92,91,89,87,84,78
+Evaporative cooler—Braemar RPB1800 Radiated—Lw 96 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,Braemar technical data sheet,97,97,94,93,91,89,87,82
+Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard Lw 99 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,,0,94,93,95,96,91,86,0
+Carrier air cooled chillers (screw fixed speed)—30XBE 500 Standard+Option15 Lw 95 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,,0,94,92,93,91,86,80,0
+Carrier air cooled chillers (screw fixed speed)—30XBE 500  Standard+Option15LS Lw 91 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,,0,90,93,88,87,81,69,0
+Carrier air cooled chillers (screw fixed speed)—30XBE 500  Standard+Option15LS+ Lw 89 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,,0,87,92,85,85,77,67,0
+Carrier air cooled chillers (screw fixed speed)—30XBE 350 Standard Lw 99 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,,0,95,94,92,98,86,80,0
+Carrier air cooled chillers (screw fixed speed)—30XBE 350  Standard+Option15 Lw 94 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,,0,94,93,91,91,83,78,0
+Carrier air cooled chillers (screw fixed speed)—30XBE 350  Standard+Option15LS Lw 87 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,,0,85,89,83,84,76,65,0
+Daikin air cooled single screw chiller / heat pump Lw 102 dB(A),,Reviewed,"Lw, dB(Z)",Building Services,,Daikin UAY424ST3-FBBMS3TJ unit tech data sheet (A190691),90,94.2,95.2,96.9,98.5,95.4,92.2,89.5
+"Cooling Tower (single unit, 5.5kW, 2.28x2.28x3.25mm) Lw 87 dB(A)",,Reviewed,"Lw, dB(Z)",Building Services,,BAC PCT0707-P3-J unit provided Lw (tech data sheet),84,78,81,82,80,81,80,79
+Smoke Spill Fans—outlet—Lw 102 dB(Z) / Lw 95 dB(A) / Lp 75 dB(A) @ 3m,,Reviewed,"Lw, dB(Z)",Building Services,,Based on Fantech APS0904CA12/38 (Adopted for Burnside Village A190401),98,93,95,91,90,89,84,80
+Large Dust Extractor - Lw 97 dB(A) / 75 dB(A) @ 5m,,Reviewed,"Lw, dB(Z)",Building Services,,"Spectrum based on DJ measurement (SA Norwood Morialta HS (Norwood Campus)), normalised to 97 Lw(A)",90.97940009,95.97940009,95.97940009,94.97940009,91.97940009,86.97940009,78.97940009,72.97940009
+Medium Dust Extractor - Lw 91 dB(A) / 68 dB(A) @ 5m,,Reviewed,"Lw, dB(Z)",Building Services,,,84.97940009,89.97940009,89.97940009,88.97940009,85.97940009,80.97940009,72.97940009,66.97940009
+Enclosed Generator Set 220kVA—Cummins C220 D5e 50 Hz (enclosed  with genset mounted muffler - @75% load 96 dB(A) Lw),,Reviewed,"Lw, dB(Z)",Building Services,,"Manufacturer data 
+https://www.shanahanpower.com/wp-content/uploads/2021/10/Cummins-C220D5e-Sound-Data-Sheet.pdf",103,99.2,99.7,91,88,86.4,85,79
+Enclosed Generator Set 220kVA —Cummins C220 D5e 50 Hz (enclosed  with genset mounted muffler - @100% load 97 dB(A) Lw),,Reviewed,"Lw, dB(Z)",Building Services,,,105.3,101.2,100.3,91.9,89,87.3,85.6,79.5
+Enclosed Generator Set 220kVA —Cummins C220 D5e 50 Hz (enclosed  with genset mounted muffler - @110% load 97 dB(A) Lw),,Reviewed,"Lw, dB(Z)",Building Services,,,104.4,101.3,100.1,92,89,87.5,86.9,81.8
+"Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime - engine, no exhaust no muffler) ",,Reviewed,"Lw, dB(Z)",Building Services,,"Manufacturer data
+
+https://www.shanahanpower.com/wp-content/uploads/2021/10/Cummins-C1100D5-Sound-Data-Sheet.pdf",108,113.6,113.9,110,111,111,108,109
+Open Generator—Cummins C1100 D5 QST30-G4 50 Hz Diesel (100% Prime - open exhaust) ,,Reviewed,"Lw, dB(Z)",Building Services,,"Manufacturer data
+
+https://www.shanahanpower.com/wp-content/uploads/2021/10/Cummins-C1100D5-Sound-Data-Sheet.pdf",133.8,131.1,120.4,122.1,117,118.1,120,114.4
+Background music - conversation and normal effort - Leq,,Reviewed,"Lp, dB(Z)",,,,75.69676983,75.41724836,67.69552825,66.26117301,64.15014799,62.98586098,57.34012714,55.839738
+Background music - conversation and normal effort - L10,,Reviewed,"Lp, dB(Z)",,,,77.69676983,77.41724836,69.69552825,68.26117301,66.15014799,64.98586098,59.34012714,57.839738
+Background music - conversation and raised effort - Leq,,Reviewed,"Lp, dB(Z)",,,,80.69676983,80.41724836,72.69552825,71.26117301,69.15014799,67.98586098,62.34012714,60.839738
+Background music - conversation and raised effort - L10,,Reviewed,"Lp, dB(Z)",,,,82.69676983,82.41724836,74.69552825,73.26117301,71.15014799,69.98586098,64.34012714,62.839738
+Foreground music - Acoustic amplified - Leq,,Reviewed,"Lp, dB(Z)",,,,87.51206676,88.0480589,80.65357641,76.04832022,73.56715912,70.19472128,68.18704285,65.55284278
+Foreground music - Acoustic amplified - L10,,Reviewed,"Lp, dB(Z)",,,,89.51206676,90.0480589,82.65357641,78.04832022,75.56715912,72.19472128,70.18704285,67.55284278
+Foreground music - Ambient DJ - Leq,,Reviewed,"Lp, dB(Z)",,,,93.9368649,93.70628579,85.6565667,81.20760414,77.7038996,75.35817786,74.06596508,73.7365486
+Foreground music - Ambient DJ - L10,,Reviewed,"Lp, dB(Z)",,,,95.9368649,95.70628579,87.6565667,83.20760414,79.7038996,77.35817786,76.06596508,75.7365486
+Foreground music - Function room / wedding - Leq,,Reviewed,"Lp, dB(Z)",,,,92.0976455,96.11073757,92.2926432,85.9207007,81.42488114,80.37055023,78.38828336,74.26961969
+Foreground music - Function room / wedding - L10,,Reviewed,"Lp, dB(Z)",,,,94.0976455,98.11073757,94.2926432,87.9207007,83.42488114,82.37055023,80.38828336,76.26961969
+Foreground music - nightclub - Leq,,Reviewed,"Lp, dB(Z)",,,,99.79705021,100.8373239,96.47295183,93.05697813,86.23997513,86.57289027,85.93622532,81.38436685
+Foreground music - nightclub - L10,,Reviewed,"Lp, dB(Z)",,,,101.7970502,102.8373239,98.47295183,95.05697813,88.23997513,88.57289027,87.93622532,83.38436685
+"Gynmasium - general sporting activity, overall reverberant level",,Reviewed,"Lp, dB(Z)",Gymnasium,,,76,76,66,68,69,69,69,0
+Patron in bar setting (SA),,Reviewed,"Lw, dB(Z)",Patrons,,AAAC SA draft guide for Music Venues and Outdoor Areas,0,57,66,72,71,66,51,0
+Vertical consumption ('worst-case' crowd) - per person,,Reviewed,"Lw, dB(Z)",Patrons,,MDA data widely accepted at VCAT. Standing patrons drinking and talking. Focus of activity on drinking and socialising. Spectrum adopted from SA.,0,71,80,86,85,80,65,0
+Taverns with significant food offerings - per person,,Reviewed,"Lw, dB(Z)",Patrons,,"MDA data widely accepted at VCAT. Predominantly seated patrons, drinking, dining and talking. Focus of activity on drinking, whilst dining and socialising. Spectrum adopted from SA.",0,66,75,81,80,75,60,0
+Restaurant dining - per person,,Reviewed,"Lw, dB(Z)",Patrons,,"MDA data widely accepted at VCAT. Seated patrons, drinking, dining and talking. Focus of activity on dining and socialising. Spectrum adopted from SA.",0,61,70,76,75,70,55,0
+Small smoking areas (<40 patrons) - per person,,Reviewed,"Lw, dB(Z)",Patrons,,"MDA data widely accepted at VCAT. Patron area used for smoking. Focus of activity on smoking rather than socialising, although can include drinking as well. Spectrum adopted from SA.",0,56,65,71,70,65,50,0
+Male talker - normal vocal effort,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,,"AAAC Licensed Premises Guidelines v3.0 (Cushing et al - from 125 - 8kHz, 63Hz is made to equal 125Hz provided value)",46.5,46.5,56.4,57.5,52.3,48.3,44.3,38.8
+Male talker - raised vocal effort,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,,"AAAC Licensed Premises Guidelines v3.0 (Cushing et al - from 125 - 8kHz, 63Hz is made to equal 125Hz provided value)",55.8,55.8,62.5,65.4,61.7,57.1,52.1,45.9
+Male talker - loud vocal effort,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,,"AAAC Licensed Premises Guidelines v3.0 (Cushing et al - from 125 - 8kHz, 63Hz is made to equal 125Hz provided value)",58.5,58.5,66.9,73.2,72.3,66.9,61.5,52.9
+Female Voice - Casual,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,Text Book,Pearsons et al. (1977),36.51,36.51,49.2,49.46,42.02,39.24,34.77,33.97
+Female Voice - Normal,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,Text Book,Pearsons et al. (1977),37.41,37.41,51.11,53.85,48.79,44.17,43.07,34.97
+Female Voice - Raised,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,Text Book,Pearsons et al. (1977),35.51,35.51,55.34,60.07,57.85,53.81,48.98,39.97
+Female Voice - Loud,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,Text Book,Pearsons et al. (1977),34.21,34.21,58.22,64.31,66.46,63.69,56.8,45.97
+Female Voice - Shouted,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,Text Book,Pearsons et al. (1977),30.51,30.51,56.3,70.03,77.07,76.03,69.31,55.97
+Male Voice - Casual,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,Text Book,Pearsons et al. (1977),46.75,46.75,50.2,51.61,42.85,41.17,38.85,32.98
+Male Voice - Normal,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,Text Book,Pearsons et al. (1977),49.95,49.95,55.41,57.85,50.85,46.79,43.31,32.98
+Male Voice - Raised,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,Text Book,Pearsons et al. (1977),53.75,53.75,59.24,63.54,58.46,53.54,48.75,38.97
+Male Voice - Loud,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,Text Book,Pearsons et al. (1977),56.45,56.45,64.89,72.41,70.85,66.13,59.53,46.97
+Male Voice - Shouted,Lp @ 1m measured in anechoic chamber,Reviewed,"Lp, dB(Z)",,Text Book,Pearsons et al. (1977),45.52,45.52,70.33,79.83,83.54,79.95,72.53,59.97
+Rw 30 door,Rw 30 solid core door with RP8i dropdown RP10 perimeter seals,Reviewed,Transmission Loss,Building Material,Manufacturer Data,Raven catalouge - no data for 63Hz or 8kHz (estimated),15,21,24,25,29,33,35,30
+Metal deck roof + plywood under purlins,metal deck roof / insulation / 100 mm timber purlins / 19 mm ply under purlins,Reviewed,Transmission Loss,Building Material,Predicted,Insul v9.0.24,14,16,35,45,42,39,48,48
+Sheet metal,Metal deck roof 0.55 customorb,Reviewed,Transmission Loss,Building Material,Predicted,Insul v10.0.3,5,9,14,19,21,19,24,24
+Typical roof-ceiling,Metal deck + 300 mm cavity + Building Blanket + 10 mm suspended PB ceiling,Reviewed,Transmission Loss,Building Material,Predicted,Insul v9.0.24,11,27,40,50,59,61,54,54
+Rw 40 partition,13 pb / 64 mm studs + insul / 13 pb,Reviewed,Transmission Loss,Building Material,Predicted,Insul v9.0.24,16,16,30,45,55,56,49,49
+Rw 45 partition,13 srpb / 92 mm studs + insul / 13 srpb,Reviewed,Transmission Loss,Building Material,Predicted,Insul v9.0.24,15,24,41,52,59,54,54,54
+Rw 50 partition,2x13 srpb / 92 mm studs + insul / 13 srpb,Reviewed,Transmission Loss,Building Material,Predicted,Insul v9.0.24,16,30,47,57,63,57,57,57
+Rw 55 partition,2x13 frpb / staggered 92 mm track + insul / 2x13 frpb,Reviewed,Transmission Loss,Building Material,Predicted,Insul v9.0.24,18,35,51,63,71,72,64,64
+Rw 60 partition,2x13 srpb / double studs + insul / 2x13 srpb,Reviewed,Transmission Loss,Building Material,Predicted,Insul v9.0.24,25,44,59,73,81,75,79,79
+Hollow concrete blockwork,"140 mm, 1800kg/m3",Reviewed,Transmission Loss,Building Material,Predicted,Insul v9.0,39,43,43,44,52,57,62,62
+Glazing Viridian Annealed Glass 3 mm Rw30 Rw+Ctr26,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,14.7,17.7,19.7,26.7,31.5,34.6,27.6,27.6
+Glazing Viridian Annealed Glass 4 mm Rw31 Rw+Ctr28,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,16.8,19.8,21.8,28,33.2,33.6,27,27
+Glazing Viridian Annealed Glass 5 mm Rw32 Rw+Ctr29,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,17.3,20.3,23.6,29.7,34.5,29.5,33.2,33.2
+Glazing Viridian Annealed Glass 6 mm Rw32 Rw+Ctr29,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,17.2,20.2,24.2,30.7,35.2,28.6,35.2,35.2
+Glazing Viridian Annealed Glass 8 mm Rw34 Rw+Ctr31,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,18.6,21.6,26.5,32.2,36,32.5,40.5,40.5
+Glazing Viridian Annealed Glass 10 mm Rw36 Rw+Ctr33,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,22.7,25.7,27.5,33.7,35,36.1,43.5,43.5
+Glazing Viridian Annealed Glass 12 mm Rw37 Rw+Ctr34,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,24.6,27.6,30.6,35.2,33.4,38.3,46.5,46.5
+Glazing Viridian Annealed Glass 15 mm Rw37 Rw+Ctr34,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,24.6,27.6,31.2,35.6,33.2,41.3,50.5,50.5
+Glazing Viridian Annealed Glass 19 mm Rw40 Rw+Ctr36,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,24.6,27.6,32.4,36.6,37.2,46.3,53.2,53.2
+Glazing Viridian Vlam Laminated Glass 6.38 mm Rw33 Rw+Ctr30,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,17.2,20.2,24.2,30.7,35.2,33.2,36.6,36.6
+Glazing Viridian Vlam Laminated Glass 8.38 mm Rw34 Rw+Ctr31,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,20.2,23.2,26.6,32,33.6,35,42.5,42.5
+Glazing Viridian Vlam Laminated Glass 10.38 mm Rw36 Rw+Ctr33,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,22.7,25.7,27.2,33.2,34.7,36.8,44.9,44.9
+Glazing Viridian Vlam Laminated Glass 12.38 mm Rw37 Rw+Ctr34,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,23.8,26.8,29.4,34.7,35.9,39.7,48.2,48.2
+Glazing Viridian Vlam Hush Glass 6.5 mm Rw36 Rw+Ctr32,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,19.7,22.7,27,32.1,36.8,39.3,39.2,39.2
+Glazing Viridian Vlam Hush Glass 8.5 mm Rw38 Rw+Ctr34,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,21.2,24.2,29.7,34.3,38.5,39.6,42.1,42.1
+Glazing Viridian Vlam Hush Glass 10.5 mm Rw39 Rw+Ctr36,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,23.7,26.7,30.6,35.6,39.8,40.2,46.6,46.6
+Glazing Viridian Vlam Hush Glass 12.5 mm Rw40 Rw+Ctr37,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,26.2,29.2,31.7,36.2,41,41.7,50.1,50.1
+Glazing Viridian Double Glazing 4 / 12 / 4  Rw31 Rw+Ctr27,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,20.9,23.9,20.2,24.6,35.2,37.8,33.5,33.5
+Glazing Viridian Double Glazing 6 / 12 / 6  Rw33 Rw+Ctr28,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,17.2,20.2,19.2,29,38.2,36.2,43.8,43.8
+Glazing Viridian Double Glazing 6 / 12 / 6.38  Rw34 Rw+Ctr29,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,17.9,20.9,20.1,30.6,39.2,37.2,45.8,45.8
+Glazing Viridian Double Glazing 10 / 12 / 4  Rw36 Rw+Ctr31,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,22.2,25.2,21.7,32.9,40.2,43.2,42.9,42.9
+Glazing Viridian Double Glazing 10 / 12 / 6  Rw38 Rw+Ctr34,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,22.8,25.8,27,34.4,40.2,38.5,44.6,44.6
+Glazing Viridian Double Glazing 10 / 12 / 6.38  Rw40 Rw+Ctr35,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,23.9,26.9,28.6,36,41.3,42.2,50.6,50.6
+Glazing Viridian Double Glazing 6 / 100 / 4  Rw46 Rw+Ctr39,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,23.2,26.2,34,44.2,56.2,52.8,50.5,50.5
+Glazing Viridian Double Glazing 6 / 150 / 4  Rw47 Rw+Ctr41,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,25.8,28.8,35.1,44.8,56,51.7,48.8,48.8
+Glazing Viridian Double Glazing 10 / 200 / 6  Rw49 Rw+Ctr45,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,32,35,45.6,45.6,45.7,55.6,64,64
+Glazing Viridian Vlam Hush Double Glazing 8.5 Hush / 16 / 12.5 Hush  Rw47 Rw+Ctr40,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,23.3,26.3,35.7,46.2,49.6,52.2,63,63
+Glazing Viridian Vlam Hush Double Glazing 4 VFloat / 16 / 8.5 Hush  Rw39 Rw+Ctr34,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,21,24,26.1,35.1,46.6,50.8,51,51
+Glazing Viridian Vlam Hush Double Glazing 5 VFloat / 16 / 8.5 Hush  Rw40 Rw+Ctr33,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,18.8,21.8,25.6,38,47.1,46.4,52,52
+Glazing Viridian Vlam Hush Double Glazing 6 VFloat / 16 / 8.5 Hush  Rw41 Rw+Ctr34,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,21.2,24.2,25.8,39.7,47.6,45.7,53.6,53.6
+Glazing Viridian Vlam Hush Double Glazing 8 VFloat / 16 / 8.5 Hush  Rw42 Rw+Ctr35,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,19.9,22.9,27.9,41.5,46.7,46.4,55.8,55.8
+Glazing Viridian Vlam Hush Double Glazing 8 VFloat / 16 / 10.5 Hush  Rw43 Rw+Ctr37,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,21.8,24.8,30.9,41.4,46,45.6,57.6,57.6
+Glazing Viridian Vlam Hush Double Glazing 10 VFloat / 16 / 10.5 Hush  Rw44 Rw+Ctr39,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,26.4,29.4,31.6,44.4,44.6,49.1,59.8,59.8
+Glazing Viridian Vlam Hush Double Glazing 10 VFloat / 16 / 12.5 Hush  Rw45 Rw+Ctr39,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,26.4,29.4,32.9,44.2,44.3,49.9,60.5,60.5
+Glazing Viridian Vlam Hush Double Glazing 10.76 VLam / 12 / 8.5 Hush  Rw40 Rw+Ctr34,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,20,23,28.4,38.3,42.4,42.8,52.2,52.2
+Glazing Viridian Vlam Hush Double Glazing 8.76 VLam / 12 / 6.5 Hush  Rw39 Rw+Ctr33,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,18.8,21.8,27.4,35.7,42.5,43.9,51.1,51.1
+Glazing Viridian Vlam Hush Double Glazing 6 VFloat / 12 / 6.5 Hush  Rw38 Rw+Ctr33,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,18.7,21.7,26.6,35.2,42,40.8,48.1,48.1
+Glazing Viridian Vlam Hush Double Glazing 4 VLam / 12 / 6.5 Hush  Rw36 Rw+Ctr33,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,19,22,23.4,32.6,41.4,44.4,45.5,45.5
+Glazing Viridian Vlam Hush Double Glazing 8.76 VLam / 12 / 8.5 Hush  Rw38 Rw+Ctr33,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,18.4,21.4,26.9,35.6,41.9,44.5,51.5,51.5
+Glazing Viridian Vlam Hush Double Glazing 10.76 VLam / 12 / 6.8 Hush  Rw40 Rw+Ctr35,63 Hz value based on125 Hz less 3dB. 8kHz based on 4kHz value,Reviewed,Transmission Loss,Building Material,Manufacturer Data,01.06 Viridian Sound & Noise Attenuation with Glass 2009,20.2,23.2,29,38.6,42.2,45.7,51.8,51.8
+Rheem YF Heat Pump 95501600,Water to Water Heat Pump,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Converted from Lp @ 3m based on unit dimensions ,86,84,79,76,73,71,67,62
+Rheem 953016 A2W Heat Pump,Air to Water Heat Pump,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Converted from Lp @ 3m based on unit dimensions,76,77,73,73,71,67,61,53
+Rheem 952016 A2W Heat Pump,Air to Water Heat Pump,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Converted from Lp @ 3m based on unit dimensions,76,88,81,78,75,73,68,60
+Rheem 953035 A2W Heat Pump,"Air to Water Heat Pump
+",Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Converted from Lp @ 3m based on unit dimensions,85,74,73,77,79,74,69,65
+Rheem 952035 A2W Heat Pump,Air to Water Heat Pump,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Converted from Lp @ 3m based on unit dimensions,85,86,82,83,82,81,80,76
+LG Multi V ARNU42GBRK4,Indoor Unit- Ceiling Concealed,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,LG Multi V Product Data Book - Supply Lw based on JIS calc,62,67,66,59,56,52,49,37
+LG Multi V ARNU48GBRK4,Indoor Unit- Ceiling Concealed,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,LG Multi V Product Data Book - Supply Lw based on JIS calc,64,71,67,61,58,54,48,39
+LG Multi V ARNU54GBRK4,Indoor Unit- Ceiling Concealed,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,LG Multi V Product Data Book - Supply Lw based on JIS calc,67,73,70,64,62,57,51,43
+LG Multi V ARNU68GBRK4,Indoor Unit- Ceiling Concealed,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,LG Multi V Product Data Book - Supply Lw based on JIS calc,65,73,64,65,59,55,52,51
+LG Multi V ARNU76GBRK4,Indoor Unit- Ceiling Concealed,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,LG Multi V Product Data Book - Supply Lw based on JIS calc,66,74,66,65,60,56,53,52
+LG Multi V ARNU96GBRK4,Indoor Unit- Ceiling Concealed,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,LG Multi V Product Data Book - Supply Lw based on JIS calc,67,77,68,68,61,56,54,44
+Temperzone IMD 95 Low - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,62,62,60,60,59,55,53,53
+Temperzone IMD 95 Med/Low - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,65,65,66,64,64,60,59,59
+Temperzone IMD 95 Med/Hi - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,70,70,70,67,67,63,62,62
+Temperzone IMD 95 High - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,72,72,72,68,68,66,64,64
+Temperzone IMD 135 Low - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,63,63,61,58,56,54,52,52
+Temperzone IMD 135 Med - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,66,66,66,63,61,59,58,58
+Temperzone IMD 135 High - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,72,72,72,68,68,65,64,64
+Temperzone IMD 170 Low - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,62,62,64,66,62,59,58,58
+Temperzone IMD 170 Med - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,68,68,71,71,71,67,66,66
+Temperzone IMD 170 High - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,70,70,74,73,74,69,68,68
+Temperzone IMD 210 Low - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,60,60,60,62,58,55,51,51
+Temperzone IMD 210 Med - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,67,67,68,67,67,63,61,61
+Temperzone IMD 210 High - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,70,70,71,70,72,67,65,65
+Temperzone IMD 280 Low - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,61,61,63,63,60,56,53,53
+Temperzone IMD 280 Med - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,66,66,68,67,66,62,59,59
+Temperzone IMD 280 High - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,71,71,74,72,73,69,66,66
+Temperzone IMD 420 Low - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,65,65,63,63,62,59,55,55
+Temperzone IMD 420 Med - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,70,70,68,68,66,64,61,61
+Temperzone IMD 420 High - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,76,76,75,75,73,71,69,69
+Temperzone IMD 550 Low - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,69,69,68,68,65,60,58,58
+Temperzone IMD 550 Med - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,73,73,72,72,69,65,63,63
+Temperzone IMD 550 High - SA Outlet,63 Hz = 125 Hz. 8kHz = 4 kHz,Reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data, Lw from the BS 848 measured value,77,77,77,77,74,70,68,68
+Daikin condenser REYQ8BYM - 56 dB(A) @ 1m ,,Reviewed,"Lw, dB(Z)",Building Services,Predicted,Based on area calc and manufacturer provided Lp at 1m,81,80,75,69,64,56,56,46
+Daikin condenser REYQ10BYM - 57 dB(A) @ 1m ,,Reviewed,"Lw, dB(Z)",Building Services,Predicted,Based on area calc and manufacturer provided Lp at 1m,81,74,73,71,67,58,55,53
+Daikin condenser REYQ12BYM - 59 dB(A) @ 1m ,,Reviewed,"Lw, dB(Z)",Building Services,Predicted,Based on area calc and manufacturer provided Lp at 1m,88,78,78,73,68,63,54,49
+Daikin condenser REYQ14BYM - 63 dB(A) @ 1m ,,Reviewed,"Lw, dB(Z)",Building Services,Predicted,Based on area calc and manufacturer provided Lp at 1m,83,84,82,76,71,62,57,51
+Daikin condenser REYQ16BYM - 62 dB(A) @ 1m ,,Reviewed,"Lw, dB(Z)",Building Services,Predicted,Based on area calc and manufacturer provided Lp at 1m,83,87,81,74,69,61,57,51
+Daikin condenser REYQ18BYM - 61 dB(A) @ 1m ,,Reviewed,"Lw, dB(Z)",Building Services,Predicted,Based on area calc and manufacturer provided Lp at 1m,77,82,78,74,70,63,58,52
+Daikin condenser REYQ20BYM - 65 dB(A) @ 1m ,,Reviewed,"Lw, dB(Z)",Building Services,Predicted,Based on area calc and manufacturer provided Lp at 1m,87,88,84,77,73,67,62,54
+Daikin condenser REYQ22BYM - 67 dB(A) @ 1m ,,Reviewed,"Lw, dB(Z)",Building Services,Predicted,Based on area calc and manufacturer provided Lp at 1m,93,90,85,80,75,69,63,56
+Daikin condenser REYQ24BYM - 68 dB(A) @ 1m ,,Reviewed,"Lw, dB(Z)",Building Services,Predicted,Based on area calc and manufacturer provided Lp at 1m,92,91,86,81,76,70,64,57
+Fantech RIL-150SW Inlet (Lo),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,50,50,57,57,56,53,46,38
+Fantech RIL-150SW Outlet (Lo),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,56,49,56,56,57,54,47,39
+Fantech RIL-150SW Breakout (Lo),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,41,43,51,44,46,46,34,24
+Fantech RIL-150SW Inlet (Hi),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,54,54,61,61,60,57,50,42
+Fantech RIL-150SW Outlet (Hi),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,60,53,60,60,61,58,51,43
+Fantech RIL-150SW Breakout (Hi),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,45,47,55,48,50,50,38,28
+Fantech RIL-200SW Inlet (Lo),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,48,53,56,59,58,60,54,47
+Fantech RIL-200SW Outlet (Lo),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,67,57,56,59,63,62,57,49
+Fantech RIL-200SW Breakout (Lo),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,41,49,47,43,47,48,38,28
+Fantech RIL-200SW Inlet (Hi),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,53,58,61,64,64,65,59,52
+Fantech RIL-200SW Outlet (Hi),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,72,62,62,64,68,67,62,54
+Fantech RIL-200SW Breakout (Hi),,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,,46,54,52,49,52,53,43,33
+Car park activity per movement (20 seconds per car time weighted),,To be reviewed,"Lw, dB(Z)",Vehicles,,,77,74,67,63,63,60,54,54
+Mitsubishi  PURY-P200YNW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,94,78,77.5,74.5,68,63.5,61,58.5
+Mitsubishi  PURY-P200YNW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,68,66.5,60,56.5,54.5,46,50,56
+Mitsubishi  PURY-P250YNW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,96,80.5,79.5,77,70,66.5,66.5,61
+Mitsubishi  PURY-P250YNW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,71,69.5,59.5,60,53,49.5,56,56.5
+Mitsubishi  PURY-P300YNW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,94.5,81.5,81.5,79,73,68.5,63.5,59
+Mitsubishi  PURY-P300YNW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,73.5,72,66,65,59,54,52,52.5
+Mitsubishi  PURY-P350YNW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,87.5,82,82.5,80,75,70,65,58.5
+Mitsubishi  PURY-P350YNW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,73.5,73.5,69,65.5,61,55.5,54,53
+Mitsubishi  PURY-P400YNW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,91.5,81.5,84,82,77,72.5,66.5,63
+Mitsubishi  PURY-P400YNW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,82,75,69,66,64.5,60.5,56,61.5
+Mitsubishi  PURY-P450YNW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,91,81.5,84,82,77,72.5,67,63
+Mitsubishi  PURY-P450YNW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,82,74.5,69.5,67,65,61.5,57,61
+Mitsubishi  PURY-P500YNW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,95.5,86,84.5,79.5,74,72,69,62.5
+Mitsubishi  PURY-P500YNW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,86,78.5,75,66,64,61,58,52.5
+Mitsubishi  PURY-P550YNW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,97,86.5,85.5,81.5,76,73.5,69.5,64.5
+Mitsubishi  PURY-P550YNW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,83.5,76.5,74,65.5,63,60.5,58,51.5
+Mitsubishi  PURY-P400YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,97,81,80.5,77.5,71,66.5,64,62
+Mitsubishi  PURY-P400YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,71,69.5,63,59.5,58,49,53,59
+Mitsubishi  PURY-P450YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,98.5,82.5,81.5,79,72.5,69,67.5,63
+Mitsubishi  PURY-P450YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,72.5,71,63,61.5,57,51,57,59
+Mitsubishi  PURY-P500YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,97.5,84,83,80,73.5,69.5,71,64.5
+Mitsubishi  PURY-P500YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,74,72.5,62.5,63,56,53,59,59.5
+Mitsubishi  PURY-P550YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,97.5,84,83.5,81,74.5,70.5,69.5,63.5
+Mitsubishi  PURY-P550YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,75,74,67,66,59.5,55,58,58
+Mitsubishi  PURY-P600YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,98,84.5,85,82,76,71.5,66.5,62
+Mitsubishi  PURY-P600YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,76.5,75,69.5,68,62,57,55,55.5
+Mitsubishi  PURY-P650YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,95.5,84.5,85,82.5,77,72.5,67,62
+Mitsubishi  PURY-P650YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,76.5,75.5,70.5,68,63,57.5,56,55.5
+Mitsubishi  PURY-P700YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,91,85,85.5,83.5,78,73,68,62
+Mitsubishi  PURY-P700YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,76.5,76.5,71.5,68.5,64,58.5,57,56
+Mitsubishi  PURY-P750YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,93.5,85,86.5,84.5,79.5,74.5,69,64.5
+Mitsubishi  PURY-P750YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,83,77.5,72,69,66.5,62.5,58.5,62.5
+Mitsubishi  PURY-P800YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,95,85,87,85.5,80,75.5,69.5,66
+Mitsubishi  PURY-P800YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,85,78,72,69,67.5,63.5,59,64.5
+Mitsubishi  PURY-P850YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,94.5,84.5,87,85.5,80,75.5,70,66
+Mitsubishi  PURY-P850YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,85,77.5,72,69.5,67.5,64,59.5,64
+Mitsubishi  PURY-P900YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,94.5,85,87,85.5,80,75.5,70.5,66.5
+Mitsubishi  PURY-P900YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,85,77.5,72.5,70,68,64.5,60,64
+Mitsubishi  PURY-P950YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,96.5,87,87,84,78.5,75,70.5,65.5
+Mitsubishi  PURY-P950YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,87,79,75.5,69,67,64,60,61.5
+Mitsubishi  PURY-P1000YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,98.5,89,87.5,83,77,75.5,72,66
+Mitsubishi  PURY-P1000YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,89,81.5,78,69,67,64,61,55
+Mitsubishi  PURY-P1050YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,99,89,88.5,84.5,78.5,76,72,67.5
+Mitsubishi  PURY-P1050YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,88,80.5,77.5,69,66.5,64,61,55
+Mitsubishi  PURY-P1100YNSW-A(-BS) Cooling Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,99.5,89,89,85,79,76.5,72,68
+Mitsubishi  PURY-P1100YNSW-A(-BS) Cooling Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,86.5,79.5,77,68.5,66,63.5,61,54.5
+Mitsubishi  PURY-P200YNW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,88,80,79.5,77,71,66.5,67,61.5
+Mitsubishi  PURY-P200YNW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,62,68,61,59,55,52.5,56,54.5
+Mitsubishi  PURY-P250YNW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,88,81.5,81,79,73,68.5,69.5,63
+Mitsubishi  PURY-P250YNW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,66.5,70.5,65,63.5,59.5,56,60,56.5
+Mitsubishi  PURY-P300YNW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,94,89.5,88,85,80,76,71.5,67.5
+Mitsubishi  PURY-P300YNW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,80,77.5,69.5,67,62.5,59,58,61
+Mitsubishi  PURY-P350YNW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,91,89.5,83,81,76,73,70.5,67
+Mitsubishi  PURY-P350YNW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,80.5,78.5,70.5,67.5,64,60.5,59.5,61
+Mitsubishi  PURY-P400YNW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,100,88.5,88.5,87,81,78,73,67.5
+Mitsubishi  PURY-P400YNW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,79,77.5,74,67,62.5,62.5,58,53.5
+Mitsubishi  PURY-P450YNW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,102.5,90,89.5,88,82,79.5,75,69.5
+Mitsubishi  PURY-P450YNW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,79.5,78,75,68,63.5,63,59,54.5
+Mitsubishi  PURY-P500YNW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,85.5,83.5,85,82,76.5,76,72.5,68
+Mitsubishi  PURY-P500YNW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,82,80,71,69,67.5,61.5,64,60.5
+Mitsubishi  PURY-P550YNW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,96.5,87,90,88,82,79.5,75,73
+Mitsubishi  PURY-P550YNW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,81.5,80,70.5,68.5,67,61,63.5,60
+Mitsubishi  PURY-P400YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,82.5,83,82.5,80,74,69.5,70,64.5
+Mitsubishi  PURY-P400YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,65,71,64,62,58,55.5,59,57.5
+Mitsubishi  PURY-P450YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,89,84,83.5,81.5,75.5,70.5,71.5,65.5
+Mitsubishi  PURY-P450YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,68,72.5,66.5,65,61,58,61.5,59
+Mitsubishi  PURY-P500YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,91,84.5,84,82,76,71.5,72.5,66
+Mitsubishi  PURY-P500YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,69.5,73.5,68,66.5,62.5,59,63,59.5
+Mitsubishi  PURY-P550YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,95.5,90.5,89,86.5,81,77,74,69
+Mitsubishi  PURY-P550YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,80.5,78.5,71,69,64.5,61,62.5,62.5
+Mitsubishi  PURY-P600YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,97,92.5,91,88,83,79,74.5,70.5
+Mitsubishi  PURY-P600YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,83,80.5,72.5,70,65.5,62,61,64
+Mitsubishi  PURY-P650YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,96,93,89.5,87,82,78,74.5,71
+Mitsubishi  PURY-P650YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,84,81.5,73.5,71,67,63.5,62.5,64.5
+Mitsubishi  PURY-P700YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,94,92.5,86,84,79,76,73.5,70
+Mitsubishi  PURY-P700YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,83.5,81.5,73.5,70.5,67,63.5,62.5,64
+Mitsubishi  PURY-P750YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,101,92.5,90,88,82.5,79.5,75,70.5
+Mitsubishi  PURY-P750YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,83,81,75.5,70.5,66.5,64.5,62,61.5
+Mitsubishi  PURY-P800YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,103,91.5,91.5,90,84,81,76,70.5
+Mitsubishi  PURY-P800YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,82,80.5,77,70,65.5,65.5,61,56.5
+Mitsubishi  PURY-P850YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,104.5,92.5,92,90.5,84.5,82,77,71.5
+Mitsubishi  PURY-P850YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,82.5,81,77.5,70.5,66,66,61.5,57
+Mitsubishi  PURY-P900YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,105.5,93,92.5,91,85,82.5,78,72.5
+Mitsubishi  PURY-P900YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,82.5,81,78,71,66.5,66,62,57.5
+Mitsubishi  PURY-P950YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,103,91,91,89,83,81,77,72
+Mitsubishi  PURY-P950YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,84,82,76.5,71.5,69,65.5,65,61.5
+Mitsubishi  PURY-P1000YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,88.5,86.5,88,85,79.5,79,75.5,71
+Mitsubishi  PURY-P1000YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,85,83,74,72,70.5,64.5,67,63.5
+Mitsubishi  PURY-P1050YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,99.5,90,93,91,85,82.5,78,76
+Mitsubishi  PURY-P1050YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,84.5,83,73.5,71.5,70,64,66.5,63
+Mitsubishi  PURY-P1100YNSW-A(-BS) Heating Standard,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,99.5,90,93,91,85,82.5,78,76
+Mitsubishi  PURY-P1100YNSW-A(-BS) Heating Low Noise,Outdoor Unit - Vertical Discharge,To be reviewed,"Lw, dB(Z)",Building Services,Manufacturer Data,Mitsubishi_Electric_PURY-P_YNW-A_Data_Book_Eng,84.5,83,73.5,71.5,70,64,66.5,63
