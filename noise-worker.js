@@ -12,7 +12,7 @@
  */
 
 /* ─── Load all shared functions ─── */
-importScripts('shared-calc.js');
+importScripts('shared-calc.js?v=3');
 
 var attenuatePoint       = SharedCalc.attenuatePoint;
 var energySum            = SharedCalc.energySum;

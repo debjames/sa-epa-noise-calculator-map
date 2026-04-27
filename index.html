@@ -7814,7 +7814,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
 </script>
 
 <!-- Load shared calculation and geometry functions (single canonical source) -->
-<script src="shared-calc.js?v=2"></script>
+<script src="shared-calc.js?v=3"></script>
 <script>
   // Bridge SharedCalc to window._calc and window._geometry for existing code
   window._calc = {
@@ -18686,7 +18686,7 @@ window.runUAT = async function() {
   function _runWorker(cfg) {
     return new Promise(function(resolve) {
       var w;
-      try { w = new Worker('noise-worker.js'); } catch(e) { return resolve(null); }
+      try { w = new Worker('noise-worker.js?v=3'); } catch(e) { return resolve(null); }
       var timer = setTimeout(function(){ try{ w.terminate(); }catch(e){} resolve(null); }, 10000);
       w.onmessage = function(e) {
         if (e.data && e.data.type === 'complete') { clearTimeout(timer); w.terminate(); resolve(e.data); }
@@ -37821,7 +37821,7 @@ if (window.pdfjsLib) {
           _nmGenMethod = propagationMethod;
           _nmGenMetCat = _concaweMetCategory;
           if (_noiseWorker) { _noiseWorker.terminate(); _noiseWorker = null; }
-          _noiseWorker = new Worker('noise-worker.js');
+          _noiseWorker = new Worker('noise-worker.js?v=3');
           _noiseWorker.onmessage = function(e) {
             var msg = e.data;
             if (msg.type === 'progress') {
@@ -37983,7 +37983,7 @@ if (window.pdfjsLib) {
         _nmGenMethod = propagationMethod;
         _nmGenMetCat = _concaweMetCategory;
 
-        _noiseWorker = new Worker('noise-worker.js');
+        _noiseWorker = new Worker('noise-worker.js?v=3');
         _noiseWorker.onmessage = function(e) {
           var msg = e.data;
           if (msg.type === 'progress') {
