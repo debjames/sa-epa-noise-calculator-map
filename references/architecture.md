@@ -205,6 +205,94 @@ All four libraries loaded via `loadScriptOnce(url)` (Promise-caching). Load orde
 |---|---|
 | `https://epsg.io/{code}.proj4` | Fetch proj4 definition for user-entered EPSG codes not in the bundled list. Responses cached in `localStorage` under key `noiseTool.epsgCache`. |
 
+---
+
+## Locked-in design decisions
+
+These are explicit product decisions. Do not revisit them without a product discussion.
+
+**Discoverability redundancy:** Critical features are exposed via at least two surfaces — Methodology via toolbar button AND sidebar footer; Compliance drawer via the labelled tab AND auto-open on first results; Propagation method via the map indicator AND the sidebar accordion. This is deliberate — first-time users and regulators do not navigate the same paths as power users.
+
+| Decision | Rationale |
+|---|---|
+| **Mobile is not supported.** No responsive layout is planned. | The tool requires a mouse, keyboard shortcuts, a multi-panel layout, and large-screen map interaction. Acoustic consultants work at desktops or laptops; regulatory reviewers receive shared links via email and open on desktop. A `.mobile-not-supported` banner (amber, persistent, `role="alert"`) is shown at &lt;768 px to set expectations. |
+| **No auto-save.** Users save manually via the "Save" button. | Auto-save to browser storage risks overwriting a named assessment with an in-progress exploratory edit. Consultants frequently open a saved assessment, make changes to test a scenario, and then want to discard without overwriting the original. Manual save preserves that workflow. |
+
+---
+
+## UI / Accessibility conventions
+
+These conventions apply to all new UI elements. Do not deviate without updating this section.
+
+### Compliance cells (predicted noise levels table)
+
+Compliance state (pass/fail) must always be conveyed by **both colour and text** — never colour alone. This applies to WCAG SC 1.4.1 (use of colour), to B&W PDF exports, and to colour-blind users.
+
+Pattern A (compact, used in `makeRow()`): prefix the predicted L<sub>p</sub> value with ✓ (U+2713) for compliant or ✗ (U+2717) for non-compliant, plus a non-breaking thin space. Also set `aria-label="NNN dB—compliant"` / `"NNN dB—non-compliant"` on the cell for screen readers.
+
+```javascript
+var compMark = cmp.ok === '' ? '' : (cmp.ok ? '✓ ' : '✗ ');
+var ariaLabel = cmp.ok === '' ? '' :
+  (cmp.ok ? predFmt + ' dB—compliant' : predFmt + ' dB—non-compliant');
+```
+
+The assessment cases summary table (`_acRenderSummaryTable`) uses &#10003;/&#10007; HTML entities with coloured text — already colour+text, no change needed.
+
+### --ok / --bad CSS variables
+
+| Variable | Value | WCAG AA contrast vs its bg | Background variable |
+|---|---|---|---|
+| `--ok` | `#166534` | 6.39:1 | `--okbg` = `rgba(22,163,74,.10)` on white ≈ `rgb(232,246,237)` |
+| `--bad` | `#b91c1c` | 5.53:1 | `--badbg` = `rgba(220,38,38,.10)` on white ≈ `rgb(252,233,233)` |
+
+Do not lighten `--ok` below `#166534` — it would fall back below the WCAG AA 4.5:1 threshold.
+
+### Accordion section headers (`.mp-hdr`)
+
+All accordion headers that call `toggleMapPanel()` carry:
+- `role="button"` (the div is not a native button)
+- `aria-expanded="false"` (initial; updated by `toggleMapPanel()`)
+- `aria-controls="<section-id>-body"` (points to the matching `.mp-body` div)
+
+The corresponding `.mp-body` div carries the matching `id="<section-id>-body"`.
+
+`toggleMapPanel()` must update `aria-expanded` on toggle in both code paths (sidebar-accordion and legacy floating-dropdown). The selector used is `.mp-hdr[aria-expanded]` so non-ARIA headers (toolbar icons, drawer toggle) are not affected.
+
+### Propagation method indicator (`#prop-method-indicator`)
+
+`position: fixed; top: 56px; right: 8px` — white chip, `z-index: 1000`. Shows `Simple method` / `ISO 9613-2` / `CONCAWE` based on the `.active` button in `#propMethodGroup`. Updated by `_updatePropIndicator()`, called on page load and in the prop-method button click handler. Click opens `#mp-propmethod` accordion in the sidebar.
+
+### Drawer auto-open (`_maybeAutoOpenDrawer`)
+
+`_drawerAutoOpenedThisSession` flag + `_maybeAutoOpenDrawer()` inside the drawer layout IIFE (near `setDrawerOpen`). A `MutationObserver` on `#compliance-strip` triggers the function whenever compliance content changes. Opens the drawer once per session on first results; won't re-open after the user manually clicks the toggle or presses `]`.
+
+### Unsaved-changes indicator
+
+`window._setUnsaved()` / `window._clearUnsaved()` live in a dedicated IIFE immediately after the undo manager IIFE (search `R3: Unsaved-changes indicator`).
+
+- **Set trigger:** `window._undoPushState` is wrapped so every successful `pushState()` call also calls `_setUnsaved()`. This covers all user-initiated state mutations (place marker, change input, clear all, etc.).
+- **Clear triggers:** (a) Save — blob path after `a.click()`; File System Access path inside the `.then` after `w.close()`. (b) Load — inside `loadAssessment`'s `setTimeout`, guarded with `!window._undoRestoring` so undo/redo loads do not false-clear the flag.
+- **Visual indicators:** `#exportJsonBtn.unsaved` → red border + `●` dot (CSS `::after`); `document.title` gets a `* ` prefix.
+- **Navigation guard:** `beforeunload` listener warns on page close/refresh when unsaved.
+
+### Active drawing mode banner
+
+`<div id="mode-banner" role="status" aria-live="polite">` — fixed-positioned, centered, blue pill badge, `pointer-events:none`. Toggled by `setMode()` inside the map IIFE.
+
+Two mechanisms drive the banner (they are mutually exclusive — draw buttons cancel `currentMode` first):
+
+**1. `setMode()` hook** (placement modes — point in the map IIFE):
+| `currentMode` value | Banner text |
+|---|---|
+| `null` | Hidden |
+| `'addSource'` | "＋ Click the map to add a new source" |
+| `'source'` or `'source_N'` | "✛ Click the map to place Source S{N+1}" |
+| `'r1'`–`'r4'` | "✛ Click the map to place Receiver R{N}" |
+
+**2. MutationObserver on draw buttons** (Leaflet.Draw modes — after the unsaved IIFE, in a `DOMContentLoaded` listener):
+
+Draw buttons (`drawBarrierBtn`, `drawBuildingBtn`, `drawGroundZoneBtn`, `drawBuildingSourceBtn`, `drawAreaSourceBtn`, `drawLineSourceBtn`, `drawCortnRoadBtn`) manage their own `.active` class rather than going through `setMode()`. A `MutationObserver` (attribute filter `class`) watches each button. When any button gains `.active`, the banner shows the draw-mode label. When it loses `.active` and no other draw button is active and `_isPlacementActive()` is false, the banner hides. The observer skips updating the banner if `_isPlacementActive()` is true so it doesn't interfere with placement-mode banners.
+
 ### AU CRS pre-registration (`AU_CRS_DEFS`)
 
 26 EPSG codes registered into `proj4` at startup:

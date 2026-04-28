@@ -1,5 +1,143 @@
 # UAT Tests
 
+## UI Block 3 — Discoverability
+
+### Keyboard shortcuts — newly documented (R4)
+
+- [ ] **X — MBS 010 screening** — Press `X`. MBS 010 button activates. Toast reads "MBS 010 ON (X)" or "OFF". Press again — toggles off.
+- [ ] **U — Urban area** — Press `U`. Urban area boundary toggle fires (VIC only; button may be hidden if not in VIC context — toast still shows).
+- [ ] **D — Cadastral** — Press `D`. Cadastral layer toggles. Toast reads "Cadastral ON (D)" or "OFF".
+- [ ] **I — Aerial imagery** — Press `I`. Aerial / street map switches. Toast reads "Aerial ON (I)" or "OFF".
+- [ ] **Delete — barrier** — Select a barrier on the map. Press `Delete`. Confirmation dialog appears; OK removes the barrier.
+- [ ] **QR shows X, U, D, I, Delete** — Open Quick Reference → Keyboard shortcuts → Layers sub-group shows X/U/D/I; Site elements shows Delete. Descriptions match actual behaviour.
+- [ ] **], S, E still shown** — QR still contains `]` (Toggle side drawer), `S` (Focus search bar), `E` (Toggle map / panels view) in their existing groups.
+
+### Drawer discoverability (R7)
+
+- [ ] **Tab visible without hover** — The Criteria & compliance drawer toggle is visible at all times as a blue pill on the right edge of the map. Label reads "COMPLIANCE" vertically. No hover required to see it.
+- [ ] **Tab wider and labelled** — Inspect `#drawer-toggle` in DevTools: width is ~36px, min-height ~110px, background is `#1e40af`.
+- [ ] **Chevron flips on open/close** — Open the drawer; chevron points right. Close; chevron points left.
+- [ ] **aria-expanded updates** — `aria-expanded` is `"true"` when open, `"false"` when closed.
+- [ ] **aria-label updated** — `aria-label` reads "Toggle Criteria & compliance panel".
+- [ ] **Auto-open on first results** — On a fresh page load (clear storage), place a source and receiver. After calculation, the Criteria & compliance drawer opens automatically.
+- [ ] **No re-auto-open after user closes** — After the auto-open, click the tab to close. Make additional changes. The drawer does NOT auto-reopen.
+- [ ] **] shortcut prevents re-auto-open** — Press `]` to close. The drawer does not auto-reopen on subsequent calculations.
+- [ ] **Mobile override** — At ≤767px, the tab appears as a compact 40×40px blue square at the bottom-left. The "COMPLIANCE" label is hidden.
+
+### Methodology in top toolbar (R10)
+
+- [ ] **Button visible in toolbar** — A "Methodology" button appears in the top toolbar action row (between Scenarios and Save PDF).
+- [ ] **Opens methodology modal** — Click the toolbar Methodology button. The Methodology modal opens.
+- [ ] **Sidebar footer button still works** — Click "Methodology" in the sidebar footer. Same modal opens. Both entry points functional.
+
+### Propagation method indicator (R15)
+
+- [ ] **Indicator visible on load** — A small chip appears at the top-right of the map reading "Simple method" on page load.
+- [ ] **Updates on method change** — Switch to ISO 9613-2; chip reads "ISO 9613-2". Switch to CONCAWE; chip reads "CONCAWE". Switch back; chip reads "Simple method".
+- [ ] **Click opens Propagation panel** — Click the chip. The Propagation accordion opens in the sidebar.
+- [ ] **Coexists with mode banner** — The indicator remains visible when the mode banner (blue pill, centred top) is active. They do not overlap.
+
+### Floating panel grip icon (R16)
+
+- [ ] **Grip icon on QR header** — Open Quick Reference. The dark header shows a faint ⠿ glyph on the left. Panel still drags.
+- [ ] **Grip icon on Objects and Suggested sources headers** — Same ⠿ glyph visible on both. Both panels still drag.
+- [ ] **QR "Floating panels" section** — Open Quick Reference. A "Floating panels" section exists documenting which panels are draggable and that the drag handle is the header.
+
+---
+
+## UI Block 2 — Data integrity and mode awareness
+
+### Clear All confirmation dialog (R5)
+
+- [ ] **Confirmation shown** — Click the Clear All button (toolbar). A browser `confirm()` dialog appears with the text "Clear all sources, receivers, and results?" before anything is deleted.
+- [ ] **Cancel aborts** — Click Cancel in the dialog. No sources, receivers, or results are cleared. The map is unchanged.
+- [ ] **OK clears** — Click OK. All sources and receivers are removed from the map. The source panel resets to a single unplaced Source 1. Receiver status labels reset to "not placed".
+- [ ] **Action is undoable** — After confirming Clear All, press Ctrl+Z (or ⌘Z on Mac). The previously placed markers and sources are restored. The confirmation message accurately describes this behaviour.
+- [ ] **Noise data cleared** — After confirming Clear All, any noise map heatmap is removed and the receiver Lp values are blank.
+
+### Unsaved-changes indicator (R3)
+
+- [ ] **Dot appears on change** — Place a source or receiver, or change any input field. The Save button gains a red border and a `●` dot appended to its label.
+- [ ] **Title asterisk** — After making a change, the browser tab title has a leading `* ` (e.g. `* Resonate Noise Tool`).
+- [ ] **Clear on save (blob path)** — With the dot showing, click Save. A JSON file downloads. The dot and border disappear immediately. The browser tab title loses the `* ` prefix.
+- [ ] **Clear on load** — Save assessment, then make a change (dot appears). Click Open and load a JSON file. The dot and title `* ` clear after the assessment loads (~1 second).
+- [ ] **beforeunload warning** — With unsaved changes, navigate away or close the tab. The browser shows a "You have unsaved changes. Leave without saving?" confirmation dialog.
+- [ ] **No warning when saved** — Save the assessment, then immediately try to close the tab. No warning dialog appears (unsaved flag is clear).
+- [ ] **No false-trigger on page load** — On fresh page load, the Save button has no dot and the title has no `* `.
+- [ ] **Undo marks unsaved** — After saving, perform Undo. The dot and `* ` reappear (state now differs from the saved file — conservative but correct).
+
+### Active drawing mode banner (R2)
+
+- [ ] **Banner appears on source placement** — Click the "Place source" button (or press the keyboard shortcut). A blue pill banner appears centred over the map reading "✛ Click the map to place Source S1".
+- [ ] **Banner updates for each source** — With multiple sources, place S2 — banner reads "✛ Click the map to place Source S2".
+- [ ] **Banner appears for receivers** — Click the R1 mode button. Banner reads "✛ Click the map to place Receiver R1". Repeat for R2, R3, R4.
+- [ ] **Banner shows for addSource** — Click "Add source" (the + button). Banner reads "＋ Click the map to add a new source".
+- [ ] **Banner hides on exit** — After placing a marker (or pressing Escape / clicking again to cancel), the banner disappears.
+- [ ] **Banner hides in browse mode** — Click anywhere to exit placement mode. Banner is not visible.
+- [ ] **Banner non-interactive** — While the banner is visible, clicking the map triggers placement (not banner click). The banner has `pointer-events: none`.
+- [ ] **Banner is accessible** — Inspect `#mode-banner` in DevTools. It has `role="status"` and `aria-live="polite"` so screen readers announce the mode change.
+- [ ] **Banner does not cover side panel** — The banner is centred over the map, not over the left side panel. At 1280 px width it is fully visible and does not overlap panel UI.
+
+#### Draw tool modes (barrier, building, sources, ground zone)
+
+- [ ] **Barrier banner** — Click "Barrier" draw button. Banner reads "✛ Drawing barrier — click vertices, double-click to finish". Click again to cancel — banner disappears. Repeat after drawing a complete barrier.
+- [ ] **Building banner** — Click "New building". Banner reads "✛ Drawing building — click vertices, double-click to finish".
+- [ ] **Ground zone banner** — Click "Ground absorption". Banner reads "✛ Drawing ground zone — click vertices, double-click to finish".
+- [ ] **Line source banner** — Click "Line source". Banner reads "✛ Drawing line source — click vertices, double-click to finish".
+- [ ] **Area source banner** — Click "Area source". Banner reads "✛ Drawing area source — click vertices, double-click to finish".
+- [ ] **Building source banner** — Click "Building source". Banner reads "✛ Drawing building source — click vertices, double-click to finish".
+- [ ] **Road (CoRTN) banner** — Click "Road (CoRTN)". Banner reads "✛ Drawing road — click vertices, double-click to finish".
+- [ ] **Banner clears on draw complete** — Draw a complete shape (double-click to finish). The banner disappears after the polygon/polyline is created.
+- [ ] **Banner clears on cancel** — Click the active draw button again to cancel. The banner disappears.
+- [ ] **No interference with placement modes** — While in a receiver placement mode (banner shows "place Receiver R1"), click the barrier button. The banner updates to the draw message. After completing the barrier draw, the receiver placement banner returns (or the receiver mode is cancelled per existing app logic).
+
+---
+
+## UI Block 1 — Accessibility, regulator output, mobile baseline
+
+### Compliance cells — pass/fail labels (R1)
+
+- [ ] **✓ symbol shown** — Place a source and receiver within criteria limit. The predicted L<sub>p</sub> cell in the Predicted noise levels table shows `✓ NN` (check mark, thin space, then the numeric level).
+- [ ] **✗ symbol shown** — Place source with high enough level to exceed limit. The cell shows `✗ NN`.
+- [ ] **No symbol when no comparison** — A receiver with no criterion set (or period not active) shows the numeric value with no symbol prefix.
+- [ ] **B&W PDF export** — Open Save PDF. The downloaded PDF appendix shows ✓/✗ symbols in the compliance column visibly in black and white (no colour required to read compliance state).
+- [ ] **Screen reader aria-label** — Inspect the predicted L<sub>p</sub> cell in DevTools. A compliant cell carries `aria-label="NN dB—compliant"`. A non-compliant cell carries `aria-label="NN dB—non-compliant"`.
+- [ ] **Assessment cases table unchanged** — The assessment cases summary (if cases are enabled) still shows ✓/✗ symbols with coloured text as before; no regressions from this prompt.
+
+### Compliance cell contrast (R18)
+
+- [ ] **--ok colour applied** — In DevTools `> Elements > Computed`, confirm `--ok` resolves to `#166534` (not the old `#15803d`). The "Yes" compliance text in the predicted levels table renders in the darker green.
+- [ ] **Contrast passes** — The darker `#166534` text on `rgba(22,163,74,.10)` background gives approximately 6.4:1 contrast ratio (WCAG AA requires 4.5:1 for normal text).
+
+### aria-expanded on accordion headers (R12)
+
+- [ ] **Initial state** — On page load, inspect each of the 5 `.mp-hdr` accordion headers in DevTools. All carry `aria-expanded="false"` and a matching `aria-controls` attribute.
+- [ ] **Opens correctly** — Click the "Mapping" header. The section opens. Inspect the header — `aria-expanded` is now `"true"`.
+- [ ] **Closes correctly** — Click "Mapping" again. Section closes. `aria-expanded` returns to `"false"`.
+- [ ] **All five panels** — Repeat for Tools, Modelling, Propagation, Custom sources. All update `aria-expanded` on toggle.
+- [ ] **aria-controls resolves** — For each header, the `aria-controls` ID matches the `id` of the adjacent `.mp-body` div (e.g. `mp-mapping-body`).
+- [ ] **Toolbar icons not affected** — Inspect the sidebar toolbar icon buttons (?, suggest, objects, undo, redo). They do not have `aria-expanded` set (they are not accordion headers).
+
+### Heatmap smoothing caveat — tooltip (OQ6)
+
+- [ ] **Tooltip present** — Open the Modelling panel in the sidebar. Hover the "Noise map" button. The tooltip text includes a statement that heatmap colour can differ from receiver-panel values by ~3–6 dB at narrow terrain shadows.
+- [ ] **Button still functions** — Click the noise map button. Map computes and displays normally. Title change has no functional side-effect.
+
+### Heatmap smoothing caveat — Methodology (OQ6)
+
+- [ ] **Paragraph present** — Click "Methodology" in the sidebar footer. Open the Methodology modal. Navigate to the "Noise map" section. A second paragraph is present describing: (a) Deygout per-cell IL computation, (b) 5×5 Gaussian kernel σ=0.5, (c) ~3–6 dB under-statement at narrow shadows, (d) receiver-panel values are authoritative for compliance.
+- [ ] **Formatting consistent** — The new paragraph uses the same `.p` style and font size as adjacent paragraphs.
+
+### Mobile not-supported banner (OQ1)
+
+- [ ] **Visible at ≤767px** — Open browser DevTools > toggle device toolbar > set viewport width to 600 px. Amber banner appears at top of screen with text "Desktop recommended…".
+- [ ] **Hidden at ≥1024px** — Set viewport to 1280 px. Banner is not visible (CSS `display: none` applies).
+- [ ] **Persistent** — There is no dismiss/close button. Banner remains while viewport is narrow.
+- [ ] **role=alert present** — Inspect the banner element. It has `role="alert"` for screen reader announcement.
+- [ ] **Does not obscure content at desktop** — At 1280 px the banner occupies zero space; the rest of the layout is unaffected.
+
+---
+
 ## Option B Prompt C — Custom source wizard
 
 ### Wizard UI

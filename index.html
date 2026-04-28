@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -24,7 +24,7 @@
   --border:#e5e7eb;
   --bg:#ffffff;
   --sheet:#ffffff;
-  --ok:#15803d;
+  --ok:#166534;
   --bad:#b91c1c;
   --okbg: rgba(22,163,74,.10);
   --badbg: rgba(220,38,38,.10);
@@ -79,6 +79,63 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .span2{grid-column:1 / -1;}
 .grid-full{grid-template-columns:1fr !important;}
 @media print {.card, .sheet, table { break-inside: avoid; }}
+/* ── R15: Propagation method indicator ──────────────────────────── */
+#prop-method-indicator {
+  display: none;
+  position: fixed;
+  top: 56px;
+  right: 8px;
+  z-index: 1000;
+  background: rgba(255,255,255,0.93);
+  color: #1e3a8a;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+#prop-method-indicator.visible { display: block; }
+#prop-method-indicator:hover { background: #eff6ff; }
+/* ── R2: Active drawing mode banner ──────────────────────────────── */
+#mode-banner {
+  display: none;
+  position: fixed;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  background: #1e40af;
+  color: #fff;
+  padding: 7px 20px 7px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+#mode-banner.visible { display: block; }
+/* ── Mobile not-supported banner ─────────────────────────────────── */
+.mobile-not-supported { display: none; }
+@media (max-width: 767px) {
+  .mobile-not-supported {
+    display: block;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 14px 16px;
+    background: #fff3cd;
+    color: #664d03;
+    border-bottom: 1px solid #ffc107;
+    z-index: 9999;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
 .card{border:1px solid var(--border);border-radius:14px;background:#fff;padding:12px;overflow:visible;}
 .card h2{font-size:14px;margin:0 0 10px;}
 /* RHS drawer: normalise card headings to match LHS panel (12px/600) */
@@ -94,6 +151,9 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 }
 .pdf-btn {background:#fff;border: 1px solid var(--border);border-radius:10px;padding: 10px 16px;border-radius: 10px;font-size: 13px;font-weight: 600;cursor: pointer;margin-bottom: 16px;}
 .pdf-btn:hover {opacity: 0.9;}
+/* R3: Unsaved-changes dot on Save button */
+#exportJsonBtn.unsaved { border-color: #c53030; }
+#exportJsonBtn.unsaved::after { content: ' ●'; color: #c53030; font-size: 10px; vertical-align: middle; }
 /* ── Open split button + Recent dropdown ─────────────────────────── */
 .open-split-wrap { position:relative; display:inline-flex; gap:4px; }
 .open-chevron { padding:5px 8px !important; font-size:11px !important; }
@@ -1092,6 +1152,14 @@ body.map-fs-active { overflow: hidden; }
   user-select: none;
   flex-shrink: 0;
 }
+/* R16: Grip icon on draggable floating panel headers */
+#helpPanelHdr::before, #objectsPanelHdr::before, #suggestPanelHdr::before {
+  content: '⠿';
+  color: rgba(255,255,255,0.35);
+  font-size: 15px;
+  flex-shrink: 0;
+  line-height: 1;
+}
 #suggestPanelHdr .suggest-title {
   flex: 1;
   font-size: 13px;
@@ -1993,8 +2061,9 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
     top: auto;
     bottom: 8px;
     border-radius: 6px;
-    border: 1px solid var(--border, #e5e7eb);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    height: 40px;
+    width: 40px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   }
 }
 
@@ -2136,14 +2205,15 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
 /* small text / labels in mp-body */
 .mp-body .small, .mp-body label.small { color: #9ca3af; }
 
-/* Toggle button: docked to left edge of drawer */
+/* Toggle button: docked to left edge of drawer — small icon-only chevron */
 #drawer-toggle {
   position: absolute;
-  left: -32px;
-  top: 8px;
-  width: 32px;
-  height: 48px;
-  background: var(--bg, #ffffff);
+  left: -36px;
+  top: 16px;
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  color: #374151;
   border: 1px solid var(--border, #e5e7eb);
   border-right: none;
   border-radius: 6px 0 0 6px;
@@ -2151,8 +2221,6 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  color: var(--muted, #6b7280);
   box-shadow: -2px 0 8px rgba(0,0,0,0.06);
   z-index: 10;
   transition: background 0.15s;
@@ -2238,6 +2306,19 @@ body.disclaimer-visible .container {
 </head>
 <body>
 
+<!-- R2: Active drawing mode banner — shown when any placement mode is active -->
+<div id="mode-banner" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<!-- R15: Propagation method indicator — top-right of map; click to open panel -->
+<div id="prop-method-indicator" role="status" aria-live="polite" title="Click to open Propagation method panel"></div>
+
+<!-- Mobile not-supported banner — hidden on ≥768px via CSS, persistent (no dismiss) -->
+<div class="mobile-not-supported" role="alert">
+  <strong>Desktop recommended.</strong>
+  This tool is designed for screens 1024&thinsp;px or wider.
+  On small screens, layouts and features will not work correctly.
+</div>
+
 <!-- Right-click context menu for map items -->
 <div id="mapCtxMenu"></div>
 
@@ -2265,6 +2346,7 @@ body.disclaimer-visible .container {
     </div>
     <button class="pdf-btn" id="scenariosBtn" type="button" title="Save and compare named scenario snapshots">Scenarios</button>
     <button class="pdf-btn" id="generateReportBtn" type="button" style="display:none">Generate Report</button>
+    <button class="pdf-btn" id="methodologyTopBtn" type="button" title="Open Methodology document — propagation methods, standards, and assumptions">Methodology</button>
     <button class="pdf-btn" id="savePdfBtn" type="button" title="Export A4 criteria appendix PDF for acoustic reports" onclick="generatePDFAppendix(this)">Save PDF</button>
     <button class="pdf-btn" id="shareAssessmentBtn" type="button" title="Generate a read-only link to share this assessment with a client">Share Assessment</button>
   </div>
@@ -2365,6 +2447,9 @@ body.disclaimer-visible .container {
                 // Accordion mode: sections are independent — just toggle the
                 // target, don't close siblings, don't set a floating max-height.
                 target.classList.toggle('mp-open');
+                var nowOpen = target.classList.contains('mp-open');
+                var hdr = target.querySelector('.mp-hdr[aria-expanded]');
+                if (hdr) hdr.setAttribute('aria-expanded', String(nowOpen));
                 return;
               }
               // Legacy floating-dropdown behaviour: mutually exclusive.
@@ -2374,6 +2459,9 @@ body.disclaimer-visible .container {
                 if (!p) return;
                 if (pid === id) { p.classList.toggle('mp-open'); }
                 else { p.classList.remove('mp-open'); }
+                var nowOpen2 = p.classList.contains('mp-open');
+                var h = p.querySelector('.mp-hdr[aria-expanded]');
+                if (h) h.setAttribute('aria-expanded', String(nowOpen2));
               });
               // Dropdown clip fix: when a panel just opened, measure its
               // actual top and set max-height to fit the remaining viewport
@@ -2670,10 +2758,10 @@ body.disclaimer-visible .container {
 
             <!-- PANEL 1: MAPPING -->
             <div class="mp" id="mp-mapping" style="pointer-events:all;">
-              <div class="mp-hdr" onclick="toggleMapPanel('mp-mapping')">
+              <div class="mp-hdr" onclick="toggleMapPanel('mp-mapping')" role="button" aria-expanded="false" aria-controls="mp-mapping-body">
                 <span>Mapping</span><span class="mp-arrow">&#9660;</span>
               </div>
-              <div class="mp-body">
+              <div class="mp-body" id="mp-mapping-body">
                 <button class="mp-btn zone-toggle-btn" id="zoneToggleBtn" title="Toggle zoning overlay on map (Z)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Show zones<span class="mp-kbd">Z</span></button>
                 <button class="mp-btn mbs010-toggle-btn" id="mbs010ToggleBtn" title="Toggle MBS 010 overlays: Noise &amp; Air Emissions, Aircraft Noise Exposure, Transport Routes" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> MBS 010 screening<span class="mp-kbd">X</span></button>
                 <button class="mp-btn aerial-toggle-btn" id="aerialToggleBtn" title="Switch between street map and aerial imagery"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8"/><ellipse cx="12" cy="12" rx="4" ry="9"/></svg> Aerial<span class="mp-kbd">I</span></button>
@@ -2684,16 +2772,16 @@ body.disclaimer-visible .container {
 
             <!-- PANEL 2: TOOLS -->
             <div class="mp" id="mp-tools" style="pointer-events:all;">
-              <div class="mp-hdr" onclick="toggleMapPanel('mp-tools')">
+              <div class="mp-hdr" onclick="toggleMapPanel('mp-tools')" role="button" aria-expanded="false" aria-controls="mp-tools-body">
                 <span>Tools</span><span class="mp-arrow">&#9660;</span>
               </div>
-              <div class="mp-body">
+              <div class="mp-body" id="mp-tools-body">
                 <!-- Group 1: Map layers & analysis tools -->
                 <button class="mp-btn" id="terrainToggleBtn" title="Apply terrain screening (slower — queries elevation API) (T)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M2 20l5-8 4 4 5-10 6 14"/></svg> Terrain<span class="mp-kbd">T</span></button>
                 <button class="mp-btn" id="terrainContourBtn" title="Show terrain elevation contour lines on map (requires Terrain ON) (C)" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 15 Q8 9 12 12 Q16 15 21 9"/><path d="M3 20 Q8 14 12 17 Q16 20 21 14"/></svg> Contours<span class="mp-kbd">C</span></button>
                 <button class="mp-btn" id="threeDViewBtn" title="Open 3D scene view of terrain, buildings, barriers, and sources (V)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 3L2 8l10 5 10-5-10-5z"/><path d="M2 12l10 5 10-5"/><path d="M12 22V13"/></svg> 3D View<span class="mp-kbd">V</span></button>
                 <button class="mp-btn buildings-toggle-btn" id="buildingsToggleBtn" title="Show or hide OSM building footprints (O)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 21V8l5-5 5 5v13"/><path d="M13 21V11l4-3 4 3v10"/><path d="M7 10v1M7 14v1M16 13v1M16 17v1"/></svg> Buildings<span class="mp-kbd">O</span></button>
-                <button class="mp-btn" id="reflectionsBtn" title="Apply ISO 9613-2 §7.5 image source facade reflections to receiver predictions and noise map (F)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections<span class="mp-kbd">F</span></button>
+                <button class="mp-btn" id="reflectionsBtn" title="Apply ISO 9613-2:1996 §7.5 image source facade reflections to receiver predictions and noise map (F)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 7l7 5-7 5"/><path d="M19 7l-7 5 7 5"/></svg> Reflections<span class="mp-kbd">F</span></button>
                 <span id="reflectionsBuildingWarning" style="display:none;font-size:10px;color:#fbbf24;padding:2px 8px;white-space:normal;line-height:1.4;">&#9888; Enable Buildings layer to apply reflections to noise map</span>
                 <button class="mp-btn" id="rulerBtn" title="Measure distance: click two points on the map (R)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="2" y="8" width="20" height="8" rx="1"/><line x1="6" y1="8" x2="6" y2="13"/><line x1="10" y1="8" x2="10" y2="11"/><line x1="14" y1="8" x2="14" y2="11"/><line x1="18" y1="8" x2="18" y2="13"/></svg> Ruler<span class="mp-kbd">R</span></button>
                 <button class="mp-btn" id="moveGeomBtn" title="Move mode: click to activate, then drag any barrier, building, or source to reposition it. Click again to exit."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg> Move</button>
@@ -2732,11 +2820,11 @@ body.disclaimer-visible .container {
 
             <!-- PANEL 3: MODELLING -->
             <div class="mp" id="mp-modelling" style="pointer-events:all;">
-              <div class="mp-hdr" onclick="toggleMapPanel('mp-modelling')">
+              <div class="mp-hdr" onclick="toggleMapPanel('mp-modelling')" role="button" aria-expanded="false" aria-controls="mp-modelling-body">
                 <span>Modelling</span><span class="mp-arrow">&#9660;</span>
               </div>
-              <div class="mp-body">
-                <button class="mp-btn" id="noiseMapBtn" title="Compute and display noise contour map (M)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise map<span class="mp-kbd">M</span></button>
+              <div class="mp-body" id="mp-modelling-body">
+                <button class="mp-btn" id="noiseMapBtn" title="Compute and display noise contour map (M). Spatial overview only — for compliance, use the receiver panel. Heatmap colour can differ from receiver-panel values by ~3–6 dB at narrow terrain shadows due to grid smoothing."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h2l3-6 4 8 3-4 2 2h4"/></svg> Noise map<span class="mp-kbd">M</span></button>
                 <div id="noiseMapControls" style="display:none;flex-direction:column;gap:3px;">
                   <div style="display:flex;gap:2px;padding:2px 4px;">
                     <button class="mp-btn active" data-nmperiod="day" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">Day</button>
@@ -2783,8 +2871,8 @@ body.disclaimer-visible .container {
                 <div id="noiseMapLmaxMethodRow" style="display:none;font-size:11px;padding:4px 8px;flex-direction:column;gap:5px;">
                   <span style="color:#9ca3af;font-weight:600;">L<sub>Amax</sub> method:</span>
                   <label style="cursor:pointer;display:flex;align-items:center;gap:5px;color:#d1d5db;"><input type="radio" name="lmaxMethod" value="simple" checked style="margin:0;"> Simple</label>
-                  <label style="cursor:pointer;display:flex;align-items:center;gap:5px;color:#d1d5db;"><input type="radio" name="lmaxMethod" value="iso9613_g0" style="margin:0;"> ISO 9613-2 G=0</label>
-                  <label style="cursor:pointer;display:flex;align-items:center;gap:5px;color:#d1d5db;"><input type="radio" name="lmaxMethod" value="iso9613_g_sel" style="margin:0;"> ISO 9613-2 G selected</label>
+                  <label style="cursor:pointer;display:flex;align-items:center;gap:5px;color:#d1d5db;"><input type="radio" name="lmaxMethod" value="iso9613_g0" style="margin:0;"> ISO 9613-2:1996 G=0</label>
+                  <label style="cursor:pointer;display:flex;align-items:center;gap:5px;color:#d1d5db;"><input type="radio" name="lmaxMethod" value="iso9613_g_sel" style="margin:0;"> ISO 9613-2:1996 G selected</label>
                 </div>
                 <span id="noiseMapGridWarning" style="display:none;font-size:10px;padding:2px 8px;white-space:normal;line-height:1.4;"></span>
 
@@ -2824,13 +2912,13 @@ body.disclaimer-visible .container {
 
           <!-- PANEL: PROPAGATION METHOD -->
           <div class="mp" id="mp-propmethod" style="pointer-events:all;">
-            <div class="mp-hdr" onclick="toggleMapPanel('mp-propmethod')">
+            <div class="mp-hdr" onclick="toggleMapPanel('mp-propmethod')" role="button" aria-expanded="false" aria-controls="mp-propmethod-body">
               <span>Propagation</span><span class="mp-arrow">&#9660;</span>
             </div>
-            <div class="mp-body">
+            <div class="mp-body" id="mp-propmethod-body">
               <div id="propMethodGroup" style="display:flex;gap:2px;padding:2px 4px;">
                 <button class="mp-btn active" data-val="simple" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">Simple</button>
-                <button class="mp-btn" data-val="iso9613" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">ISO 9613-2</button>
+                <button class="mp-btn" data-val="iso9613" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">ISO 9613-2:1996</button>
                 <button class="mp-btn" data-val="concawe" style="flex:1;padding:3px 2px;font-size:11px;justify-content:center;">CONCAWE</button>
               </div>
               <div id="iso9613Params" style="display:none;">
@@ -2849,7 +2937,7 @@ body.disclaimer-visible .container {
                     <input type="checkbox" id="isoPerRegionEnabled">
                     <span style="font-size:10px;color:#9ca3af;">Per-region G (advanced)</span>
                   </label>
-                  <span title="Per ISO 9613-2 §7.3.1, Agr can use independent ground factors for the source region (Gs), middle propagation region (Gm) and receiver region (Gr). Use this for paths crossing hard-to-soft transitions." style="cursor:help;color:#6b7280;font-size:11px;user-select:none;">?</span>
+                  <span title="Per ISO 9613-2:1996 §7.3.1, Agr can use independent ground factors for the source region (Gs), middle propagation region (Gm) and receiver region (Gr). Use this for paths crossing hard-to-soft transitions." style="cursor:help;color:#6b7280;font-size:11px;user-select:none;">?</span>
                 </div>
                 <div id="isoPerRegionInputs" style="display:none;">
                   <div class="mp-sub-row">
@@ -2885,7 +2973,7 @@ body.disclaimer-visible .container {
                   <button id="isoValidateBtn" class="mp-btn" onclick="runISOValidation()" style="padding:2px 7px;white-space:nowrap;flex-shrink:0;">Run</button>
                 </div>
                 <div id="isoValidationResults" style="display:none;font-size:10px;max-height:200px;overflow-y:auto;padding:2px 8px;"></div>
-                <div id="propMethodDesc" style="font-size:10px;color:#6b7280;line-height:1.5;padding:2px 8px 4px;"><b>Simple</b>: geometric spreading only. <b>ISO 9613-2</b>: atmospheric absorption + ground attenuation per octave band. <b>CONCAWE</b> (Report 4/81): empirical ground curves + meteorological corrections.</div>
+                <div id="propMethodDesc" style="font-size:10px;color:#6b7280;line-height:1.5;padding:2px 8px 4px;"><b>Simple</b>: geometric spreading only. <b>ISO 9613-2:1996</b>: atmospheric absorption + ground attenuation per octave band. <b>CONCAWE</b> (Report 4/81): empirical ground curves + meteorological corrections.</div>
               </div>
               <div id="concaweMetPanel" style="display:none;">
                 <div class="mp-sep"></div>
@@ -2943,10 +3031,10 @@ body.disclaimer-visible .container {
 
           <!-- PANEL: CUSTOM SOURCES -->
           <div class="mp" id="mp-customsrc" style="pointer-events:all;">
-            <div class="mp-hdr" onclick="toggleMapPanel('mp-customsrc')">
+            <div class="mp-hdr" onclick="toggleMapPanel('mp-customsrc')" role="button" aria-expanded="false" aria-controls="mp-customsrc-body">
               <span>Custom sources</span><span class="mp-arrow">&#9660;</span>
             </div>
-            <div class="mp-body">
+            <div class="mp-body" id="mp-customsrc-body">
               <div id="customSrcBody">
                 <div class="mp-sub-row">
                   <button type="button" class="mp-btn" style="margin-left:auto;padding:3px 10px;justify-content:center;" onclick="openCustomSourceWizard()">+ Add custom source&hellip;</button>
@@ -3635,7 +3723,7 @@ body.disclaimer-visible .container {
     <div class="grid2" style="display:none;">
       <div class="card span2">
         <h2>Propagation method (hidden — see LHS Propagation panel)</h2>
-        <div class="p" id="propMethodDesc">Select the sound propagation model. The <b>simple method</b> uses geometric spreading only (−20 log<sub>10</sub> d − 8 dB). <b>ISO 9613-2</b> adds frequency-dependent atmospheric absorption (ISO 9613-1) and ground attenuation per octave band (§7.3.1 detailed method with source, receiver, and middle region contributions). <b>CONCAWE</b> (Report 4/81, Manning 1981) uses empirical ground curves and meteorological category corrections instead of ISO ground regions.</div>
+        <div class="p" id="propMethodDesc">Select the sound propagation model. The <b>simple method</b> uses geometric spreading only (−20 log<sub>10</sub> d − 8 dB). <b>ISO 9613-2:1996</b> adds frequency-dependent atmospheric absorption (ISO 9613-1) and ground attenuation per octave band (§7.3.1 detailed method with source, receiver, and middle region contributions). <b>CONCAWE</b> (Report 4/81, Manning 1981) uses empirical ground curves and meteorological category corrections instead of ISO ground regions.</div>
         <div class="penalty-group" id="propMethodGroup">
           <button class="penalty-btn active" data-val="simple">Simple (geometric spreading)</button>
           <button class="penalty-btn" data-val="iso9613">ISO 9613-2:1996</button>
@@ -3668,7 +3756,7 @@ body.disclaimer-visible .container {
             Source heights use library defaults and can be adjusted per source row when visible. L<sub>max</sub> predictions always use the simple method.
           </div>
           <details style="margin-top:12px;cursor:pointer;">
-            <summary style="font-weight:600;font-size:13px;color:var(--dark);">Notes on ISO 9613-2 implementation</summary>
+            <summary style="font-weight:600;font-size:13px;color:var(--dark);">Notes on ISO 9613-2:1996 implementation</summary>
             <div style="margin-top:8px;padding:10px 14px;background:#f8f8f8;border-radius:4px;font-size:12px;color:var(--muted);line-height:1.7;">
               <p style="margin:4px 0;"><strong>Standard:</strong> Acoustics &mdash; Attenuation of sound during propagation outdoors &mdash; Part 2: General method of calculation (ISO 9613-2:1996).</p>
               <p style="margin:4px 0;"><strong>Overall formula:</strong> For each octave band <i>f</i> (63&nbsp;Hz to 8&nbsp;kHz):<br>
@@ -3873,7 +3961,7 @@ body.disclaimer-visible .container {
             <th style="width:52%;">Source</th>
             <th style="width:12%;" class="center">Quantity</th>
             <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
-            <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>
+            <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2:1996">Height (m)</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
           <tbody id="daySrcRows"></tbody>
@@ -3892,7 +3980,7 @@ body.disclaimer-visible .container {
             <th style="width:52%;">Source</th>
             <th style="width:12%;" class="center">Quantity</th>
             <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
-            <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>
+            <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2:1996">Height (m)</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
           <tbody id="eveSrcRows"></tbody>
@@ -3914,7 +4002,7 @@ body.disclaimer-visible .container {
             <th style="width:52%;">Source</th>
             <th style="width:12%;" class="center">Quantity</th>
             <th style="width:12%;" class="center op-time-header">Operational min in 15 min</th>
-            <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2">Height (m)</th>
+            <th style="width:8%;" class="center iso-ht-col" title="Source height above ground for ISO 9613-2:1996">Height (m)</th>
             <th style="width:12%;" class="num">Total Lw</th>
           </tr>
           <tbody id="nightSrcRows"></tbody>
@@ -6891,7 +6979,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
 <div class="card" id="methodologyCard" style="margin-top:14px;">
   <h2>Methodology</h2>
   <div class="h2" style="font-size:13px;">Sound pressure level prediction</div>
-  <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Three propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), ISO 9613-2 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity), and CONCAWE (Report 4/81, Manning 1981) which adds meteorological corrections for six atmospheric stability categories. It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
+  <div class="p">This calculator provides an indication of the sound pressure level at a specified distance due to various noise sources. Three propagation methods are available: a simple inverse square law screening method (no ground or atmospheric corrections), ISO 9613-2:1996 (which includes geometric divergence, ground effect, and atmospheric absorption based on temperature and humidity), and CONCAWE (Report 4/81, Manning 1981) which adds meteorological corrections for six atmospheric stability categories. It is intended as a screening tool to determine whether more accurate noise modelling and advice should be provided by an acoustic consultant.</div>
   <div class="h2" style="font-size:13px;margin-top:18px;">Data sources</div>
   <div class="h2" style="font-size:12px;margin-top:10px;">Planning zones</div>
   <div class="p">Planning zone classifications are detected automatically based on the placed receiver location. The data source varies by jurisdiction:</div>
@@ -6965,27 +7053,27 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     <li>Low volume correction (Chart 12, LA10 only) for flows below 200&thinsp;veh/h</li>
     <li>Australian +2.5&thinsp;dB adjustment applied as the final step</li>
   </ul>
-  <div class="p">Barrier screening for CoRTN uses Charts 9 and 9a applied per path-length difference <em>&delta;</em>, with dual-carriageway geometry handled as two parallel lines and (in NSW) a 3-source-height model (0.5&thinsp;m, 1.5&thinsp;m, 3.75&thinsp;m) energy-summed. LA10 is the primary CoRTN output; LAeq is derived via a periodic offset (approximately LA10 &minus; 3&thinsp;dB for typical continuous flows). Both metrics are available. The CoRTN engine is implemented as a shared-calc namespace (<code>SharedCortn</code>) so the same math runs on both the main thread (receiver-point calculations) and in a dedicated Web Worker (<code>cortn-worker.js</code>) that sweeps the full map grid for the CoRTN road noise map. The CoRTN noise map is independent of the ISO 9613-2 map &mdash; both can be active simultaneously as separate Leaflet overlays &mdash; and exposes its own Day/Night, LA10/LAeq, height, and grid controls in the Modelling panel. Grid computation includes all correction chain steps except reflections (grid-mode reflections are forced to zero) and terrain profile screening; per-road barrier screening is applied with the user&rsquo;s configured barrier geometry.</div>
-  <div class="h2" style="font-size:13px;">Barrier attenuation (ISO 9613-2 &sect;7.4)</div>
+  <div class="p">Barrier screening for CoRTN uses Charts 9 and 9a applied per path-length difference <em>&delta;</em>, with dual-carriageway geometry handled as two parallel lines and (in NSW) a 3-source-height model (0.5&thinsp;m, 1.5&thinsp;m, 3.75&thinsp;m) energy-summed. LA10 is the primary CoRTN output; LAeq is derived via a periodic offset (approximately LA10 &minus; 3&thinsp;dB for typical continuous flows). Both metrics are available. The CoRTN engine is implemented as a shared-calc namespace (<code>SharedCortn</code>) so the same math runs on both the main thread (receiver-point calculations) and in a dedicated Web Worker (<code>cortn-worker.js</code>) that sweeps the full map grid for the CoRTN road noise map. The CoRTN noise map is independent of the ISO 9613-2:1996 map &mdash; both can be active simultaneously as separate Leaflet overlays &mdash; and exposes its own Day/Night, LA10/LAeq, height, and grid controls in the Modelling panel. Grid computation includes all correction chain steps except reflections (grid-mode reflections are forced to zero) and terrain profile screening; per-road barrier screening is applied with the user&rsquo;s configured barrier geometry.</div>
+  <div class="h2" style="font-size:13px;">Barrier attenuation (ISO 9613-2:1996 &sect;7.4)</div>
   <div class="p">Barrier screening is calculated from user-drawn barriers and OSM building footprints. For each source&ndash;receiver pair the dominant intervening barrier is identified and its Maekawa single- and double-diffraction attenuation <em>D<sub>z</sub></em> is computed per octave band from path-length difference. Three diffraction paths are energy-summed: over the barrier top and around each lateral end. The over-top path is capped at 20&thinsp;dB (single diffraction) or 25&thinsp;dB (double diffraction); lateral paths are uncapped. A line-of-sight check ensures no attenuation is applied when the direct ray clears the barrier top.</div>
-  <div class="p">ISO 9613-2 defines the barrier term <em>A<sub>bar</sub></em> as an insertion loss, not a separate additive attenuation. The combined ground-plus-barrier contribution is therefore computed as <em>A<sub>grBar</sub></em> = max(<em>D<sub>z</sub></em>, <em>A<sub>gr,bar</sub></em>) per band, where <em>A<sub>gr,bar</sub></em> is the ground effect recomputed along two sub-paths (source &rarr; barrier top, barrier top &rarr; receiver) with the barrier top acting as a pseudo-receiver then a pseudo-source for Table 3 region factors. This &sect;7.4 sub-path treatment is threaded through every ISO propagation call site &mdash; point, line, area, building, and road sources, for both receiver predictions and the noise map. It is most consequential for grazing geometries where per-band ground attenuation can exceed the barrier&rsquo;s diffraction loss at some frequencies; for tall barriers at short distances the barrier IL dominates and the sub-path calculation is a no-op.</div>
+  <div class="p">ISO 9613-2:1996 defines the barrier term <em>A<sub>bar</sub></em> as an insertion loss, not a separate additive attenuation. The combined ground-plus-barrier contribution is therefore computed as <em>A<sub>grBar</sub></em> = max(<em>D<sub>z</sub></em>, <em>A<sub>gr,bar</sub></em>) per band, where <em>A<sub>gr,bar</sub></em> is the ground effect recomputed along two sub-paths (source &rarr; barrier top, barrier top &rarr; receiver) with the barrier top acting as a pseudo-receiver then a pseudo-source for Table 3 region factors. This &sect;7.4 sub-path treatment is threaded through every ISO propagation call site &mdash; point, line, area, building, and road sources, for both receiver predictions and the noise map. It is most consequential for grazing geometries where per-band ground attenuation can exceed the barrier&rsquo;s diffraction loss at some frequencies; for tall barriers at short distances the barrier IL dominates and the sub-path calculation is a no-op.</div>
   <div class="h2" style="font-size:13px;">CONCAWE propagation model (Report 4/81)</div>
   <div class="p">The CONCAWE model predicts noise propagation from industrial plants for a range of meteorological conditions. It was developed from field measurements at three European petrochemical complexes and uses octave band calculations from 63&thinsp;Hz to 4&thinsp;kHz (this tool extends to 8&thinsp;kHz using the 4&thinsp;kHz attenuation values as a conservative approximation). The predicted sound pressure level at a receiver is:</div>
   <div class="p" style="font-style:italic;margin:6px 0 4px 12px;">L<sub>p</sub>(f) = L<sub>w</sub>(f) + D &minus; K1 &minus; K2 &minus; K3 &minus; K4 &minus; K5 &minus; K6</div>
   <div class="p" style="margin-top:4px;">where:</div>
   <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;line-height:1.8;">
-    <li><strong>K1</strong> &mdash; Geometric spreading: 10&middot;log<sub>10</sub>(4&pi;d&sup2;)&thinsp;dB. Spherical propagation from a point source (identical to ISO 9613-2 A<sub>div</sub>).</li>
-    <li><strong>K2</strong> &mdash; Atmospheric absorption: per octave band, calculated from temperature and relative humidity per ISO 9613-1 (identical to ISO 9613-2 A<sub>atm</sub>).</li>
+    <li><strong>K1</strong> &mdash; Geometric spreading: 10&middot;log<sub>10</sub>(4&pi;d&sup2;)&thinsp;dB. Spherical propagation from a point source (identical to ISO 9613-2:1996 A<sub>div</sub>).</li>
+    <li><strong>K2</strong> &mdash; Atmospheric absorption: per octave band, calculated from temperature and relative humidity per ISO 9613-1 (identical to ISO 9613-2:1996 A<sub>atm</sub>).</li>
     <li><strong>K3</strong> &mdash; Ground attenuation: for acoustically hard surfaces (concrete, water), K3&thinsp;=&thinsp;&minus;3&thinsp;dB. For soft ground (grass, soil), K3 is determined from empirical curves as a function of frequency and distance (CONCAWE Figure 1, Appendix II polynomials). Distance clamped to 100&ndash;2000&thinsp;m.</li>
     <li><strong>K4</strong> &mdash; Meteorological correction: accounts for refraction by wind and temperature gradients. Six meteorological categories are defined from the Pasquill atmospheric stability class and the vector wind speed (component of wind from source to receiver). Category 1 represents strong upwind propagation with unstable atmosphere (greatest attenuation). Category 4 is neutral (zero correction). Category 6 represents moderate to strong downwind propagation (greatest enhancement). This implementation uses the Simplification 2 distance-independent K4 values from &sect;6.2, which the authors showed to have only 0.5&thinsp;dB(A) accuracy loss compared to the full distance-dependent polynomial model.</li>
     <li><strong>K5</strong> &mdash; Source height correction: reduces the combined ground and meteorological effect (K3&thinsp;+&thinsp;K4) for elevated sources (height&thinsp;&gt;&thinsp;2&thinsp;m) based on the grazing angle between the source, receiver, and ground plane (CONCAWE Figure 9).</li>
     <li><strong>K6</strong> &mdash; Barrier attenuation: calculated using the Maekawa diffraction method, consistent with SoundPLAN&rsquo;s implementation of CONCAWE which substitutes the General Prediction Method (GPM) barrier algorithm.</li>
   </ul>
   <div class="p">The model is validated for source&ndash;receiver distances of 100&ndash;2000&thinsp;m and wind speeds up to 7&thinsp;m/s.</div>
-  <div class="p" style="margin-top:6px;"><strong>Key differences from ISO 9613-2:</strong></div>
+  <div class="p" style="margin-top:6px;"><strong>Key differences from ISO 9613-2:1996:</strong></div>
   <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;line-height:1.8;">
-    <li><em>Ground effect:</em> CONCAWE uses single empirical curves based on neutral-condition measurements (Parkin &amp; Scholes). ISO 9613-2 uses a three-region detailed method (source, middle, receiver) based on favourable (downwind) conditions. CONCAWE ground attenuation (K3) is applied independently of barrier screening &mdash; there is no &sect;7.4 insertion-loss interaction.</li>
-    <li><em>Meteorological conditions:</em> CONCAWE explicitly models six weather categories. ISO 9613-2 assumes favourable (downwind) conditions and offers only a long-distance C<sub>met</sub> correction (not implemented in this tool). CONCAWE is preferred when assessments require prediction under specific meteorological conditions, particularly in Victoria where neutral conditions are often specified.</li>
+    <li><em>Ground effect:</em> CONCAWE uses single empirical curves based on neutral-condition measurements (Parkin &amp; Scholes). ISO 9613-2:1996 uses a three-region detailed method (source, middle, receiver) based on favourable (downwind) conditions. CONCAWE ground attenuation (K3) is applied independently of barrier screening &mdash; there is no &sect;7.4 insertion-loss interaction.</li>
+    <li><em>Meteorological conditions:</em> CONCAWE explicitly models six weather categories. ISO 9613-2:1996 assumes favourable (downwind) conditions and offers only a long-distance C<sub>met</sub> correction (not implemented in this tool). CONCAWE is preferred when assessments require prediction under specific meteorological conditions, particularly in Victoria where neutral conditions are often specified.</li>
     <li><em>Frequency range:</em> CONCAWE covers 63&thinsp;Hz to 4&thinsp;kHz. This tool extends to 8&thinsp;kHz using the 4&thinsp;kHz attenuation values.</li>
   </ul>
   <div class="p" style="font-size:11px;color:var(--muted);margin-top:4px;">Reference: Manning, C.J. (1981). <em>The propagation of noise from petroleum and petrochemical complexes to neighbouring communities.</em> CONCAWE Report 4/81.</div>
@@ -6994,9 +7082,9 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
   <div class="h2" style="font-size:13px;">Terrain screening &mdash; Deygout 3-edge method</div>
   <div class="p">Where ground elevation data is available, the terrain profile between each source and receiver is sampled from DEM data. The Geoscience Australia 5&thinsp;m LiDAR WCS service is queried as the primary source; Open-Elevation (SRTM &sim;30&thinsp;m resolution) is used as a fallback where WCS data is unavailable. The terrain profile is processed with the Deygout construction: the profile point with the greatest path-length difference is selected as the primary diffracting edge, and the source-side and receiver-side sub-profiles are then searched recursively for secondary edges. Up to three edges (one primary, two secondary) are considered per profile and their Maekawa <em>D<sub>z</sub></em> contributions combined per the Deygout energy-sum rule. Terrain diffraction is computed per octave band. Where terrain and building barriers coincide, the screening term is <em>A<sub>screen</sub></em> = max(<em>A<sub>bar</sub></em>, <em>A<sub>terr</sub></em>) per band, and this combined insertion loss enters the ground-barrier interaction (&sect;7.4) as a single <em>D<sub>z</sub></em>-equivalent value.</div>
   <div class="h2" style="font-size:13px;">Ground absorption zones</div>
-  <div class="p">In addition to the global ground factor <em>G</em> set in the Propagation method panel, the user can draw local ground absorption polygons on the map with individual <em>G</em> values (0&thinsp;=&thinsp;hard/reflecting, 0.5&thinsp;=&thinsp;mixed, 1&thinsp;=&thinsp;soft/porous). For each source&ndash;receiver ray the three ISO 9613-2 Table 3 regions (source side, middle, receiver side) are each assigned a length-weighted average <em>G</em> from the zones intersecting that region (<code>_gzWeightedG</code>). The resulting <em>G<sub>s</sub></em>&thinsp;/&thinsp;<em>G<sub>m</sub></em>&thinsp;/&thinsp;<em>G<sub>r</sub></em> triplet drives the per-band ground attenuation and, when a barrier is present, also the two sub-path <em>A<sub>gr,bar</sub></em> calculations described under Barrier attenuation (&sect;7.4) above. When no zones are drawn, all three regions use the single global <em>G</em> value.</div>
+  <div class="p">In addition to the global ground factor <em>G</em> set in the Propagation method panel, the user can draw local ground absorption polygons on the map with individual <em>G</em> values (0&thinsp;=&thinsp;hard/reflecting, 0.5&thinsp;=&thinsp;mixed, 1&thinsp;=&thinsp;soft/porous). For each source&ndash;receiver ray the three ISO 9613-2:1996 Table 3 regions (source side, middle, receiver side) are each assigned a length-weighted average <em>G</em> from the zones intersecting that region (<code>_gzWeightedG</code>). The resulting <em>G<sub>s</sub></em>&thinsp;/&thinsp;<em>G<sub>m</sub></em>&thinsp;/&thinsp;<em>G<sub>r</sub></em> triplet drives the per-band ground attenuation and, when a barrier is present, also the two sub-path <em>A<sub>gr,bar</sub></em> calculations described under Barrier attenuation (&sect;7.4) above. When no zones are drawn, all three regions use the single global <em>G</em> value.</div>
   <div class="h2" style="font-size:13px;">Facade reflections</div>
-  <div class="p">Facade reflections are calculated using the image source method per ISO 9613-2 &sect;7.5. For each source&ndash;receiver pair, building and barrier edges within 50&thinsp;m of the receiver are tested as reflecting surfaces. The reflected contribution from the dominant surface is calculated as a separate propagation path (using the same propagation method as the direct path) and energy-added to the direct path. A single dominant reflection is considered per source&ndash;receiver pair. Grazing incidence is excluded (incidence angle &gt;80&deg; relative to surface normal). Hard surface reflection (0&thinsp;dB loss) is assumed for all buildings and barriers. Reflections are enabled via the Reflections toolbar button and apply to both receiver predictions and the noise map.</div>
+  <div class="p">Facade reflections are calculated using the image source method per ISO 9613-2:1996 &sect;7.5. For each source&ndash;receiver pair, building and barrier edges within 50&thinsp;m of the receiver are tested as reflecting surfaces. The reflected contribution from the dominant surface is calculated as a separate propagation path (using the same propagation method as the direct path) and energy-added to the direct path. A single dominant reflection is considered per source&ndash;receiver pair. Grazing incidence is excluded (incidence angle &gt;80&deg; relative to surface normal). Hard surface reflection (0&thinsp;dB loss) is assumed for all buildings and barriers. Reflections are enabled via the Reflections toolbar button and apply to both receiver predictions and the noise map.</div>
   <div class="h2" style="font-size:13px;">Operating % of period</div>
   <div class="p" id="opTimeNote">The calculation provides an option to enter the percentage of the assessment period during which each source is operating. A 10&middot;log<sub>10</sub>(pct/100) weighting is applied to the source level: 100&thinsp;% &rarr; 0&thinsp;dB, 50&thinsp;% &rarr; &minus;3&thinsp;dB, 25&thinsp;% &rarr; &minus;6&thinsp;dB.</div>
   <div class="h2" style="font-size:13px;">Character penalties and modifying factors</div>
@@ -7012,13 +7100,14 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
   <div class="p">An assessment case is a named, independent configuration of the tool&rsquo;s inputs (source operating states, movements, barriers, receiver penalties) representing a single scenario &mdash; for example &ldquo;existing operations&rdquo;, &ldquo;proposed &mdash; worst case&rdquo;, or &ldquo;with mitigation&rdquo;. Multiple cases can be enabled simultaneously and are compared side-by-side in the Assessment cases panel. For each enabled case the tool runs the full propagation chain and produces a per-receiver predicted level, a per-case compliance outcome, and (optionally) a per-case noise map overlay. The <em>governing case</em> is the one that produces the highest level at each receiver for each period; it drives the overall compliance outcome reported in the summary. Saved assessments serialise the full list of cases (including enabled state) so the comparison is reproducible.</div>
   <div class="h2" style="font-size:13px;">Noise map</div>
   <div class="p">The noise map generates a predicted sound level grid across the map extent using the selected propagation method. Grid resolution is adaptive (5&ndash;50&thinsp;m based on zoom level). Contour lines are interpolated from the grid and represent equal noise level lines in dB(A). The noise map uses the same source inputs, propagation method, and receiver height as the receiver predictions. Contour accuracy degrades at the edges of the grid and at large distances from sources.</div>
+  <div class="p"><strong>Terrain screening and heatmap smoothing.</strong> Per-grid-cell terrain insertion loss is computed using the Deygout three-edge method (ISO 9613-2:1996 / ISO/TR 17534-3) at each grid node. To suppress radial spike artefacts arising from DEM grid discretisation, the per-band terrain IL field is then spatially filtered with a separable 5&thinsp;&times;&thinsp;5 Gaussian kernel (&sigma;&thinsp;=&thinsp;0.5 cells, radius 2 cells). This smoothing can reduce the apparent terrain screening level by up to 3&ndash;6&thinsp;dB at receivers located inside narrow terrain shadow zones (shadow width &lt; 4&thinsp;&times;&thinsp; grid spacing). The point-receiver compliance values shown in the receiver panel are computed along the exact source&ndash;receiver ray using the same Deygout method but without grid smoothing, and are therefore the authoritative values for compliance assessment. The noise map should be used as a spatial screening tool only, not as the basis for compliance decisions.</div>
   <div class="h2" style="font-size:13px;">3D Scene Viewer</div>
   <div class="p">The 3D Scene Viewer is a read-only visualisation of the current assessment, intended for visual verification of spatial relationships &mdash; source heights relative to barriers, screening geometry, building obstruction, and terrain profile &mdash; in a single orbital view. It is not a calculation tool: no propagation, criteria, or noise-map result depends on it, and editing the assessment is done in the 2D map and side panels as before. The viewer is opened from the toolbar (3D View button) or with the <em>V</em> shortcut, and is available regardless of whether terrain is enabled (a flat fallback plane is rendered when no DEM data is cached for the current viewport).</div>
   <div class="p">Rendering uses Three.js (r128) loaded lazily on first open. The scene uses an equirectangular local projection with a <em>cos(centre&nbsp;latitude)</em> compensation for 1&deg;&nbsp;lng &ne; 1&deg;&nbsp;lat in metres; X is east, Z is &minus;north, and Y is elevation. Elevations are normalised to a local datum (the minimum sampled DEM elevation in the viewport at modal-open time is subtracted from every Y value), so a site at 30&thinsp;m ASL with 22&thinsp;m of relief renders anchored at Y=0 with a visible 22&thinsp;m variation rather than as a floating mesa above the building plane. Objects placed on top of a building footprint render at <em>roof + object_height</em> in 3D rather than <em>ground + object_height</em> &mdash; a rooftop fan with <em>height_m</em>&thinsp;=&thinsp;2 on a 10&thinsp;m custom building lands at Y=12, matching what the propagation engine sees.</div>
   <div class="p">Objects rendered in the scene: terrain mesh (vertex-coloured green&ndash;brown&ndash;tan ramp by normalised elevation, with cells skipped where DEM coverage is missing); OSM buildings (single merged grey mesh, opacity 0.7); custom buildings (blue, opacity 0.8); building sources (orange, opacity 0.8); barriers (semi-transparent green walls with slope-following bases and a darker crest accent line); ground absorption zones (semi-transparent G-factor colour ramp from grey at G=0 through olive at G=0.5 to green at G=1); point sources (red spheres); line sources (red tubes following per-vertex elevation); area sources (semi-transparent red polygons); receivers (R1&ndash;R4-coloured spheres matching the 2D marker palette); and sprite labels for sources and receivers (drawn through geometry with anti-stacking offsets when multiple labels are placed within 5&thinsp;m of each other).</div>
   <div class="h2" style="font-size:13px;margin-top:18px;">Code quality and validation</div>
   <div class="h2" style="font-size:12px;margin-top:10px;">ISO/TR 17534-3 validation</div>
-  <div class="p">The core propagation calculations are validated against the reference test cases defined in ISO/TR 17534-3:2015 &mdash; Acoustics: Software for the calculation of sound outdoors. This technical report defines input geometries and reference output values for testing implementations of ISO 9613-2. The in-app &ldquo;Run validation&rdquo; button (in the Propagation method panel) executes the three ground-attenuation test cases and reports the computed vs reference total for each:</div>
+  <div class="p">The core propagation calculations are validated against the reference test cases defined in ISO/TR 17534-3:2015 &mdash; Acoustics: Software for the calculation of sound outdoors. This technical report defines input geometries and reference output values for testing implementations of ISO 9613-2:1996. The in-app &ldquo;Run validation&rdquo; button (in the Propagation method panel) executes the three ground-attenuation test cases and reports the computed vs reference total for each:</div>
   <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
     <li>T01: Reflecting ground (G&thinsp;=&thinsp;0) &mdash; reference 44.29 dB &mdash; <b>pass</b> (&plusmn;0.05 dB)</li>
     <li>T02: Mixed ground (G&thinsp;=&thinsp;0.5) &mdash; reference 41.53 dB &mdash; <b>pass</b> (&plusmn;0.05 dB)</li>
@@ -7041,7 +7130,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     <li>Geometric divergence (&sect;7.1): fully implemented</li>
     <li>Barrier / building screening (&sect;7.4): implemented, single dominant path, top and lateral diffraction</li>
     <li>Terrain screening: partial &mdash; single dominant ridge, per-band Maekawa diffraction, DEM from Geoscience Australia WCS LiDAR (5&thinsp;m, primary) with Open-Elevation SRTM fallback</li>
-    <li>Meteorological correction (&sect;8): not implemented in the ISO 9613-2 path (C<sub>met</sub> correction) &mdash; available via the CONCAWE propagation model, which provides explicit six-category meteorological corrections based on Pasquill stability class and vector wind speed</li>
+    <li>Meteorological correction (&sect;8): not implemented in the ISO 9613-2:1996 path (C<sub>met</sub> correction) &mdash; available via the CONCAWE propagation model, which provides explicit six-category meteorological corrections based on Pasquill stability class and vector wind speed</li>
   </ul>
   <div class="h2" style="font-size:12px;margin-top:10px;">Security</div>
   <div class="p">User-entered data (source names, receiver names) is escaped before insertion into the interface using DOM-native <code>escapeHTML()</code> to prevent cross-site scripting (XSS). No user data is transmitted to any server &mdash; all calculations run entirely in the browser.</div>
@@ -7285,9 +7374,14 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
 
   var drawerToggle = document.createElement('button');
   drawerToggle.id = 'drawer-toggle';
-  drawerToggle.setAttribute('aria-label', 'Toggle panel');
+  drawerToggle.setAttribute('aria-label', 'Toggle Criteria & compliance panel');
   drawerToggle.setAttribute('aria-expanded', 'true');
-  drawerToggle.innerHTML = '<span id="drawer-toggle-icon">&#9654;</span>';
+  drawerToggle.innerHTML =
+    '<span id="drawer-toggle-icon">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+        '<polyline points="15 18 9 12 15 6"/>' +
+      '</svg>' +
+    '</span>';
 
   var drawerContent = document.createElement('div');
   drawerContent.id = 'drawer-content';
@@ -7614,6 +7708,29 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     }
   }
 
+  // R7: Auto-open drawer on first compliance results (once per session).
+  // Fires when the compliance-strip gains child elements (results rendered).
+  // Won't re-open if user has manually interacted with the drawer toggle.
+  var _drawerAutoOpenedThisSession = false;
+  function _maybeAutoOpenDrawer() {
+    if (_drawerAutoOpenedThisSession) return;
+    if (!drawerPanel.classList.contains('drawer-closed')) return;
+    // Check for rendered result rows in either the compliance strip or results table
+    if (document.querySelector('#predNoiseSection table tbody tr, #compliance-strip .cs-row')) {
+      setDrawerOpen(true);
+      _drawerAutoOpenedThisSession = true;
+    }
+  }
+  window._maybeAutoOpenDrawer = _maybeAutoOpenDrawer;
+  // Observe compliance-strip mutations to trigger the check without touching render()
+  (function() {
+    var cs = document.getElementById('compliance-strip');
+    if (cs && window.MutationObserver) {
+      new MutationObserver(function() { _maybeAutoOpenDrawer(); })
+        .observe(cs, { childList: true, subtree: true });
+    }
+  })();
+
   window._setDrawerOpen = setDrawerOpen;  // Phase 2: expose for auto-scroll
   // Re-sync width when the LHS panel collapses/expands (class on #app-layout changes)
   // or when the LHS resize handle changes mc.style.left (style attribute changes).
@@ -7631,6 +7748,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
   })();
 
   drawerToggle.addEventListener('click', function() {
+    _drawerAutoOpenedThisSession = true; // R7: user took control — stop auto-re-opening
     setDrawerOpen(drawerPanel.classList.contains('drawer-closed'));
   });
 
@@ -7647,6 +7765,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     if (e.target && e.target.matches && e.target.matches('input, select, textarea')) return;
     if (e.key === ']') {
       e.preventDefault();
+      _drawerAutoOpenedThisSession = true; // R7: user took control
       setDrawerOpen(drawerPanel.classList.contains('drawer-closed'));
     }
   });
@@ -10049,10 +10168,10 @@ let eveningPenalty = 0;
 // ──── Propagation Method ────
 let propagationMethod = 'simple'; // 'simple' | 'iso9613' | 'concawe'
 
-// ISO 9613-2 / CONCAWE shared parameters
+// ISO 9613-2:1996 / CONCAWE shared parameters
 let iso_receiverHeight = 1.5; // metres (standard receiver height)
 let iso_groundFactor = 0.5;   // G: 0=hard, 0.5=mixed, 1.0=soft/porous
-// Per-region ground factor state (ISO 9613-2 §7.3.1)
+// Per-region ground factor state (ISO 9613-2:1996 §7.3.1)
 var _groundFactorPerRegion = { enabled: false, Gs: 0.5, Gm: 0.5, Gr: 0.5 };
 /** Returns {Gs,Gm,Gr} when per-region mode is active, else the scalar iso_groundFactor. */
 function _effectiveGroundFactor() {
@@ -10139,7 +10258,7 @@ function _cortnDefaultRoad(verts) {
     reflectionAngle_deg: 0,
     receiverHeight_m: null,
     // CoRTN barrier (Phase 3) — per-road, defined in the CoRTN panel.
-    // Completely separate from the ISO 9613-2 userBarriers[] system.
+    // Completely separate from the ISO 9613-2:1996 userBarriers[] system.
     barrier: {
       enabled:         false,
       height_m:        0,     // barrier height above base
@@ -10599,7 +10718,7 @@ function _cortnAngleOfViewFromReceiver(recvLat, recvLng, verts) {
 
 /** MBS 010 road-traffic octave shape (relative dB, 63..8k Hz). Used to
  *  convert a broadband A-weighted LAeq into an 8-band spectrum that can be
- *  energy-summed with ISO 9613-2 octave contributions downstream. The
+ *  energy-summed with ISO 9613-2:1996 octave contributions downstream. The
  *  returned spectrum's energy sum exactly reproduces the input LAeq. */
 var CORTN_ROAD_TRAFFIC_SHAPE_RELATIVE = [18, 14, 10, 7, 4, 6, 11, 11];
 function cortnBroadbandToSpectrum(laeq) {
@@ -10672,7 +10791,7 @@ window._cortnClearAllReceiverResults = _cortnClearAllReceiverResults;
  *  Idempotent and independent of calcTotalISO9613 — this guarantees the
  *  Predicted Levels CoRTN detail panel shows current values even when the
  *  render pipeline doesn't otherwise call calcTotalISO9613 (e.g. when no
- *  ISO 9613-2 sources are placed). Runs per render, cheap (O(roads × 4)). */
+ *  ISO 9613-2:1996 sources are placed). Runs per render, cheap (O(roads × 4)). */
 function _cortnUpdateAllReceiverResults() {
   if (typeof cortnRoads === 'undefined' || cortnRoads.length === 0) return;
   for (var ri = 0; ri < 4; ri++) {
@@ -10974,7 +11093,7 @@ function _asGetLwM2Adj(as, period) {
   }
 }
 
-/** Build dB(Z) octave-band spectrum for ISO 9613-2 propagation,
+/** Build dB(Z) octave-band spectrum for ISO 9613-2:1996 propagation,
  *  scaled so that energySumA(output) = targetLwA (engine applies A-weighting internally).
  *  Spectrum stored in as.spectrum[period] is dB(Z) unweighted (spectrum_m2 from library).
  *  Returns array[8] of dB(Z) values, or null.
@@ -11088,7 +11207,7 @@ function _asNearestEdgeDist(as, recLat, recLng) {
   return minD;
 }
 
-/** ISO 9613-2 area-source prediction at one receiver for one period.
+/** ISO 9613-2:1996 area-source prediction at one receiver for one period.
  *  Subdivides polygon into grid sub-sources; applies building-on-roof elevation,
  *  per-path ground zones, barrier screening, and 1 m minimum distance.
  *  @param {Object} as area source object
@@ -11513,7 +11632,7 @@ function getReceiverHeight(receiverIdx) {
   return (h !== null && h !== undefined && Number.isFinite(h)) ? h : iso_receiverHeight;
 }
 
-/** ISO 9613-2 prediction for a single source at a receiver distance
+/** ISO 9613-2:1996 prediction for a single source at a receiver distance
  *  Uses per-octave-band calculation with:
  *    Adiv  — geometric divergence (Eq 8)
  *    Aatm  — atmospheric absorption per band (ISO 9613-1)
@@ -11536,7 +11655,7 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, rec
     }, endDeltaLeft || 0, endDeltaRight || 0, barrierInfo || null, terrainPerBand || null);
   }
 
-  // ISO 9613-2 path (unchanged)
+  // ISO 9613-2:1996 path (unchanged)
   var result = SharedCalc.calcISOatPoint(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
     temperature: iso_temperature,
     humidity: iso_humidity,
@@ -11565,7 +11684,7 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, rec
   return result;
 }
 
-/** ISO 9613-2 prediction for a single sourcePin at a receiver distance.
+/** ISO 9613-2:1996 prediction for a single sourcePin at a receiver distance.
  *  Reads spectrum and lw directly from sourcePins[si] (no DOM access).
  *  @param {number} si - sourcePin index (0-based)
  *  @param {string} prefix - 'day', 'eve', or 'night'
@@ -11698,9 +11817,9 @@ function calcISO9613forSourcePin(si, prefix, distM, receiverIdx) {
   }
 }
 
-// ── Facade reflection helpers (ISO 9613-2 §7.5) ─────────────────────────────
+// ── Facade reflection helpers (ISO 9613-2:1996 §7.5) ─────────────────────────────
 
-/** Compute ISO 9613-2 Leq level for sourcePin si at reflected-path distance.
+/** Compute ISO 9613-2:1996 Leq level for sourcePin si at reflected-path distance.
  *  No barrier, no terrain — reflected path propagates free-field.
  *  @param {number} si          sourcePin index
  *  @param {string} prefix      'day'|'eve'|'night'
@@ -11733,7 +11852,7 @@ function calcISO9613reflectedLevel(si, prefix, reflDistM, receiverIdx) {
   }
 }
 
-/** Compute ISO 9613-2 Lmax level for sourcePin si at reflected-path distance.
+/** Compute ISO 9613-2:1996 Lmax level for sourcePin si at reflected-path distance.
  *  No barrier, no terrain, no ground effect (A_gr = 0).
  *  @param {number} si          sourcePin index
  *  @param {number} reflDistM   reflected path distance (m)
@@ -11788,7 +11907,7 @@ function getSourceReflection(pin, receiverIdx) {
   return SharedCalc.getDominantReflection({ lat: pin.lat, lng: pin.lng }, recLL, srcH, recH, screenable);
 }
 
-/** ISO 9613-2 prediction for total Leq from all sourcePins at a receiver.
+/** ISO 9613-2:1996 prediction for total Leq from all sourcePins at a receiver.
  *  Loops over sourcePins[], calls calcISO9613forSourcePin per pin with per-source distance.
  *  @param {string} prefix - 'day', 'eve', or 'night'
  *  @param {number} receiverIdx - 0-based receiver index
@@ -11870,7 +11989,7 @@ function calcTotalISO9613(prefix, receiverIdx) {
   return Math.round(10 * log10(totalLin));
 }
 
-/** ISO 9613-2 Lmax prediction from all sourcePins at a receiver.
+/** ISO 9613-2:1996 Lmax prediction from all sourcePins at a receiver.
  *  Uses lw_max and spectrum_max (with spectrum used as shape when available).
  *  groundFactor can be overridden (for G=0 mode).
  * @param {number} receiverIdx - 0-based receiver index
@@ -12236,7 +12355,7 @@ function _barrierHBar(bw) {
 }
 
 /** Compute and cache terrain diffraction for a source-receiver pair.
- *  Uses Deygout 3-edge (ISO 9613-2 Annex B) via SharedCalc.terrainILPerBand —
+ *  Uses Deygout 3-edge (ISO 9613-2:1996 Annex B) via SharedCalc.terrainILPerBand —
  *  the same algorithm as the noise-map grid worker. Returns a Promise that
  *  resolves when the cache entry is updated. */
 function updateTerrainIL(srcIdx, recvIdx) {
@@ -15496,7 +15615,7 @@ function calcBarrierIL_broadband(barrier) {
  * @param {number} [fallbackDistanceM] - legacy single-distance fallback (Source 0 only)
  */
 function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDistanceM) {
-  // ISO 9613-2: routes through calcISO9613forSourcePin for each pin
+  // ISO 9613-2:1996: routes through calcISO9613forSourcePin for each pin
   if ((propagationMethod === 'iso9613' || propagationMethod === 'concawe') && prefix && prefix !== 'lmax') {
     return calcTotalISO9613(prefix, receiverIdx);
   }
@@ -16027,7 +16146,7 @@ function srcPanelLmaxSectionHTML(pin) {
       '</div>' +
       '<div class="src-band-sublabel">Octave band spectrum (reference only)</div>' +
       '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;">' + bandsHTML + '</div>' +
-      '<div style="font-size:10px;color:#6b7280;margin-top:4px;font-style:italic;">Spectrum used for ISO 9613-2 Lmax prediction; broadband Lw,max used for simple propagation</div>' +
+      '<div style="font-size:10px;color:#6b7280;margin-top:4px;font-style:italic;">Spectrum used for ISO 9613-2:1996 Lmax prediction; broadband Lw,max used for simple propagation</div>' +
     '</div>' +
   '</div>';
 }
@@ -18061,7 +18180,7 @@ function getManualCrit(cellId) {
 }
 
 /**
- * Show per-band ISO 9613-2 breakdown for a source-receiver pair.
+ * Show per-band ISO 9613-2:1996 breakdown for a source-receiver pair.
  * ISO 17534-1 §5.2.2: allows user to check all calculation steps.
  * @param {number} sourceIdx - source index
  * @param {number} receiverIdx - receiver index (0-based)
@@ -18128,7 +18247,7 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
 
   if (!spectrum) {
     // No spectrum available — show message
-    body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888;padding:12px;">No octave band spectrum available for this source. Select an equipment item with spectrum data, or switch to ISO 9613-2 propagation method.</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888;padding:12px;">No octave band spectrum available for this source. Select an equipment item with spectrum data, or switch to ISO 9613-2:1996 propagation method.</td></tr>';
     title.textContent = 'Per-band breakdown — ' + (src.name || 'Source ' + (sourceIdx + 1)) + ' → R' + (receiverIdx + 1);
     meta.textContent = '';
     panel.style.display = '';
@@ -18525,9 +18644,9 @@ window.runUAT = async function() {
   })();
 
   /* ════════════════════════════════════════════════════════════════
-     CAT 6 — ISO 9613-2 calcISOatPoint
+     CAT 6 — ISO 9613-2:1996 calcISOatPoint
      ════════════════════════════════════════════════════════════════ */
-  C[6] = { label:'ISO 9613-2 calcISOatPoint', pass:0, fail:0, lines:[] };
+  C[6] = { label:'ISO 9613-2:1996 calcISOatPoint', pass:0, fail:0, lines:[] };
   (function(){
     var hS=1, hR=4, dp=Math.sqrt(190*190+40*40);
     // Option B: engine applies A-weighting internally — pass flat dB(Z) Lw=93 per band.
@@ -19457,7 +19576,7 @@ window.runUAT = async function() {
     3:'_getNumUnits helper',
     4:'Spectrum normalisation math',
     5:'calcBarrierIL_broadband',
-    6:'ISO 9613-2 calcISOatPoint',
+    6:'ISO 9613-2:1996 calcISOatPoint',
     7:'calcPredAtReceiver simple path',
     8:'getScreenableBuildings state',
     9:'calcISO9613forSourcePin',
@@ -19956,8 +20075,14 @@ function render() {
       var tr = document.createElement('tr');
       var predFmt = fmt(predicted);
       var predClass = cellClass(cmp.ok);
+      // ✓/✗ prefix: pattern A — compact symbol before the numeric value.
+      // Works in greyscale PDF exports and for screen readers via aria-label.
+      var compMark = cmp.ok === '' ? '' : (cmp.ok ? '✓ ' : '✗ ');
+      var ariaLabel = cmp.ok === '' ? '' :
+        (cmp.ok ? predFmt + ' dB—compliant' : predFmt + ' dB—non-compliant');
+      var ariaAttr = ariaLabel ? ' aria-label="' + ariaLabel + '"' : '';
       tr.innerHTML = recvCell +
-        '<td class="num ' + predClass + '">' + predFmt + '</td>' +
+        '<td class="num ' + predClass + '"' + ariaAttr + '>' + compMark + predFmt + '</td>' +
         td(fmt(criterion), 'num') +
         td(cmp.delta === '' ? '' : String(cmp.delta), 'num') +
         td(okText(cmp.ok), 'center ' + predClass);
@@ -19967,7 +20092,7 @@ function render() {
     // ISO breakdown click — show breakdown for first placed source
     function addClick(tr) {
       tr.style.cursor = 'pointer';
-      tr.title = 'Click for per-band ISO 9613-2 calculation breakdown';
+      tr.title = 'Click for per-band ISO 9613-2:1996 calculation breakdown';
       (function(recIdx) {
         tr.addEventListener('click', function() {
           var firstSrcIdx = 0;
@@ -20782,8 +20907,40 @@ function initPropagationMethod() {
       toggleSourceHeightColumns();
       render();
       if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      // R15: reflect method change in the map indicator
+      if (typeof _updatePropIndicator === 'function') _updatePropIndicator();
     });
   });
+
+  // R15: Propagation method indicator — shows active method; click to open panel
+  function _updatePropIndicator() {
+    var el = document.getElementById('prop-method-indicator');
+    if (!el) return;
+    var active = document.querySelector('#propMethodGroup [data-val].active');
+    var method = active ? active.dataset.val : 'simple';
+    var labels = { simple: 'Simple method', iso9613: 'ISO 9613-2:1996', concawe: 'CONCAWE' };
+    el.textContent = labels[method] || method;
+    el.classList.add('visible');
+  }
+  _updatePropIndicator(); // set initial label on page load
+  // Click to open the Propagation panel in the sidebar
+  (function() {
+    var ind = document.getElementById('prop-method-indicator');
+    if (!ind) return;
+    ind.addEventListener('click', function() {
+      if (typeof toggleMapPanel !== 'function') return;
+      var pp = document.getElementById('mp-propmethod');
+      // Ensure sidebar is not collapsed
+      var sp = document.getElementById('side-panel');
+      if (sp && sp.classList.contains('side-panel-collapsed')) {
+        var colBtn = sp.querySelector('.side-panel-collapse-btn, #side-panel-collapse-btn');
+        if (colBtn) colBtn.click();
+      }
+      // Open the propagation accordion if not already open
+      if (pp && !pp.classList.contains('mp-open')) toggleMapPanel('mp-propmethod');
+      else if (pp && pp.classList.contains('mp-open')) pp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  })();
 
   // ── CONCAWE meteorological panel wiring ──────────────────────────────────────
 
@@ -21483,7 +21640,7 @@ function initPropagationMethod() {
   toggleSourceHeightColumns();
 }
 
-/** Show/hide the source height column in Leq source tables when ISO 9613-2 is active */
+/** Show/hide the source height column in Leq source tables when ISO 9613-2:1996 is active */
 function toggleSourceHeightColumns() {
   document.querySelectorAll('.iso-ht-col').forEach(function(el) {
     el.style.display = (propagationMethod === 'iso9613' || propagationMethod === 'concawe') ? 'table-cell' : 'none';
@@ -22243,7 +22400,7 @@ function renderContributions() {
       var recvHdr = document.createElement('tr');
       recvHdr.className = 'contrib-recv-hdr';
       var _rcCoordStr = recLL ? recLL.lat.toFixed(5) + ', ' + recLL.lng.toFixed(5) : '';
-      recvHdr.innerHTML = '<td colspan="5" style="cursor:pointer;" title="Click for per-band ISO 9613-2 breakdown"><b>' + escapeHTML(recvLabel) + '</b>' +
+      recvHdr.innerHTML = '<td colspan="5" style="cursor:pointer;" title="Click for per-band ISO 9613-2:1996 breakdown"><b>' + escapeHTML(recvLabel) + '</b>' +
         (_rcCoordStr ? '<br><span style="font-size:10px;color:#9ca3af;font-weight:normal;">' + _rcCoordStr + '</span>' : '') +
         '<span style="font-weight:normal;color:#9ca3af;"> \u2014 click for ISO breakdown</span></td>';
       (function(recvIdx) {
@@ -23366,7 +23523,12 @@ setInitialCollapseState();
             types: [{description: 'JSON files', accept: {'application/json': ['.json']}}]
           }).then(function(handle) {
             return handle.createWritable().then(function(w) {
-              return w.write(json).then(function() { return w.close(); });
+              return w.write(json).then(function() {
+                return w.close().then(function() {
+                  // R3: file written successfully — mark as saved
+                  if (typeof window._clearUnsaved === 'function') window._clearUnsaved();
+                });
+              });
             });
           }).catch(function(err) {
             if (err.name !== 'AbortError') console.error('Save error:', err);
@@ -23381,6 +23543,8 @@ setInitialCollapseState();
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
+          // R3: file downloaded — mark as saved
+          if (typeof window._clearUnsaved === 'function') window._clearUnsaved();
         }
       } catch(e) {
         console.error('Export error:', e);
@@ -23544,7 +23708,7 @@ setInitialCollapseState();
             feature_type: 'contour',
             level_dba: level,
             period: period,
-            method: propagationMethod === 'iso9613' ? 'ISO 9613-2' : propagationMethod === 'concawe' ? 'CONCAWE' : 'simple'
+            method: propagationMethod === 'iso9613' ? 'ISO 9613-2:1996' : propagationMethod === 'concawe' ? 'CONCAWE' : 'simple'
           }
         });
       });
@@ -24886,6 +25050,8 @@ setInitialCollapseState();
         if (typeof window._undoPushState === 'function' && !window._undoRestoring) {
           window._undoPushState('Load assessment');
         }
+        // R3: loaded state is "saved" — clear unsaved flag (skip during undo/redo)
+        if (typeof window._clearUnsaved === 'function' && !window._undoRestoring) window._clearUnsaved();
       }, 800);
     }
 
@@ -26116,12 +26282,12 @@ setInitialCollapseState();
       propGroup.addEventListener('click', function(e) {
         var btn = e.target.closest ? e.target.closest('[data-val]') : null;
         if (btn && btn.dataset && btn.dataset.val && btn.dataset.val !== (typeof propagationMethod !== 'undefined' ? propagationMethod : '')) {
-          pushState('Change propagation to ' + (btn.dataset.val === 'iso9613' ? 'ISO 9613-2' : 'Simple'));
+          pushState('Change propagation to ' + (btn.dataset.val === 'iso9613' ? 'ISO 9613-2:1996' : 'Simple'));
         }
       }, true); // capture phase so we see it before propagationMethod changes
     }
 
-    // ISO 9613-2 parameter changes
+    // ISO 9613-2:1996 parameter changes
     ['isoRecvH','isoGround','isoTemp','isoHumid'].forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.addEventListener('change', function() { pushState('Change ISO parameter'); });
@@ -26160,11 +26326,100 @@ setInitialCollapseState();
   });
 
   // ── Expose ─────────────────────────────────────────────────────────────────
-  window._undoPushState  = pushState;
+  // R3: Wrap pushState so any state mutation marks the document as unsaved.
+  window._undoPushState  = function(label) {
+    pushState(label);
+    if (typeof window._setUnsaved === 'function') window._setUnsaved();
+  };
   window._undoManager    = { undo: undo, redo: redo, pushState: pushState };
   window._serialiseState = serialiseState; // used by share feature
 
 })();
+
+/* ── R3: Unsaved-changes indicator ──────────────────────────────────────────
+   _setUnsaved()   — marks document as having unsaved changes
+   _clearUnsaved() — clears the flag (call after successful save or load)
+   ─────────────────────────────────────────────────────────────────────────── */
+(function() {
+  var _unsaved = false;
+
+  window._setUnsaved = function() {
+    if (_unsaved) return;
+    _unsaved = true;
+    if (document.title.charAt(0) !== '*') document.title = '* ' + document.title;
+    var btn = document.getElementById('exportJsonBtn');
+    if (btn) btn.classList.add('unsaved');
+  };
+
+  window._clearUnsaved = function() {
+    if (!_unsaved) return;
+    _unsaved = false;
+    document.title = document.title.replace(/^\* /, '');
+    var btn = document.getElementById('exportJsonBtn');
+    if (btn) btn.classList.remove('unsaved');
+  };
+
+  // Warn on page close/refresh when there are unsaved changes
+  window.addEventListener('beforeunload', function(e) {
+    if (!_unsaved) return;
+    e.preventDefault();
+    e.returnValue = 'You have unsaved changes. Leave without saving?';
+    return e.returnValue;
+  });
+})();
+
+/* ── R10: Methodology button in top toolbar ─────────────────────────────────
+   Reuses showMethodologyModal() — the same function the sidebar footer calls.
+   ─────────────────────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+  var mBtn = document.getElementById('methodologyTopBtn');
+  if (mBtn) mBtn.addEventListener('click', function() {
+    if (typeof showMethodologyModal === 'function') showMethodologyModal();
+  });
+});
+
+/* ── R2 (draw tools): Watch Leaflet.Draw button active class for the mode banner ──
+   Draw buttons (barriers, buildings, sources, etc.) toggle their own .active class
+   rather than going through setMode(), so we use MutationObserver to keep the
+   banner in sync without modifying each draw handler individually.
+   ─────────────────────────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+  var _drawBtnLabels = {
+    drawBuildingBtn:       '✛ Drawing building — click vertices, double-click to finish',
+    drawBarrierBtn:        '✛ Drawing barrier — click vertices, double-click to finish',
+    drawGroundZoneBtn:     '✛ Drawing ground zone — click vertices, double-click to finish',
+    drawBuildingSourceBtn: '✛ Drawing building source — click vertices, double-click to finish',
+    drawAreaSourceBtn:     '✛ Drawing area source — click vertices, double-click to finish',
+    drawLineSourceBtn:     '✛ Drawing line source — click vertices, double-click to finish',
+    drawCortnRoadBtn:      '✛ Drawing road — click vertices, double-click to finish'
+  };
+  var _drawBtnIds = Object.keys(_drawBtnLabels);
+
+  function _syncDrawBanner() {
+    var bannerEl = document.getElementById('mode-banner');
+    if (!bannerEl) return;
+    // Placement-mode banner is managed by setMode() — don't override it
+    if (window._isPlacementActive && window._isPlacementActive()) return;
+    // Find the first active draw button
+    for (var i = 0; i < _drawBtnIds.length; i++) {
+      var btn = document.getElementById(_drawBtnIds[i]);
+      if (btn && btn.classList.contains('active')) {
+        bannerEl.textContent = _drawBtnLabels[_drawBtnIds[i]];
+        bannerEl.classList.add('visible');
+        return;
+      }
+    }
+    // No active draw button and no placement mode — hide
+    bannerEl.classList.remove('visible');
+    bannerEl.textContent = '';
+  }
+
+  _drawBtnIds.forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    new MutationObserver(_syncDrawBanner).observe(btn, { attributes: true, attributeFilter: ['class'] });
+  });
+});
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
@@ -29547,6 +29802,29 @@ if (window.pdfjsLib) {
       if (mode && typeof window._dismissOnboardingHint === 'function') {
         window._dismissOnboardingHint();
       }
+      /* R2: Update active drawing mode banner */
+      (function updateModeBanner(m) {
+        var bannerEl = document.getElementById('mode-banner');
+        if (!bannerEl) return;
+        if (!m) {
+          bannerEl.classList.remove('visible');
+          bannerEl.textContent = '';
+          return;
+        }
+        var label;
+        if (m === 'addSource') {
+          label = '＋ Click the map to add a new source';
+        } else if (isSourceMode(m)) {
+          var idx = sourceIdxFromMode(m);
+          label = '✛ Click the map to place Source S' + (idx + 1);
+        } else if (/^r\d+$/.test(m)) {
+          label = '✛ Click the map to place Receiver ' + m.toUpperCase();
+        } else {
+          label = '✛ Placement mode: ' + m;
+        }
+        bannerEl.textContent = label;
+        bannerEl.classList.add('visible');
+      })(mode);
     }
     window._isPlacementActive    = function() { return !!currentMode; };
     window._cancelPlacementMode  = function() { if (currentMode) setMode(null); };
@@ -29941,6 +30219,8 @@ if (window.pdfjsLib) {
     var clearBtn = document.getElementById('mapClearBtn');
     if (clearBtn) {
       clearBtn.addEventListener('click', function () {
+        /* R5: Confirmation guard — protect against accidental clear */
+        if (!confirm('Clear all sources, receivers, and results?\n\nThis action can be undone with the Undo button.')) return;
         /* remove all markers + lines */
         Object.keys(markers).forEach(function (k) {
           if (markers[k]) map.removeLayer(markers[k]);
@@ -33837,7 +34117,7 @@ if (window.pdfjsLib) {
       return Number.isFinite(lp) ? lp : null;
     }
 
-    /** ISO 9613-2 prediction at one receiver for one building source in one period.
+    /** ISO 9613-2:1996 prediction at one receiver for one building source in one period.
      *  Sub-sources on facade/roof; self-screening excluded.
      *  @returns {number} LAeq (dB) or NaN */
     function calcBuildingSourceAtReceiver(bs, period, ri) {
@@ -41385,7 +41665,7 @@ if (window.pdfjsLib) {
         <ul>
           <li><strong>Terrain &amp; contours</strong> &mdash; LiDAR DEM (5&thinsp;m primary, SRTM 30&thinsp;m fallback); contours visualise relief</li>
           <li><strong>Buildings (OSM)</strong> &mdash; OSM footprints; individual buildings can be excluded from screening</li>
-          <li><strong>Reflections</strong> &mdash; image-source method per ISO 9613-2 &sect;7.5</li>
+          <li><strong>Reflections</strong> &mdash; image-source method per ISO 9613-2:1996 &sect;7.5</li>
           <li><strong>Ruler</strong> &mdash; measure straight-line distance between two points</li>
           <li><strong>Zones</strong> &mdash; planning zones, MBS 010 overlay, VIC Major Urban Area <span class="help-tag">Mapping</span></li>
           <li><strong>Import GIS file</strong> &mdash; load GeoJSON, KML, or CSV objects onto the map</li>
@@ -41429,7 +41709,7 @@ if (window.pdfjsLib) {
       <summary><span class="help-arrow">&#9658;</span> Propagation</summary>
       <div class="help-body">
         <ul>
-          <li>Choose <strong>Simple</strong> (geometric spreading only), <strong>ISO 9613-2</strong> (full octave-band), or <strong>CONCAWE</strong> (octave-band with meteorological corrections) in the Propagation method panel</li>
+          <li>Choose <strong>Simple</strong> (geometric spreading only), <strong>ISO 9613-2:1996</strong> (full octave-band), or <strong>CONCAWE</strong> (octave-band with meteorological corrections) in the Propagation method panel</li>
           <li>Set atmospheric <strong>temperature</strong> and <strong>relative humidity</strong> for atmospheric absorption</li>
           <li>Set global <strong>ground factor G</strong> (0&nbsp;=&nbsp;hard, 0.5&nbsp;=&nbsp;mixed, 1&nbsp;=&nbsp;soft) &mdash; ground zones override locally</li>
           <li>Barrier and terrain screening are always applied (Maekawa diffraction, Deygout 3-edge for terrain)</li>
@@ -41483,6 +41763,14 @@ if (window.pdfjsLib) {
     </details>
 
     <details>
+      <summary><span class="help-arrow">&#9658;</span> Floating panels</summary>
+      <div class="help-body">
+        <p style="margin:0 0 6px;">The <strong>Quick Reference</strong>, <strong>Suggested sources</strong>, and <strong>Objects</strong> panels can be repositioned by dragging their title bar. Look for the <strong>⠿</strong> grip icon on the left of the header.</p>
+        <p style="margin:0;">Source and site-element editing panels (barrier, line source, area source, building source) are also draggable by their header.</p>
+      </div>
+    </details>
+
+    <details>
       <summary><span class="help-arrow">&#9658;</span> Keyboard shortcuts</summary>
       <div class="help-body">
         <div class="help-sub">Sources</div>
@@ -41499,6 +41787,7 @@ if (window.pdfjsLib) {
           <li><kbd>B</kbd> &nbsp;Barrier</li>
           <li><kbd>N</kbd> &nbsp;New building</li>
           <li><kbd>G</kbd> &nbsp;Ground absorption zone</li>
+          <li><kbd>Delete</kbd> &nbsp;Delete selected barrier</li>
         </ul>
         <div class="help-sub">Layers</div>
         <ul>
@@ -41507,6 +41796,10 @@ if (window.pdfjsLib) {
           <li><kbd>O</kbd> &nbsp;Buildings (OSM)</li>
           <li><kbd>F</kbd> &nbsp;Reflections</li>
           <li><kbd>Z</kbd> &nbsp;Zones</li>
+          <li><kbd>X</kbd> &nbsp;MBS 010 screening</li>
+          <li><kbd>U</kbd> &nbsp;Urban area boundaries (VIC)</li>
+          <li><kbd>D</kbd> &nbsp;Cadastral boundaries</li>
+          <li><kbd>I</kbd> &nbsp;Aerial imagery</li>
         </ul>
         <div class="help-sub">Tools</div>
         <ul>
@@ -43550,6 +43843,26 @@ if (window.pdfjsLib) {
       case 'z': case 'Z':
         _btn('zoneToggleBtn');
         _kbToast('Zones ' + (_isActive('zoneToggleBtn') ? 'ON' : 'OFF') + ' (Z)');
+        e.preventDefault(); break;
+
+      case 'x': case 'X':
+        _btn('mbs010ToggleBtn');
+        _kbToast('MBS 010 ' + (_isActive('mbs010ToggleBtn') ? 'ON' : 'OFF') + ' (X)');
+        e.preventDefault(); break;
+
+      case 'u': case 'U':
+        _btn('urbanBoundaryToggleBtn');
+        _kbToast('Urban area ' + (_isActive('urbanBoundaryToggleBtn') ? 'ON' : 'OFF') + ' (U)');
+        e.preventDefault(); break;
+
+      case 'd': case 'D':
+        _btn('cadastreToggleBtn');
+        _kbToast('Cadastral ' + (_isActive('cadastreToggleBtn') ? 'ON' : 'OFF') + ' (D)');
+        e.preventDefault(); break;
+
+      case 'i': case 'I':
+        _btn('aerialToggleBtn');
+        _kbToast('Aerial ' + (_isActive('aerialToggleBtn') ? 'ON' : 'OFF') + ' (I)');
         e.preventDefault(); break;
 
       /* ── Navigation ──────────────────────────────────────────── */
