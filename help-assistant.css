@@ -1,0 +1,354 @@
+/* ══════════════════════════════════════════════════════════════════════
+   Help Assistant — styles
+   Matches existing tool panel aesthetic (neutral bg, rounded corners,
+   system font stack). z-index 9999 = same tier as #helpFloatPanel.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Launcher button ──────────────────────────────────────────────────── */
+#ha-launcher {
+  position: fixed;
+  bottom: 64px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgb(242,203,0);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  z-index: 9999;
+  transition: background 0.15s, transform 0.15s;
+  pointer-events: all;
+}
+#ha-launcher:hover {
+  background: rgb(218,182,0);
+  transform: scale(1.07);
+}
+#ha-launcher svg {
+  flex-shrink: 0;
+}
+#ha-launcher .ha-launcher-tip {
+  position: absolute;
+  right: 48px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(26,32,44,.92);
+  color: #f3f4f6;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 5px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+#ha-launcher:hover .ha-launcher-tip {
+  opacity: 1;
+}
+
+/* ── Panel ────────────────────────────────────────────────────────────── */
+#ha-panel {
+  position: fixed;
+  bottom: 112px;
+  right: 16px;
+  width: 360px;
+  height: 520px;
+  z-index: 9999;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  display: none;           /* shown as flex by JS */
+  flex-direction: column;
+  overflow: hidden;
+  font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  pointer-events: all;
+}
+#ha-panel.ha-open {
+  display: flex;
+}
+@media (max-width: 500px) {
+  #ha-panel {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    bottom: 112px;
+  }
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+#ha-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(26,32,44,.92);
+  color: #f3f4f6;
+  border-radius: 10px 10px 0 0;
+  flex-shrink: 0;
+}
+#ha-header-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+#ha-close {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 2px;
+  line-height: 1;
+}
+#ha-close:hover { color: #fff; }
+
+/* ── Messages area ────────────────────────────────────────────────────── */
+#ha-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-behavior: smooth;
+}
+
+/* ── Suggestion chips (empty state) ──────────────────────────────────── */
+#ha-suggestions {
+  padding: 6px 12px 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex-shrink: 0;
+  border-top: 1px solid #f3f4f6;
+}
+#ha-suggestions-label {
+  width: 100%;
+  font-size: 10px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 2px;
+}
+.ha-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.ha-chip:hover {
+  background: #fffaeb;
+  border-color: rgba(242,203,0,.7);
+}
+
+/* ── Message bubbles ──────────────────────────────────────────────────── */
+.ha-msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 90%;
+}
+.ha-msg-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.ha-msg-assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+.ha-bubble {
+  padding: 8px 11px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.ha-msg-user .ha-bubble {
+  background: rgba(242,203,0,.15);
+  border: 1px solid rgba(242,203,0,.55);
+  color: #1f2937;
+}
+.ha-msg-assistant .ha-bubble {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  color: #1f2937;
+}
+
+/* ── Show me / related chips ─────────────────────────────────────────── */
+.ha-show-me-btn {
+  margin-top: 6px;
+  padding: 5px 12px;
+  background: rgb(242,203,0);
+  color: #1a2028;
+  border: none;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s;
+  align-self: flex-start;
+}
+.ha-show-me-btn:hover { background: rgb(218,182,0); }
+
+.ha-related-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+.ha-related-chip {
+  padding: 3px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  font-size: 10px;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+.ha-related-chip:hover { background: #f0f5fa; color: #374151; }
+
+/* ── Input row ────────────────────────────────────────────────────────── */
+#ha-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
+  background: #fafafa;
+  border-radius: 0 0 10px 10px;
+}
+#ha-input {
+  flex: 1;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+#ha-input:focus { border-color: rgb(242,203,0); }
+#ha-send {
+  padding: 6px 12px;
+  background: rgb(242,203,0);
+  color: #1a2028;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+#ha-send:hover { background: rgb(218,182,0); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Highlight system
+   ══════════════════════════════════════════════════════════════════════ */
+@keyframes ha-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(255,165,0,0.7); }
+  70%  { box-shadow: 0 0 0 12px rgba(255,165,0,0); }
+  100% { box-shadow: 0 0 0 0   rgba(255,165,0,0); }
+}
+.help-assistant-highlight {
+  position: relative;
+  animation: ha-pulse 1.6s ease-out 2;
+  outline: 2px solid #ffa500 !important;
+  outline-offset: 2px;
+  border-radius: 4px;
+  z-index: 10000;
+}
+
+/* ── Floating step tooltip ────────────────────────────────────────────── */
+.ha-step-tooltip {
+  position: fixed;
+  z-index: 10001;
+  background: rgba(26,32,44,.95);
+  color: #f3f4f6;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 300px;
+  line-height: 1.4;
+  pointer-events: all;
+  font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+}
+.ha-step-tooltip::before {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+}
+.ha-step-tooltip.ha-caret-above::before {
+  top: -12px;
+  left: 18px;
+  border-bottom-color: rgba(26,32,44,.95);
+}
+.ha-step-tooltip.ha-caret-below::before {
+  bottom: -12px;
+  left: 18px;
+  border-top-color: rgba(26,32,44,.95);
+}
+.ha-step-label {
+  flex: 1;
+}
+.ha-step-btn {
+  background: rgb(242,203,0);
+  color: #1a2028;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.ha-step-btn:hover { background: rgb(218,182,0); }
+
+/* ── Toast tip (text-only step, no highlight element) ────────────────── */
+.ha-toast-tip {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  background: rgba(26,32,44,.95);
+  color: #f3f4f6;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 400px;
+  line-height: 1.4;
+  font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  pointer-events: all;
+}

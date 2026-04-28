@@ -1,5 +1,85 @@
 # Architecture
 
+## Documentation surfaces
+
+The tool has three help-adjacent surfaces. Every meaningful feature must appear in all three, with audience-appropriate framing. UI chrome (buttons, keyboard shortcuts) is N/A in Methodology.
+
+| Surface | Audience | Content focus | File |
+|---|---|---|---|
+| **Methodology** | Regulator / report reader | WHAT is calculated and HOW — formulas, standards, assumptions, limitations | `index.html` `#methodologyCard` |
+| **Quick Reference** | Tool user inside the app | WHERE features live, keyboard shortcuts, capability summary | `index.html` `#helpFloatPanel` |
+| **Help Assistant** | New user who is lost | HOW to do specific tasks, step-by-step with UI highlighting | `help-assistant-kb.js` |
+
+### Canonical panel names
+
+| Label | DOM element | Notes |
+|---|---|---|
+| Planning & modelling | `spNametag` (JS-injected) | LHS sidebar label |
+| Criteria & compliance | `#drawer-panel-label` (JS-injected) | RHS sidebar label |
+| Tools menu | `#mp-tools .mp-hdr` | Dropdown, click to open |
+| Mapping menu | `#mp-mapping .mp-hdr` | Dropdown, click to open |
+| Modelling menu | `#mp-modelling .mp-hdr` | Dropdown, click to open |
+| Propagation panel | `#mp-propmethod .mp-hdr` | Dropdown, click to open |
+| Receivers & criteria | `[data-help="receivers-criteria-card"]` | RHS card |
+| VIC assessment parameters | `[data-help="vic-assessment-card"]` | RHS card, VIC only |
+| NSW assessment parameters | `[data-help="nsw-assessment-card"]` | RHS card, NSW only |
+| Noise sources | `#sourcePanel` | RHS card |
+| Predicted noise levels | `#predNoiseSection` | RHS card |
+| Characteristic penalties (SA) / Characteristic adjustments (VIC) / Modifying factor corrections (NSW) | `#charPenaltySection` | RHS card, dynamic heading |
+| Objects | `#objectsFloatPanel` | LHS floating panel |
+| Quick Reference | `#helpFloatPanel` | LHS floating panel |
+
+### Canonical standard references
+
+Use these forms consistently across all three surfaces:
+
+| Abbreviated (QR / HA) | Full (Methodology first mention) |
+|---|---|
+| ISO 9613-2 | ISO 9613-2:1996 |
+| ISO 9613-2 §7.5 | ISO 9613-2:1996 §7.5 |
+| ISO 9613-1 | ISO 9613-1 |
+| ISO/TR 17534-3 | ISO/TR 17534-3:2015 |
+| EPA Publication 1826.5 | EPA Publication 1826.5 (VIC) |
+| NSW NPI | Noise Policy for Industry (NSW EPA, 2017) |
+| SA Noise Policy | Environment Protection (Commercial and Industrial Noise) Policy 2023 |
+| CoRTN | UK Calculation of Road Traffic Noise, with Australian +2.5 dB adjustment |
+
+---
+
+## Help Assistant
+
+A rule-based, session-only guided chat panel. No LLM, no API calls.
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `help-assistant-kb.js` | Knowledge base. Exposes `window.HELP_ASSISTANT_KB` — 6 suggestion chips and 42 curated topics, each with intent patterns, answer text, action sequences, and related topic IDs. Includes a `/* CANONICAL TERMS */` block at the top documenting panel names and standard reference formats. |
+| `help-assistant.js` | Intent matcher + UI highlight engine. IIFE on DOMContentLoaded. Injects `#ha-launcher` (fixed button, bottom-right) and `#ha-panel` (chat panel) into `document.body`. Session-only state — not written to saved JSON. |
+| `help-assistant.css` | Styles for launcher, panel, message bubbles, and highlighting system. |
+
+### Selector convention
+
+Elements lacking stable IDs use `data-help="<id>"` attributes added to `index.html`:
+
+| Attribute | Element |
+|---|---|
+| `data-help="receivers-criteria-card"` | Receivers & criteria card (`.card.span2[data-section="criteria"]`) |
+| `data-help="vic-assessment-card"` | VIC assessment parameters card |
+| `data-help="nsw-assessment-card"` | NSW assessment parameters card |
+
+### Key functions (help-assistant.js)
+
+| Function | Purpose |
+|---|---|
+| `matchIntent(query, kb)` | Scores topics by pattern substring match (+3), token match (+1), title match (+0.5). Min threshold 2. Tokens < 3 chars excluded from per-token scoring. |
+| `runActionSequence(actions, btn)` | Runs highlight / open-panel / tip steps in sequence. Returns cancel function. Cancelled by Escape, outside-click, or panel close. |
+| `sendQuery(text)` | Resolves intent, renders message, hides suggestion chips. |
+
+### Save/load isolation
+
+The Help Assistant DOM is injected into `document.body` outside any project state container. It holds no project data and writes nothing to the assessment JSON.
+
 ## Custom Source Entry Wizard
 
 Custom sources are entered via a metric-selector wizard launched from the "Custom sources" floating panel. The wizard determines which data structure the source becomes:

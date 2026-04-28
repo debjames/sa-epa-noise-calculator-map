@@ -1849,3 +1849,113 @@ localStorage key: `sa-epa-recent-v1`. Up to 5 entries, each `{name, timestamp, c
 ### Save format
 
 - [ ] **Save format unchanged** — Save an assessment via the Save button. Load the saved `.json` file via the Open file-dialog (not via the recent list). The file loads correctly with all state intact. The JSON content is identical to what it was before this feature was added (no new fields added to the save format).
+
+## Help Assistant
+
+### Launcher + panel
+
+- [ ] **1. Launcher visible** — Page loads with a circular chat-bubble launcher at bottom-right, ~48px above the existing ? button. No overlap between the two.
+- [ ] **2. Hover tooltip** — Hovering the launcher shows the tooltip text "Help Assistant".
+- [ ] **3. Open / close toggle** — Clicking the launcher opens the panel. Clicking again closes it. Clicking × closes it.
+- [ ] **4. Suggestion chips** — On first open, 6 suggestion chips render and are clickable. Clicking a chip submits that question as a query.
+- [ ] **5. Chips hide after first send** — After the first user message is sent, the suggestion chip row at the top hides. It does not reappear unless the fallback message is triggered.
+- [ ] **6. Responsive narrow viewport** — Resize viewport to <500px wide. Panel becomes full-width with 8px side margins. Launcher remains tappable.
+
+### Intent matching
+
+- [ ] **7. Positive match** — Type "how do I add a noise source" and press Send. The `add-point-source` topic answer appears with a "Show me" button.
+- [ ] **8. Image-save disambiguation** — Type "save sources as image" and press Send. Routes to `export-jpg`, NOT `save-assessment`.
+- [ ] **9. Load-source disambiguation** — Type "load my source data" and press Send. Routes to `enter-source-levels`, NOT `load-assessment`.
+- [ ] **10. Bare "report"** — Type "report" alone and press Send. Returns the fallback message (no topic match).
+- [ ] **11. Nonsense query** — Type "xyzpdq" and press Send. Returns the fallback message with suggestion chips re-rendered inline.
+
+### Action sequences
+
+- [ ] **12. Show me — open-panel then highlight** — Click "Show me" on `add-point-source`. Tools panel opens, Point source button gets pulsing orange outline + tooltip "1. Click 'Point source' to activate placement mode".
+- [ ] **13. Next step** — Click Next in the tooltip. Highlight is removed, a toast tip appears with step 2 text and a "Done" button.
+- [ ] **14. Done re-enables button** — Click Done. All highlights and tooltips are removed. "Show me" button is re-enabled.
+- [ ] **15. Escape cancels sequence** — Trigger a sequence, press Escape. All `.help-assistant-highlight` elements are gone (verify in DevTools — no elements with that class remain).
+- [ ] **16. Outside-click cancels** — Trigger a sequence, click outside the tooltip and outside the highlighted element. Sequence cancels, highlights/tooltips removed.
+- [ ] **17. Resize repositions tooltip** — Trigger a highlight step, then resize the browser window. The step tooltip repositions relative to its anchor element.
+
+### Related topics + suggestion wiring
+
+- [ ] **18. Related chip navigation** — After getting `add-point-source`, click the related chip "Add a line source (road / rail)". An assistant message for `add-line-source` appears without clearing the chat history.
+
+### Selector resolution sweep
+
+- [ ] **19. Zero missing selectors** — In DevTools console run:
+  ```js
+  window.HELP_ASSISTANT_KB.topics.forEach(t => {
+    t.actions.forEach(a => {
+      if (a.selector) {
+        const el = document.querySelector(a.selector);
+        if (!el) console.warn('MISSING:', t.id, a.selector);
+      }
+    });
+  });
+  ```
+  Expected: zero `MISSING` warnings.
+
+### Save/load isolation
+
+- [ ] **20. Save JSON clean** — Save an assessment. Open the JSON in a text editor. Confirm no `helpAssistant`, `ha-`, or chat-related fields are present.
+- [ ] **21. Load assessment clean** — Load a previously saved assessment. No errors. Help assistant still functions normally after load.
+
+### Maximised map compatibility
+
+- [ ] **22. Launcher above map** — With the drawer closed (map taking full width), the launcher remains visible above the map layer. Open the assistant and run a "Show me" sequence on a toolbar button — highlight and tooltip render correctly over the map.
+
+### No console errors
+
+- [ ] **23. No console errors** — Perform all of the above steps without any JS console errors or warnings (other than expected network/CORS warnings from map tile providers).
+
+---
+
+## Documentation consistency
+
+Tests confirming the three help surfaces (Methodology / Quick Reference / Help Assistant) remain consistent.
+
+### Terminology checks
+
+- [ ] **DC-1. Panel names — Help Assistant KB** — Open DevTools. Run:
+  ```js
+  window.HELP_ASSISTANT_KB.topics.forEach(t => console.log(t.id, '|', t.answer));
+  ```
+  Confirm: no answer text references "Planning & modelling sidebar", "Objects panel" (should be "Objects"), or "Criteria & compliance panel" where "Criteria & compliance" alone is sufficient.
+
+- [ ] **DC-2. Panel names — Quick Reference** — Open the Quick Reference (?) panel. Confirm the Getting started section references "Criteria & compliance panel" and does not say "side panel". Confirm the Save/export section uses "Save" and "Open" (not "Save Assessment" / "Load Assessment").
+
+- [ ] **DC-3. Standard reference format** — In QR, confirm "ISO 9613-2 §7.5" uses § (not "section"). In HA topic `enable-reflections` answer, confirm same format.
+
+### Coverage checks
+
+- [ ] **DC-4. QR covers Move tool** — Open Quick Reference → Map tools section. Confirm "Move" is listed under New/proposed subsection.
+
+- [ ] **DC-5. QR covers Show/hide and Clear All** — Open Quick Reference → Map tools section. Confirm "Show / hide objects (H)" and "Clear All" are listed under Visibility subsection.
+
+- [ ] **DC-6. QR covers Save PDF and Upload proposal** — Open Quick Reference → Save, export & report section. Confirm "Save PDF" and "Upload proposal" are listed.
+
+- [ ] **DC-7. HA covers new topics** — Run intent tests in DevTools (inline matcher as used in STEP 5 of the three-surface consistency prompt):
+  - "run validation" → `run-validation`
+  - "move barrier" → `move-geometry`
+  - "import geojson" → `import-gis`
+  - "save pdf" → `save-pdf`
+  - "suggested sources" → `suggested-sources`
+
+### Intent regression
+
+- [ ] **DC-8. Core intent regression** — Run the five standard regression queries:
+  - "how do I add a noise source" → `add-point-source`
+  - "save sources as image" → `export-jpg`
+  - "load my source data" → `enter-source-levels`
+  - "generate report" → `generate-report` *(note: bare "report" intentionally returns fallback)*
+  - "xyzpdq" → fallback message
+
+### Cross-surface feature spot-check
+
+- [ ] **DC-9. Ground absorption** — Confirm terminology is "Ground absorption" (button label) in HA; "Ground absorption zones" in QR; "Ground absorption zones" in Methodology.
+
+- [ ] **DC-10. Character penalties** — HA topic `character-penalties` answer acknowledges three state-specific names (Characteristic penalties / Characteristic adjustments / Modifying factor corrections). QR uses "penalties" without a specific card name. Methodology uses "Character penalties and modifying factors".
+
+- [ ] **DC-11. ISO/TR 17534-3 in all three surfaces** — Confirm: Methodology `#methodologyCard` has an ISO/TR 17534-3 section; QR Propagation entry mentions "Run validation" and ISO/TR 17534-3 tests T01–T03; HA topic `run-validation` exists with `#isoValidateBtn` selector.

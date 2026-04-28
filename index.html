@@ -2226,6 +2226,7 @@ body.disclaimer-visible .container {
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" integrity="sha384-NZLkVuBRMEeB4VeZz27WwTRvlhec30biQ8Xx7zG7JJnkvEKRg5qi6BNbEXo9ydwv" crossorigin="anonymous"/>
+<link rel="stylesheet" href="help-assistant.css">
 <!-- ─── SUPABASE (disabled 2026-04-22) ────────────────────────────────────────
 <script src="supabase-config.js?v=1" onerror="console.info('[ResonateLib] supabase-config.js not present — offline snapshot only.')"></script>
 <script src="library-loader.js?v=1"></script>
@@ -3079,7 +3080,7 @@ body.disclaimer-visible .container {
 
     <div class="grid2" style="padding-top:0;" data-section="criteria results">
       <!-- ===== SELECTIONS CARD ===== -->
-      <div class="card span2" data-section="criteria">
+      <div class="card span2" data-section="criteria" data-help="receivers-criteria-card">
         <div class="card-header" style="margin-bottom:4px;" onclick="toggleCardSection('critBody','critToggleBtn')">
           <h2 style="margin:0;">Receivers &amp; criteria</h2>
           <div style="display:flex;gap:5px;align-items:center;">
@@ -3286,7 +3287,7 @@ body.disclaimer-visible .container {
 
     <!-- VIC-only: Area type, Background classification, Distance to zone boundary -->
     <div class="grid2 vic-only vic-settings-only" style="padding-top:0;" data-section="criteria">
-      <div class="card span2">
+      <div class="card span2" data-help="vic-assessment-card">
         <h2>VIC assessment parameters</h2>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
           <div>
@@ -3330,7 +3331,7 @@ body.disclaimer-visible .container {
 
     <!-- NSW NPI 2017: Assessment parameters -->
     <div class="grid2 nsw-only" style="padding-top:0;" data-section="criteria">
-      <div class="card span2">
+      <div class="card span2" data-help="nsw-assessment-card">
         <h2>NSW assessment parameters</h2>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
           <div>
@@ -41315,11 +41316,13 @@ if (window.pdfjsLib) {
       <summary><span class="help-arrow">&#9658;</span> Getting started</summary>
       <div class="help-body">
         <ul>
+          <li>Enter project number and name in the fields at the top of the page</li>
+          <li>Optionally click <strong>Upload proposal</strong> to auto-fill project details from a Resonate proposal PDF</li>
           <li>Search for an address or click the map to centre on the site <span class="help-tag">Search</span></li>
-          <li>Select state (SA / VIC / NSW) from the header badge &mdash; drives the criteria framework used</li>
+          <li>Select state (SA / VIC / NSW) from the header badge &mdash; auto-detected once a receiver is placed; can be overridden manually</li>
           <li>Place a source from the library or as a custom source <span class="help-tag">Tools</span></li>
           <li>Place up to 4 receivers (drag to reposition) <span class="help-tag">Tools</span></li>
-          <li>Criteria are auto-derived from the receiver location and shown in the side panel</li>
+          <li>Criteria are auto-derived from the receiver location and shown in the Criteria &amp; compliance panel</li>
           <li>See <em>Methodology</em> for full details on calculations and policy logic</li>
         </ul>
       </div>
@@ -41336,6 +41339,12 @@ if (window.pdfjsLib) {
           <li><strong>Road sources (CoRTN)</strong> &mdash; draw a road polyline; enter flow, speed, %HV, gradient, surface; SA DIT speeds auto-fetched where available</li>
           <li>Set operating <strong>percentage of period</strong>, active periods (day / evening / night), units</li>
           <li>Source library is searchable; saved custom sources are stored in the assessment</li>
+        </ul>
+        <div class="help-sub">Custom source library</div>
+        <ul>
+          <li>Define reusable library entries with name, <em>L<sub>w</sub></em>, and octave-band spectrum (dB(Z)) &mdash; appear in all source dropdowns</li>
+          <li>Open <strong>Custom sources</strong> in the Planning &amp; modelling panel &mdash; <strong>Add</strong>, rename, or delete entries; export / import as JSON or CSV</li>
+          <li>Choose the metric type: <em>L<sub>w</sub></em> (point), <em>L<sub>w</sub></em>/m (line), or <em>L<sub>p</sub></em> interior (building source)</li>
         </ul>
       </div>
     </details>
@@ -41378,7 +41387,8 @@ if (window.pdfjsLib) {
           <li><strong>Buildings (OSM)</strong> &mdash; OSM footprints; individual buildings can be excluded from screening</li>
           <li><strong>Reflections</strong> &mdash; image-source method per ISO 9613-2 &sect;7.5</li>
           <li><strong>Ruler</strong> &mdash; measure straight-line distance between two points</li>
-          <li><strong>Zones</strong> &mdash; planning zones, MBS 010 overlay, VIC Major Urban Area</li>
+          <li><strong>Zones</strong> &mdash; planning zones, MBS 010 overlay, VIC Major Urban Area <span class="help-tag">Mapping</span></li>
+          <li><strong>Import GIS file</strong> &mdash; load GeoJSON, KML, or CSV objects onto the map</li>
         </ul>
         <div class="help-sub">New / proposed</div>
         <ul>
@@ -41386,6 +41396,12 @@ if (window.pdfjsLib) {
           <li><strong>Barriers</strong> &mdash; draw, set height + base elevation; can be suppressed without deleting</li>
           <li><strong>Ground absorption zones</strong> &mdash; per-zone <em>G</em> factor (0&nbsp;=&nbsp;hard, 1&nbsp;=&nbsp;soft); overrides global <em>G</em> in those areas</li>
           <li><strong>Site plan overlay</strong> &mdash; import PDF / PNG / JPEG; opacity, scale, rotation; PDFs auto-scan for project name and suggested sources</li>
+          <li><strong>Move</strong> &mdash; activate move mode to drag any barrier, building, or source to a new position</li>
+        </ul>
+        <div class="help-sub">Visibility</div>
+        <ul>
+          <li><strong>Show / hide objects</strong> <span class="help-tag">H</span> &mdash; toggle visibility of all sources, receivers, barriers, buildings, and ground zones</li>
+          <li><strong>Clear All</strong> &mdash; remove all modelling objects from the map; irreversible &mdash; save your assessment first</li>
         </ul>
       </div>
     </details>
@@ -41441,11 +41457,27 @@ if (window.pdfjsLib) {
       <summary><span class="help-arrow">&#9658;</span> Save, export &amp; report</summary>
       <div class="help-body">
         <ul>
-          <li><strong>Save Assessment</strong> &mdash; downloads a <code>.json</code> file with the full assessment state (all sources, receivers, barriers, ground zones, settings, cases)</li>
-          <li><strong>Load Assessment</strong> &mdash; restore a previously saved <code>.json</code></li>
-          <li><strong>Save JPG</strong> &mdash; map screenshot; toggle layers / objects on or off first to clean the view</li>
+          <li><strong>Upload proposal</strong> &mdash; auto-fills project number and name from a Resonate proposal PDF</li>
+          <li><strong>Save</strong> &mdash; downloads a <code>.json</code> file with the full assessment state (all sources, receivers, barriers, ground zones, settings, cases)</li>
+          <li><strong>Open</strong> &mdash; restore a previously saved <code>.json</code>; click the <strong>&#9660;</strong> arrow to pick from recent assessments</li>
+          <li><strong>Save JPG</strong> &mdash; map screenshot at 3&times; resolution; toggle layers / objects on or off first to clean the view</li>
+          <li><strong>Save PDF</strong> &mdash; A4 criteria appendix PDF showing criteria derivation and compliance results</li>
           <li><strong>GIS Export</strong> &mdash; GeoJSON, KML, or CSV of objects + predictions</li>
           <li><strong>Generate Report</strong> &mdash; populates a Word (<code>.docx</code>) report from the current assessment</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> Scenarios</summary>
+      <div class="help-body">
+        <ul>
+          <li>Click the <strong>Scenarios</strong> button (top toolbar, next to Open) to open the scenarios panel</li>
+          <li><strong>Save current state as scenario&hellip;</strong> &mdash; creates a named snapshot of sources, receivers, barriers, settings, and predicted levels</li>
+          <li>Saved scenarios have <strong>Restore</strong>, <strong>Update</strong>, <strong>Rename</strong>, and <strong>Delete</strong> actions</li>
+          <li><strong>Restore</strong> reloads that snapshot as the current assessment &mdash; the previous state is pushed to undo (<kbd>Ctrl</kbd>+<kbd>Z</kbd>)</li>
+          <li>When 2 or more scenarios exist, a <strong>comparison table</strong> shows predicted L<sub>p</sub> by receiver and period &mdash; select a baseline to see differences</li>
+          <li>Scenarios are saved inside the assessment JSON &mdash; save the file to preserve them</li>
         </ul>
       </div>
     </details>
@@ -45232,5 +45264,7 @@ window._showPdfFramingPanel = function() {
 })();
 </script>
 
+<script src="help-assistant-kb.js"></script>
+<script src="help-assistant.js"></script>
 </body>
 </html>
