@@ -2,6 +2,20 @@
 
 ## April 2026
 
+- **Noise map palette — replaced Grayscale with Plasma and Inferno.** Four palettes now available: Default (red-green), Viridis, Plasma (dark purple → magenta → yellow), Inferno (near-black → deep purple → red → pale yellow). Both are perceptually uniform and colour-blind safe. Any saved assessments with `palette: 'grayscale'` fall back to Default on load.
+
+- **Noise map legend — whole legend clickable for appearance controls.** The small gear (⚙) button was removed; clicking anywhere on the legend now opens the appearance popover. Added `cursor: pointer` and hover shadow to `.noise-legend`. Export/print modes set `cursor: default` and hide the popover. Help panel updated with a bullet describing the click-to-configure interaction.
+
+- **Noise map legend — interactive opacity and palette controls.** Changes to `index.html` only:
+  - Legend is now interactive: clicking the legend opens an appearance popover anchored above it (previously a small gear button in the top-right corner).
+  - **Opacity slider** (0–100%, step 5): adjusts the Leaflet imageOverlay opacity live without recomputing the noise map. Default 80% (unchanged from prior hardcoded value).
+  - **Palette selector**: three palettes — *Default* (existing red-green ramp), *Viridis* (perceptually uniform, colour-blind safe, ISO-defensible), *Grayscale* (for B&W report exports). Palette change rebuilds `NOISE_COLOURS` and re-renders the heatmap from cached worker data; legend swatches update in place.
+  - Settings **persist per-project** in the save JSON (`noiseMapAppearance: { opacity, palette }`) and as **user defaults** in `localStorage` key `sa-epa-noise-appearance-v1` (applied to new assessments).
+  - **Save format bumped to v4** (additive only — v3 files load cleanly with user/hardcoded defaults; no migration function needed).
+  - Gear button and popover are hidden in `body.legend-export` and `@media print` modes so they never appear in exported legends.
+  - Esc key and click-outside close the popover. Each appearance change marks the assessment as unsaved.
+  - **Not touched:** propagation engine, ISO 9613-2 calculations, criteria logic, legend min/max/interval controls, CoRTN map, compliance heatmap.
+
 - **Cleanup pass — cache-bust, loading indicator, error toasts, ARIA dialogs (A1, R8, R9, R13).** Changes to `index.html` only:
   1. **Cache-bust parameters (A1):** `help-assistant-kb.js`, `help-assistant.js`, and `help-assistant.css` now load with `?v=1` suffix, matching the convention used by all other local scripts. Closes the cache-bust convention test (was the only failing case; 303/303 now pass).
   2. **Background fetch loading indicator (R8):** `<div id="bgFetchIndicator">` added to `<body>` — fixed position (`top: 90px; right: 8px`), below the propagation method indicator, hidden when idle. Reference-counted via `startBgFetch(label)` / `endBgFetch(label)` / `_updateBgFetchIndicator()` (defined near `showToast`). Concurrent fetches of the same type deduplicate by label. Hooked into: GA WCS LiDAR fetch (`fetchWCSTile`), Open-Elevation sequential grid (`fetchOETile`), Open-Elevation parallel point lookups (`fetchFromOE`), OSM buildings (`fetchWithBackoff`), SAPPA zone queries (`fetchWithRetry` — `_outer` flag prevents double-counting on retry recursion), VicPlan zone query (`queryVicZoningAtPoint`), NSW zone query (`queryNSWZoningAtPoint`). Labels: `'terrain'`, `'buildings'`, `'zones'`.

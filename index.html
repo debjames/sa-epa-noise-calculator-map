@@ -542,7 +542,8 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 }
 
 /* Noise / CoRTN dB scale legend */
-.noise-legend { padding: 8px 12px; border-radius: 6px; font-size: 11px; line-height: 1.6; }
+.noise-legend { padding: 8px 12px; border-radius: 6px; font-size: 11px; line-height: 1.6; position: relative; cursor: pointer; }
+.noise-legend:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important; }
 .noise-legend-sub { font-size: 10px; }
 .noise-legend-swatch {
   display: inline-block;
@@ -552,6 +553,25 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   vertical-align: middle;
   border-radius: 2px;
 }
+.legend-popover {
+  position: absolute;
+  bottom: calc(100% + 8px); right: 0;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 12px 16px;
+  min-width: 220px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  z-index: 1500;
+  font-size: 12px;
+}
+.legend-popover[hidden] { display: none; }
+.legend-popover h3 { margin: 0 0 10px; font-size: 12px; font-weight: 700; color: #111; }
+.legend-control { margin: 6px 0; }
+.legend-control label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; margin-bottom: 3px; color: #374151; }
+.legend-control input[type="range"], .legend-control select { width: 100%; margin: 0; }
+.legend-popover-close { margin-top: 10px; width: 100%; padding: 4px 0; font-size: 11px; cursor: pointer; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; }
+.legend-popover-close:hover { background: #e5e7eb; }
 
 /* MBS 010 legend internals */
 .mbs-legend-title { font-weight: 700; margin-bottom: 4px; }
@@ -591,6 +611,8 @@ body.legend-export .zone-legend-name { font-size: 22px; }
 body.legend-export .noise-legend { font-size: 22px; padding: 16px 24px; border-radius: 12px; }
 body.legend-export .noise-legend-sub { font-size: 20px; }
 body.legend-export .noise-legend-swatch { width: 28px; height: 20px; margin-right: 8px; border-radius: 4px; }
+body.legend-export .legend-popover { display: none !important; }
+body.legend-export .noise-legend { cursor: default !important; }
 body.legend-export .mbs-legend-title { margin-bottom: 8px; }
 body.legend-export .mbs-legend-row { gap: 12px; }
 body.legend-export .mbs-legend-swatch { width: 28px; height: 28px; border-radius: 4px; }
@@ -617,6 +639,8 @@ body.legend-export .nsaleg-frac { font-size: 18px; margin-top: 2px; }
   .noise-legend { font-size: 22px !important; padding: 16px 24px !important; border-radius: 12px !important; }
   .noise-legend-sub { font-size: 20px !important; }
   .noise-legend-swatch { width: 28px !important; height: 20px !important; margin-right: 8px !important; border-radius: 4px !important; }
+  .noise-legend { cursor: default !important; }
+  .legend-popover { display: none !important; }
   .mbs-legend-title { margin-bottom: 8px !important; }
   .mbs-legend-row { gap: 12px !important; }
   .mbs-legend-swatch { width: 28px !important; height: 28px !important; border-radius: 4px !important; }
@@ -23183,7 +23207,7 @@ setInitialCollapseState();
       try {
         var data = {};
         data._format = 'resonate-noise-tool';
-        data._version = 3;
+        data._version = 4;
         data._exportedAt = new Date().toISOString();
 
         // State
@@ -23407,6 +23431,8 @@ setInitialCollapseState();
         data.legendMin = legendSettings.min;
         data.legendMax = legendSettings.max;
         data.legendInterval = legendSettings.interval;
+        // Noise map appearance (v4)
+        if (window._getNoiseMapAppearance) data.noiseMapAppearance = window._getNoiseMapAppearance();
 
         // CoRTN road noise map settings (Phase 5)
         if (window._getCortnMapSettings) {
@@ -24382,9 +24408,9 @@ setInitialCollapseState();
 
     function loadAssessment(data) {
       // Guard: warn if the file was saved by a future version of this app.
-      if (data._version && data._version > 3) {
+      if (data._version && data._version > 4) {
         console.warn('[loadAssessment] File is format v' + data._version +
-          ' (this app supports v3) — some fields may not load correctly.');
+          ' (this app supports v4) — some fields may not load correctly.');
       }
 
       // Version ladder: migrate older saves before any other processing.
@@ -24994,6 +25020,12 @@ setInitialCollapseState();
         if (lMaxEl) lMaxEl.value = data.legendMax || 70;
         if (lIntEl) lIntEl.value = data.legendInterval || 5;
         if (window._rebuildNoiseScale) window._rebuildNoiseScale();
+      }
+      // Noise map appearance (v4 additive field; v3 saves load with user/hardcoded defaults)
+      if (data.noiseMapAppearance) {
+        var nma = data.noiseMapAppearance;
+        if (typeof nma.opacity === 'number' && window._setNoiseMapOpacity) window._setNoiseMapOpacity(nma.opacity);
+        if (typeof nma.palette === 'string' && window._setNoiseMapPalette) window._setNoiseMapPalette(nma.palette);
       }
       if (data.noiseMapOn && window._setNoiseMapOn) {
         setTimeout(function() { window._setNoiseMapOn(true); }, 1000);
@@ -25983,7 +26015,7 @@ setInitialCollapseState();
     try {
       var data = {};
       data._format  = 'resonate-noise-tool';
-      data._version = 3;
+      data._version = 4;
       data._exportedAt = new Date().toISOString();
       data.currentState  = typeof currentState  !== 'undefined' ? currentState  : 'SA';
       data.vicAreaType   = typeof vicAreaType   !== 'undefined' ? vicAreaType   : 'urban';
@@ -26135,6 +26167,8 @@ setInitialCollapseState();
       data.noiseMapHeight   = window._getNoiseMapHeight   ? window._getNoiseMapHeight()   : 1.5;
       var ls = window._getLegendSettings ? window._getLegendSettings() : {min:25,max:70,interval:5};
       data.legendMin = ls.min; data.legendMax = ls.max; data.legendInterval = ls.interval;
+      // Noise map appearance (v4)
+      if (window._getNoiseMapAppearance) data.noiseMapAppearance = window._getNoiseMapAppearance();
 
       // CoRTN road noise map settings (Phase 5) — never persist the "on" flag
       if (window._getCortnMapSettings) data.cortnMapSettings = window._getCortnMapSettings();
@@ -37547,33 +37581,58 @@ if (window.pdfjsLib) {
     var _legendMaxDefault = 70;
     var _legendIntervalDefault = 5;
 
+    // Noise map appearance state (opacity + palette)
+    var _noiseMapPalette = 'default';
+    var _noiseMapOpacity = 0.8;
+    var _APPEARANCE_KEY = 'sa-epa-noise-appearance-v1';
+
     var PERIOD_LABELS = { day: 'Day L<sub>Aeq</sub>', eve: 'Evening L<sub>Aeq</sub>', night: 'Night L<sub>Aeq</sub>', lmax: 'Night L<sub>Amax</sub>' };
 
-    // Base colour ramp — interpolated to any number of bands
-    var COLOUR_RAMP = [
-      [213,245,227], // very light green
-      [169,223,191], // light green
-      [46,204,113],  // green
-      [241,196,15],  // yellow
-      [230,126,34],  // orange
-      [231,76,60],   // red
-      [192,57,43],   // dark red
-      [146,43,33],   // very dark red
-      [123,36,28],   // near black red
-      [74,14,14]     // darkest
-    ];
+    // Palette definitions — RGB arrays; cells are rendered fully opaque so that
+    // the layer-level opacity slider is the sole transparency control.
+    var NOISE_PALETTES = {
+      default: {
+        label: 'Default (red-green)',
+        ramp: [
+          [213,245,227], [169,223,191], [46,204,113],
+          [241,196,15],  [230,126,34],  [231,76,60],
+          [192,57,43],   [146,43,33],   [123,36,28],   [74,14,14]
+        ]
+      },
+      viridis: {
+        label: 'Viridis (colour-blind safe)',
+        ramp: [
+          [68,1,84],   [70,50,126],  [54,92,141],  [39,127,142],
+          [31,161,135],[74,193,109], [160,218,57],  [253,231,37]
+        ]
+      },
+      plasma: {
+        label: 'Plasma',
+        ramp: [
+          [13,8,135],  [84,2,163],  [139,10,165], [185,50,137],
+          [219,92,104],[244,136,73],[254,188,43],  [240,249,33]
+        ]
+      },
+      inferno: {
+        label: 'Inferno',
+        ramp: [
+          [0,0,4],     [40,11,84],  [101,21,110], [159,42,99],
+          [212,72,66], [245,125,21],[252,193,62],  [252,255,164]
+        ]
+      }
+    };
 
     function interpolateColour(t) {
-      // t ranges 0..1 through the ramp
-      var idx = t * (COLOUR_RAMP.length - 1);
+      var palette = NOISE_PALETTES[_noiseMapPalette] || NOISE_PALETTES.default;
+      var ramp = palette.ramp;
+      var idx = t * (ramp.length - 1);
       var lo = Math.floor(idx);
-      var hi = Math.min(lo + 1, COLOUR_RAMP.length - 1);
+      var hi = Math.min(lo + 1, ramp.length - 1);
       var f = idx - lo;
-      var c = COLOUR_RAMP[lo].map(function(v, i) {
-        return Math.round(v + f * (COLOUR_RAMP[hi][i] - v));
+      var c = ramp[lo].map(function(v, i) {
+        return Math.round(v + f * (ramp[hi][i] - v));
       });
-      var opacity = 0.45 + 0.3 * t; // 0.45 at min to 0.75 at max
-      return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + opacity.toFixed(2) + ')';
+      return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
     }
 
     function buildNoiseScale() {
@@ -38087,7 +38146,7 @@ if (window.pdfjsLib) {
         [_gridSouth + data.rows * data.dLat, _gridWest + data.cols * data.dLng]
       );
       _noiseCanvasLayer = L.imageOverlay(imageUrl, bounds, {
-        opacity: 0.8,
+        opacity: _noiseMapOpacity,
         interactive: false
       }).addTo(map);
 
@@ -38105,6 +38164,9 @@ if (window.pdfjsLib) {
         // Using #fff here makes the export match the on-screen appearance exactly
         // (the live view was rgba(255,255,255,0.92) — visually indistinguishable).
         div.style.cssText = 'background:#fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);';
+        div.title = 'Click to adjust opacity and colour palette';
+
+        // Legend content (title + swatches)
         var legendTitle;
         if (_nmSelectedCase) {
           var _nmLegCase = (typeof assessmentCases !== 'undefined') ? assessmentCases.find(function(c){ return c.id === _nmSelectedCase; }) : null;
@@ -38124,7 +38186,93 @@ if (window.pdfjsLib) {
           var swatchCol = _legendSwatchColor(nc.color);
           s += '<span class="noise-legend-swatch" style="background:' + swatchCol + ';"></span>' + label + '<br>';
         }
-        div.innerHTML = s;
+        var contentDiv = document.createElement('div');
+        contentDiv.innerHTML = s;
+        div.appendChild(contentDiv);
+
+        // Appearance popover — hidden by default, reflects current state
+        var _opPct = Math.round(_noiseMapOpacity * 100);
+        var popover = document.createElement('div');
+        popover.className = 'legend-popover';
+        popover.hidden = true;
+        popover.setAttribute('role', 'dialog');
+        popover.setAttribute('aria-labelledby', 'legendPopoverTitle');
+        popover.innerHTML =
+          '<h3 id="legendPopoverTitle">Noise map appearance</h3>' +
+          '<div class="legend-control">' +
+            '<label for="legendOpacity">Opacity <span id="legendOpacityValue">' + _opPct + '%</span></label>' +
+            '<input type="range" id="legendOpacity" min="0" max="100" step="5" value="' + _opPct + '">' +
+          '</div>' +
+          '<div class="legend-control">' +
+            '<label for="legendPalette">Colour palette</label>' +
+            '<select id="legendPalette">' +
+              Object.keys(NOISE_PALETTES).map(function(k) {
+                return '<option value="' + k + '"' + (k === _noiseMapPalette ? ' selected' : '') + '>' +
+                  NOISE_PALETTES[k].label + '</option>';
+              }).join('') +
+            '</select>' +
+          '</div>' +
+          '<button class="legend-popover-close" id="legendPopoverClose">Close</button>';
+        div.appendChild(popover);
+
+        // Prevent map drag/zoom when interacting with the legend
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+
+        // Clicking anywhere on the legend (except inside the popover) toggles the popover
+        div.addEventListener('click', function(e) {
+          if (popover.contains(e.target)) return;
+          popover.hidden = !popover.hidden;
+          if (!popover.hidden) {
+            var slider = popover.querySelector('#legendOpacity');
+            if (slider) slider.focus();
+          }
+        });
+
+        // Close button
+        popover.querySelector('#legendPopoverClose').addEventListener('click', function() {
+          popover.hidden = true;
+        });
+
+        // Opacity slider — live update, no worker recomputation
+        popover.querySelector('#legendOpacity').addEventListener('input', function(e) {
+          var v = parseInt(e.target.value, 10);
+          var lbl = popover.querySelector('#legendOpacityValue');
+          if (lbl) lbl.textContent = v + '%';
+          setNoiseMapOpacity(v / 100);
+          if (window._setUnsaved) window._setUnsaved();
+          saveUserAppearanceDefaults();
+        });
+
+        // Palette selector — re-renders heatmap and updates legend swatches in place
+        popover.querySelector('#legendPalette').addEventListener('change', function(e) {
+          setNoiseMapPalette(e.target.value);
+          if (window._setUnsaved) window._setUnsaved();
+          saveUserAppearanceDefaults();
+        });
+
+        // Click outside legend closes popover (deduplicated on each legend build)
+        if (window._noiseLegendDocClickHandler) {
+          document.removeEventListener('click', window._noiseLegendDocClickHandler);
+        }
+        window._noiseLegendDocClickHandler = function(e) {
+          if (!_noiseLegend) return;
+          var container = _noiseLegend.getContainer ? _noiseLegend.getContainer() : null;
+          if (!container || !popover || popover.hidden) return;
+          if (container.contains(e.target)) return;
+          popover.hidden = true;
+        };
+        document.addEventListener('click', window._noiseLegendDocClickHandler);
+
+        // Esc closes popover
+        if (window._noiseLegendEscHandler) {
+          document.removeEventListener('keydown', window._noiseLegendEscHandler);
+        }
+        window._noiseLegendEscHandler = function(e) {
+          if (e.key === 'Escape' && popover && !popover.hidden) popover.hidden = true;
+        };
+        document.addEventListener('keydown', window._noiseLegendEscHandler);
+
         return div;
       };
       _noiseLegend.addTo(map);
@@ -38145,6 +38293,66 @@ if (window.pdfjsLib) {
 
     function hideNoiseLegend() {
       if (_noiseLegend) { map.removeControl(_noiseLegend); _noiseLegend = null; }
+    }
+
+    // ── Appearance: opacity and palette ──────────────────────────────────────
+
+    function setNoiseMapOpacity(value) {
+      _noiseMapOpacity = value;
+      if (_noiseCanvasLayer) _noiseCanvasLayer.setOpacity(value);
+    }
+
+    function setNoiseMapPalette(paletteName) {
+      if (!NOISE_PALETTES[paletteName]) return;
+      _noiseMapPalette = paletteName;
+      rebuildNoiseScale();
+      _updateLegendSwatches();
+      if (_lastNoiseData) renderNoiseCanvas(_lastNoiseData);
+    }
+
+    function _updateLegendSwatches() {
+      if (!_noiseLegend) return;
+      var legendEl = _noiseLegend.getContainer ? _noiseLegend.getContainer() : null;
+      if (!legendEl) return;
+      var swatches = legendEl.querySelectorAll('.noise-legend-swatch');
+      var colourBands = NOISE_COLOURS.filter(function(nc) { return nc.color !== null; });
+      swatches.forEach(function(swatch, i) {
+        if (colourBands[i]) swatch.style.background = _legendSwatchColor(colourBands[i].color);
+      });
+    }
+
+    function updateLegendPopoverUI() {
+      if (!_noiseLegend) return;
+      var legendEl = _noiseLegend.getContainer ? _noiseLegend.getContainer() : null;
+      if (!legendEl) return;
+      var pct = Math.round(_noiseMapOpacity * 100);
+      var opSlider = legendEl.querySelector('#legendOpacity');
+      var opLabel  = legendEl.querySelector('#legendOpacityValue');
+      var palSel   = legendEl.querySelector('#legendPalette');
+      if (opSlider) opSlider.value = pct;
+      if (opLabel)  opLabel.textContent = pct + '%';
+      if (palSel)   palSel.value = _noiseMapPalette;
+    }
+
+    function saveUserAppearanceDefaults() {
+      try {
+        localStorage.setItem(_APPEARANCE_KEY, JSON.stringify({
+          opacity: _noiseMapOpacity, palette: _noiseMapPalette
+        }));
+      } catch (e) { /* quota or private-browsing — best effort */ }
+    }
+
+    function applyUserAppearanceDefaults() {
+      try {
+        var raw = localStorage.getItem(_APPEARANCE_KEY);
+        if (!raw) return;
+        var d = JSON.parse(raw);
+        if (d && typeof d.opacity === 'number') setNoiseMapOpacity(d.opacity);
+        if (d && typeof d.palette === 'string' && NOISE_PALETTES[d.palette]) {
+          _noiseMapPalette = d.palette;
+          rebuildNoiseScale();
+        }
+      } catch (e) { /* malformed JSON — ignore */ }
     }
 
     // ── Compliance map rendering ──────────────────────────────────────────
@@ -39136,6 +39344,12 @@ if (window.pdfjsLib) {
     window._rebuildNoiseScale = function() { rebuildNoiseScale(); };
     window._recomputeNoiseMap = function() { if (_noiseMapOn) debouncedRecompute(); };
     window._clearNoiseData = function() { _lastNoiseData = null; };
+    window._getNoiseMapAppearance = function() { return { opacity: _noiseMapOpacity, palette: _noiseMapPalette }; };
+    window._setNoiseMapOpacity    = function(v) { setNoiseMapOpacity(v); updateLegendPopoverUI(); };
+    window._setNoiseMapPalette    = function(v) { setNoiseMapPalette(v); updateLegendPopoverUI(); };
+
+    // Apply stored user appearance defaults (opacity, palette) on page load
+    applyUserAppearanceDefaults();
     /* GIS import render hooks — called from the GIS import IIFE which runs outside this scope.
        customBuildings and userBarriers live inside this IIFE so batch-add helpers are provided. */
     window._gisRenderHooks = {
@@ -41846,6 +42060,7 @@ if (window.pdfjsLib) {
           <li>Set <strong>grid size</strong> (auto = based on map zoom, 5&ndash;50&thinsp;m)</li>
           <li>Set <strong>contour range</strong> and interval</li>
           <li>Independent CoRTN noise map can be active simultaneously when road sources are present</li>
+          <li>Click the <strong>noise map legend</strong> (bottom right) to adjust <strong>opacity</strong> and <strong>colour palette</strong> (Default, Viridis, Plasma, Inferno) &mdash; settings are saved per-assessment</li>
         </ul>
       </div>
     </details>

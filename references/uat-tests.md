@@ -1,5 +1,48 @@
 # UAT Tests
 
+## Noise map appearance — opacity and palette controls
+
+### Legend popover interaction
+
+- [ ] **Legend is clickable** — Compute a noise map. The legend shows a pointer cursor on hover and a deeper shadow. No gear button is present.
+- [ ] **Popover opens** — Click anywhere on the legend body (title, swatches, height label). A popover opens above the legend with the title "Noise map appearance", an Opacity slider, a Colour palette selector, and a Close button.
+- [ ] **Tooltip** — Hover the legend. Browser tooltip reads "Click to adjust opacity and colour palette".
+- [ ] **Popover closes — button** — Click the Close button. Popover hides.
+- [ ] **Popover closes — Esc** — Open the popover, press Esc. Popover hides.
+- [ ] **Popover closes — click outside** — Open the popover, click on the map. Popover hides.
+- [ ] **Popover stays open — click inside** — Open the popover, click the opacity slider or palette selector. Popover remains open; legend body click does not re-trigger when interacting with popover controls.
+- [ ] **Popover hidden in legend export** — Export the legend image (`body.legend-export` class added). Popover is not visible; legend cursor is default (no pointer).
+
+### Opacity slider
+
+- [ ] **Live update** — Open popover, drag opacity slider. Heatmap transparency updates in real time (no recomputation progress bar shown).
+- [ ] **Underlying map visible at low opacity** — Set slider to 20%. The street map/aerial is visible through the heatmap.
+- [ ] **Slider default** — On fresh load (no localStorage), slider shows 80%.
+- [ ] **Unsaved indicator** — Change opacity. The Save button shows the red unsaved-changes dot (●).
+
+### Palette selector
+
+- [ ] **Four options present** — Selector shows: Default (red-green), Viridis, Plasma, Inferno.
+- [ ] **Viridis** — Select Viridis. Heatmap redraws dark purple (quiet) → teal → yellow (loud). Legend swatches update.
+- [ ] **Plasma** — Select Plasma. Heatmap redraws dark purple (quiet) → magenta → bright yellow (loud). Legend swatches update.
+- [ ] **Inferno** — Select Inferno. Heatmap redraws near-black (quiet) → deep purple → red → orange → pale yellow (loud). Legend swatches update.
+- [ ] **Default restored** — Select Default. Heatmap returns to original red-green ramp.
+- [ ] **No worker recomputation** — During palette change, the noise map progress bar does NOT appear. dB values are unchanged; only colours change.
+- [ ] **Unsaved indicator** — Change palette. The Save button shows the red unsaved-changes dot (●).
+
+### Persistence — save and load
+
+- [ ] **Save → reload (v4)** — Compute noise map, set opacity to 60% and palette to Viridis. Save Assessment JSON. Reload the page, open the saved file. Opacity is 60% and palette is Viridis.
+- [ ] **v3 file loads cleanly** — Open a v3-format save file (no `noiseMapAppearance` key). File loads without error. Opacity and palette use user defaults (or hardcoded defaults if no localStorage entry). No console errors.
+- [ ] **v3 → v4 upgrade on save** — After loading a v3 file, Save Assessment JSON. Open the saved file in a text editor. `_version` is 4 and `noiseMapAppearance` is present.
+- [ ] **JSON structure** — Open a v4 save in a text editor. Confirm `noiseMapAppearance: { "opacity": <number>, "palette": "<string>" }` is present at the top level.
+
+### User defaults (localStorage)
+
+- [ ] **New assessment inherits defaults** — Set opacity to 55% and palette to Grayscale. Open a new tab (fresh session). Opacity is 55% and palette is Grayscale (read from localStorage).
+- [ ] **Project overrides defaults** — User defaults are Grayscale/55%. Open a v4 save with opacity=80%/palette=viridis. The loaded assessment uses viridis/80%, not the user defaults.
+- [ ] **localStorage key** — DevTools → Application → Local Storage. Key `sa-epa-noise-appearance-v1` exists and contains `{"opacity":..., "palette":...}`.
+
 ## Cleanup pass — A1, R8, R9, R13
 
 ### Cache-bust convention (A1)

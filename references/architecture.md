@@ -2360,6 +2360,24 @@ data.propagation.groundFactorPerRegion = { enabled: bool, Gs: number, Gm: number
 ```
 `_version` was bumped from 2 → 3. Files without this key (v2) synthesise `{ enabled: false, Gs: G, Gm: G, Gr: G }` on load, where `G` is the loaded scalar ground factor (backward compatible).
 
+**Save format `_version: 4`** — The save JSON additionally includes:
+```js
+data.noiseMapAppearance = { opacity: number, palette: string }
+```
+`_version` bumped from 3 → 4 (additive only — no migration function needed). Files without this key (v3 or earlier) load cleanly: `loadAssessment` falls through to user defaults already applied at startup via `applyUserAppearanceDefaults()`. On next save the file upgrades to v4 automatically.
+
+**Noise map appearance persistence model:**
+- **Per-project**: `noiseMapAppearance` in the save JSON is the authoritative source for a loaded assessment.
+- **User defaults**: `localStorage` key `sa-epa-noise-appearance-v1` stores `{ opacity, palette }` — written whenever the user changes either control, read at app startup via `applyUserAppearanceDefaults()` and applied to new (unsaved) assessments.
+- **Priority**: hardcoded defaults (`opacity=0.8`, `palette='default'`) → overridden by user defaults from localStorage → overridden by project settings from save JSON.
+
+**Palette options** (`NOISE_PALETTES` in the noise-map IIFE):
+| Key | Label | Description |
+|---|---|---|
+| `default` | Default (red-green) | Existing ramp — light green (quiet) → dark red (loud); variable per-cell alpha (0.45–0.75) |
+| `viridis` | Viridis (colour-blind safe) | Standard viridis — dark purple (quiet) → bright yellow (loud); fixed alpha 0.70; perceptually uniform |
+| `grayscale` | Grayscale (B&W) | Light gray (quiet) → black (loud); fixed alpha 0.70; for B&W report exports |
+
 **`migrateV2ToV3(saved, fromVersion)`** — Migration function added in Prompt B (April 2026). Defined in `index.html` just before `loadAssessment`. Called by a version ladder at the top of `loadAssessment`:
 ```js
 var savedVersion = data._version || 1;
