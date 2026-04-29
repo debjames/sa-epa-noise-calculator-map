@@ -2249,9 +2249,11 @@ Tests confirming the three help surfaces (Methodology / Quick Reference / Help A
 
 ### Save / load round-trip
 
-- [ ] **D6-13. Save preserves reflectionType** — Set building to "Factory walls, 50% openings". Save JSON. Open in text editor. Confirm `"reflectionType": "hard_wall"` ... wait, factory_50 → confirm `"reflectionType": "factory_50"` in the `customBuildings` array.
+- [ ] **D6-13. Save preserves reflectionType** — Set building to "Factory walls, 50% openings". Save JSON. Open in text editor. Confirm `"reflectionType": "factory_50"` in the `customBuildings` array.
 - [ ] **D6-14. Load restores reflectionType** — Load the file above. Building edit panel shows "Factory walls, 50% openings (ρ = 0.4)".
 - [ ] **D6-15. Pre-D6 file loads cleanly** — Load an older save without `reflectionType` field. Buildings load with default hard wall (ρ=1.0). No error. Receiver Lp unchanged from the original file's values.
+- [ ] **D6-16. Custom ρ=0.0 save/load round-trip** — Set building to "Custom value", enter 0.00, click Apply. Save JSON. Open in text editor — `reflectionRhoCustom` reads `0`, not `1`. Reload JSON — custom ρ input shows `0.00`. Predicted Lp matches the pre-save value.
+- [ ] **D6-17. Worker ρ matches receiver panel** — Place source, receiver, and a reflective building. Enable reflections. Set building to "Factory walls, 50% openings (ρ=0.4)". Note receiver Lp. Compute noise map. The heatmap cell at the receiver location is cooler than with ρ=1.0 — confirming the worker now uses the configured ρ, not always 1.0.
 
 ---
 
@@ -2276,3 +2278,86 @@ Tests confirming the three help surfaces (Methodology / Quick Reference / Help A
 - [ ] **R14-9. Mobile banner coexists** — At 700px (below 768px mobile banner threshold), both the mobile banner and the overflow button may be visible (mobile layout). No overlap or JS error.
 - [ ] **R14-10. Resize up restores full toolbar** — Start at 1100px (overflow visible). Resize to 1400px. Overflow button disappears; all secondary buttons reappear inline.
 - [ ] **R14-11. No console errors** — Perform viewport resize, overflow open/close, and item click. No JS errors in the browser console.
+
+## Street View links (April 2026)
+
+### Test 230 — Street View from point source
+
+- [ ] **230-1. Button visible** — Place a point source. Click it to open the floating edit panel. A "📷 Street View" button is visible near the coordinates.
+- [ ] **230-2. Opens correct location** — Click "📷 Street View". Google Maps Street View opens in a new browser tab at coordinates matching the source position (verify lat/lng in the opened URL).
+- [ ] **230-3. No Street View button when unplaced** — Open the source panel for a source that has not yet been placed on the map (lat is null). The Street View button is absent.
+
+### Test 231 — First-use caveat
+
+- [ ] **231-1. Caveat appears on first click** — Clear localStorage (DevTools → Application → Local Storage → delete `noiseTool.streetViewCaveatDismissed`). Click any Street View button. A dark banner appears at the bottom of the screen with the licensing text and a "Don't show again" button.
+- [ ] **231-2. Street View still opens** — The Google Maps tab opens immediately, regardless of whether the caveat banner is visible. The banner does not gate the action.
+- [ ] **231-3. Dismiss banner** — Click "Don't show again". The banner disappears.
+- [ ] **231-4. No repeat in same session** — Click another Street View button in the same session. The caveat banner does NOT appear again.
+
+### Test 232 — Caveat persistence
+
+- [ ] **232-1. Suppressed after reload** — After dismissing the caveat (Test 231), reload the page. Click a Street View button. Confirm the caveat does NOT appear (`localStorage['noiseTool.streetViewCaveatDismissed']` is set to `'1'`).
+
+### Test 233 — Right-click map Street View
+
+- [ ] **233-1. Context menu appears** — Right-click on an empty area of the map (not on any source, receiver, or other object). A context popup appears containing "📷 Street View here" and "📍 Copy coordinates".
+- [ ] **233-2. Street View opens at click location** — Click "📷 Street View here". Google Maps opens at the lat/lng of the right-click location. Verify by comparing the coordinates in the opened URL with the map position.
+- [ ] **233-3. Copy coordinates** — Right-click, choose "📍 Copy coordinates". A toast shows the coordinates, and the clipboard contains `{lat.6dp}, {lng.6dp}`.
+- [ ] **233-4. Object right-click unchanged** — Right-click on a source pin, receiver, barrier, area source, or custom building. Their existing context menus appear unchanged (Street View item not present in object menus).
+
+### Test 234 — Centroid calculation for polygon
+
+- [ ] **234-1. Area source centroid** — Place an area source with at least 4 non-trivial vertices forming an irregular polygon. Open its edit panel and click "📷 Street View". Confirm Street View opens approximately at the centroid of the polygon, not at one vertex.
+- [ ] **234-2. Building source centroid** — Repeat for a building source.
+- [ ] **234-3. Custom building centroid** — Repeat for a custom building.
+- [ ] **234-4. Line source first vertex** — Place a line source with multiple vertices. Open its edit panel and click "📷 Street View". Confirm Street View opens at the first (start) vertex of the line, not the midpoint.
+
+### Test 235 — Tooltip
+
+- [ ] **235-1. Point source button tooltip** — Hover the "📷 Street View" button in the point source panel. Browser tooltip contains "Imagery © Google".
+- [ ] **235-2. Receiver popup button tooltip** — Open a receiver popup. Hover the Street View button. Browser tooltip contains "Imagery © Google".
+- [ ] **235-3. Area source button tooltip** — Hover the Street View button in the area source panel. Browser tooltip contains "Imagery © Google".
+
+### Test 236 — No console errors
+
+- [ ] **236-1. No errors on button click** — Click Street View buttons on all panel types. No console errors.
+- [ ] **236-2. No errors on right-click** — Right-click the map and click "📷 Street View here". No console errors.
+- [ ] **236-3. No errors for location with no Street View** — Click Street View for a location in a remote area with no Street View coverage. Google's own page handles the fallback (shows map view). No JS errors in the noise tool console.
+
+---
+
+## Source placement over polygon layers
+
+### Test 237 — Point source placement over polygons
+
+- [ ] **237-1. Place over OSM building** — Enable the Buildings layer (Overpass fetch). Enter "Add point source" mode. Click on top of a fetched OSM building footprint. A point source marker appears at the exact click latlng. No building popup opens.
+- [ ] **237-2. Place over custom building** — Draw a custom building polygon. Enter point source placement mode. Click on top of the custom building. Source is placed at the click location. Building edit panel does NOT open.
+- [ ] **237-3. Place over building source** — Draw a building source polygon. Enter point source placement mode. Click on top of it. Source is placed; building source panel does NOT open.
+- [ ] **237-4. Place over area source** — Draw an area source polygon. Enter point source placement mode. Click on top of it. Source is placed; area source panel does NOT open.
+- [ ] **237-5. Place over line source** — Draw a line source. Enter point source placement mode. Click on top of it. Source is placed; line source panel does NOT open.
+- [ ] **237-6. Place over ground zone** — Draw a ground absorption zone. Enter point source placement mode. Click on top of it. Source is placed; ground zone panel does NOT open.
+- [ ] **237-7. Place over barrier** — Draw a barrier. Enter point source placement mode. Click on top of it. Source is placed; barrier panel does NOT open.
+
+### Test 238 — Vertex placement over polygons (line/area/building source draw modes)
+
+- [ ] **238-1. Line source vertex over building** — Draw a new line source. While placing vertices, click over an OSM building or custom building. A new vertex is added at that latlng (tool does not abort or skip the click).
+- [ ] **238-2. Area source vertex over building** — Draw a new area source. While clicking vertices, click over a building. Vertex is added normally.
+- [ ] **238-3. Building source vertex over building** — Draw a new building source. Click vertices over existing building footprints. Vertices are added normally.
+
+### Test 239 — Normal behaviour preserved (no placement mode)
+
+- [ ] **239-1. Custom building click opens panel** — With no placement mode active, click a custom building. The building edit panel opens normally.
+- [ ] **239-2. Building source click opens panel** — Click a building source polygon. Its edit panel opens normally.
+- [ ] **239-3. Area source click opens panel** — Click an area source polygon. Its edit panel opens normally.
+- [ ] **239-4. Line source click opens panel** — Click a line source. Its edit panel opens normally.
+- [ ] **239-5. Ground zone click opens panel** — Click a ground absorption zone. Its edit panel opens normally.
+- [ ] **239-6. Barrier click opens panel** — Click a barrier. Its edit panel opens normally.
+- [ ] **239-7. Drag still works** — Drag a building source or area source polygon. Drag operates normally; no spurious placement fires.
+
+### Test 240 — Undo integration
+
+- [ ] **240-1. Undo placement over polygon** — Place a source by clicking on a polygon. Press Ctrl+Z. The source is removed (undo entry was pushed correctly via `_dispatchPlacementClick`).
+
+### Test 241 — No console errors
+
+- [ ] **241-1. No errors during polygon-click placement** — Perform tests 237-1 through 238-3. No console errors at any step.

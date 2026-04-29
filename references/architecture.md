@@ -279,6 +279,18 @@ The corresponding `.mp-body` div carries the matching `id="<section-id>-body"`.
 
 `showErrorToast(message, durationMs)` — red background (`#7f1d1d`), 8 s default dwell, dismissible `×` button, `pointer-events: auto`. Distinct from `showToast` (dark, 3 s, pointer-events none). Error messages state the specific service AND the acoustic consequence (e.g. "predictions will run without terrain insertion loss"). Existing `console.warn` calls retained alongside toasts.
 
+### Street View helper (`openStreetView`)
+
+`openStreetView(lat, lng)` — opens Google Maps Street View in a new tab using `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat},{lng}`. Uses `noopener,noreferrer` for security. No-ops if either coordinate is not a finite number. Calls `_showStreetViewCaveat()` before opening.
+
+`_showStreetViewCaveat()` — shows a dismissible dark toast banner on the first Street View click per session. Persists dismissal in `localStorage['noiseTool.streetViewCaveatDismissed']`. On subsequent sessions the caveat is silently suppressed.
+
+Both functions are defined at main script scope (near `showToast`), so they are accessible from all IIFEs.
+
+Street View buttons (person/pegman SVG icon, Lucide stroke style) appear in: point source edit panel (`#sfp-streetview-btn`), area source panel (`#asPanelSvBtn`), building source panel (`#bsPanelSvBtn`), line source panel (`#lsPanelSvBtn`, first vertex), receiver Leaflet popup (inline `onclick`), custom building panel (`#cbpSvBtn`).
+
+Map-level right-click context menu (empty-map clicks): "Street View here" (person SVG) and "Copy coordinates" (clipboard SVG). Object right-clicks continue to use their own context menus via `stopPropagation`.
+
 ### Floating panel accessibility (R13)
 
 `#helpFloatPanel`, `#objectsFloatPanel`, `#suggestFloatPanel` carry `role="dialog"`, `aria-labelledby="<titleId>"`, `aria-modal="false"`. They are **non-modal** — `aria-modal="false"` because keyboard interaction elsewhere remains available while a panel is open. `showPanel()` stores `document.activeElement` as `panel._returnFocusTo`; `hidePanel()` restores focus. Esc key closes each panel via a `keydown` listener on the panel element (`stopPropagation()` prevents conflict with map / context-menu Esc handlers).
@@ -295,6 +307,25 @@ The corresponding `.mp-body` div carries the matching `id="<section-id>-body"`.
 - **Clear triggers:** (a) Save — blob path after `a.click()`; File System Access path inside the `.then` after `w.close()`. (b) Load — inside `loadAssessment`'s `setTimeout`, guarded with `!window._undoRestoring` so undo/redo loads do not false-clear the flag.
 - **Visual indicators:** `#exportJsonBtn.unsaved` → red border + `●` dot (CSS `::after`); `document.title` gets a `* ` prefix.
 - **Navigation guard:** `beforeunload` listener warns on page close/refresh when unsaved.
+
+### `_dispatchPlacementClick(latlng)` — polygon click forwarding
+
+Private helper defined inside the map IIFE immediately after `map.on('click', ...)`. Called at the top of every polygon/polyline click handler that would otherwise swallow the click before the map sees it.
+
+- If `currentMode` is falsy (browse mode): returns `false` — caller proceeds with its normal behaviour (edit panel, popup, etc.)
+- If `currentMode === 'addSource'`: calls `addNewSourcePin(latlng)` and returns `true`
+- Otherwise: sets `_autoOpenRecvPopup = true`, calls `placeMarker(currentMode, latlng)`, pushes undo state, returns `true`
+
+Callers (all return immediately when this returns `true`):
+- OSM building polygons (`buildingLayer`)
+- Custom building polygons (`customBuildingLayer`)
+- Barrier polylines (`barrierLayer` — `line.on('click')`)
+- Ground absorption zone polygons (`_groundZoneLayer`)
+- Area source polygons (`areaSourceLayer`)
+- Building source polygons (`buildingSourceLayer`)
+- Line source polylines (`lineSourceLayer`)
+
+The barrier hit-area (`barHit`) is handled indirectly — it fires `line.click`, which invokes the patched barrier handler above.
 
 ### Active drawing mode banner
 

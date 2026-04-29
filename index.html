@@ -7182,7 +7182,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
   <div class="p" style="margin-top:6px;"><strong>Key differences from ISO 9613-2:1996:</strong></div>
   <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;line-height:1.8;">
     <li><em>Ground effect:</em> CONCAWE uses single empirical curves based on neutral-condition measurements (Parkin &amp; Scholes). ISO 9613-2:1996 uses a three-region detailed method (source, middle, receiver) based on favourable (downwind) conditions. CONCAWE ground attenuation (K3) is applied independently of barrier screening &mdash; there is no &sect;7.4 insertion-loss interaction.</li>
-    <li><em>Meteorological conditions:</em> CONCAWE explicitly models six weather categories. ISO 9613-2:1996 assumes favourable (downwind) conditions and offers only a long-distance C<sub>met</sub> correction (not implemented in this tool). CONCAWE is preferred when assessments require prediction under specific meteorological conditions, particularly in Victoria where neutral conditions are often specified.</li>
+    <li><em>Meteorological conditions:</em> CONCAWE explicitly models six weather categories. ISO 9613-2:1996 assumes favourable (downwind) conditions; an optional C<sub>met</sub> correction (&sect;8) is available in the Propagation accordion to convert worst-case downwind to a long-term average (see &ldquo;Meteorological correction&rdquo; below). CONCAWE is preferred when assessments require prediction under specific meteorological conditions, particularly in Victoria where neutral conditions are often specified.</li>
     <li><em>Frequency range:</em> CONCAWE covers 63&thinsp;Hz to 4&thinsp;kHz. This tool extends to 8&thinsp;kHz using the 4&thinsp;kHz attenuation values.</li>
   </ul>
   <div class="p" style="font-size:11px;color:var(--muted);margin-top:4px;">Reference: Manning, C.J. (1981). <em>The propagation of noise from petroleum and petrochemical complexes to neighbouring communities.</em> CONCAWE Report 4/81.</div>
@@ -7193,7 +7193,14 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
   <div class="h2" style="font-size:13px;">Ground absorption zones</div>
   <div class="p">In addition to the global ground factor <em>G</em> set in the Propagation method panel, the user can draw local ground absorption polygons on the map with individual <em>G</em> values (0&thinsp;=&thinsp;hard/reflecting, 0.5&thinsp;=&thinsp;mixed, 1&thinsp;=&thinsp;soft/porous). For each source&ndash;receiver ray the three ISO 9613-2:1996 Table 3 regions (source side, middle, receiver side) are each assigned a length-weighted average <em>G</em> from the zones intersecting that region (<code>_gzWeightedG</code>). The resulting <em>G<sub>s</sub></em>&thinsp;/&thinsp;<em>G<sub>m</sub></em>&thinsp;/&thinsp;<em>G<sub>r</sub></em> triplet drives the per-band ground attenuation and, when a barrier is present, also the two sub-path <em>A<sub>gr,bar</sub></em> calculations described under Barrier attenuation (&sect;7.4) above. When no zones are drawn, all three regions use the single global <em>G</em> value.</div>
   <div class="h2" style="font-size:13px;">Facade reflections</div>
-  <div class="p">Facade reflections are calculated using the image source method per ISO 9613-2:1996 &sect;7.5. For each source&ndash;receiver pair, building and barrier edges within 50&thinsp;m of the receiver are tested as reflecting surfaces. The reflected contribution from the dominant surface is calculated as a separate propagation path (using the same propagation method as the direct path) and energy-added to the direct path. A single dominant reflection is considered per source&ndash;receiver pair. Grazing incidence is excluded (incidence angle &gt;80&deg; relative to surface normal). Hard surface reflection (0&thinsp;dB loss) is assumed for all buildings and barriers. Reflections are enabled via the Reflections toolbar button and apply to both receiver predictions and the noise map.</div>
+  <div class="p">Facade reflections are calculated using the image source method per ISO 9613-2:1996 &sect;7.5. For each source&ndash;receiver pair, building and barrier edges within 50&thinsp;m of the receiver are tested as reflecting surfaces. The reflected contribution from the dominant surface is calculated as a separate propagation path (using the same propagation method as the direct path) and energy-added to the direct path. A single dominant reflection is considered per source&ndash;receiver pair. Grazing incidence is excluded (incidence angle &gt;80&deg; relative to surface normal). The reflection coefficient &rho; is configurable per custom building via the <em>Surface type</em> dropdown in the building edit panel (ISO 9613-2:1996 Table 4): flat hard walls (&rho;&thinsp;=&thinsp;1.0, default), walls with windows/openings (&rho;&thinsp;=&thinsp;0.8), factory walls 50% openings (&rho;&thinsp;=&thinsp;0.4), open installations (&rho;&thinsp;=&thinsp;0.0), or a custom value. The reflected contribution is adjusted by 10&middot;log<sub>10</sub>(&rho;)&thinsp;dB before energy summation. Barrier surfaces are assumed hard (&rho;&thinsp;=&thinsp;1.0). Reflections are enabled via the Reflections toolbar button and apply to both receiver predictions and the noise map.</div>
+  <div class="h2" style="font-size:13px;">Meteorological correction (ISO 9613-2:1996 &sect;8)</div>
+  <div class="p">The ISO 9613-2:1996 §8 meteorological correction C<sub>met</sub> converts the worst-case downwind prediction to a long-term average. It is applied as a broadband subtraction after per-band energy summation, using equations (21) and (22):</div>
+  <ul class="p" style="margin:4px 0 8px 0;padding-left:20px;">
+    <li>Near-field (d<sub>p</sub> &le; 10&middot;(h<sub>s</sub>&thinsp;+&thinsp;h<sub>r</sub>)): C<sub>met</sub> = 0 &mdash; eq.&thinsp;(21)</li>
+    <li>Far-field (d<sub>p</sub> &gt; 10&middot;(h<sub>s</sub>&thinsp;+&thinsp;h<sub>r</sub>)): C<sub>met</sub> = C<sub>0</sub>&thinsp;&middot;&thinsp;[1 &minus; 10&middot;(h<sub>s</sub>&thinsp;+&thinsp;h<sub>r</sub>) / d<sub>p</sub>] &mdash; eq.&thinsp;(22)</li>
+  </ul>
+  <div class="p">C<sub>0</sub> is a site-specific long-term meteorological factor (0&ndash;5&thinsp;dB; default 2&thinsp;dB per &sect;8). C<sub>met</sub> is applied to all L<sub>eq</sub> paths (single-point, noise map grid, area and line sub-sources, building sub-sources). It is explicitly excluded from L<sub>Amax</sub> predictions, which remain worst-case downwind. The toggle defaults to OFF, preserving conservative worst-case downwind predictions as the default. The UI is in the Propagation accordion, visible only when ISO 9613-2:1996 is the active method.</div>
   <div class="h2" style="font-size:13px;">Operating % of period</div>
   <div class="p" id="opTimeNote">The calculation provides an option to enter the percentage of the assessment period during which each source is operating. A 10&middot;log<sub>10</sub>(pct/100) weighting is applied to the source level: 100&thinsp;% &rarr; 0&thinsp;dB, 50&thinsp;% &rarr; &minus;3&thinsp;dB, 25&thinsp;% &rarr; &minus;6&thinsp;dB.</div>
   <div class="h2" style="font-size:13px;">Character penalties and modifying factors</div>
@@ -15610,6 +15617,35 @@ function showErrorToast(message, durationMs) {
   xBtn.addEventListener('click', function() { clearTimeout(timer); if (t.parentNode) t.parentNode.removeChild(t); });
 }
 
+/* ---- Street View helper ---- */
+function openStreetView(lat, lng) {
+  if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
+  _showStreetViewCaveat();
+  var url = 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + lat + ',' + lng;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function _showStreetViewCaveat() {
+  try { if (localStorage.getItem('noiseTool.streetViewCaveatDismissed')) return; } catch(e) {}
+  if (document.getElementById('sv-caveat-banner')) return;
+  var banner = document.createElement('div');
+  banner.id = 'sv-caveat-banner';
+  banner.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);z-index:99999;background:#1e293b;color:#f8fafc;border-radius:6px;padding:10px 14px;font-size:12px;max-width:520px;box-shadow:0 4px 16px rgba(0,0,0,0.3);display:flex;align-items:flex-start;gap:10px;line-height:1.45;';
+  var msg = document.createElement('span');
+  msg.style.flex = '1';
+  msg.textContent = 'Street View imagery © Google. Opens in a new tab. Imagery is for site familiarisation only and must not be reproduced in reports without Google’s attribution requirements being met.';
+  var btn = document.createElement('button');
+  btn.textContent = "Don't show again";
+  btn.style.cssText = 'background:#374151;border:1px solid #6b7280;border-radius:4px;color:#f8fafc;font-size:11px;cursor:pointer;padding:3px 8px;white-space:nowrap;flex-shrink:0;';
+  btn.addEventListener('click', function() {
+    try { localStorage.setItem('noiseTool.streetViewCaveatDismissed', '1'); } catch(e) {}
+    banner.remove();
+  });
+  banner.appendChild(msg);
+  banner.appendChild(btn);
+  document.body.appendChild(banner);
+}
+
 /* ---- R8: Background fetch reference-counted loading indicator ---- */
 var _bgFetchCounts = {};
 function startBgFetch(label) {
@@ -16372,7 +16408,10 @@ function buildSrcPanelHTML(pin, pinIdx) {
       '<label style="font-size:11px;white-space:nowrap;color:#666;">Name:</label>' +
       '<input class="sfp-name" type="text" value="' + escapeHTML(pin.name || '') + '" style="flex:1;font-size:13px;border:1px solid #ddd;border-radius:4px;padding:3px 6px;box-sizing:border-box;">' +
     '</div>' +
-    '<div class="sfp-coords" style="font-size:11px;color:#888;margin-bottom:6px;">' + coordStr + '</div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+      '<div class="sfp-coords" style="font-size:11px;color:#888;flex:1;">' + coordStr + '</div>' +
+      (pin.lat !== null ? '<button id="sfp-streetview-btn" title="Open Google Street View at this location (new tab). Imagery © Google." style="padding:2px 8px;font-size:11px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;color:#1d4ed8;white-space:nowrap;flex-shrink:0;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;vertical-align:-1px;"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg> Street View</button>' : '') +
+    '</div>' +
     '<div class="src-metric-grid" style="grid-template-columns:1fr 1fr;">' +
       '<div><span style="color:#6b7280;font-size:11px;">Ht (m)</span><br><input type="number" class="sfp-height" value="' + (pin.height_m || 1.5) + '" min="0" step="0.1" style="width:60px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-top:2px;"></div>' +
       '<div><span style="color:#6b7280;font-size:11px;">Effective ht (m)</span><br><b id="sfp-eff-ht" style="font-size:12px;">' + eff + '\u00a0m</b></div>' +
@@ -16452,6 +16491,10 @@ function attachSrcPanelListeners(pin, pinIdx) {
       if (typeof renderSourcePins === 'function') renderSourcePins();
     });
   }
+
+  // Street View
+  var svBtn = panel.querySelector('#sfp-streetview-btn');
+  if (svBtn) svBtn.addEventListener('click', function() { openStreetView(pin.lat, pin.lng); });
 
   // Populate terrain info on open
   _updateSrcPanelTerrainDisplay(pinIdx);
@@ -23651,7 +23694,7 @@ setInitialCollapseState();
             return { id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0, heightM: cb.heightM, name: cb.name,
                      vertexElevations: cb.vertexElevations || null,
                      reflectionType: cb.reflectionType || 'hard_wall',
-                     reflectionRhoCustom: cb.reflectionRhoCustom || 1.0 };
+                     reflectionRhoCustom: (cb.reflectionRhoCustom !== null && cb.reflectionRhoCustom !== undefined) ? cb.reflectionRhoCustom : 1.0 };
           });
         }
 
@@ -25223,7 +25266,7 @@ setInitialCollapseState();
             heightM: cb.heightM, name: cb.name, isCustom: true, userHeightOverride: true,
             vertexElevations: cb.vertexElevations || null,
             reflectionType: cb.reflectionType || 'hard_wall',
-            reflectionRhoCustom: cb.reflectionRhoCustom || 1.0
+            reflectionRhoCustom: (cb.reflectionRhoCustom !== null && cb.reflectionRhoCustom !== undefined) ? cb.reflectionRhoCustom : 1.0
           };
         }));
       }
@@ -26379,7 +26422,7 @@ setInitialCollapseState();
           return { id:cb.id, polygon:cb.polygon, baseHeightM:cb.baseHeightM||0, heightM:cb.heightM, name:cb.name,
                    vertexElevations:cb.vertexElevations||null,
                    reflectionType:cb.reflectionType||'hard_wall',
-                   reflectionRhoCustom:cb.reflectionRhoCustom||1.0 };
+                   reflectionRhoCustom:(cb.reflectionRhoCustom !== null && cb.reflectionRhoCustom !== undefined) ? cb.reflectionRhoCustom : 1.0 };
         });
       }
 
@@ -29696,7 +29739,10 @@ if (window.pdfjsLib) {
       var html = '<b>' + escapeHTML(cfg.label) + '</b><br>' +
         '<span style="font-size:11px;color:#888;">' +
           ll.lat.toFixed(6) + ', ' + ll.lng.toFixed(6) +
-        '</span>';
+        '</span>' +
+        '&nbsp;<button onclick="openStreetView(' + ll.lat + ',' + ll.lng + ')" ' +
+          'title="Open Google Street View at this location (new tab). Imagery © Google." ' +
+          'style="padding:1px 7px;font-size:11px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;color:#1d4ed8;vertical-align:middle;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;vertical-align:-1px;"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg> Street View</button>';
 
       // Zone line (set by zone-detection callbacks; empty string if not yet detected)
       var zoneSnippet = (typeof _recvZoneHTML !== 'undefined') ? (_recvZoneHTML[mode] || '') : '';
@@ -30082,18 +30128,8 @@ if (window.pdfjsLib) {
         }
       });
 
-      /* auto-advance: source modes advance to r1, receiver modes advance through ORDER */
-      if (isSourceMode(mode)) {
-        if (!latlngs['r1']) setMode('r1');
-        else setMode(null); // source placed, receivers already exist — browse mode
-      } else {
-        var idx = ORDER.indexOf(mode);
-        var advanced = false;
-        for (var i = idx + 1; i < ORDER.length; i++) {
-          if (!latlngs[ORDER[i]]) { setMode(ORDER[i]); advanced = true; break; }
-        }
-        if (!advanced) setMode(null); // all receivers placed — enter browse mode
-      }
+      /* return to browse mode after each placement — no auto-advance */
+      setMode(null);
 
       /* Re-render source cards to update placement status */
       if (isSourceMode(mode) && typeof renderSourceCards === 'function') renderSourceCards();
@@ -30239,6 +30275,27 @@ if (window.pdfjsLib) {
       }
       // Auto-scroll removed: drawer only opens via user click on toggle/nametag
     });
+
+    // Helper: forward a polygon/polyline click to the placement dispatcher.
+    // Call this at the top of any layer click handler. Returns true if placement
+    // mode was active (caller should return immediately without opening their panel).
+    function _dispatchPlacementClick(latlng) {
+      if (!currentMode) return false;
+      if (currentMode === 'addSource') {
+        addNewSourcePin(latlng);
+        return true;
+      }
+      _autoOpenRecvPopup = true;
+      placeMarker(currentMode, latlng);
+      _autoOpenRecvPopup = false;
+      if (typeof window._undoPushState === 'function') {
+        var _lbl = currentMode.startsWith('source_')
+          ? ('Place source S' + (parseInt(currentMode.replace('source_', ''), 10) + 1))
+          : ('Place ' + currentMode.toUpperCase());
+        window._undoPushState(_lbl);
+      }
+      return true;
+    }
 
     /* ---- mode buttons (click to select mode, click again to remove placed marker) ---- */
     function removeMarker(mode) {
@@ -30740,7 +30797,7 @@ if (window.pdfjsLib) {
         // Click popup for height override (only when not placing markers)
         poly.on('click', function(e) {
           if (_drawingActive) return; // drawing a custom building
-          if (currentMode) return; // in placement mode — let map click handler place the marker
+          if (_dispatchPlacementClick(e.latlng)) return;
           L.DomEvent.stopPropagation(e);
           L.popup({ maxWidth: 280 })
             .setLatLng(e.latlng)
@@ -32243,7 +32300,8 @@ if (window.pdfjsLib) {
             '<button id="cbpClose" style="background:none;border:none;color:#bbb;font-size:18px;cursor:pointer;padding:0 4px;">&#x2715;</button>' +
           '</div>' +
           '<div style="padding:12px 14px 10px;">' +
-            (coordStr ? '<div style="font-size:10px;color:#9ca3af;margin-bottom:8px;">' + coordStr + '</div>' : '') +
+            (coordStr ? '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="font-size:10px;color:#9ca3af;flex:1;">' + coordStr + '</span>' +
+              '<button id="cbpSvBtn" title="Open Google Street View at this location (new tab). Imagery © Google." style="padding:2px 8px;font-size:11px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;color:#1d4ed8;white-space:nowrap;flex-shrink:0;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;vertical-align:-1px;"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg> Street View</button></div>' : '') +
             '<div style="margin-bottom:8px;"><label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Name</label>' +
               '<input type="text" id="cbpName" value="' + escapeHTML(cb.name || '') + '" style="width:100%;box-sizing:border-box;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;"></div>' +
             '<div style="display:flex;gap:8px;margin-bottom:6px;">' +
@@ -32286,6 +32344,8 @@ if (window.pdfjsLib) {
       panel.style.left = left + 'px'; panel.style.top = top + 'px';
       _makePanelDraggable(panel, panel.querySelector('#cbpHeader'));
       panel.querySelector('#cbpClose').addEventListener('click', closeBuildingPanel);
+      var cbpSvBtn = panel.querySelector('#cbpSvBtn');
+      if (cbpSvBtn) cbpSvBtn.addEventListener('click', function() { openStreetView(ctr.lat, ctr.lng); });
       function _cbpUpdateTop() {
         var b = parseFloat(panel.querySelector('#cbpBase').value) || 0;
         var h = parseFloat(panel.querySelector('#cbpHeight').value) || 0;
@@ -32501,7 +32561,7 @@ if (window.pdfjsLib) {
         // Click — open floating edit panel
         line.on('click', function(e) {
           if (_drawingActive || _moveMode) return;
-          if (currentMode) return;
+          if (_dispatchPlacementClick(e.latlng)) return;
           L.DomEvent.stopPropagation(e);
           _selectedBarrier = ub;
           if (typeof openBarrierPanel === 'function') openBarrierPanel(ub.id, e.originalEvent.clientX, e.originalEvent.clientY);
@@ -32612,7 +32672,7 @@ if (window.pdfjsLib) {
         // Click — open floating edit panel
         poly.on('click', function(e) {
           if (_drawingActive || _moveMode) return;
-          if (currentMode) return;
+          if (_dispatchPlacementClick(e.latlng)) return;
           L.DomEvent.stopPropagation(e);
           if (typeof openBuildingPanel === 'function') openBuildingPanel(cb.id, e.originalEvent.clientX, e.originalEvent.clientY);
         });
@@ -33155,6 +33215,7 @@ if (window.pdfjsLib) {
       // Click — open floating edit panel
       poly.on('click', function(ev) {
         if (_drawingActive || _drawingGroundZone || _barrierDrawHandler) return;
+        if (_dispatchPlacementClick(ev.latlng)) return;
         L.DomEvent.stopPropagation(ev);
         if (typeof openGroundZonePanel === 'function') openGroundZonePanel(gz.id, ev.originalEvent.clientX, ev.originalEvent.clientY);
       });
@@ -33427,8 +33488,9 @@ if (window.pdfjsLib) {
             '<label style="font-size:11px;color:#666;white-space:nowrap;">Name:</label>' +
             '<input type="text" id="asPanelName" value="' + escapeHTML(as.name || '') + '" style="flex:1;padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:13px;">' +
           '</div>' +
-          '<div style="font-size:11px;color:#888;margin-bottom:6px;">' +
-            '<span id="asPanelCoords">' + coordStr + '</span>' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+            '<span id="asPanelCoords" style="font-size:11px;color:#888;flex:1;">' + coordStr + '</span>' +
+            (ctr ? '<button id="asPanelSvBtn" title="Open Google Street View at this location (new tab). Imagery © Google." style="padding:2px 8px;font-size:11px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;color:#1d4ed8;white-space:nowrap;flex-shrink:0;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;vertical-align:-1px;"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg> Street View</button>' : '') +
           '</div>' +
           '<div class="src-metric-grid" style="grid-template-columns:1fr 1fr;">' +
             '<div><span style="color:#6b7280;font-size:11px;">Height (m)</span><br><input type="number" id="asPanelHeight" value="' + heightVal + '" step="0.1" min="0" style="width:60px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-top:2px;"></div>' +
@@ -33561,6 +33623,12 @@ if (window.pdfjsLib) {
       var closeBtn2 = document.getElementById('asPanelClose2');
       if (closeBtn)  closeBtn.addEventListener('click', closeAsPanel);
       if (closeBtn2) closeBtn2.addEventListener('click', closeAsPanel);
+
+      var asSvBtn = document.getElementById('asPanelSvBtn');
+      if (asSvBtn) {
+        var _asCtr = _asPolygonCentroid(as.vertices || []);
+        if (_asCtr) asSvBtn.addEventListener('click', function() { openStreetView(_asCtr.lat, _asCtr.lng); });
+      }
 
       var delBtn = document.getElementById('asPanelDelete');
       if (delBtn) delBtn.addEventListener('click', function() {
@@ -33897,6 +33965,7 @@ if (window.pdfjsLib) {
         poly.on('click', (function(capturedAs) {
           return function(e) {
             if (_drawingActive || _drawingAreaSource || _moveMode) return;
+            if (_dispatchPlacementClick(e.latlng)) return;
             L.DomEvent.stopPropagation(e);
             openAsPanel(capturedAs.id, e.originalEvent.clientX, e.originalEvent.clientY);
           };
@@ -34585,6 +34654,7 @@ if (window.pdfjsLib) {
         poly.on('click', (function(capturedBs) {
           return function(e) {
             if (_drawingActive || _drawingBuildingSource || _moveMode) return;
+            if (_dispatchPlacementClick(e.latlng)) return;
             L.DomEvent.stopPropagation(e);
             openBsPanel(capturedBs.id, e.originalEvent.clientX, e.originalEvent.clientY);
           };
@@ -34941,8 +35011,10 @@ if (window.pdfjsLib) {
       h += '</div>';
 
       // Coords + geometry
-      h += '<div style="font-size:11px;color:#888;display:flex;gap:12px;margin-bottom:8px;">';
-      h += '<span>' + coordStr + '</span><span>Area: <b>' + _asFormatArea(roofArea) + '</b></span></div>';
+      h += '<div style="font-size:11px;color:#888;display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
+      h += '<span style="flex:1;">' + coordStr + ' &nbsp;<span style="color:#6b7280;">Area: <b>' + _asFormatArea(roofArea) + '</b></span></span>';
+      h += (ctr ? '<button id="bsPanelSvBtn" title="Open Google Street View at this location (new tab). Imagery © Google." style="padding:2px 8px;font-size:11px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;color:#1d4ed8;white-space:nowrap;flex-shrink:0;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;vertical-align:-1px;"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg> Street View</button>' : '');
+      h += '</div>';
       var bsTopM = (bs.baseHeightM || 0) + (bs.height_m || 6);
       h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:4px;padding:8px;background:#f5f3ff;border-radius:6px;border:1px solid #e9d5ff;">';
       h += '<div><span style="color:#6b7280;">Base ht (m)</span><br><input id="bsPanelBase" type="number" value="' + (bs.baseHeightM||0).toFixed(1) + '" step="0.1" min="0" style="width:60px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></div>';
@@ -35148,6 +35220,13 @@ if (window.pdfjsLib) {
           panel.style.left=(_pX+ev.clientX-_dX)+'px'; panel.style.top=(_pY+ev.clientY-_dY)+'px';
         });
         document.addEventListener('mouseup', function(){_drg=false;});
+      }
+
+      // Street View
+      var bsSvBtn = document.getElementById('bsPanelSvBtn');
+      if (bsSvBtn) {
+        var _bsCtr = _asPolygonCentroid(bs.vertices || []);
+        if (_bsCtr) bsSvBtn.addEventListener('click', function() { openStreetView(_bsCtr.lat, _bsCtr.lng); });
       }
 
       // ── Partial refresh helpers ───────────────────────────────────────────
@@ -35861,8 +35940,9 @@ if (window.pdfjsLib) {
             '<label style="font-size:11px;color:#666;white-space:nowrap;">Name:</label>' +
             '<input type="text" id="lsPanelName" value="' + escapeHTML(ls.name || '') + '" style="flex:1;padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:13px;">' +
           '</div>' +
-          '<div style="font-size:11px;color:#888;margin-bottom:6px;">' +
-            '<span id="lsPanelCoords">' + coordStr + '</span>' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+            '<span id="lsPanelCoords" style="font-size:11px;color:#888;flex:1;">' + coordStr + '</span>' +
+            (ls.vertices && ls.vertices.length ? '<button id="lsPanelSvBtn" title="Open Google Street View at this location (new tab). Imagery © Google." style="padding:2px 8px;font-size:11px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;color:#1d4ed8;white-space:nowrap;flex-shrink:0;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;vertical-align:-1px;"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg> Street View</button>' : '') +
           '</div>' +
           '<div class="src-metric-grid" style="grid-template-columns:1fr 1fr;">' +
             '<div><span style="color:#6b7280;font-size:11px;">Height (m)</span><br><input type="number" id="lsPanelHeight" value="' + heightVal + '" step="0.1" min="0" style="width:60px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-top:2px;"></div>' +
@@ -35956,6 +36036,12 @@ if (window.pdfjsLib) {
       var closeBtn2 = document.getElementById('lsPanelClose2');
       if (closeBtn) closeBtn.addEventListener('click', closeLsPanel);
       if (closeBtn2) closeBtn2.addEventListener('click', closeLsPanel);
+
+      // Street View (first vertex)
+      var lsSvBtn = document.getElementById('lsPanelSvBtn');
+      if (lsSvBtn && ls.vertices && ls.vertices.length) {
+        lsSvBtn.addEventListener('click', function() { openStreetView(ls.vertices[0][0], ls.vertices[0][1]); });
+      }
 
       // Name
       var nameInp = document.getElementById('lsPanelName');
@@ -36310,6 +36396,7 @@ if (window.pdfjsLib) {
         poly.on('click', (function(capturedLs) {
           return function(e) {
             if (_drawingActive || _lsDrawHandler || _moveMode) return;
+            if (_dispatchPlacementClick(e.latlng)) return;
             L.DomEvent.stopPropagation(e);
             openLsPanel(capturedLs.id, e.originalEvent.clientX, e.originalEvent.clientY);
           };
@@ -37622,8 +37709,25 @@ if (window.pdfjsLib) {
 
     // Dismiss on any map click or Escape
     map.on('click', function() { if (_ctxMenuOpen) _hideMapCtxMenu(); });
-    // Suppress native map context menu; guard against hiding a menu just opened by a layer
-    map.on('contextmenu', function() { if (Date.now() - _ctxMenuLastShown > 100) _hideMapCtxMenu(); });
+    // Map-level right-click: show Street View / Copy coordinates (fires only on empty map — objects stopPropagation)
+    map.on('contextmenu', function(e) {
+      if (Date.now() - _ctxMenuLastShown > 100) {
+        var ll = e.latlng;
+        var cx = e.originalEvent ? e.originalEvent.clientX : window.innerWidth / 2;
+        var cy = e.originalEvent ? e.originalEvent.clientY : window.innerHeight / 2;
+        _showMapCtxMenu(cx, cy, [
+          { id: 'sv', label: 'Street View here', icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>', action: function() {
+              openStreetView(ll.lat, ll.lng);
+          }},
+          { id: 'copycoords', label: 'Copy coordinates', icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>', action: function() {
+              var txt = ll.lat.toFixed(6) + ', ' + ll.lng.toFixed(6);
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(txt).then(function() { showToast('Copied: ' + txt); }).catch(function() { showToast(txt); });
+              } else { showToast(txt); }
+          }}
+        ]);
+      }
+    });
     document.addEventListener('click', function(e) {
       if (_ctxMenuOpen && _ctxMenuEl && !_ctxMenuEl.contains(e.target)) _hideMapCtxMenu();
     });
@@ -38949,7 +39053,9 @@ if (window.pdfjsLib) {
               if (Array.isArray(v)) return [v[0], v[1]];
               return [v.lat !== undefined ? v.lat : v[0], v.lng !== undefined ? v.lng : v[1]];
             });
-            return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null, vertexElevations: b.vertexElevations || null };
+            return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null, vertexElevations: b.vertexElevations || null,
+                     reflectionType: b.reflectionType || 'hard_wall',
+                     reflectionRhoCustom: (b.reflectionRhoCustom !== null && b.reflectionRhoCustom !== undefined) ? b.reflectionRhoCustom : 1.0 };
           });
 
           _noiseWorker.postMessage({
@@ -39117,7 +39223,9 @@ if (window.pdfjsLib) {
             if (Array.isArray(v)) return [v[0], v[1]];
             return [v.lat !== undefined ? v.lat : v[0], v.lng !== undefined ? v.lng : v[1]];
           });
-          return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null, vertexElevations: b.vertexElevations || null };
+          return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null, vertexElevations: b.vertexElevations || null,
+                   reflectionType: b.reflectionType || 'hard_wall',
+                   reflectionRhoCustom: (b.reflectionRhoCustom !== null && b.reflectionRhoCustom !== undefined) ? b.reflectionRhoCustom : 1.0 };
         });
 
         _noiseWorker.postMessage({
@@ -42319,6 +42427,20 @@ if (window.pdfjsLib) {
       <div class="help-body">
         <p style="margin:0 0 6px;">The <strong>Quick Reference</strong>, <strong>Suggested sources</strong>, and <strong>Objects</strong> panels can be repositioned by dragging their title bar. Look for the <strong>⠿</strong> grip icon on the left of the header.</p>
         <p style="margin:0;">Source and site-element editing panels (barrier, line source, area source, building source) are also draggable by their header.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="help-arrow">&#9658;</span> Site context</summary>
+      <div class="help-body">
+        <div class="help-sub">Street View</div>
+        <ul>
+          <li>Click the <strong>Street View</strong> button on any source, receiver, or custom building edit panel to view existing site conditions in Google Street View</li>
+          <li>Right-click anywhere on the map and choose <strong>Street View here</strong> to open Street View at that exact location</li>
+          <li>Right-click also offers <strong>Copy coordinates</strong> to copy the lat/lng to the clipboard</li>
+          <li>Imagery opens in a new browser tab &mdash; opens Google&rsquo;s own page; no API key required</li>
+          <li>Imagery is &copy; Google. Use for site familiarisation only &mdash; reproduction in reports requires Google&rsquo;s attribution requirements to be met</li>
+        </ul>
       </div>
     </details>
 

@@ -451,6 +451,10 @@ describe('getReflectionRho — ISO 9613-2:1996 Table 4', () => {
     expect(getReflectionRho({ reflectionType: 'custom', reflectionRhoCustom: 0.6 })).toBe(0.6);
   });
 
+  it('custom rho=0 is returned as-is (not coerced to 1)', () => {
+    expect(getReflectionRho({ reflectionType: 'custom', reflectionRhoCustom: 0 })).toBe(0);
+  });
+
   it('custom with out-of-range rho falls back to 1.0', () => {
     expect(getReflectionRho({ reflectionType: 'custom', reflectionRhoCustom: -0.1 })).toBe(1.0);
     expect(getReflectionRho({ reflectionType: 'custom', reflectionRhoCustom: 1.5 })).toBe(1.0);

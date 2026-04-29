@@ -76,7 +76,7 @@ Active simplifications as of April 2026. See "Last reconciled" note at end of fi
 
 ### 4. Reflections — single dominant first-order, per-surface ρ (Table 4) — **D6 implemented April 2026**
 
-**Tool:** Computes the single shortest first-order reflected path (image-source method, 2D horizontal plane). Grazing cutoff at 80°. No second-order or higher reflections (Gap 8). Reflection coefficient ρ is now configurable per building via ISO 9613-2:1996 Table 4 standard values: hard wall (ρ=1.0, default), walls with windows/openings (ρ=0.8), factory walls 50% openings (ρ=0.4), open installations (ρ=0.0), or custom (0–1). `10·log10(ρ)` is applied to the reflected level before energy-summing with the direct path.
+**Tool:** Computes the single shortest first-order reflected path (image-source method, 2D horizontal plane). Grazing cutoff at 80°. No second-order or higher reflections (Gap 8). Reflection coefficient ρ is configurable per building via ISO 9613-2:1996 Table 4 standard values: hard wall (ρ=1.0, default), walls with windows/openings (ρ=0.8), factory walls 50% openings (ρ=0.4), open installations (ρ=0.0), or custom (0–1). `10·log10(ρ)` is applied to the reflected level before energy-summing with the direct path. ρ is applied consistently across the receiver panel and the noise map heatmap (bug fixed April 2026 — heatmap previously always used ρ=1.0).
 
 **SoundPLAN:** Supports configurable per-surface absorption coefficients, multiple reflection orders, and 3D geometry for inclined reflectors.
 
