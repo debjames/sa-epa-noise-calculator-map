@@ -90,13 +90,12 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
   font-size: 11px;
   color: #374151;
   box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-  display: flex;
+  display: none; /* shown via style.display = 'flex' in JS */
   gap: 7px;
   align-items: center;
-  z-index: 500;
+  z-index: 1100;
   white-space: nowrap;
 }
-#bgFetchIndicator[hidden] { display: none; }
 .bg-spinner {
   width: 11px;
   height: 11px;
@@ -2341,7 +2340,7 @@ body.disclaimer-visible .container {
 <div id="prop-method-indicator" role="status" aria-live="polite" title="Click to open Propagation method panel"></div>
 
 <!-- R8: Background fetch loading indicator — appears during terrain/building/zone fetches -->
-<div id="bgFetchIndicator" role="status" aria-live="polite" aria-label="Loading data" hidden>
+<div id="bgFetchIndicator" role="status" aria-live="polite" aria-label="Loading data" style="display:none">
   <span class="bg-spinner"></span>
   <span id="bgFetchLabel">Loading…</span>
 </div>
@@ -15545,11 +15544,15 @@ function _updateBgFetchIndicator() {
   var el = document.getElementById('bgFetchIndicator');
   if (!el) return;
   var labels = Object.keys(_bgFetchCounts);
-  if (labels.length === 0) { el.hidden = true; return; }
+  if (labels.length === 0) { el.style.display = 'none'; return; }
   var lbl = document.getElementById('bgFetchLabel');
   if (lbl) lbl.textContent = 'Loading: ' + labels.join(', ');
-  el.hidden = false;
+  el.style.display = 'flex';
 }
+// Expose explicitly on window so DemCache IIFE and other scopes can reach them
+window.startBgFetch = startBgFetch;
+window.endBgFetch = endBgFetch;
+window.showErrorToast = showErrorToast;
 
 function markResultsStale() {
   if (!_hasRunCalculation) return; // no stale indicator before first calc
