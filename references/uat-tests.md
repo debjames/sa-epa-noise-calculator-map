@@ -2182,3 +2182,97 @@ Tests confirming the three help surfaces (Methodology / Quick Reference / Help A
 - [ ] **DC-10. Character penalties** — HA topic `character-penalties` answer acknowledges three state-specific names (Characteristic penalties / Characteristic adjustments / Modifying factor corrections). QR uses "penalties" without a specific card name. Methodology uses "Character penalties and modifying factors".
 
 - [ ] **DC-11. ISO/TR 17534-3 in all three surfaces** — Confirm: Methodology `#methodologyCard` has an ISO/TR 17534-3 section; QR Propagation entry mentions "Run validation" and ISO/TR 17534-3 tests T01–T03; HA topic `run-validation` exists with `#isoValidateBtn` selector.
+
+---
+
+## ISO 9613-2:1996 §8 — Cmet meteorological correction
+
+### UI visibility
+
+- [ ] **CMET-1. Panel hidden under Simple** — Select "Simple method" in the Propagation accordion. The Cmet panel (`#isoCmetPanel`) is not visible.
+- [ ] **CMET-2. Panel hidden under CONCAWE** — Select "CONCAWE" in the Propagation accordion. The Cmet panel is not visible.
+- [ ] **CMET-3. Panel shown under ISO 9613-2** — Select "ISO 9613-2" in the Propagation accordion. The Cmet panel appears below the ISO parameter inputs, showing a checkbox labelled "Long-term met correction (Cₘₑₜ)" and a `?` tooltip button.
+- [ ] **CMET-4. C0 row hidden by default** — The checkbox is unchecked by default. The C0 input row is not visible.
+- [ ] **CMET-5. C0 row appears on enable** — Check the checkbox. The C0 row appears showing "C₀ [input] dB (0–5)" with value 2.0.
+- [ ] **CMET-6. C0 row hides on disable** — Uncheck the checkbox. The C0 row hides again.
+- [ ] **CMET-7. Tooltip text** — Hover the `?` button. Tooltip references ISO 9613-2:1996 §8 and explains the long-term average purpose.
+
+### Calculation correctness
+
+- [ ] **CMET-8. Near-field zero** — Cmet = 0 when `dp ≤ 10·(hs+hr)`. Set up: source at 0.5 m height, receiver at 1.5 m height, distance 15 m (threshold = 20 m). Enable Cmet (C0 = 2). Confirm Lp is unchanged vs Cmet OFF (Cmet = 0 at this distance).
+- [ ] **CMET-9. Far-field reduction** — Same source/receiver but distance 500 m. Enable Cmet (C0 = 2). Threshold = 20 m; `dp > threshold` → Cmet = 2 × (1 − 20/500) = 1.92 dB. Lp with Cmet ON should be ~1.92 dB lower than Cmet OFF.
+- [ ] **CMET-10. Detail panel label** — With Cmet ON and dp > threshold, the detail panel meta text shows `Cₘₑₜ = −x.xx dB (LT avg)`.
+- [ ] **CMET-11. Detail panel silent when zero** — With Cmet ON but dp ≤ threshold, the detail panel meta text does NOT show a Cmet entry.
+- [ ] **CMET-12. Lmax unaffected** — Switch period to Lmax. Enable Cmet. Lmax value must be identical to Cmet OFF result (Cmet excluded from Lmax path).
+- [ ] **CMET-13. ISO/TR 17534-3 unaffected** — With Cmet ON, click "Run validation". All 25 tests still pass (validation calls internally use Cmet = 0).
+
+### Noise map (worker)
+
+- [ ] **CMET-14. Noise map applies Cmet** — Enable Cmet (C0 = 2), compute noise map. Colours at distances > 200 m from source should be slightly lower (cooler/quieter) than with Cmet OFF at the same C0.
+- [ ] **CMET-15. Near-field cells unchanged** — Cells within `dp ≤ 10·(hs+hr)` of the source show no difference between Cmet ON and OFF.
+- [ ] **CMET-16. Lmax map unaffected** — Compute noise map in Lmax mode with Cmet ON. Result must be identical to Cmet OFF in Lmax mode.
+
+### Save / load round-trip
+
+- [ ] **CMET-17. Save v5** — Enable Cmet (C0 = 3.5). Save Assessment JSON. Open in text editor. Confirm `"cmetEnabled": true, "cmetC0": 3.5` under `propagation` and `"_version": 5`.
+- [ ] **CMET-18. Load v5** — Load the v5 file saved above. Checkbox is checked, C0 shows 3.5, Lp values match.
+- [ ] **CMET-19. Pre-v5 file loads cleanly** — Load a v4 (or earlier) save file. No error. Cmet defaults to OFF (checkbox unchecked), C0 = 2.0. Propagation results unchanged from original save.
+- [ ] **CMET-20. Unsaved indicator** — Toggle Cmet checkbox. The Save button shows the red unsaved dot (●). Change C0. Unsaved dot remains. Save. Dot clears.
+
+### Edge cases
+
+- [ ] **CMET-21. C0 = 0** — Set C0 to 0, enable Cmet. Lp at all distances is identical to Cmet OFF (Cmet = 0 when C0 = 0).
+- [ ] **CMET-22. C0 = 5 (maximum)** — Set C0 to 5, enable Cmet. At very large distance (e.g. 2 km), Cmet approaches 5 dB. Confirm Lp decreases by approximately 5 dB relative to Cmet OFF.
+- [ ] **CMET-23. CONCAWE unaffected** — Switch to CONCAWE propagation. Cmet panel is hidden. Cmet does not apply to CONCAWE predictions.
+
+---
+
+## D6 — Per-surface reflection coefficient (ISO 9613-2:1996 Table 4)
+
+### Building edit panel UI
+
+- [ ] **D6-1. Dropdown present** — Draw a custom building and click it to open the edit panel. A "Reflection (ISO 9613-2 Table 4)" dropdown is present below the height/terrain info. It has five options: "Flat hard walls (ρ = 1.0)", "Walls with windows / openings (ρ = 0.8)", "Factory walls, 50% openings (ρ = 0.4)", "Open installations (ρ = 0.0)", "Custom value".
+- [ ] **D6-2. Default is hard wall** — On a freshly drawn building, the dropdown defaults to "Flat hard walls (ρ = 1.0)".
+- [ ] **D6-3. Custom row hidden by default** — The custom ρ input row is not visible when a non-custom type is selected.
+- [ ] **D6-4. Custom row appears on select** — Select "Custom value". The ρ input row appears with a number input (0–1) and a "(0– 1)" label.
+- [ ] **D6-5. Custom row hides on non-custom** — Select any non-custom option after "Custom value". The ρ input row hides.
+- [ ] **D6-6. Apply saves type** — Select "Factory walls, 50% openings (ρ = 0.4)" and click Apply. Re-open the panel. The dropdown shows "Factory walls, 50% openings (ρ = 0.4)".
+- [ ] **D6-7. Apply saves custom ρ** — Select "Custom value", enter 0.6, click Apply. Re-open the panel. Custom row shows 0.6.
+
+### Calculation correctness
+
+- [ ] **D6-8. ρ=1.0 (default) is unchanged** — Place a source and receiver with a reflective building nearby. With the building at default (hard wall ρ=1.0), Lp is identical to the pre-D6 baseline (no regression).
+- [ ] **D6-9. ρ=0.4 reduces reflected contribution by ~4 dB** — Switch building to "Factory walls, 50% openings (ρ=0.4)". The receiver Lp drops by a small amount (approximately `10·log10(0.4) ≈ −4 dB` on the reflected *contribution* only, not the total — the direct path is unchanged).
+- [ ] **D6-10. ρ=0.0 suppresses reflection** — Switch building to "Open installations (ρ=0.0)". The receiver Lp matches the direct-path-only result (no reflected energy added).
+- [ ] **D6-11. Custom ρ=0.6 intermediate** — Set custom ρ=0.6. Lp is between the ρ=1.0 and ρ=0.4 results.
+- [ ] **D6-12. Noise map worker reflects ρ** — Compute a noise map with a reflective building. Switch building to ρ=0.4 and recompute. Cells that receive reflected energy from this building show lower (cooler) levels.
+
+### Save / load round-trip
+
+- [ ] **D6-13. Save preserves reflectionType** — Set building to "Factory walls, 50% openings". Save JSON. Open in text editor. Confirm `"reflectionType": "hard_wall"` ... wait, factory_50 → confirm `"reflectionType": "factory_50"` in the `customBuildings` array.
+- [ ] **D6-14. Load restores reflectionType** — Load the file above. Building edit panel shows "Factory walls, 50% openings (ρ = 0.4)".
+- [ ] **D6-15. Pre-D6 file loads cleanly** — Load an older save without `reflectionType` field. Buildings load with default hard wall (ρ=1.0). No error. Receiver Lp unchanged from the original file's values.
+
+---
+
+## R14 — Responsive toolbar collapse
+
+### Breakpoint behaviour
+
+- [ ] **R14-1. ≥1280px — all buttons inline** — Resize viewport to 1400px. All toolbar buttons visible inline: Save, Open, Scenarios, Methodology, Save PDF, Share Assessment. No "More ▾" button visible.
+- [ ] **R14-2. <1280px — secondary buttons hidden** — Resize to 1100px. Methodology, Save PDF, Share Assessment buttons are hidden. A "More ▾" button appears in the toolbar.
+- [ ] **R14-3. Upload proposal hidden at <1280px** — Resize to 1100px. The "Upload proposal" button in the project number row is also hidden.
+
+### Overflow menu interaction
+
+- [ ] **R14-4. Menu opens on click** — At 1100px, click "More ▾". A dropdown menu appears below the button listing the four secondary buttons: Methodology, Save PDF, Share Assessment, Upload proposal.
+- [ ] **R14-5. Menu item works** — Click "Methodology" in the overflow menu. The Methodology modal opens. The menu closes.
+- [ ] **R14-6. Close on outside click** — Open the overflow menu. Click anywhere on the map or sidebar. Menu closes.
+- [ ] **R14-7. Close on Esc** — Open the overflow menu. Press Esc. Menu closes.
+- [ ] **R14-8. aria-expanded updates** — Open the menu; the overflow button's `aria-expanded` attribute is `"true"`. Close it; attribute is `"false"`.
+
+### Coexistence
+
+- [ ] **R14-9. Mobile banner coexists** — At 700px (below 768px mobile banner threshold), both the mobile banner and the overflow button may be visible (mobile layout). No overlap or JS error.
+- [ ] **R14-10. Resize up restores full toolbar** — Start at 1100px (overflow visible). Resize to 1400px. Overflow button disappears; all secondary buttons reappear inline.
+- [ ] **R14-11. No console errors** — Perform viewport resize, overflow open/close, and item click. No JS errors in the browser console.

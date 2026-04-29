@@ -445,6 +445,10 @@ Serialised as `data._scenarios` (array of scenario objects). `state` is stored a
 
 `#scenariosBtn` — `.pdf-btn` class, appended after `#shareAssessmentBtn` in the Save/Load row.
 
+### Responsive toolbar (R14)
+
+At viewport widths ≥ 1280px all buttons show inline. Below 1280px, secondary buttons are hidden and a `#toolbarOverflowBtn` ("More ▾") appears. Secondary buttons carry the class `toolbar-secondary`: `#methodologyTopBtn`, `#savePdfBtn`, `#shareAssessmentBtn`, `#uploadProposalBtn`. Clicking the overflow button builds a dropdown (`#toolbarOverflowMenu`) by cloning the secondary buttons; each clone's click triggers the original button's click handler. Menu closes on outside click, Esc, or item selection. Menu position is computed from the overflow button's `getBoundingClientRect`. Below 768px the mobile-not-supported banner takes precedence (no conflict).
+
 ### Scenarios IIFE
 
 Separate `<script>` block immediately after the save/load IIFE. Provides:
@@ -2128,6 +2132,8 @@ Two more polygon-based geometry types — same coordinate / DEM-sampling utiliti
 
 #### Barriers
 
+**Custom building object fields** (`customBuildings[]`): `{ id, polygon: [[lat,lng],…], baseHeightM, heightM, name, isCustom: true, userHeightOverride: true, vertexElevations: number[]|null, reflectionType: string, reflectionRhoCustom: number }`. `reflectionType` is one of `'hard_wall'`, `'windows'`, `'factory_50'`, `'open'`, `'custom'` (ISO 9613-2:1996 Table 4); defaults to `'hard_wall'` (ρ=1.0) when absent. `reflectionRhoCustom` is the user-entered ρ when `reflectionType === 'custom'`. Both fields are serialised in save JSON. Pre-existing saves load with `hard_wall` default (no migration needed). Configured via `#cbpReflType` dropdown in the building edit panel.
+
 Data source: `window._getUserBarriers()` returning `userBarriers[]`. Each barrier has `{ id, vertices: [[lat,lng],…], heightM, baseHeightM, suppressed, name, vertexElevations: number[]|null }`. `vertexElevations` stores absolute-ASL elevation at each vertex, fetched via `_fetchVertexElevations()` / `DEMCache.getElevations()`. Suppressed barriers are fully skipped in 3D — the 2D map handles suppression indication with its own styling.
 
 `_buildOneBarrier(barrier, centre)` at [`index.html:4664`](../index.html:4664) emits:
@@ -2351,6 +2357,8 @@ All serialised under `data.propagation.*` in save/load JSON.
 |----------|---------|---------|
 | `iso_groundFactor` | `0.5` | Scalar ground factor G (0 = hard, 1 = soft/porous). Used when per-region mode is off. |
 | `_groundFactorPerRegion` | `{ enabled: false, Gs: 0.5, Gm: 0.5, Gr: 0.5 }` | Per-region ground factor state. When `enabled`, `_effectiveGroundFactor()` returns `{Gs,Gm,Gr}` instead of the scalar `iso_groundFactor`. Persisted in `localStorage('iso_perRegion')`. |
+| `_cmetEnabled` | `false` | ISO 9613-2:1996 §8 meteorological correction toggle. Default OFF (worst-case downwind). Applies to Leq paths only (Lmax is excluded). Persisted in save JSON v5+. |
+| `_cmetC0` | `2.0` | Site-specific long-term met factor C0 (dB). Range 0–5. Used in `calcCmet(c0, hs, hr, dp)`. Persisted in save JSON v5+. |
 
 `_effectiveGroundFactor()` — returns `{Gs, Gm, Gr}` when per-region mode is active, else `iso_groundFactor`. Called at all ISO engine entry points, both noise map `postMessage` calls, and in `_gzComputePathG()`.
 

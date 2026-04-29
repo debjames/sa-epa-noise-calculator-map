@@ -11,7 +11,7 @@ Use SoundPLAN when any of the following apply:
 - Predicted levels are within **3 dB of the criteria** and the site has features this tool simplifies (terrain, directional sources, dense reflections)
 - **Complex terrain** with two or more ridgelines between source and receiver — this tool uses single dominant-ridge Maekawa diffraction (see Simplification 3)
 - **Multiple barrier diffraction** — this tool uses single dominant barrier per path (see the acoustic gaps audit for status of Gap 4)
-- **Cmet meteorological correction** is required by the applicable guideline — this tool has no Cmet term (see Simplification 1)
+- **Cmet meteorological correction** — this tool implements ISO 9613-2:1996 §8 Cmet (toggle in Propagation accordion). If Cmet is OFF (default), the tool predicts downwind worst-case. Enable Cmet for long-term average assessments (see Simplification 1)
 - **Low-frequency assessment (1/3 octave)** — this tool works in octave bands only
 - **Directional sources** (exhausts, louvres, cooling towers with predominant discharge direction) where shielding in the primary direction is relevant — see Simplification 2
 - **Dense urban environments** with second-order or higher reflections — this tool computes single dominant first-order reflection at ρ=1 (see Simplification 4)
@@ -25,15 +25,21 @@ Active simplifications as of April 2026. See "Last reconciled" note at end of fi
 
 ---
 
-### 1. Cmet (meteorological correction) not implemented
+### 1. Cmet (meteorological correction) — **implemented April 2026**
 
-**Tool:** Cmet = 0 dB at all distances and meteorological conditions. The barrier diffraction term Kmet is hardcoded to 1 (downwind worst-case).
+**Status:** Gap 1 closed. ISO 9613-2:1996 §8 equations (21) and (22) are implemented in `SharedCalc.calcCmet`. Toggle in the Propagation accordion (ISO 9613-2 mode only). Default OFF (worst-case downwind for conservative screening). See `references/calculations.md §ISO 9613-2:1996 §8`.
 
-**SoundPLAN:** Applies ISO 9613-2 Cmet per Annex B — a negative correction (reduction) of up to −5 dB for long-term average conditions at distances > 300 m. For downwind worst-case SoundPLAN uses Cmet = 0, identical to this tool.
+**Tool (Cmet OFF, default):** Cmet = 0 dB — equivalent to predicting the downwind worst-case. `Kmet = 1` in `calcBarrierAttenuation` is an unrelated diffraction modifier and is not the same quantity.
 
-**Impact:** 2–5 dB over-prediction at distances > 300 m for long-term average assessments. At distances < 100 m the effect is < 1 dB.
+**Tool (Cmet ON):** Applies `Cmet = C0 · [1 − 10·(hs+hr)/dp]` for `dp > 10·(hs+hr)`, else Cmet = 0 (eq. 21/22). C0 default 2 dB, range 0–5 dB. Subtracted from A-weighted broadband Lp after per-band summation. Leq only — Lmax paths excluded.
 
-**Conservative?** Yes — this tool always predicts the downwind worst-case, which is conservative relative to long-term average criteria. Not conservative if the applicable guideline explicitly requires long-term average (LA90-based) rather than worst-case.
+**SoundPLAN:** Applies ISO 9613-2 §8 Cmet. For downwind worst-case SoundPLAN uses Cmet = 0, identical to this tool's default. For long-term average mode, SoundPLAN applies the same §8 formula.
+
+**Impact (Cmet OFF):** 2–5 dB over-prediction at distances > 300 m for long-term average assessments. At distances < 100 m the effect is < 1 dB.
+
+**Conservative?** Cmet OFF is conservative (worst-case over-prediction) relative to long-term average criteria. Cmet ON gives long-term average and is NOT conservative against worst-case downwind criteria.
+
+**When to use Cmet ON:** When the applicable guideline requires long-term average (LA90/Leq LT) rather than worst-case. All Australian state noise policies reviewed to date use worst-case or percentile-based criteria — use the default (OFF) unless the guideline specifically references long-term average ISO 9613-2 assessment.
 
 ---
 
@@ -68,15 +74,19 @@ Active simplifications as of April 2026. See "Last reconciled" note at end of fi
 
 ---
 
-### 4. Reflections — single dominant first-order, fully reflective (ρ = 1)
+### 4. Reflections — single dominant first-order, per-surface ρ (Table 4) — **D6 implemented April 2026**
 
-**Tool:** Computes the single shortest first-order reflected path from each source to each receiver (image-source method, 2D horizontal plane). Reflection coefficient ρ = 1 (hard reflective surface, no absorption). Grazing cutoff at 80°. No second-order or higher reflections.
+**Tool:** Computes the single shortest first-order reflected path (image-source method, 2D horizontal plane). Grazing cutoff at 80°. No second-order or higher reflections (Gap 8). Reflection coefficient ρ is now configurable per building via ISO 9613-2:1996 Table 4 standard values: hard wall (ρ=1.0, default), walls with windows/openings (ρ=0.8), factory walls 50% openings (ρ=0.4), open installations (ρ=0.0), or custom (0–1). `10·log10(ρ)` is applied to the reflected level before energy-summing with the direct path.
 
 **SoundPLAN:** Supports configurable per-surface absorption coefficients, multiple reflection orders, and 3D geometry for inclined reflectors.
 
-**Impact:** 0.5–3 dB under-prediction in dense urban canyons where second-order reflections (wall → wall → receiver) contribute meaningfully. Over-prediction of reflected energy on absorptive surfaces (vegetation screens, textured cladding) because ρ = 1 is assumed.
+**Impact:**
+- *ρ = 1.0 (default, hard wall):* No change from prior behaviour.
+- *ρ < 1.0:* Reflected contribution reduced — `10·log10(ρ)` dB applied. For ρ=0.8: −1.0 dB; for ρ=0.4: −4.0 dB.
+- *ρ = 0.0:* Reflected contribution suppressed entirely.
+- *Second-order reflections:* Still not modelled (Gap 8). 0.5–3 dB under-prediction in dense urban canyons where reflections accumulate.
 
-**Conservative?** Variable — conservative (over-prediction) when a single hard reflector dominates and absorption is negligible. Non-conservative (under-prediction) when multiple reflections in a canyon accumulate, or when the dominant surface is absorptive.
+**Conservative?** With default ρ=1.0: conservative (over-prediction) when absorption is non-negligible. Use lower ρ values when the reflecting surface is known to be absorptive. Second-order reflection under-prediction is unchanged.
 
 ---
 

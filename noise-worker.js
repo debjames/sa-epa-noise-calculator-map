@@ -12,7 +12,7 @@
  */
 
 /* ─── Load all shared functions ─── */
-importScripts('shared-calc.js?v=3');
+importScripts('shared-calc.js?v=4');
 
 var attenuatePoint       = SharedCalc.attenuatePoint;
 var energySum            = SharedCalc.energySum;
@@ -25,8 +25,10 @@ var calcAlphaAtm         = SharedCalc.calcAlphaAtm;
 var calcBarrierAttenuation = SharedCalc.calcBarrierAttenuation;
 var calcBarrierWithEndDiffraction = SharedCalc.calcBarrierWithEndDiffraction;
 var calcISOatPoint        = SharedCalc.calcISOatPoint;
+var calcCmet              = SharedCalc.calcCmet;
 var calcConcaweAtPoint    = SharedCalc.calcConcaweAtPoint;
 var getDominantReflection = SharedCalc.getDominantReflection;
+var getReflectionRho      = SharedCalc.getReflectionRho;
 var ISO_FREQS            = SharedCalc.OCT_FREQ;
 
 /* ─── Main grid computation ─── */
@@ -42,6 +44,8 @@ self.onmessage = function(e) {
     var isoParams = opts.isoParams || {};
     var recvHeight = isoParams.receiverHeight || 1.5;
     var concaweMetCategory = opts.concaweMetCategory || 4;
+    var cmetEnabled = !!(opts.cmetEnabled);
+    var cmetC0      = isFinite(opts.cmetC0) ? opts.cmetC0 : 2.0;
     console.log('[WORKER] Started: method=' + method + ', concaweMetCategory=' + concaweMetCategory + ', sources=' + sources.length + ', hasSpectrum=' + (sources[0] ? !!sources[0].spectrum : 'N/A'));
     var demCache = opts.demCache || null;   // flat [{lat, lng, elev}] from main thread
     var terrainEnabled = !!opts.terrainEnabled;
@@ -684,18 +688,19 @@ self.onmessage = function(e) {
               ? isoParams
               : { receiverHeight: recvHeight, groundFactor: _pathGW,
                   temperature: isoParams.temperature, humidity: isoParams.humidity };
+            var _wkCmetI = (cmetEnabled && period !== 'lmax') ? calcCmet(cmetC0, src.heightM, recvHeight, dist) : 0;
             var _bBaseWI = _barrierW ? (_barrierW.baseHeightM || 0) : 0;
             var _bGapWI  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
             if (_bBaseWI > 0 && _bGapWI > 0 && !(_barrierW && _barrierW.rayInGap)) {
               var lp_tI = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                barrierDelta, recvHeight, isoParamsSrc, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
+                barrierDelta, recvHeight, isoParamsSrc, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands, _wkCmetI);
               var lp_gI = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                _bGapWI, recvHeight, isoParamsSrc, 0, 0, _barrInfoW, terrBands);
+                _bGapWI, recvHeight, isoParamsSrc, 0, 0, _barrInfoW, terrBands, _wkCmetI);
               lp = (!isFinite(lp_tI)) ? lp_gI : (!isFinite(lp_gI)) ? lp_tI
                  : 10 * Math.log10(Math.pow(10, lp_tI / 10) + Math.pow(10, lp_gI / 10));
             } else {
               lp = calcISOatPoint(src.spectrum, src.heightM, dist, src.spectrumAdj,
-                barrierDelta, recvHeight, isoParamsSrc, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
+                barrierDelta, recvHeight, isoParamsSrc, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands, _wkCmetI);
             }
           } else if (method === 'iso9613' && groundZones.length > 0) {
             // ISO without spectrum but with ground zones: use flat spectrum so G is applied
@@ -704,18 +709,19 @@ self.onmessage = function(e) {
             var _pathGWS = _wkPathG(src.lat, src.lng, lat, lng, src.heightM, recvHeight, dist);
             var isoParamsFlatWk = { receiverHeight: recvHeight, groundFactor: _pathGWS,
                 temperature: isoParams.temperature, humidity: isoParams.humidity };
+            var _wkCmetS = (cmetEnabled && period !== 'lmax') ? calcCmet(cmetC0, src.heightM, recvHeight, dist) : 0;
             var _bBaseWS = _barrierW ? (_barrierW.baseHeightM || 0) : 0;
             var _bGapWS  = _barrierW ? (_barrierW.gapPathLengthDiff || 0) : 0;
             if (_bBaseWS > 0 && _bGapWS > 0 && !(_barrierW && _barrierW.rayInGap)) {
               var lp_tS = calcISOatPoint(flatWk, src.heightM, dist, 0,
-                barrierDelta, recvHeight, isoParamsFlatWk, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
+                barrierDelta, recvHeight, isoParamsFlatWk, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands, _wkCmetS);
               var lp_gS = calcISOatPoint(flatWk, src.heightM, dist, 0,
-                _bGapWS, recvHeight, isoParamsFlatWk, 0, 0, _barrInfoW, terrBands);
+                _bGapWS, recvHeight, isoParamsFlatWk, 0, 0, _barrInfoW, terrBands, _wkCmetS);
               lp = (!isFinite(lp_tS)) ? lp_gS : (!isFinite(lp_gS)) ? lp_tS
                  : 10 * Math.log10(Math.pow(10, lp_tS / 10) + Math.pow(10, lp_gS / 10));
             } else {
               lp = calcISOatPoint(flatWk, src.heightM, dist, 0,
-                barrierDelta, recvHeight, isoParamsFlatWk, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands);
+                barrierDelta, recvHeight, isoParamsFlatWk, endDeltaLeft, endDeltaRight, _barrInfoW, terrBands, _wkCmetS);
             }
           } else {
             // Simple: max of building IL and terrain IL (1 kHz representative)
@@ -727,31 +733,32 @@ self.onmessage = function(e) {
           if (reflectionsEnabled && isFinite(lp) && buildings.length > 0) {
             var refl_w = getDominantReflection(srcLL, pt, src.heightM, recvHeight, buildings);
             if (refl_w) {
-              var lpRefl_w;
-              var rd = refl_w.reflectedDistM;
-              if (isLmaxSimple || (period === 'lmax' && !src.spectrum)) {
-                // Simple/no-spectrum Lmax: pure 1/r² at reflected distance
-                lpRefl_w = attenuatePoint(src.combinedLw, rd);
-              } else if (period === 'lmax' && src.spectrum) {
-                // ISO Lmax with spectrum: no A_gr, no barrier
-                var isoRLmax = {
-                  receiverHeight: recvHeight,
-                  groundFactor: 0,
-                  temperature: isoParams.temperature || 10,
-                  humidity: isoParams.humidity || 70
-                };
-                lpRefl_w = calcISOatPoint(src.spectrum, src.heightM, rd, src.spectrumAdj,
-                  0, recvHeight, isoRLmax, 0, 0);
-              } else if (method === 'iso9613' && src.spectrum) {
-                // ISO Leq: same params as direct but no barrier, no terrain
-                lpRefl_w = calcISOatPoint(src.spectrum, src.heightM, rd, src.spectrumAdj,
-                  0, recvHeight, isoParams, 0, 0);
-              } else {
-                // Simple Leq: 1/r² at reflected distance
-                lpRefl_w = attenuatePoint(src.combinedLw, rd);
-              }
-              if (isFinite(lpRefl_w)) {
-                lp = 10 * Math.log10(Math.pow(10, lp / 10) + Math.pow(10, lpRefl_w / 10));
+              var _reflRho = getReflectionRho(refl_w.building || {});
+              if (_reflRho > 0) {
+                var lpRefl_w;
+                var rd = refl_w.reflectedDistM;
+                if (isLmaxSimple || (period === 'lmax' && !src.spectrum)) {
+                  lpRefl_w = attenuatePoint(src.combinedLw, rd);
+                } else if (period === 'lmax' && src.spectrum) {
+                  var isoRLmax = {
+                    receiverHeight: recvHeight,
+                    groundFactor: 0,
+                    temperature: isoParams.temperature || 10,
+                    humidity: isoParams.humidity || 70
+                  };
+                  lpRefl_w = calcISOatPoint(src.spectrum, src.heightM, rd, src.spectrumAdj,
+                    0, recvHeight, isoRLmax, 0, 0);
+                } else if (method === 'iso9613' && src.spectrum) {
+                  var _wkCmetR = cmetEnabled ? calcCmet(cmetC0, src.heightM, recvHeight, rd) : 0;
+                  lpRefl_w = calcISOatPoint(src.spectrum, src.heightM, rd, src.spectrumAdj,
+                    0, recvHeight, isoParams, 0, 0, null, null, _wkCmetR);
+                } else {
+                  lpRefl_w = attenuatePoint(src.combinedLw, rd);
+                }
+                if (isFinite(lpRefl_w)) {
+                  lpRefl_w += 10 * Math.log10(_reflRho);
+                  lp = 10 * Math.log10(Math.pow(10, lp / 10) + Math.pow(10, lpRefl_w / 10));
+                }
               }
             }
           }

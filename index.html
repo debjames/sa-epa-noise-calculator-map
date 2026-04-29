@@ -2342,6 +2342,38 @@ body.disclaimer-visible .container {
   }
 }
 
+/* R14 — responsive toolbar collapse at <1280px */
+@media (max-width: 1279px) {
+  .toolbar-secondary { display: none !important; }
+  #toolbarOverflowBtn { display: inline-flex !important; }
+}
+#toolbarOverflowBtn { display: none; align-items: center; gap: 4px; }
+.toolbar-overflow-menu {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  padding: 4px 0;
+  min-width: 190px;
+  z-index: 1500;
+}
+.toolbar-overflow-menu[hidden] { display: none; }
+.toolbar-overflow-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.toolbar-overflow-menu button:hover { background: #f1f5f9; }
+
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" integrity="sha384-NZLkVuBRMEeB4VeZz27WwTRvlhec30biQ8Xx7zG7JJnkvEKRg5qi6BNbEXo9ydwv" crossorigin="anonymous"/>
@@ -2394,7 +2426,7 @@ body.disclaimer-visible .container {
   <button class="collapse-all-btn" id="collapseAllBtn" style="display:none;">Collapse All</button>
 
   <!-- Save / Load standalone row -->
-  <div style="display:flex;gap:8px;margin:10px 0;">
+  <div style="position:relative;display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center;">
     <button class="pdf-btn" id="exportJsonBtn" type="button">Save</button>
     <div class="open-split-wrap">
       <button class="pdf-btn" id="importJsonBtn" type="button">Open</button>
@@ -2403,9 +2435,11 @@ body.disclaimer-visible .container {
     </div>
     <button class="pdf-btn" id="scenariosBtn" type="button" title="Save and compare named scenario snapshots">Scenarios</button>
     <button class="pdf-btn" id="generateReportBtn" type="button" style="display:none">Generate Report</button>
-    <button class="pdf-btn" id="methodologyTopBtn" type="button" title="Open Methodology document — propagation methods, standards, and assumptions">Methodology</button>
-    <button class="pdf-btn" id="savePdfBtn" type="button" title="Export A4 criteria appendix PDF for acoustic reports" onclick="generatePDFAppendix(this)">Save PDF</button>
-    <button class="pdf-btn" id="shareAssessmentBtn" type="button" title="Generate a read-only link to share this assessment with a client">Share Assessment</button>
+    <button class="pdf-btn toolbar-secondary" id="methodologyTopBtn" type="button" title="Open Methodology document — propagation methods, standards, and assumptions">Methodology</button>
+    <button class="pdf-btn toolbar-secondary" id="savePdfBtn" type="button" title="Export A4 criteria appendix PDF for acoustic reports" onclick="generatePDFAppendix(this)">Save PDF</button>
+    <button class="pdf-btn toolbar-secondary" id="shareAssessmentBtn" type="button" title="Generate a read-only link to share this assessment with a client">Share Assessment</button>
+    <button class="pdf-btn" id="toolbarOverflowBtn" type="button" aria-haspopup="true" aria-expanded="false" title="More tools">More ▾</button>
+    <div id="toolbarOverflowMenu" class="toolbar-overflow-menu" role="menu" hidden></div>
   </div>
 
   <div class="sheet">
@@ -2425,7 +2459,7 @@ body.disclaimer-visible .container {
           style="flex:1;min-width:0;box-sizing:border-box;border:none;border-bottom:1px solid #e5e7eb;background:transparent;font-size:12px;font-weight:600;color:#1e293b;padding:3px 2px 2px;outline:none;font-family:inherit;"
           onfocus="this.style.borderBottomColor='#2563eb';"
           onblur="this.style.borderBottomColor='#e5e7eb';">
-        <button type="button" id="uploadProposalBtn" title="Upload a Resonate proposal PDF to auto-fill project number and name" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;padding:7px 10px;background:rgba(26,32,44,.9);color:#f3f4f6;border:none;border-radius:7px;font-size:12px;font-weight:600;letter-spacing:.02em;line-height:14px;white-space:nowrap;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.4);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);" onmouseover="this.style.background='rgba(45,55,72,.95)'" onmouseout="this.style.background='rgba(26,32,44,.9)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload proposal</button>
+        <button type="button" id="uploadProposalBtn" class="toolbar-secondary" title="Upload a Resonate proposal PDF to auto-fill project number and name" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;padding:7px 10px;background:rgba(26,32,44,.9);color:#f3f4f6;border:none;border-radius:7px;font-size:12px;font-weight:600;letter-spacing:.02em;line-height:14px;white-space:nowrap;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.4);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);" onmouseover="this.style.background='rgba(45,55,72,.95)'" onmouseout="this.style.background='rgba(26,32,44,.9)'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload proposal</button>
         <input type="file" id="proposalFileInput" accept=".pdf,application/pdf" style="display:none;">
       </div>
 
@@ -3030,6 +3064,24 @@ body.disclaimer-visible .container {
                   <button id="isoValidateBtn" class="mp-btn" onclick="runISOValidation()" style="padding:2px 7px;white-space:nowrap;flex-shrink:0;">Run</button>
                 </div>
                 <div id="isoValidationResults" style="display:none;font-size:10px;max-height:200px;overflow-y:auto;padding:2px 8px;"></div>
+                <!-- ISO 9613-2 §8 meteorological correction (Cmet) -->
+                <div id="isoCmetPanel" style="display:none;border-top:1px solid var(--border);margin-top:4px;padding-top:6px;">
+                  <div class="mp-sub-row" style="align-items:center;gap:4px;">
+                    <label style="display:flex;align-items:center;gap:3px;cursor:pointer;flex:1;">
+                      <input type="checkbox" id="isoCmetEnabled"
+                        title="ISO 9613-2:1996 §8 meteorological correction. Off (default) = worst-case downwind. On = long-term average per equations (21) and (22).">
+                      <span style="font-size:10px;color:#9ca3af;">Long-term met correction (C<sub>met</sub>)</span>
+                    </label>
+                    <span title="ISO 9613-2:1996 §8 — subtracts C₀·[1 − 10(hs+hr)/dp] from the downwind level to give the long-term average. Per NOTE 22, C₀ is typically 0–2 dB; values above 2 dB are exceptional." style="cursor:help;color:#6b7280;font-size:11px;user-select:none;">?</span>
+                  </div>
+                  <div id="isoCmetC0Row" style="display:none;">
+                    <div class="mp-sub-row">
+                      <span style="font-size:10px;min-width:32px;">C<sub>0</sub></span>
+                      <input type="number" id="isoCmetC0" value="2" min="0" max="5" step="0.5" style="width:46px;font-size:11px;">
+                      <span style="font-size:10px;color:#9ca3af;">dB (0–5)</span>
+                    </div>
+                  </div>
+                </div>
                 <div id="propMethodDesc" style="font-size:10px;color:#6b7280;line-height:1.5;padding:2px 8px 4px;"><b>Simple</b>: geometric spreading only. <b>ISO 9613-2:1996</b>: atmospheric absorption + ground attenuation per octave band. <b>CONCAWE</b> (Report 4/81): empirical ground curves + meteorological corrections.</div>
               </div>
               <div id="concaweMetPanel" style="display:none;">
@@ -8061,7 +8113,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
 </script>
 
 <!-- Load shared calculation and geometry functions (single canonical source) -->
-<script src="shared-calc.js?v=3"></script>
+<script src="shared-calc.js?v=4"></script>
 <script>
   // Bridge SharedCalc to window._calc and window._geometry for existing code
   window._calc = {
@@ -10230,6 +10282,9 @@ let iso_receiverHeight = 1.5; // metres (standard receiver height)
 let iso_groundFactor = 0.5;   // G: 0=hard, 0.5=mixed, 1.0=soft/porous
 // Per-region ground factor state (ISO 9613-2:1996 §7.3.1)
 var _groundFactorPerRegion = { enabled: false, Gs: 0.5, Gm: 0.5, Gr: 0.5 };
+// ISO 9613-2:1996 §8 meteorological correction state
+var _cmetEnabled = false;
+var _cmetC0 = 2.0;
 /** Returns {Gs,Gm,Gr} when per-region mode is active, else the scalar iso_groundFactor. */
 function _effectiveGroundFactor() {
   return _groundFactorPerRegion.enabled
@@ -11321,7 +11376,8 @@ function calcAreaSourceAtReceiver(as, period, ri) {
         { temperature: iso_temperature, humidity: iso_humidity, groundFactor: gf, metCategory: _concaweMetCategory },
         endDL, endDR, barrInfoAS, null);
     } else if (specA) {
-      lp = SharedCalc.calcISOatPoint(specA, effectiveH, d, 0, barrierDelta, recHt, isoP, endDL, endDR, barrInfoAS);
+      var _cmetAS = _cmetEnabled ? SharedCalc.calcCmet(_cmetC0, effectiveH, recHt, d) : 0;
+      lp = SharedCalc.calcISOatPoint(specA, effectiveH, d, 0, barrierDelta, recHt, isoP, endDL, endDR, barrInfoAS, null, _cmetAS);
     } else {
       // No spectrum: use broadband hemispherical propagation (attenuatePoint).
       // Feeding a flat A-weighted spectrum into calcISOatPoint would apply
@@ -11558,7 +11614,8 @@ function calcLineSourceAtReceiver(ls, period, ri) {
       } else {
         var isoP = { receiverHeight: recHt, groundFactor: gf,
                      temperature: iso_temperature, humidity: iso_humidity };
-        lp = SharedCalc.calcISOatPoint(specA, heightM, d, 0, barrierDelta, recHt, isoP, endDL, endDR, barrInfoLS);
+        var _cmetLS = _cmetEnabled ? SharedCalc.calcCmet(_cmetC0, heightM, recHt, d) : 0;
+        lp = SharedCalc.calcISOatPoint(specA, heightM, d, 0, barrierDelta, recHt, isoP, endDL, endDR, barrInfoLS, null, _cmetLS);
       }
     } else {
       // Simple propagation
@@ -11712,12 +11769,13 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, rec
     }, endDeltaLeft || 0, endDeltaRight || 0, barrierInfo || null, terrainPerBand || null);
   }
 
-  // ISO 9613-2:1996 path (unchanged)
+  // ISO 9613-2:1996 path
+  var _cmetVal = _cmetEnabled ? SharedCalc.calcCmet(_cmetC0, srcHeight, hR, distM) : 0;
   var result = SharedCalc.calcISOatPoint(spectrumA, srcHeight, distM, adjDB, barrierDelta || 0, hR, {
     temperature: iso_temperature,
     humidity: iso_humidity,
     groundFactor: gf
-  }, endDeltaLeft || 0, endDeltaRight || 0, barrierInfo || null);
+  }, endDeltaLeft || 0, endDeltaRight || 0, barrierInfo || null, null, _cmetVal);
 
   // Apply per-band terrain IL where it exceeds building barrier IL
   if (terrainPerBand && Number.isFinite(result)) {
@@ -11735,7 +11793,7 @@ function calcISO9613single(spectrumA, srcHeight, distM, adjDB, barrierDelta, rec
         var excess = Math.max(0, terrAbar - bldgAbar);
         correctedLin += Math.pow(10, (bandLp - excess) / 10);
       }
-      if (correctedLin > 0) result = 10 * Math.log10(correctedLin);
+      if (correctedLin > 0) result = 10 * Math.log10(correctedLin) - _cmetVal;
     }
   }
   return result;
@@ -11988,9 +12046,13 @@ function calcTotalISO9613(prefix, receiverIdx) {
       if (_reflectionsOn) {
         var refl = getSourceReflection(pin, receiverIdx);
         if (refl) {
-          var lpRefl = calcISO9613reflectedLevel(si, prefix, refl.reflectedDistM, receiverIdx);
-          if (Number.isFinite(lpRefl)) {
-            srcPred = 10 * Math.log10(Math.pow(10, srcPred / 10) + Math.pow(10, lpRefl / 10));
+          var _rhoLeq = SharedCalc.getReflectionRho(refl.building || {});
+          if (_rhoLeq > 0) {
+            var lpRefl = calcISO9613reflectedLevel(si, prefix, refl.reflectedDistM, receiverIdx);
+            if (Number.isFinite(lpRefl)) {
+              lpRefl += 10 * Math.log10(_rhoLeq);
+              srcPred = 10 * Math.log10(Math.pow(10, srcPred / 10) + Math.pow(10, lpRefl / 10));
+            }
           }
         }
       }
@@ -12164,9 +12226,13 @@ function calcTotalISO9613Lmax(receiverIdx, groundFactorOverride) {
       if (_reflectionsOn) {
         var reflLmax = getSourceReflection(pin, receiverIdx);
         if (reflLmax) {
-          var lpReflMax = calcISO9613reflectedLmax(si, reflLmax.reflectedDistM, receiverIdx, gf);
-          if (Number.isFinite(lpReflMax)) {
-            lp = 10 * Math.log10(Math.pow(10, lp / 10) + Math.pow(10, lpReflMax / 10));
+          var _rhoLmax = SharedCalc.getReflectionRho(reflLmax.building || {});
+          if (_rhoLmax > 0) {
+            var lpReflMax = calcISO9613reflectedLmax(si, reflLmax.reflectedDistM, receiverIdx, gf);
+            if (Number.isFinite(lpReflMax)) {
+              lpReflMax += 10 * Math.log10(_rhoLmax);
+              lp = 10 * Math.log10(Math.pow(10, lp / 10) + Math.pow(10, lpReflMax / 10));
+            }
           }
         }
       }
@@ -15800,9 +15866,13 @@ function calcPredAtReceiver(prefix, sourcePinsForPeriod, receiverIdx, fallbackDi
       var recHt_r = (typeof getReceiverHeight === 'function') ? getReceiverHeight(receiverIdx) : 1.5;
       var refl_s = SharedCalc.getDominantReflection(srcLL_r, recLL, srcHt_r, recHt_r, screenable);
       if (refl_s) {
-        var lpRefl_s = attenuatePoint(lwW, refl_s.reflectedDistM);
-        if (isFinite(lpRefl_s)) {
-          lp = 10 * Math.log10(Math.pow(10, lp / 10) + Math.pow(10, lpRefl_s / 10));
+        var _rhoSimple = SharedCalc.getReflectionRho(refl_s.building || {});
+        if (_rhoSimple > 0) {
+          var lpRefl_s = attenuatePoint(lwW, refl_s.reflectedDistM);
+          if (isFinite(lpRefl_s)) {
+            lpRefl_s += 10 * Math.log10(_rhoSimple);
+            lp = 10 * Math.log10(Math.pow(10, lp / 10) + Math.pow(10, lpRefl_s / 10));
+          }
         }
       }
     }
@@ -16890,6 +16960,62 @@ document.addEventListener('DOMContentLoaded', function() {
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && typeof _srcPanel !== 'undefined' && _srcPanel) closeSrcPanel();
   });
+
+  /* R14 — toolbar overflow menu */
+  (function() {
+    var overflowBtn  = document.getElementById('toolbarOverflowBtn');
+    var overflowMenu = document.getElementById('toolbarOverflowMenu');
+    if (!overflowBtn || !overflowMenu) return;
+
+    function buildOverflowMenu() {
+      overflowMenu.innerHTML = '';
+      document.querySelectorAll('.toolbar-secondary').forEach(function(btn) {
+        var clone = btn.cloneNode(true);
+        clone.removeAttribute('hidden');
+        clone.classList.remove('toolbar-secondary');
+        clone.style.display = '';
+        clone.addEventListener('click', function() {
+          btn.click();
+          closeOverflowMenu();
+        });
+        overflowMenu.appendChild(clone);
+      });
+    }
+
+    function positionOverflowMenu() {
+      var rect = overflowBtn.getBoundingClientRect();
+      overflowMenu.style.top   = (rect.bottom + 4) + 'px';
+      overflowMenu.style.right = (window.innerWidth - rect.right) + 'px';
+      overflowMenu.style.left  = '';
+    }
+
+    function closeOverflowMenu() {
+      overflowMenu.hidden = true;
+      overflowBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    overflowBtn.addEventListener('click', function() {
+      buildOverflowMenu();
+      positionOverflowMenu();
+      var isOpen = !overflowMenu.hidden;
+      overflowMenu.hidden = isOpen;
+      overflowBtn.setAttribute('aria-expanded', String(!isOpen));
+    });
+
+    document.addEventListener('click', function(e) {
+      if (overflowMenu.hidden) return;
+      if (overflowMenu.contains(e.target) || overflowBtn.contains(e.target)) return;
+      closeOverflowMenu();
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && !overflowMenu.hidden) closeOverflowMenu();
+    });
+
+    window.addEventListener('resize', function() {
+      if (!overflowMenu.hidden) positionOverflowMenu();
+    });
+  })();
 
   var addBtn = document.getElementById('addSourcePinBtn');
   if (addBtn) {
@@ -18395,10 +18521,11 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
       endDeltaL, endDeltaR, null, terrainPerBand
     );
   } else {
+    var _cmetDetail = _cmetEnabled ? SharedCalc.calcCmet(_cmetC0, srcHt, recHt, dist) : 0;
     detail = SharedCalc.calcISOatPointDetailed(
       spectrum, srcHt, dist, adjDB, barrierDelta, recHt,
       { temperature: iso_temperature, humidity: iso_humidity, groundFactor: iso_groundFactor },
-      endDeltaL, endDeltaR
+      endDeltaL, endDeltaR, null, null, _cmetDetail
     );
   }
 
@@ -18483,6 +18610,8 @@ function showISOBreakdown(sourceIdx, receiverIdx) {
   if (screenedBy) metaText += ' | Screened by: ' + screenedBy;
   metaText += ' | G=' + iso_groundFactor + ' | T=' + iso_temperature + '\u00b0C | RH=' + iso_humidity + '%';
   if (propagationMethod === 'concawe') metaText += ' | Met cat=' + _concaweMetCategory;
+  if (propagationMethod === 'iso9613' && _cmetEnabled && _cmetDetail > 0)
+    metaText += ' | Cₘₑₜ = −' + _cmetDetail.toFixed(2) + ' dB (LT avg)';
   meta.textContent = metaText;
   panel.style.display = '';
 }
@@ -21013,6 +21142,8 @@ function initPropagationMethod() {
       if (paramsDiv) paramsDiv.style.display = (propagationMethod === 'iso9613' || propagationMethod === 'concawe') ? '' : 'none';
       var cmp = document.getElementById('concaweMetPanel');
       if (cmp) cmp.style.display = (propagationMethod === 'concawe') ? '' : 'none';
+      var cmetPnl = document.getElementById('isoCmetPanel');
+      if (cmetPnl) cmetPnl.style.display = (propagationMethod === 'iso9613') ? '' : 'none';
       // Show/hide source height column in source tables
       toggleSourceHeightColumns();
       render();
@@ -21292,6 +21423,44 @@ function initPropagationMethod() {
       if (window._recomputeNoiseMap) window._recomputeNoiseMap();
     });
   });
+
+  // ── ISO 9613-2 §8 Cmet UI ────────────────────────────────────────────────
+  (function() {
+    var cmetCkEl   = document.getElementById('isoCmetEnabled');
+    var cmetC0El   = document.getElementById('isoCmetC0');
+    var cmetC0Row  = document.getElementById('isoCmetC0Row');
+    var cmetPanel  = document.getElementById('isoCmetPanel');
+
+    function _cmetApplyUI() {
+      if (cmetCkEl)  cmetCkEl.checked  = _cmetEnabled;
+      if (cmetC0El)  cmetC0El.value    = _cmetC0.toFixed(1);
+      if (cmetC0Row) cmetC0Row.style.display = _cmetEnabled ? '' : 'none';
+      if (cmetPanel) cmetPanel.style.display  =
+        (propagationMethod === 'iso9613') ? '' : 'none';
+    }
+    window._cmetApplyUI = _cmetApplyUI;
+    _cmetApplyUI();
+
+    if (cmetCkEl) {
+      cmetCkEl.addEventListener('change', function() {
+        _cmetEnabled = cmetCkEl.checked;
+        if (cmetC0Row) cmetC0Row.style.display = _cmetEnabled ? '' : 'none';
+        if (window._setUnsaved) window._setUnsaved();
+        render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      });
+    }
+    if (cmetC0El) {
+      cmetC0El.addEventListener('input', function() {
+        var v = parseFloat(cmetC0El.value);
+        if (!isFinite(v) || v < 0 || v > 5) return;
+        _cmetC0 = v;
+        if (window._setUnsaved) window._setUnsaved();
+        render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+      });
+    }
+  })();
 
   // ── Terrain contour lines ────────────────────────────────────────────────
   // _terrainContourOn declared at top level (line ~4841) for save/load access
@@ -23207,7 +23376,7 @@ setInitialCollapseState();
       try {
         var data = {};
         data._format = 'resonate-noise-tool';
-        data._version = 4;
+        data._version = 5;
         data._exportedAt = new Date().toISOString();
 
         // State
@@ -23334,7 +23503,9 @@ setInitialCollapseState();
           concaweTimeOfDay: _concaweTimeOfDay,
           concaweSolarRadiation: _concaweSolarRadiation,
           concaweCloudCover: _concaweCloudCover,
-          reflectionsOn: !!_reflectionsOn
+          reflectionsOn: !!_reflectionsOn,
+          cmetEnabled: !!_cmetEnabled,
+          cmetC0: _cmetC0
         };
 
         // VIC-specific
@@ -23478,7 +23649,9 @@ setInitialCollapseState();
         if (customs.length > 0) {
           data.customBuildings = customs.map(function(cb) {
             return { id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0, heightM: cb.heightM, name: cb.name,
-                     vertexElevations: cb.vertexElevations || null };
+                     vertexElevations: cb.vertexElevations || null,
+                     reflectionType: cb.reflectionType || 'hard_wall',
+                     reflectionRhoCustom: cb.reflectionRhoCustom || 1.0 };
           });
         }
 
@@ -24408,9 +24581,9 @@ setInitialCollapseState();
 
     function loadAssessment(data) {
       // Guard: warn if the file was saved by a future version of this app.
-      if (data._version && data._version > 4) {
+      if (data._version && data._version > 5) {
         console.warn('[loadAssessment] File is format v' + data._version +
-          ' (this app supports v4) — some fields may not load correctly.');
+          ' (this app supports v5) — some fields may not load correctly.');
       }
 
       // Version ladder: migrate older saves before any other processing.
@@ -24792,6 +24965,10 @@ setInitialCollapseState();
         }
         // Refresh computed display
         if (window._updateConcaweMet) window._updateConcaweMet(true);
+        // Restore Cmet state (v5+; additive — pre-v5 files default to off)
+        _cmetEnabled = !!(data.propagation.cmetEnabled);
+        _cmetC0 = isFinite(data.propagation.cmetC0) ? data.propagation.cmetC0 : 2.0;
+        if (typeof window._cmetApplyUI === 'function') window._cmetApplyUI();
       }
 
       // 10. VIC-specific settings
@@ -25044,7 +25221,9 @@ setInitialCollapseState();
           return {
             id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0,
             heightM: cb.heightM, name: cb.name, isCustom: true, userHeightOverride: true,
-            vertexElevations: cb.vertexElevations || null
+            vertexElevations: cb.vertexElevations || null,
+            reflectionType: cb.reflectionType || 'hard_wall',
+            reflectionRhoCustom: cb.reflectionRhoCustom || 1.0
           };
         }));
       }
@@ -26015,7 +26194,7 @@ setInitialCollapseState();
     try {
       var data = {};
       data._format  = 'resonate-noise-tool';
-      data._version = 4;
+      data._version = 5;
       data._exportedAt = new Date().toISOString();
       data.currentState  = typeof currentState  !== 'undefined' ? currentState  : 'SA';
       data.vicAreaType   = typeof vicAreaType   !== 'undefined' ? vicAreaType   : 'urban';
@@ -26198,7 +26377,9 @@ setInitialCollapseState();
       if (customs.length) {
         data.customBuildings = customs.map(function(cb) {
           return { id:cb.id, polygon:cb.polygon, baseHeightM:cb.baseHeightM||0, heightM:cb.heightM, name:cb.name,
-                   vertexElevations:cb.vertexElevations||null };
+                   vertexElevations:cb.vertexElevations||null,
+                   reflectionType:cb.reflectionType||'hard_wall',
+                   reflectionRhoCustom:cb.reflectionRhoCustom||1.0 };
         });
       }
 
@@ -32073,7 +32254,22 @@ if (window.pdfjsLib) {
             '</div>' +
             '<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Top: <b id="cbpTopDisplay">' + (curBase + curHt).toFixed(1) + '</b> m above ground' +
               '<span id="cbpFloatNote" style="color:#c0392b;margin-left:6px;display:' + (curBase > 0 ? 'inline' : 'none') + ';">\u26a0 Elevated</span></div>' +
-            '<div id="cbpTerrainInfo" style="font-size:11px;color:#6b7280;margin-bottom:10px;"></div>' +
+            '<div id="cbpTerrainInfo" style="font-size:11px;color:#6b7280;margin-bottom:8px;"></div>' +
+            '<div style="border-top:1px solid #f0f0f0;padding-top:8px;margin-bottom:8px;">' +
+              '<label style="font-size:11px;color:#6b7280;display:block;margin-bottom:4px;">Reflection (ISO 9613-2 Table 4)</label>' +
+              '<select id="cbpReflType" style="width:100%;box-sizing:border-box;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;margin-bottom:4px;">' +
+                '<option value="hard_wall">Flat hard walls (ρ = 1.0)</option>' +
+                '<option value="windows">Walls with windows / openings (ρ = 0.8)</option>' +
+                '<option value="factory_50">Factory walls, 50% openings (ρ = 0.4)</option>' +
+                '<option value="open">Open installations (ρ = 0.0)</option>' +
+                '<option value="custom">Custom value</option>' +
+              '</select>' +
+              '<div id="cbpReflCustomRow" style="display:none;align-items:center;gap:6px;">' +
+                '<label style="font-size:11px;color:#6b7280;white-space:nowrap;">ρ</label>' +
+                '<input type="number" id="cbpReflRho" min="0" max="1" step="0.05" value="1.0" style="width:70px;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;">' +
+                '<span style="font-size:11px;color:#9ca3af;">(0– 1)</span>' +
+              '</div>' +
+            '</div>' +
             '<div style="display:flex;gap:6px;">' +
               '<button id="cbpApply" style="flex:1;padding:5px 8px;font-size:12px;font-weight:600;background:#465a78;color:#fff;border:none;border-radius:5px;cursor:pointer;">Apply</button>' +
               '<button id="cbpShape" style="padding:5px 8px;font-size:12px;background:#f0f7ff;color:#2980b9;border:1px solid #c3d9f0;border-radius:5px;cursor:pointer;">Edit shape</button>' +
@@ -32113,6 +32309,20 @@ if (window.pdfjsLib) {
       panel.querySelector('#cbpBase').addEventListener('input', _cbpUpdateTop);
       panel.querySelector('#cbpHeight').addEventListener('input', _cbpUpdateTop);
       _cbpTerrainInfo();
+      // Initialise reflection controls
+      var _cbpReflTypeEl = panel.querySelector('#cbpReflType');
+      var _cbpReflRhoEl  = panel.querySelector('#cbpReflRho');
+      var _cbpReflRow    = panel.querySelector('#cbpReflCustomRow');
+      if (_cbpReflTypeEl) {
+        _cbpReflTypeEl.value = cb.reflectionType || 'hard_wall';
+        if (_cbpReflRhoEl && cb.reflectionType === 'custom') {
+          _cbpReflRhoEl.value = (cb.reflectionRhoCustom !== undefined ? cb.reflectionRhoCustom : 1.0).toString();
+        }
+        if (_cbpReflRow) _cbpReflRow.style.display = (cb.reflectionType === 'custom') ? 'flex' : 'none';
+        _cbpReflTypeEl.addEventListener('change', function() {
+          if (_cbpReflRow) _cbpReflRow.style.display = this.value === 'custom' ? 'flex' : 'none';
+        });
+      }
       panel.querySelector('#cbpApply').addEventListener('click', function() {
         var nv = panel.querySelector('#cbpName').value;
         var bv = parseFloat(panel.querySelector('#cbpBase').value);
@@ -32120,6 +32330,13 @@ if (window.pdfjsLib) {
         if (nv) cb.name = nv;
         if (Number.isFinite(bv) && bv >= 0) cb.baseHeightM = bv;
         if (Number.isFinite(hv) && hv > 0)  cb.heightM = hv;
+        if (_cbpReflTypeEl) {
+          cb.reflectionType = _cbpReflTypeEl.value;
+          if (cb.reflectionType === 'custom' && _cbpReflRhoEl) {
+            var rv = parseFloat(_cbpReflRhoEl.value);
+            if (isFinite(rv) && rv >= 0 && rv <= 1) cb.reflectionRhoCustom = rv;
+          }
+        }
         closeBuildingPanel();
         renderCustomBuildings(); rebuildBuildingsIndex();
         if (typeof render === 'function') render();
@@ -34260,7 +34477,8 @@ if (window.pdfjsLib) {
           { temperature: iso_temperature, humidity: iso_humidity, groundFactor: gf, metCategory: _concaweMetCategory },
           endDL, endDR, barrInfoBs, null);
       } else if (ss.specA && propagationMethod === 'iso9613') {
-        lp = SharedCalc.calcISOatPoint(ss.specA, ss.heightM, d, 0, barrierDelta, recHt, isoP, endDL, endDR, barrInfoBs);
+        var _cmetBs = _cmetEnabled ? SharedCalc.calcCmet(_cmetC0, ss.heightM, recHt, d) : 0;
+        lp = SharedCalc.calcISOatPoint(ss.specA, ss.heightM, d, 0, barrierDelta, recHt, isoP, endDL, endDR, barrInfoBs, null, _cmetBs);
       } else {
         lp = SharedCalc.attenuatePoint(ss.lwBB, d);
         if (bw && propagationMethod !== 'iso9613') lp -= Math.max(0, calcBarrierIL_broadband(bw));
@@ -38740,6 +38958,7 @@ if (window.pdfjsLib) {
             propagationMethod: propagationMethod,
             isoParams: { receiverHeight: _noiseMapHeight || 1.5, groundFactor: _effectiveGroundFactor(), temperature: iso_temperature, humidity: iso_humidity },
             concaweMetCategory: _concaweMetCategory,
+            cmetEnabled: !!_cmetEnabled, cmetC0: _cmetC0,
             demCache: demEntries, demSpacing: demSpacing, terrainEnabled: _terrainEnabled, debugTerrain: false,
             period: casePeriod, lmaxMethod: _lmaxMethod || 'simple', reflectionsEnabled: !!_reflectionsOn,
             groundZones: (window._getGroundZones ? window._getGroundZones() : []).map(function(gz) {
@@ -38919,6 +39138,7 @@ if (window.pdfjsLib) {
             humidity: iso_humidity
           },
           concaweMetCategory: _concaweMetCategory,
+          cmetEnabled: !!_cmetEnabled, cmetC0: _cmetC0,
           demCache: demEntries,
           demSpacing: demSpacing,
           terrainEnabled: _terrainEnabled,

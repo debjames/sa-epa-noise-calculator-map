@@ -215,6 +215,28 @@ var SharedCalc = (function() {
     return Agr_bar;
   }
 
+  /**
+   * ISO 9613-2:1996 §8 meteorological correction (equations 21 and 22).
+   * Subtract the returned value from the downwind broadband Lp_AT(DW) to
+   * obtain the long-term average Lp_AT(LT).
+   *
+   * @param {number} c0 - C0 factor (dB). Per NOTE 22: typical 0–2 dB; values
+   *   above 2 dB are exceptional. ISO illustrative value is 2 dB.
+   * @param {number} hs - Source AGL height (m)
+   * @param {number} hr - Receiver AGL height (m)
+   * @param {number} dp - Horizontal source-receiver distance (m)
+   * @returns {number} Cmet ≥ 0 (dB)
+   */
+  function calcCmet(c0, hs, hr, dp) {
+    if (!c0 || c0 <= 0) return 0;
+    if (dp <= 0) return 0;
+    hs = Math.max(hs, 0.01);
+    hr = Math.max(hr, 0.01);
+    var threshold = 10 * (hs + hr);
+    if (dp <= threshold) return 0;               // eq. (21)
+    return c0 * (1 - threshold / dp);            // eq. (22)
+  }
+
   /** ISO 9613-1 atmospheric absorption coefficients (dB/km) per octave band. */
   function calcAlphaAtm(tempC, humPct) {
     // No shortcut — always compute from formula for accuracy
@@ -623,7 +645,8 @@ var SharedCalc = (function() {
    *   with Agr the same way Abar is — so terrain screening participates in ISO 9613-2
    *   Formula (12) without double-counting ground effect.
    */
-  function calcISOatPoint(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand) {
+  function calcISOatPoint(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand, cmet) {
+    cmet = cmet || 0;
     if (!spectrum || distM <= 0) return NaN;
     var d = Math.max(distM, 1);
     var hS = Math.max(srcHeight, 0.01);
@@ -681,7 +704,7 @@ var SharedCalc = (function() {
       anyBand = true;
     }
     if (!anyBand) return NaN;
-    return 10 * Math.log10(sumLin);
+    return 10 * Math.log10(sumLin) - cmet;
   }
 
   /**
@@ -690,7 +713,8 @@ var SharedCalc = (function() {
    * @param {number[]} spectrum - Unweighted Lw per octave band [63..8kHz] in dB(Z). A-weighting is applied internally.
    * @returns {object} { total, bands: [{ freq, Lw, Adiv, Aatm, Agr, Abar, AgrBar, Lp, LA }] }
    */
-  function calcISOatPointDetailed(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand) {
+  function calcISOatPointDetailed(spectrum, srcHeight, distM, adjDB, barrierDelta, recvHeight, isoParams, endDeltaLeft, endDeltaRight, barrierInfo, terrainILPerBand, cmet) {
+    cmet = cmet || 0;
     if (!spectrum || distM <= 0) return null;
     var d = Math.max(distM, 1);
     var hS = Math.max(srcHeight, 0.01);
@@ -754,7 +778,8 @@ var SharedCalc = (function() {
     }
 
     return {
-      total: sumLin > 0 ? 10 * Math.log10(sumLin) : NaN,
+      total: sumLin > 0 ? 10 * Math.log10(sumLin) - cmet : NaN,
+      cmet: cmet,
       distance: d,
       srcHeight: hS,
       recvHeight: hR,
@@ -946,6 +971,25 @@ var SharedCalc = (function() {
     return [2 * (A[0] + t * dx) - P[0], 2 * (A[1] + t * dy) - P[1]];
   }
 
+  // ISO 9613-2:1996 Table 4 — standard reflection coefficients per surface type
+  var TABLE4_REFLECTION_COEFFS = {
+    hard_wall:  { label: 'Flat hard walls (ρ = 1.0)',                    rho: 1.0 },
+    windows:    { label: 'Walls with windows or openings (ρ = 0.8)',     rho: 0.8 },
+    factory_50: { label: 'Factory walls, 50% openings (ρ = 0.4)',        rho: 0.4 },
+    open:       { label: 'Open installations (ρ = 0.0)',                 rho: 0.0 },
+    custom:     { label: 'Custom value',                                  rho: null }
+  };
+
+  function getReflectionRho(surface) {
+    var t = (surface && surface.reflectionType) || 'hard_wall';
+    if (t === 'custom') {
+      var v = surface && surface.reflectionRhoCustom;
+      return (v !== null && v !== undefined && isFinite(v) && v >= 0 && v <= 1) ? v : 1.0;
+    }
+    var entry = TABLE4_REFLECTION_COEFFS[t];
+    return entry ? entry.rho : 1.0;
+  }
+
   /**
    * Find the dominant facade reflection for a source-receiver pair.
    * ISO 9613-2 §7.5 image source method, 2-D horizontal plane.
@@ -1026,7 +1070,7 @@ var SharedCalc = (function() {
 
         // Keep dominant reflection (shortest path = strongest contribution)
         if (!best || reflDist < best.reflectedDistM) {
-          best = { reflectedDistM: reflDist, imageSourceLL: Sm_ll };
+          best = { reflectedDistM: reflDist, imageSourceLL: Sm_ll, building: bld };
         }
       }
     }
@@ -1623,6 +1667,7 @@ var SharedCalc = (function() {
     sourceContribution: sourceContribution,
     totalAtReceiver: totalAtReceiver,
     // ISO 9613-2
+    calcCmet: calcCmet,
     OCT_FREQ: OCT_FREQ,
     ALPHA_DEFAULT: ALPHA_DEFAULT,
     A_WEIGHTS_BANDS: A_WEIGHTS_BANDS,
@@ -1644,7 +1689,9 @@ var SharedCalc = (function() {
     findTerrainEdges: findTerrainEdges,
     deygoutSelectEdges: deygoutSelectEdges,
     terrainILPerBand: terrainILPerBand,
-    // Facade reflection
+    // Facade reflection — ISO 9613-2:1996 §7.5 / Table 4
+    TABLE4_REFLECTION_COEFFS: TABLE4_REFLECTION_COEFFS,
+    getReflectionRho: getReflectionRho,
     getDominantReflection: getDominantReflection,
     // CONCAWE (Report 4/81)
     CONCAWE_K3_COEFFS: CONCAWE_K3_COEFFS,

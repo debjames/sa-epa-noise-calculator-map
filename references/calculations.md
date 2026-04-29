@@ -1057,3 +1057,96 @@ A-weighting is applied downstream by `calcISOatPoint` (Option B convention). The
 - Sign guard: Lw(TL=0, S=1, Lp=80) = 74 dB (not 86 dB — verifies −6 not +6)
 - Area sensitivity: doubling S increases Lw by 3.01 dB
 - TL sensitivity: +10 dB TL reduces Lw by exactly 10 dB
+
+---
+
+## ISO 9613-2:1996 §8 — Meteorological Correction C_met
+
+### Standard reference
+
+ISO 9613-2:1996 §8, equations (21) and (22).
+
+### Purpose
+
+`Cmet` converts the downwind worst-case prediction `Lp_AT(DW)` to a long-term
+average prediction `Lp_AT(LT)`:
+
+```
+Lp_AT(LT) = Lp_AT(DW) − Cmet      [dB(A)]
+```
+
+Cmet ≥ 0 always, so the downwind worst-case is always the upper bound.
+
+### Equations
+
+**Equation (21) — near-field condition (dp ≤ 10·(hs + hr)):**
+
+```
+Cmet = 0
+```
+
+**Equation (22) — far-field condition (dp > 10·(hs + hr)):**
+
+```
+Cmet = C0 · [1 − 10·(hs + hr) / dp]
+```
+
+where:
+- `C0` — site-specific long-term meteorological factor (dB). Default 2 dB. Range 0–5 dB per §8.
+- `hs` — source height above ground (m), minimum 0.01 m
+- `hr` — receiver height above ground (m), minimum 0.01 m
+- `dp` — horizontal distance source→receiver (m)
+
+### Implementation
+
+`SharedCalc.calcCmet(c0, hs, hr, dp)` in `shared-calc.js`. Returns a non-negative
+broadband correction in dB(A).
+
+The return value is subtracted from the A-weighted Lp after per-band energy
+summation inside `calcISOatPoint` (12th parameter `cmet`). The subtraction is
+also applied in the terrain correction branch of `calcISO9613single` which
+overwrites the main-path result.
+
+### Scope guards
+
+- **Lmax excluded** — Cmet is a long-term average correction. All Lmax call
+  sites pass `cmet = 0` regardless of the UI setting. The worker enforces this
+  with a `period !== 'lmax'` guard.
+- **CONCAWE excluded** — Cmet is defined only for ISO 9613-2. The CONCAWE
+  per-band K4 term is a separate, unrelated meteorological correction on a
+  mutually exclusive propagation path.
+- **ISO/TR 17534-3 validation unaffected** — Validation test calls do not pass
+  a `cmet` argument (defaults to 0), so all 25 test cases remain valid
+  worst-case downwind predictions.
+
+### UI
+
+Toggle + C0 input (0–5 dB, step 0.5 dB) inside the Propagation accordion
+(`#isoCmetPanel`), visible only when ISO 9613-2 is the active method. Default:
+OFF (conservative worst-case). When active and non-zero, the detail panel
+appends `Cₘₑₜ = −x.xx dB (LT avg)` to the meta text.
+
+### Save format
+
+Save format v5 (additive). Fields `cmetEnabled` (bool) and `cmetC0` (number)
+under `data.propagation`. Pre-v5 files load with Cmet off (`cmetEnabled = false`,
+`cmetC0 = 2.0`). No migration function needed.
+
+### Worked example
+
+hs = 2 m, hr = 1.5 m, dp = 500 m, C0 = 2 dB:
+- threshold = 10 × (2 + 1.5) = 35 m
+- dp (500) > threshold (35) → eq. (22) applies
+- Cmet = 2 × (1 − 35/500) = 2 × 0.930 = **1.860 dB(A)**
+
+### Regression tests
+
+`calc.test.js` `describe('calcCmet …')` — 10 tests covering:
+- c0 = 0 returns 0
+- eq. (21): dp at and below threshold returns 0
+- eq. (22) worked example (1.860 dB)
+- boundary continuity (dp = 36 m gives small positive value)
+- tall source asymptote to C0
+- non-negativity invariant
+- integration with `calcISOatPoint` (cmet=1.86 shifts Lp by exactly 1.86 dB)
+- regression anchor: omitting cmet leaves Lp unchanged at 11.8968 dB(A)

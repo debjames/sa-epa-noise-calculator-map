@@ -17,6 +17,9 @@ import {
   calcBarrierAttenuation,
   calcBarrierWithEndDiffraction,
   calcISOatPoint,
+  calcCmet,
+  TABLE4_REFLECTION_COEFFS,
+  getReflectionRho,
 } from './calc.js';
 
 // ---------------------------------------------------------------------------
@@ -331,5 +334,142 @@ describe('calcBarrierWithEndDiffraction', () => {
     smallEnd.forEach((v, i) => {
       expect(v).toBeGreaterThan(topOnly[i] * 0.7); // within 30% of top-only
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Case N — calcCmet: ISO 9613-2:1996 §8 meteorological correction
+// Equations (21) and (22): Cmet = 0 if dp ≤ 10(hs+hr), else C0·[1−10(hs+hr)/dp]
+// ---------------------------------------------------------------------------
+describe('calcCmet — ISO 9613-2:1996 §8 equations (21) and (22)', () => {
+  // c0=0 always returns 0 regardless of geometry
+  it('c0 = 0 returns 0', () => {
+    expect(calcCmet(0, 2, 1.5, 500)).toBe(0);
+  });
+
+  // eq. (21): dp ≤ 10(hs+hr) → Cmet = 0
+  // hs=2, hr=1.5 → threshold = 10*(2+1.5) = 35; dp=30 is below threshold
+  it('eq. (21): dp ≤ threshold returns 0  [hs=2, hr=1.5, dp=30, threshold=35]', () => {
+    expect(calcCmet(2, 2, 1.5, 30)).toBe(0);
+  });
+
+  // dp exactly at threshold returns 0
+  it('dp exactly at threshold returns 0  [dp=35]', () => {
+    expect(calcCmet(2, 2, 1.5, 35)).toBe(0);
+  });
+
+  // eq. (22) worked example: c0=2, hs=2, hr=1.5, dp=500
+  //   Cmet = 2 · (1 − 35/500) = 2 · 0.930 = 1.860 dB
+  it('eq. (22) worked example: c0=2, hs=2, hr=1.5, dp=500 → 1.860 dB', () => {
+    expect(calcCmet(2, 2, 1.5, 500)).toBeCloseTo(1.86, 2);
+  });
+
+  // Boundary — just above threshold dp=36
+  //   Cmet = 2 · (1 − 35/36) ≈ 0.0556 dB  (smooth, not a step)
+  it('smooth transition just above threshold: dp=36 → small positive value', () => {
+    const c = calcCmet(2, 2, 1.5, 36);
+    expect(c).toBeGreaterThan(0);
+    expect(c).toBeCloseTo(2 * (1 - 35 / 36), 4);
+  });
+
+  // Tall source: hs=10, hr=10 → threshold=200; dp=400
+  //   Cmet = 2 · (1 − 200/400) = 1.0 dB
+  it('tall source — hs=10, hr=10, dp=400 → 1.0 dB', () => {
+    expect(calcCmet(2, 10, 10, 400)).toBeCloseTo(1.0, 4);
+  });
+
+  // Asymptote: Cmet → C0 as dp → ∞
+  it('asymptotes to C0 at very large dp', () => {
+    expect(calcCmet(2, 2, 1.5, 100000)).toBeCloseTo(2.0, 2);
+  });
+
+  // Cmet ≥ 0 always (ISO NOTE: Cmet is non-negative by construction)
+  it('Cmet is always non-negative', () => {
+    expect(calcCmet(2, 2, 1.5, 1)).toBeGreaterThanOrEqual(0);
+    expect(calcCmet(2, 2, 1.5, 35)).toBeGreaterThanOrEqual(0);
+    expect(calcCmet(2, 2, 1.5, 500)).toBeGreaterThanOrEqual(0);
+  });
+
+  // Integration: cmet parameter subtracts from calcISOatPoint broadband total
+  // c0=2, hs=2, hr=1.5, dp=500 → Cmet = 1.86 dB
+  it('integration: calcISOatPoint with cmet=1.86 is exactly 1.86 dB below cmet=0', () => {
+    const A_WEIGHTS = [-26.2, -16.1, -8.6, -3.2, 0, 1.2, 1.0, -1.1];
+    const sumAw = A_WEIGHTS.reduce((s, w) => s + Math.pow(10, w / 10), 0);
+    const lwBase = 80 - 10 * Math.log10(sumAw);
+    const spec = A_WEIGHTS.map(() => lwBase);
+    const params = { groundFactor: 0.5, temperature: 15, humidity: 70 };
+
+    const lpOff = calcISOatPoint(spec, 2, 500, 0, 0, 1.5, params, 0, 0, null, null, 0);
+    const cmet  = calcCmet(2, 2, 1.5, 500);
+    const lpOn  = calcISOatPoint(spec, 2, 500, 0, 0, 1.5, params, 0, 0, null, null, cmet);
+
+    expect(lpOn).toBeCloseTo(lpOff - 1.86, 2);
+  });
+
+  // Regression: cmet=0 (omitted) must reproduce pre-implementation Lp exactly
+  it('regression: cmet parameter omitted leaves Lp unchanged at 11.8968 dB(A)', () => {
+    const A_WEIGHTS = [-26.2, -16.1, -8.6, -3.2, 0, 1.2, 1.0, -1.1];
+    const sumAw = A_WEIGHTS.reduce((s, w) => s + Math.pow(10, w / 10), 0);
+    const lwBase = 80 - 10 * Math.log10(sumAw);
+    const spec = A_WEIGHTS.map(() => lwBase);
+    const params = { groundFactor: 0.5, temperature: 15, humidity: 70 };
+
+    const lp = calcISOatPoint(spec, 2, 500, 0, 0, 1.5, params, 0, 0, null, null);
+    expect(lp).toBeCloseTo(11.8968, 2);
+  });
+});
+
+describe('getReflectionRho — ISO 9613-2:1996 Table 4', () => {
+  it('TABLE4_REFLECTION_COEFFS has the four standard types', () => {
+    expect(TABLE4_REFLECTION_COEFFS.hard_wall.rho).toBe(1.0);
+    expect(TABLE4_REFLECTION_COEFFS.windows.rho).toBe(0.8);
+    expect(TABLE4_REFLECTION_COEFFS.factory_50.rho).toBe(0.4);
+    expect(TABLE4_REFLECTION_COEFFS.open.rho).toBe(0.0);
+  });
+
+  it('hard_wall (ρ=1.0) returns 1.0', () => {
+    expect(getReflectionRho({ reflectionType: 'hard_wall' })).toBe(1.0);
+  });
+
+  it('windows (ρ=0.8) returns 0.8 and reduces level by ~1 dB', () => {
+    const rho = getReflectionRho({ reflectionType: 'windows' });
+    expect(rho).toBe(0.8);
+    expect(10 * Math.log10(rho)).toBeCloseTo(-0.969, 2);
+  });
+
+  it('factory_50 (ρ=0.4) returns 0.4 and reduces level by ~4 dB', () => {
+    const rho = getReflectionRho({ reflectionType: 'factory_50' });
+    expect(rho).toBe(0.4);
+    expect(10 * Math.log10(rho)).toBeCloseTo(-3.979, 2);
+  });
+
+  it('open (ρ=0.0) returns 0.0 — no reflection', () => {
+    expect(getReflectionRho({ reflectionType: 'open' })).toBe(0.0);
+  });
+
+  it('custom with valid rho passes through', () => {
+    expect(getReflectionRho({ reflectionType: 'custom', reflectionRhoCustom: 0.6 })).toBe(0.6);
+  });
+
+  it('custom with out-of-range rho falls back to 1.0', () => {
+    expect(getReflectionRho({ reflectionType: 'custom', reflectionRhoCustom: -0.1 })).toBe(1.0);
+    expect(getReflectionRho({ reflectionType: 'custom', reflectionRhoCustom: 1.5 })).toBe(1.0);
+  });
+
+  it('missing reflectionType defaults to hard_wall (ρ=1.0)', () => {
+    expect(getReflectionRho({})).toBe(1.0);
+    expect(getReflectionRho(null)).toBe(1.0);
+  });
+
+  it('unknown reflectionType falls back to 1.0', () => {
+    expect(getReflectionRho({ reflectionType: 'unknown_type' })).toBe(1.0);
+  });
+
+  it('integration: ρ=0.4 reduces reflected level by exactly 10·log10(0.4) ≈ −3.98 dB', () => {
+    const lp_hard     = 40;  // arbitrary reflected level for ρ=1.0
+    const rho         = getReflectionRho({ reflectionType: 'factory_50' });
+    const lp_adjusted = lp_hard + 10 * Math.log10(rho);
+    expect(lp_adjusted).toBeCloseTo(40 + 10 * Math.log10(0.4), 6);
+    expect(lp_adjusted).toBeCloseTo(36.021, 2);
   });
 });
