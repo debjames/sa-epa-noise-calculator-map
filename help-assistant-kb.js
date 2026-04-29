@@ -256,7 +256,23 @@ window.HELP_ASSISTANT_KB = {
       related: ['add-point-source', 'add-receiver', 'draw-barrier']
     },
 
-    /* ── 13. Site plan overlay ───────────────────────────────────────── */
+    /* ── 13. Street View ─────────────────────────────────────────────── */
+    {
+      id: 'street-view',
+      patterns: [
+        'street view', 'google street view', 'site conditions', 'view site',
+        'existing conditions', 'site photos', 'street level view', 'open street view',
+        'streetview', 'site context', 'site familiarisation', 'site familiarization'
+      ],
+      title: 'Open Street View for a source or receiver',
+      answer: 'Click the <strong>Street View</strong> button (person icon) on any source, receiver, or custom building edit panel to open Google Maps Street View at that location in a new tab. You can also right-click anywhere on the map and choose <strong>Street View here</strong>. Street View imagery is © Google and is for site familiarisation only — it does not affect calculations.',
+      actions: [
+        { type: 'highlight', selector: '#helpFloatPanel', label: 'See the "Site context" section in Quick Reference for full details', scrollIntoView: true }
+      ],
+      related: ['add-point-source', 'add-receiver', 'measure-distance']
+    },
+
+    /* ── 14. Site plan overlay ───────────────────────────────────────── */
     {
       id: 'site-plan-overlay',
       patterns: [

@@ -175,7 +175,7 @@
 
     var bubble = document.createElement('div');
     bubble.className = 'ha-bubble';
-    bubble.textContent = topic.answer;
+    bubble.innerHTML = topic.answer;
     wrap.appendChild(bubble);
 
     /* Show me button */
