@@ -260,7 +260,28 @@ The corresponding `.mp-body` div carries the matching `id="<section-id>-body"`.
 
 ### Propagation method indicator (`#prop-method-indicator`)
 
-`position: fixed; top: 56px; right: 8px` — white chip, `z-index: 1000`. Shows `Simple method` / `ISO 9613-2` / `CONCAWE` based on the `.active` button in `#propMethodGroup`. Updated by `_updatePropIndicator()`, called on page load and in the prop-method button click handler. Click opens `#mp-propmethod` accordion in the sidebar.
+`position: fixed; top: 56px; right: 8px` — white chip, `z-index: 1000`. Shows `Simple method` / `ISO 9613-2:1996` / `CONCAWE` based on the `.active` button in `#propMethodGroup`. Updated by `_updatePropIndicator()`, called on page load and in the prop-method button click handler. Click opens `#mp-propmethod` accordion in the sidebar.
+
+### Background fetch indicator (`#bgFetchIndicator`)
+
+`position: fixed; top: 90px; right: 8px` — below the prop-method indicator; `z-index: 500`. Hidden when idle (`hidden` attribute). Shows a spinner + label like "Loading: terrain, zones" when fetches are in-flight.
+
+**Reference-counted pattern:** `startBgFetch(label)` increments a counter; `endBgFetch(label)` decrements; `_updateBgFetchIndicator()` reconciles. Multiple concurrent fetches of the same type (e.g. 5 terrain tiles) show one label, not five. Defined near `showToast` at the main script scope so they are accessible from the DemCache IIFE (which runs during parse but fetches only execute at runtime) via `window.startBgFetch`.
+
+**Hooked fetch types:**
+- `'terrain'` — `fetchWCSTile` (GA LiDAR), `fetchOETile` (OE sequential grid), `fetchFromOE` (OE parallel points)
+- `'buildings'` — `fetchWithBackoff` outer call (Overpass OSM)
+- `'zones'` — `fetchWithRetry` (SAPPA; `_outer` flag prevents double-counting on retry recursion), `queryVicZoningAtPoint` (VicPlan), `queryNSWZoningAtPoint` (NSW Planning Portal)
+
+**Not hooked:** hover tooltip zone queries, startup one-time JSON loads (`vic_zone_types.json`), geocode lookups, overlay GeoJSON — these are either too transient or not user-initiated in a way that needs feedback.
+
+### Error toasts (`showErrorToast`)
+
+`showErrorToast(message, durationMs)` — red background (`#7f1d1d`), 8 s default dwell, dismissible `×` button, `pointer-events: auto`. Distinct from `showToast` (dark, 3 s, pointer-events none). Error messages state the specific service AND the acoustic consequence (e.g. "predictions will run without terrain insertion loss"). Existing `console.warn` calls retained alongside toasts.
+
+### Floating panel accessibility (R13)
+
+`#helpFloatPanel`, `#objectsFloatPanel`, `#suggestFloatPanel` carry `role="dialog"`, `aria-labelledby="<titleId>"`, `aria-modal="false"`. They are **non-modal** — `aria-modal="false"` because keyboard interaction elsewhere remains available while a panel is open. `showPanel()` stores `document.activeElement` as `panel._returnFocusTo`; `hidePanel()` restores focus. Esc key closes each panel via a `keydown` listener on the panel element (`stopPropagation()` prevents conflict with map / context-menu Esc handlers).
 
 ### Drawer auto-open (`_maybeAutoOpenDrawer`)
 

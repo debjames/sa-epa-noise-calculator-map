@@ -79,6 +79,34 @@ input[type="number"]{width:100%;border:1px solid var(--border);border-radius:10p
 .span2{grid-column:1 / -1;}
 .grid-full{grid-template-columns:1fr !important;}
 @media print {.card, .sheet, table { break-inside: avoid; }}
+/* ── R8: Background fetch loading indicator ─────────────────────── */
+#bgFetchIndicator {
+  position: fixed;
+  top: 90px;
+  right: 8px;
+  background: rgba(255,255,255,0.95);
+  padding: 5px 11px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #374151;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  z-index: 500;
+  white-space: nowrap;
+}
+#bgFetchIndicator[hidden] { display: none; }
+.bg-spinner {
+  width: 11px;
+  height: 11px;
+  border: 2px solid #cbd5e1;
+  border-top-color: #1e40af;
+  border-radius: 50%;
+  animation: bgSpin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes bgSpin { to { transform: rotate(360deg); } }
 /* ── R15: Propagation method indicator ──────────────────────────── */
 #prop-method-indicator {
   display: none;
@@ -2294,7 +2322,7 @@ body.disclaimer-visible .container {
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" integrity="sha384-NZLkVuBRMEeB4VeZz27WwTRvlhec30biQ8Xx7zG7JJnkvEKRg5qi6BNbEXo9ydwv" crossorigin="anonymous"/>
-<link rel="stylesheet" href="help-assistant.css">
+<link rel="stylesheet" href="help-assistant.css?v=1">
 <!-- ─── SUPABASE (disabled 2026-04-22) ────────────────────────────────────────
 <script src="supabase-config.js?v=1" onerror="console.info('[ResonateLib] supabase-config.js not present — offline snapshot only.')"></script>
 <script src="library-loader.js?v=1"></script>
@@ -2311,6 +2339,12 @@ body.disclaimer-visible .container {
 
 <!-- R15: Propagation method indicator — top-right of map; click to open panel -->
 <div id="prop-method-indicator" role="status" aria-live="polite" title="Click to open Propagation method panel"></div>
+
+<!-- R8: Background fetch loading indicator — appears during terrain/building/zone fetches -->
+<div id="bgFetchIndicator" role="status" aria-live="polite" aria-label="Loading data" hidden>
+  <span class="bg-spinner"></span>
+  <span id="bgFetchLabel">Loading…</span>
+</div>
 
 <!-- Mobile not-supported banner — hidden on ≥768px via CSS, persistent (no dismiss) -->
 <div class="mobile-not-supported" role="alert">
@@ -8160,6 +8194,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     var _tid  = _ctrl ? setTimeout(function() { _ctrl.abort(); }, 15000) : null;
     var _fetchOpts = { mode: 'cors' };
     if (_ctrl) _fetchOpts.signal = _ctrl.signal;
+    if (window.startBgFetch) window.startBgFetch('terrain');
     return fetch(url, _fetchOpts)
       .then(function(r) {
         if (_tid) clearTimeout(_tid);
@@ -8183,7 +8218,14 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
             validFrac: valid / raw.length, source: 'lidar'
           };
         });
-      });
+      })
+      .catch(function(err) {
+        if (window.showErrorToast) window.showErrorToast(
+          'Could not load terrain data (LiDAR). Predictions will run without terrain insertion loss — source–receiver paths over hills will be over-predicted. ' + (err.message || ''));
+        console.warn('GA WCS fetch failed:', err);
+        throw err;
+      })
+      .finally(function() { if (window.endBgFetch) window.endBgFetch('terrain'); });
   }
 
   // Build the {lats, lngs, elevations} grid structure from a WCS raster tile
@@ -8248,6 +8290,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     for (var i = 0; i < toFetch.length; i += CHUNK) chunks.push(toFetch.slice(i, i + CHUNK));
     totalChunks = chunks.length;
 
+    if (window.startBgFetch) window.startBgFetch('terrain');
     return chunks.reduce(function(pr, chunk, ci) {
       return pr.then(function() {
         return fetch(OE_URL, {
@@ -8271,7 +8314,9 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
         })
         .then(function() { if (onProgress) onProgress(ci + 1, totalChunks); });
       });
-    }, Promise.resolve()).then(function() { return assemble(nullCount); });
+    }, Promise.resolve())
+      .then(function() { if (window.endBgFetch) window.endBgFetch('terrain'); return assemble(nullCount); })
+      .catch(function(err) { if (window.endBgFetch) window.endBgFetch('terrain'); throw err; });
   }
 
   // Convert an Open-Elevation grid result into a raster tile compatible with sampleRaster.
@@ -8307,6 +8352,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     if (!locations.length) return Promise.resolve([]);
     var chunks = [];
     for (var i = 0; i < locations.length; i += 100) chunks.push(locations.slice(i, i + 100));
+    if (window.startBgFetch) window.startBgFetch('terrain');
     return Promise.all(chunks.map(function(chunk) {
       return fetch(OE_URL, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -8326,8 +8372,9 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
       results.forEach(function(c) { flat = flat.concat(c); });
       for (var j = 0; j < locations.length; j++)
         if (flat[j] !== null) storePt(locations[j].latitude, locations[j].longitude, flat[j]);
+      if (window.endBgFetch) window.endBgFetch('terrain');
       return flat;
-    });
+    }).catch(function(err) { if (window.endBgFetch) window.endBgFetch('terrain'); throw err; });
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -15458,6 +15505,50 @@ function showToast(msg, durationMs) {
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, d);
+}
+
+/* ---- R9: Error toast — persistent, red, dismissible, with consequence text ---- */
+function showErrorToast(message, durationMs) {
+  var d = durationMs || 8000;
+  var t = document.createElement('div');
+  t.style.cssText = 'position:fixed;top:58px;left:50%;transform:translateX(-50%);z-index:99999;' +
+    'background:#7f1d1d;color:#fee2e2;padding:8px 14px 8px 16px;font-size:13px;' +
+    'border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.3);' +
+    'display:flex;align-items:flex-start;gap:10px;max-width:480px;line-height:1.45;pointer-events:auto;';
+  var msgSpan = document.createElement('span');
+  msgSpan.textContent = message;
+  var xBtn = document.createElement('button');
+  xBtn.textContent = '×';
+  xBtn.style.cssText = 'background:none;border:none;color:#fca5a5;font-size:17px;line-height:1;' +
+    'cursor:pointer;padding:0 0 0 4px;flex-shrink:0;margin-top:-1px;';
+  xBtn.setAttribute('aria-label', 'Dismiss');
+  t.appendChild(msgSpan);
+  t.appendChild(xBtn);
+  document.body.appendChild(t);
+  var timer = setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, d);
+  xBtn.addEventListener('click', function() { clearTimeout(timer); if (t.parentNode) t.parentNode.removeChild(t); });
+}
+
+/* ---- R8: Background fetch reference-counted loading indicator ---- */
+var _bgFetchCounts = {};
+function startBgFetch(label) {
+  _bgFetchCounts[label] = (_bgFetchCounts[label] || 0) + 1;
+  _updateBgFetchIndicator();
+}
+function endBgFetch(label) {
+  if (!_bgFetchCounts[label]) return;
+  _bgFetchCounts[label]--;
+  if (_bgFetchCounts[label] <= 0) delete _bgFetchCounts[label];
+  _updateBgFetchIndicator();
+}
+function _updateBgFetchIndicator() {
+  var el = document.getElementById('bgFetchIndicator');
+  if (!el) return;
+  var labels = Object.keys(_bgFetchCounts);
+  if (labels.length === 0) { el.hidden = true; return; }
+  var lbl = document.getElementById('bgFetchLabel');
+  if (lbl) lbl.textContent = 'Loading: ' + labels.join(', ');
+  el.hidden = false;
 }
 
 function markResultsStale() {
@@ -27442,24 +27533,33 @@ if (window.pdfjsLib) {
     }
 
     // Retry helper for SAPPA queries (502 errors are common)
-    function fetchWithRetry(url, retries) {
+    // _outer: true on first call only — tracks loading indicator once per logical query
+    function fetchWithRetry(url, retries, _outer) {
       retries = retries || 2;
+      if (_outer === undefined) _outer = true;
+      if (_outer && window.startBgFetch) window.startBgFetch('zones');
+      function _done() { if (_outer && window.endBgFetch) window.endBgFetch('zones'); }
       return fetch(url).then(function(r) {
         if (!r.ok) {
           if (retries > 0) {
             return new Promise(function(resolve) { setTimeout(resolve, 1500); })
-              .then(function() { return fetchWithRetry(url, retries - 1); });
+              .then(function() { return fetchWithRetry(url, retries - 1, false); });
           }
+          _done();
           console.warn('SAPPA query failed after retries: HTTP ' + r.status, url.split('?')[0]);
+          if (window.showErrorToast) window.showErrorToast('Zone classification failed (HTTP ' + r.status + '). Receivers may default to \'unspecified\' zone — set the zone manually.');
           return { features: [] };
         }
+        _done();
         return r.json();
       }).catch(function(err) {
         if (retries > 0) {
           return new Promise(function(resolve) { setTimeout(resolve, 1500); })
-            .then(function() { return fetchWithRetry(url, retries - 1); });
+            .then(function() { return fetchWithRetry(url, retries - 1, false); });
         }
+        _done();
         console.warn('SAPPA query failed after retries:', err);
+        if (window.showErrorToast) window.showErrorToast('Zone classification failed. Receivers may default to \'unspecified\' zone — set the zone manually.');
         return { features: [] };
       });
     }
@@ -28579,6 +28679,7 @@ if (window.pdfjsLib) {
         returnGeometry: 'false',
         f: 'json'
       });
+      if (window.startBgFetch) window.startBgFetch('zones');
       return fetch(VICPLAN_BASE + '/0/query', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -28601,7 +28702,13 @@ if (window.pdfjsLib) {
           var zoneDesc = best.ZONE_DESCRIPTION || '';
           var lga = best.LGA || '';
           return { zoneCode: zoneCode, zoneDesc: zoneDesc, lga: lga };
-        });
+        })
+        .catch(function(err) {
+          console.warn('VicPlan zone query failed:', err);
+          if (window.showErrorToast) window.showErrorToast('Zone classification failed (VicPlan). Receivers may default to \'unspecified\' zone — set the zone manually.');
+          return { zoneCode: null, zoneDesc: null, lga: null };
+        })
+        .finally(function() { if (window.endBgFetch) window.endBgFetch('zones'); });
     }
 
     /** Query all zone polygons intersecting a circle around a point.
@@ -28780,6 +28887,7 @@ if (window.pdfjsLib) {
         '&outFields=SYM_CODE,LGA_NAME,LAY_CLASS,EPI_NAME' +
         '&returnGeometry=false' +
         '&f=json';
+      if (window.startBgFetch) window.startBgFetch('zones');
       return fetch(url)
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -28791,7 +28899,13 @@ if (window.pdfjsLib) {
             lga: attr.LGA_NAME || '',
             epi: attr.EPI_NAME || ''
           };
-        });
+        })
+        .catch(function(err) {
+          console.warn('NSW zone query failed:', err);
+          if (window.showErrorToast) window.showErrorToast('Zone classification failed (NSW Planning Portal). Receivers may default to \'unspecified\' zone — set the zone manually.');
+          return { zoneCode: '', zoneName: '', lga: '', epi: '' };
+        })
+        .finally(function() { if (window.endBgFetch) window.endBgFetch('zones'); });
     }
 
     function queryAndSetZoneNSW(mode, latlng) {
@@ -30493,6 +30607,7 @@ if (window.pdfjsLib) {
       var buildBtn = document.getElementById('buildingsToggleBtn');
       _buildingsFetching = true;
       if (buildBtn) buildBtn.innerHTML = buildBtn.innerHTML.replace('Buildings', 'Loading\u2026');
+      if (window.startBgFetch) window.startBgFetch('buildings');
 
       var query = '[out:json][timeout:10];way["building"](' +
         bbox.getSouth() + ',' + bbox.getWest() + ',' +
@@ -30575,6 +30690,8 @@ if (window.pdfjsLib) {
           ? 'Overpass API rate limit exceeded \u2014 try again in a moment'
           : 'Buildings unavailable';
         console.warn('Buildings fetch failed:', err);
+        if (window.showErrorToast) window.showErrorToast(
+          msg + '. Buildings layer is unavailable \u2014 place buildings manually if needed.');
         if (buildBtn) {
           var origHTML = buildBtn.innerHTML;
           buildBtn.innerHTML = origHTML.replace(/Loading\u2026|Retrying.*/, msg);
@@ -30594,6 +30711,7 @@ if (window.pdfjsLib) {
         }
       }).finally(function() {
         _buildingsFetching = false;
+        if (window.endBgFetch) window.endBgFetch('buildings');
         if (buildBtn) {
           var svg = buildBtn.querySelector('svg');
           buildBtn.innerHTML = '';
@@ -41571,10 +41689,10 @@ if (window.pdfjsLib) {
 </script>
 
 <!-- ─── Floating help panel ─────────────────────────────────────────── -->
-<div id="objectsFloatPanel">
+<div id="objectsFloatPanel" role="dialog" aria-labelledby="objectsPanelTitle" aria-modal="false">
   <div id="objectsPanelHdr">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:.75;"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 12l9-5"/><path d="M12 12v10"/><path d="M12 12L3 7"/></svg>
-    <span class="objects-title">Objects</span>
+    <span id="objectsPanelTitle" class="objects-title">Objects</span>
     <button id="objectsPanelClose" title="Close">&#x2715;</button>
   </div>
   <div id="objectsPanelBody">
@@ -41584,10 +41702,10 @@ if (window.pdfjsLib) {
   </div>
 </div>
 
-<div id="helpFloatPanel">
+<div id="helpFloatPanel" role="dialog" aria-labelledby="helpPanelTitle" aria-modal="false">
   <div id="helpPanelHdr">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;opacity:.75;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round" stroke-width="3"/></svg>
-    <span class="help-title">Quick Reference</span>
+    <span id="helpPanelTitle" class="help-title">Quick Reference</span>
     <button id="helpPanelClose" title="Close">&#x2715;</button>
   </div>
   <div id="helpPanelContent">
@@ -41840,10 +41958,10 @@ if (window.pdfjsLib) {
 </div><!-- /helpFloatPanel -->
 
 <!-- ─── Suggested noise sources panel ──────────────────────────────────── -->
-<div id="suggestFloatPanel">
+<div id="suggestFloatPanel" role="dialog" aria-labelledby="suggestPanelTitle" aria-modal="false">
   <div id="suggestPanelHdr">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:.7;"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 1 7 7c0 2.5-1.3 4.7-3.3 6H8.3A7 7 0 0 1 5 9a7 7 0 0 1 7-7z"/></svg>
-    <span class="suggest-title">Suggested noise sources</span>
+    <span id="suggestPanelTitle" class="suggest-title">Suggested noise sources</span>
     <button id="suggestPanelClose" title="Close">&#x2715;</button>
   </div>
   <div id="suggestPanelContent">
@@ -42368,10 +42486,14 @@ if (window.pdfjsLib) {
   function showPanel() {
     panel.style.display = 'flex';
     toggleBtn.classList.add('suggest-active');
+    panel._returnFocusTo = document.activeElement;
+    var first = panel.querySelector('button, [tabindex="0"]');
+    if (first) first.focus();
   }
   function hidePanel() {
     panel.style.display = 'none';
     toggleBtn.classList.remove('suggest-active');
+    if (panel._returnFocusTo) { panel._returnFocusTo.focus(); panel._returnFocusTo = null; }
   }
 
   toggleBtn.addEventListener('click', function(e) {
@@ -42381,6 +42503,10 @@ if (window.pdfjsLib) {
   closeBtn.addEventListener('click', function(e) {
     e.stopPropagation();
     hidePanel();
+  });
+  /* R13: Esc closes the panel */
+  panel.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); hidePanel(); }
   });
 
   /* ── Draggable by header ──────────────────────────────────────────── */
@@ -42421,10 +42547,14 @@ if (window.pdfjsLib) {
   function showPanel() {
     panel.style.display = 'flex';
     toggleBtn.classList.add('help-active');
+    panel._returnFocusTo = document.activeElement;
+    var first = panel.querySelector('button, [tabindex="0"]');
+    if (first) first.focus();
   }
   function hidePanel() {
     panel.style.display = 'none';
     toggleBtn.classList.remove('help-active');
+    if (panel._returnFocusTo) { panel._returnFocusTo.focus(); panel._returnFocusTo = null; }
   }
 
   toggleBtn.addEventListener('click', function(e) {
@@ -42434,6 +42564,10 @@ if (window.pdfjsLib) {
   closeBtn.addEventListener('click', function(e) {
     e.stopPropagation();
     hidePanel();
+  });
+  /* R13: Esc closes the panel */
+  panel.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); hidePanel(); }
   });
 
   /* ── Draggable by header ─────────────────────────────────── */
@@ -42468,13 +42602,28 @@ if (window.pdfjsLib) {
   var hdr       = document.getElementById('objectsPanelHdr');
   if (!panel || !toggleBtn || !closeBtn || !hdr) return;
 
+  function showPanel() {
+    panel.style.display = 'flex';
+    panel._returnFocusTo = document.activeElement;
+    var first = panel.querySelector('button, [tabindex="0"]');
+    if (first) first.focus();
+  }
+  function hidePanel() {
+    panel.style.display = 'none';
+    if (panel._returnFocusTo) { panel._returnFocusTo.focus(); panel._returnFocusTo = null; }
+  }
+
   toggleBtn.addEventListener('click', function(e) {
     e.stopPropagation();
-    panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+    if (panel.style.display === 'flex') hidePanel(); else showPanel();
   });
   closeBtn.addEventListener('click', function(e) {
     e.stopPropagation();
-    panel.style.display = 'none';
+    hidePanel();
+  });
+  /* R13: Esc closes the panel */
+  panel.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); hidePanel(); }
   });
 
   /* ── Draggable by header ─────────────────────────────────── */
@@ -45577,7 +45726,7 @@ window._showPdfFramingPanel = function() {
 })();
 </script>
 
-<script src="help-assistant-kb.js"></script>
-<script src="help-assistant.js"></script>
+<script src="help-assistant-kb.js?v=1"></script>
+<script src="help-assistant.js?v=1"></script>
 </body>
 </html>

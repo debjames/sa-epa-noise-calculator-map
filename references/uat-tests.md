@@ -1,5 +1,47 @@
 # UAT Tests
 
+## Cleanup pass — A1, R8, R9, R13
+
+### Cache-bust convention (A1)
+
+- [ ] **Test suite passes** — `npx vitest run cache-bust-convention` → 7/7 pass. Full suite → 303/303.
+- [ ] **Browser cache** — Hard-reload the tool after a `help-assistant.js` change. New code executes (old cached version not served). Verify in DevTools → Network tab: `help-assistant.js?v=1` served with 200 (not from cache on first load after version bump).
+
+### Background fetch loading indicator (R8)
+
+- [ ] **Terrain indicator** — Enable terrain (toggle terrain on), place a source near a receiver. Confirm "Loading: terrain" indicator appears top-right (below the propagation chip) during DEM fetch. Indicator hides when fetch completes.
+- [ ] **Slow network** — DevTools → Network → throttle to Slow 3G. Place source. Confirm indicator persists for the duration of the terrain fetch, then disappears.
+- [ ] **Buildings indicator** — Toggle Buildings layer on. Confirm "Loading: buildings" appears during Overpass fetch. Hides on completion.
+- [ ] **Zones indicator** — Place a receiver (triggers zone auto-detect). Confirm "Loading: zones" appears briefly. Hides after zone is determined.
+- [ ] **Concurrent labels** — Enable terrain and place a receiver simultaneously. Indicator should show "Loading: terrain, zones" while both are in-flight, then each disappears as its fetch completes.
+- [ ] **No indicator at idle** — After all fetches complete, confirm the indicator element is hidden (not visible, not a white empty box).
+
+### Network fetch error toasts (R9)
+
+- [ ] **Terrain error** — DevTools → Network → Block `*ga.gov.au*` (WCS URL). Enable terrain and place source. Confirm red error toast appears with a message mentioning terrain and over-prediction consequence. Toast has a `×` dismiss button. Undismissed toast disappears after ~8 s. `console.warn` also fires.
+- [ ] **Buildings error** — Block `*overpass-api.de*`. Toggle Buildings. Confirm red toast with "Buildings layer is unavailable — place buildings manually". Rate-limit variant (unblock but simulate 429): toast message mentions "Overpass API rate limit".
+- [ ] **Zone error (SA)** — Block SAPPA URL. Place receiver in SA. Confirm toast: "Zone classification failed … set the zone manually."
+- [ ] **Zone error (VIC)** — Block VicPlan URL. Place receiver in VIC. Confirm toast with VicPlan-specific message.
+- [ ] **Zone error (NSW)** — Block NSW Planning Portal URL. Place receiver in NSW. Confirm toast with NSW-specific message.
+- [ ] **Toast styling** — Error toasts use red background, not the dark-grey of info toasts. `×` button present and functional.
+- [ ] **Propagation continues** — After terrain error toast, run Calculate. Predictions compute (without terrain IL) — tool does not crash.
+
+### ARIA dialog roles (R13)
+
+- [ ] **Roles present** — Open browser accessibility inspector (F12 → Accessibility tab). Click `#helpFloatPanel` — confirms `role: dialog`, `Name: Quick Reference` (from `aria-labelledby`), `aria-modal: false`.
+- [ ] **Objects panel** — Same check for `#objectsFloatPanel` → `role: dialog`, `Name: Objects`.
+- [ ] **Suggested sources panel** — Same for `#suggestFloatPanel` → `role: dialog`, `Name: Suggested noise sources`.
+- [ ] **Focus on open** — Open Quick Reference via button. Confirm keyboard focus moves to the first focusable element inside the panel (the close button).
+- [ ] **Focus returns on close** — Close the panel via `×` or Esc. Confirm focus returns to the trigger button (`helpToggleBtn`, `objectsToggleBtn`, or `suggestToggleBtn`).
+- [ ] **Esc closes** — Open Quick Reference. Press Esc. Panel closes. Map Esc handler (exit draw mode) does not also fire.
+- [ ] **Non-modal** — Open Quick Reference. Tab to a control outside the panel. Confirm focus leaves the panel without error — it is non-modal.
+
+### R11 — Duplicate source (pre-existing, verify only)
+
+- [ ] **Duplicate present** — Right-click a point source. Context menu shows `⧉ Duplicate` item.
+- [ ] **Duplicate action** — Click Duplicate. A copy appears ~10 m offset from the original with `(copy)` appended to the name.
+- [ ] **Max source guard** — With 20 sources placed, right-click and attempt Duplicate. Toast "Maximum 20 sources reached." fires; no duplicate created.
+
 ## UI Block 3 — Discoverability
 
 ### Keyboard shortcuts — newly documented (R4)
