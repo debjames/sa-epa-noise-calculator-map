@@ -8193,7 +8193,6 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     var _tid  = _ctrl ? setTimeout(function() { _ctrl.abort(); }, 15000) : null;
     var _fetchOpts = { mode: 'cors' };
     if (_ctrl) _fetchOpts.signal = _ctrl.signal;
-    if (window.startBgFetch) window.startBgFetch('terrain');
     return fetch(url, _fetchOpts)
       .then(function(r) {
         if (_tid) clearTimeout(_tid);
@@ -8217,14 +8216,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
             validFrac: valid / raw.length, source: 'lidar'
           };
         });
-      })
-      .catch(function(err) {
-        if (window.showErrorToast) window.showErrorToast(
-          'Could not load terrain data (LiDAR). Predictions will run without terrain insertion loss — source–receiver paths over hills will be over-predicted. ' + (err.message || ''));
-        console.warn('GA WCS fetch failed:', err);
-        throw err;
-      })
-      .finally(function() { if (window.endBgFetch) window.endBgFetch('terrain'); });
+      });
   }
 
   // Build the {lats, lngs, elevations} grid structure from a WCS raster tile
@@ -8289,7 +8281,6 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     for (var i = 0; i < toFetch.length; i += CHUNK) chunks.push(toFetch.slice(i, i + CHUNK));
     totalChunks = chunks.length;
 
-    if (window.startBgFetch) window.startBgFetch('terrain');
     return chunks.reduce(function(pr, chunk, ci) {
       return pr.then(function() {
         return fetch(OE_URL, {
@@ -8313,9 +8304,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
         })
         .then(function() { if (onProgress) onProgress(ci + 1, totalChunks); });
       });
-    }, Promise.resolve())
-      .then(function() { if (window.endBgFetch) window.endBgFetch('terrain'); return assemble(nullCount); })
-      .catch(function(err) { if (window.endBgFetch) window.endBgFetch('terrain'); throw err; });
+    }, Promise.resolve()).then(function() { return assemble(nullCount); });
   }
 
   // Convert an Open-Elevation grid result into a raster tile compatible with sampleRaster.
@@ -8351,7 +8340,6 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     if (!locations.length) return Promise.resolve([]);
     var chunks = [];
     for (var i = 0; i < locations.length; i += 100) chunks.push(locations.slice(i, i + 100));
-    if (window.startBgFetch) window.startBgFetch('terrain');
     return Promise.all(chunks.map(function(chunk) {
       return fetch(OE_URL, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -8371,9 +8359,8 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
       results.forEach(function(c) { flat = flat.concat(c); });
       for (var j = 0; j < locations.length; j++)
         if (flat[j] !== null) storePt(locations[j].latitude, locations[j].longitude, flat[j]);
-      if (window.endBgFetch) window.endBgFetch('terrain');
       return flat;
-    }).catch(function(err) { if (window.endBgFetch) window.endBgFetch('terrain'); throw err; });
+    });
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -12462,12 +12449,17 @@ function refreshAllTerrainIL() {
       }
     });
     if (promises.length > 0) {
+      if (window.startBgFetch) window.startBgFetch('terrain');
       Promise.all(promises).then(function() {
+        if (window.endBgFetch) window.endBgFetch('terrain');
         // Single render after all terrain data resolves
         if (typeof render === 'function') render();
         // Also refresh noise map if active — terrain IL now current (M1 fix)
         if (window._recomputeNoiseMap) window._recomputeNoiseMap();
-      }).catch(console.warn);
+      }).catch(function(err) {
+        if (window.endBgFetch) window.endBgFetch('terrain');
+        console.warn(err);
+      });
     }
   }, 300);
 }
@@ -21608,14 +21600,16 @@ function initPropagationMethod() {
         if (!window.DEMCache) return;
         var ctBtn = document.getElementById('terrainContourBtn');
         // Fetch any missing tiles for this view; onWCSRasterUpdated redraws after each
+        if (window.startBgFetch) window.startBgFetch('contours');
         window.DEMCache.getTilesForBounds(
           mb.getNorth(), mb.getSouth(), mb.getEast(), mb.getWest(), zoom,
           function(done, total) {
             if (ctBtn) ctBtn.title = 'Fetching terrain: ' + done + '/' + total + ' tiles…';
           }
         ).then(function() {
+          if (window.endBgFetch) window.endBgFetch('contours');
           if (ctBtn) ctBtn.title = 'Show terrain elevation contour lines on map (requires Terrain ON)';
-        });
+        }).catch(function() { if (window.endBgFetch) window.endBgFetch('contours'); });
         // Also immediately redraw from whatever is already cached
         generateTerrainContours();
       }, 2000);
@@ -21643,14 +21637,16 @@ function initPropagationMethod() {
           if (zoom > 8) {
             // Pre-fetch tiles, then draw (generateTerrainContours called by onWCSRasterUpdated)
             contourBtn.title = 'Fetching terrain tiles…';
+            if (window.startBgFetch) window.startBgFetch('contours');
             window.DEMCache.getTilesForBounds(
               mb.getNorth(), mb.getSouth(), mb.getEast(), mb.getWest(), zoom,
               function(done, total) {
                 contourBtn.title = 'Fetching terrain: ' + done + '/' + total + ' tiles…';
               }
             ).then(function() {
+              if (window.endBgFetch) window.endBgFetch('contours');
               contourBtn.title = 'Show terrain elevation contour lines on map (requires Terrain ON)';
-            });
+            }).catch(function() { if (window.endBgFetch) window.endBgFetch('contours'); });
           }
         }
         // Draw from cache immediately (may be empty → fetches triggered above)
