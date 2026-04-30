@@ -5544,7 +5544,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
      following buildings). Falls back to the scalar baseY for any missing/invalid
      entry. topY is ignored when perVertexBaseY is supplied — height is derived
      as (topY - baseY) and applied uniformly on top of each per-vertex base. */
-  function buildExtrudedFootprint(vertices, baseY, topY, centreLat, centreLng, perVertexBaseY) {
+  function buildExtrudedFootprint(vertices, baseY, topY, centreLat, centreLng, perVertexBaseY, perVertexTopY) {
     if (!vertices || vertices.length < 3) return null;
 
     var h = topY - baseY; /* constant building height used when perVertexBaseY supplied */
@@ -5609,8 +5609,10 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
 
     /* Top face vertices */
     for (var t = 0; t < N; t++) {
+      var topYt = (perVertexTopY && perVertexTopY[t] !== undefined && isFinite(perVertexTopY[t]))
+        ? perVertexTopY[t] : (ptsBaseY[t] + h);
       positions[pOff++] = pts[t].x;
-      positions[pOff++] = ptsBaseY[t] + h;
+      positions[pOff++] = topYt;
       positions[pOff++] = pts[t].z;
     }
     /* Bottom face vertices */
@@ -5624,14 +5626,18 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
       var eB = (e + 1) % N;
       var a = pts[e], b = pts[eB];
       var bYa = ptsBaseY[e], bYb = ptsBaseY[eB];
+      var tYa = (perVertexTopY && perVertexTopY[e] !== undefined && isFinite(perVertexTopY[e]))
+        ? perVertexTopY[e] : (bYa + h);
+      var tYb = (perVertexTopY && perVertexTopY[eB] !== undefined && isFinite(perVertexTopY[eB]))
+        ? perVertexTopY[eB] : (bYb + h);
       /* bottom-a */
-      positions[pOff++] = a.x; positions[pOff++] = bYa;     positions[pOff++] = a.z;
+      positions[pOff++] = a.x; positions[pOff++] = bYa; positions[pOff++] = a.z;
       /* bottom-b */
-      positions[pOff++] = b.x; positions[pOff++] = bYb;     positions[pOff++] = b.z;
+      positions[pOff++] = b.x; positions[pOff++] = bYb; positions[pOff++] = b.z;
       /* top-b */
-      positions[pOff++] = b.x; positions[pOff++] = bYb + h; positions[pOff++] = b.z;
+      positions[pOff++] = b.x; positions[pOff++] = tYb; positions[pOff++] = b.z;
       /* top-a */
-      positions[pOff++] = a.x; positions[pOff++] = bYa + h; positions[pOff++] = a.z;
+      positions[pOff++] = a.x; positions[pOff++] = tYa; positions[pOff++] = a.z;
     }
 
     /* Top-cap indices — CCW from above so normals point +Y. */
@@ -5802,7 +5808,20 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
         });
       }
 
-      var ext = buildExtrudedFootprint(cb.polygon, baseY, topY, centre.lat, centre.lng, pvbY);
+      /* Flat-roof: all top vertices at a constant scene Y anchored to
+         the reference vertex elevation + building height. */
+      var pvtY = null;
+      var _cbRoofMode = cb.roofMode || 'flat';
+      if (_cbRoofMode === 'flat' && cb.vertexElevations && cb.vertexElevations.length) {
+        var _cbRefIdx = (typeof cb.referenceVertexIndex === 'number') ? cb.referenceVertexIndex : 0;
+        var _cbRefElev = cb.vertexElevations[_cbRefIdx];
+        if (_cbRefElev !== null && isFinite(_cbRefElev)) {
+          var _cbRoofSceneY = (_cbRefElev - _3dReferenceElevation) + (cb.baseHeightM || 0) + h;
+          pvtY = cb.vertexElevations.map(function() { return _cbRoofSceneY; });
+        }
+      }
+
+      var ext = buildExtrudedFootprint(cb.polygon, baseY, topY, centre.lat, centre.lng, pvbY, pvtY);
       if (!ext) continue;
 
       var geom = new THREE.BufferGeometry();
@@ -5850,7 +5869,18 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
         });
       }
 
-      var ext = buildExtrudedFootprint(bs.vertices, baseY, topY, centre.lat, centre.lng, pvbY);
+      var pvtY = null;
+      var _bsRoofMode3d = bs.roofMode || 'flat';
+      if (_bsRoofMode3d === 'flat' && bs.vertexElevations && bs.vertexElevations.length) {
+        var _bsRefIdx3d = (typeof bs.referenceVertexIndex === 'number') ? bs.referenceVertexIndex : 0;
+        var _bsRefElev3d = bs.vertexElevations[_bsRefIdx3d];
+        if (_bsRefElev3d !== null && isFinite(_bsRefElev3d)) {
+          var _bsRoofSceneY = (_bsRefElev3d - _3dReferenceElevation) + (bs.baseHeightM || 0) + h;
+          pvtY = bs.vertexElevations.map(function() { return _bsRoofSceneY; });
+        }
+      }
+
+      var ext = buildExtrudedFootprint(bs.vertices, baseY, topY, centre.lat, centre.lng, pvbY, pvtY);
       if (!ext) continue;
 
       var geom = new THREE.BufferGeometry();
@@ -12498,6 +12528,14 @@ function _interpolateBarrierTerrain(bw) {
 function _barrierHBar(bw) {
   var base = (bw.baseHeightM || 0) + (bw.barrierHeightM || 0);
   if (!_terrainEnabled) return base;
+  // Flat-roof building: horizontal roof at reference-vertex ASL + heights
+  if (bw.building && (bw.building.roofMode || 'flat') === 'flat') {
+    var _hbRefIdx = (typeof bw.building.referenceVertexIndex === 'number') ? bw.building.referenceVertexIndex : 0;
+    var _hbElArr = bw.building.vertexElevations;
+    if (_hbElArr && _hbElArr.length > _hbRefIdx && _hbElArr[_hbRefIdx] !== null && isFinite(_hbElArr[_hbRefIdx])) {
+      return _hbElArr[_hbRefIdx] + (bw.baseHeightM || 0) + (bw.barrierHeightM || 0);
+    }
+  }
   var terrainElev = _interpolateBarrierTerrain(bw);
   return (terrainElev !== null) ? terrainElev + (bw.baseHeightM || 0) + (bw.barrierHeightM || 0) : base;
 }
@@ -13825,7 +13863,13 @@ function _acRenderCase(c) {
       h += '<div style="display:flex;flex-direction:column;gap:3px;">';
       all.forEach(function(s) {
         var active = c.activeSources.indexOf(s.id) >= 0;
-        var baseOp = s.operatingPct != null ? s.operatingPct : 100;
+        var _rawOp = s.operatingPct != null ? s.operatingPct : 100;
+        var _opKey = (c.period === 'music_trading' || c.period === 'who_16h') ? 'day'
+                   : (c.period === 'lmax') ? 'night' : (c.period || 'day');
+        if (_opKey !== 'day' && _opKey !== 'eve' && _opKey !== 'night') _opKey = 'day';
+        var baseOp = (_rawOp && typeof _rawOp === 'object')
+          ? (_rawOp[_opKey] != null ? _rawOp[_opKey] : 100)
+          : (typeof _rawOp === 'number' ? _rawOp : 100);
         var ov = c.operatingPctOverrides[s.id];
         var hasOv = ov !== undefined;
         var dispOp = hasOv ? ov : baseOp;
@@ -14133,55 +14177,90 @@ function _acCalcMusicCase(caseSourceItems, opPctOverrides, receiverIdx, critBand
     // Music period maps to 'day' prefix for propagation
     var period = 'day';
 
-    if (item.arr !== sourcePins) return; // Music sources should be point sources; skip other types
-    if (src.lat === null || src.lat === undefined) return;
+    if (item.arr === sourcePins) {
+      // Point source: per-band spectrum with geometric propagation
+      if (src.lat === null || src.lat === undefined) return;
 
-    var d = getDistanceForSourceReceiver(si, receiverIdx);
-    if (!Number.isFinite(d) || d <= 0) return;
+      var d = getDistanceForSourceReceiver(si, receiverIdx);
+      if (!Number.isFinite(d) || d <= 0) return;
 
-    // Get source spectrum for this period
-    var spectrumA = src.spectrum ? src.spectrum[period] : null;
-    var hasSpectrum = spectrumA && Array.isArray(spectrumA) &&
-      spectrumA.some(function(v) { return v !== null && Number.isFinite(v) && v !== 0; });
+      var spectrumA = src.spectrum ? src.spectrum[period] : null;
+      var hasSpectrum = spectrumA && Array.isArray(spectrumA) &&
+        spectrumA.some(function(v) { return v !== null && Number.isFinite(v) && v !== 0; });
+      if (!hasSpectrum) return;
 
-    if (!hasSpectrum) return; // no per-band data, skip
+      var lwVal = src.lw ? src.lw[period] : null;
+      if (!Number.isFinite(lwVal)) return;
 
-    var lwVal = src.lw ? src.lw[period] : null;
-    if (!Number.isFinite(lwVal)) return;
+      var hasOverride = opPctOverrides && opPctOverrides[src.id] !== undefined;
+      var effectiveOpPct = hasOverride ? opPctOverrides[src.id] : _getPinOpPct(src, period);
+      var opAdj = 10 * Math.log10(effectiveOpPct > 0 ? effectiveOpPct / 100 : 1e-10);
 
-    // Get effective opPct for this source
-    var hasOverride = opPctOverrides && opPctOverrides[src.id] !== undefined;
-    var effectiveOpPct = hasOverride ? opPctOverrides[src.id] : _getPinOpPct(src, period);
-    var opAdj = 10 * Math.log10(effectiveOpPct > 0 ? effectiveOpPct / 100 : 1e-10);
+      var eSumA = (window.SharedCalc && SharedCalc.energySumA) ? SharedCalc.energySumA(spectrumA) : -Infinity;
+      var specAdj = isFinite(eSumA) ? (lwVal - eSumA) : 0;
 
-    // Normalise spectrum relative to entered broadband Lw_A.
-    // Spectrum is stored as dB(Z) per band; energySumA converts to dB(A) energy for normalisation.
-    var eSumA = (window.SharedCalc && SharedCalc.energySumA) ? SharedCalc.energySumA(spectrumA) : -Infinity;
-    var specAdj = isFinite(eSumA) ? (lwVal - eSumA) : 0;
+      var awBands = (window.SharedCalc && SharedCalc.A_WEIGHTS_BANDS) ? SharedCalc.A_WEIGHTS_BANDS : [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
+      spectrumA.forEach(function(lwBand, bIdx) {
+        if (!Number.isFinite(lwBand)) return;
+        if (bIdx >= freqs.length) return;
+        var freq = freqs[bIdx];
+        var lwBandAdj = lwBand + awBands[bIdx] + specAdj + opAdj;
+        var lpBand;
+        if (window.SharedCalc && typeof SharedCalc.attenuatePoint === 'function') {
+          lpBand = SharedCalc.attenuatePoint(lwBandAdj, d);
+        } else {
+          lpBand = lwBandAdj - 20 * Math.log10(d) - 11;
+        }
+        if (Number.isFinite(lpBand)) {
+          bandLin[freq] += Math.pow(10, lpBand / 10);
+          anyBandSrc = true;
+        }
+      });
 
-    // Use calcISO9613forSourcePin with temporary opPct override for total
-    // For per-band: calculate IL at each band using SharedCalc if available
-    var bandFreqs = [63, 125, 250, 500, 1000, 2000, 4000, 8000];
-    var awBands = (window.SharedCalc && SharedCalc.A_WEIGHTS_BANDS) ? SharedCalc.A_WEIGHTS_BANDS : [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1];
-    spectrumA.forEach(function(lwBand, bIdx) {
-      if (!Number.isFinite(lwBand)) return;
-      if (bIdx >= freqs.length) return; // 8kHz band not in music criteria
-      var freq = freqs[bIdx];
-      var lwBandAdj = lwBand + awBands[bIdx] + specAdj + opAdj; // A-weighted + normalised + opPct
-      // Simple IL: geometric spreading only (hemispherical) — attenuatePoint equivalent per band
-      // For accuracy use SharedCalc.attenuatePoint if available, else fallback
-      var lpBand;
-      if (window.SharedCalc && typeof SharedCalc.attenuatePoint === 'function') {
-        lpBand = SharedCalc.attenuatePoint(lwBandAdj, d);
-      } else {
-        // geometric: Lp = Lw - 20log10(d) - 11 (hemispherical, no ISO)
-        lpBand = lwBandAdj - 20 * Math.log10(d) - 11;
+    } else if (typeof buildingSources !== 'undefined' && item.arr === buildingSources && window._bsGenerateSubSources) {
+      // Building source: generate sub-sources (day period) and propagate per-band with geometric IL
+      var bsHasOverride = opPctOverrides && opPctOverrides[src.id] !== undefined;
+      var savedBsOpPct = null;
+      if (bsHasOverride) {
+        if (!src.operatingPct || typeof src.operatingPct !== 'object') {
+          var bsScalar = (typeof src.operatingPct === 'number') ? src.operatingPct : 100;
+          src.operatingPct = { day: bsScalar, eve: bsScalar, night: bsScalar };
+        }
+        savedBsOpPct = src.operatingPct[period];
+        src.operatingPct[period] = opPctOverrides[src.id];
       }
-      if (Number.isFinite(lpBand)) {
-        bandLin[freq] += Math.pow(10, lpBand / 10);
-        anyBandSrc = true;
-      }
-    });
+      var bsSubSrcs = window._bsGenerateSubSources(src, period);
+      if (bsHasOverride) src.operatingPct[period] = savedBsOpPct;
+
+      bsSubSrcs.forEach(function(ss) {
+        if (!ss.specA || !Array.isArray(ss.specA)) return;
+        // Directivity filter: wall sub-sources only radiate into outward half-space
+        if (ss.wallNormal) {
+          var _cosLat = Math.cos(ss.lat * Math.PI / 180);
+          var _normX  = ss.wallNormal.dlng * _cosLat * 111000;
+          var _normY  = ss.wallNormal.dlat * 111000;
+          var _dx = (recvLL.lng - ss.lng) * _cosLat * 111000;
+          var _dy = (recvLL.lat - ss.lat) * 111000;
+          if (_normX * _dx + _normY * _dy <= 0) return;
+        }
+        var dSub = (window.SharedCalc && typeof SharedCalc.flatDistM === 'function')
+          ? SharedCalc.flatDistM({ lat: ss.lat, lng: ss.lng }, { lat: recvLL.lat, lng: recvLL.lng })
+          : Math.sqrt(Math.pow((ss.lat - recvLL.lat) * 111000, 2) + Math.pow((ss.lng - recvLL.lng) * Math.cos(ss.lat * Math.PI / 180) * 111000, 2));
+        if (!Number.isFinite(dSub) || dSub < 0.5) dSub = 0.5;
+        ss.specA.forEach(function(lwBand, bIdx) {
+          if (!Number.isFinite(lwBand)) return;
+          if (bIdx >= freqs.length) return;
+          var freq = freqs[bIdx];
+          var lpBand = (window.SharedCalc && typeof SharedCalc.attenuatePoint === 'function')
+            ? SharedCalc.attenuatePoint(lwBand, dSub)
+            : lwBand - 20 * Math.log10(dSub) - 11;
+          if (Number.isFinite(lpBand)) {
+            bandLin[freq] += Math.pow(10, lpBand / 10);
+            anyBandSrc = true;
+          }
+        });
+      });
+    }
   });
 
   var bands = freqs.map(function(freq) {
@@ -23711,6 +23790,8 @@ setInitialCollapseState();
           data.customBuildings = customs.map(function(cb) {
             return { id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0, heightM: cb.heightM, name: cb.name,
                      vertexElevations: cb.vertexElevations || null,
+                     roofMode: cb.roofMode || 'flat',
+                     referenceVertexIndex: (typeof cb.referenceVertexIndex === 'number') ? cb.referenceVertexIndex : 0,
                      reflectionType: cb.reflectionType || 'hard_wall',
                      reflectionRhoCustom: (cb.reflectionRhoCustom !== null && cb.reflectionRhoCustom !== undefined) ? cb.reflectionRhoCustom : 1.0 };
           });
@@ -23813,7 +23894,9 @@ setInitialCollapseState();
               facadeOverrides: bs.facadeOverrides, roofConstruction: bs.roofConstruction,
               roofElements: bs.roofElements || [],
               manualOverride: bs.manualOverride,
-              vertexElevations: bs.vertexElevations || null
+              vertexElevations: bs.vertexElevations || null,
+              roofMode: bs.roofMode || 'flat',
+              referenceVertexIndex: (typeof bs.referenceVertexIndex === 'number') ? bs.referenceVertexIndex : 0
             };
           });
         }
@@ -25283,6 +25366,8 @@ setInitialCollapseState();
             id: cb.id, polygon: cb.polygon, baseHeightM: cb.baseHeightM || 0,
             heightM: cb.heightM, name: cb.name, isCustom: true, userHeightOverride: true,
             vertexElevations: cb.vertexElevations || null,
+            roofMode: cb.roofMode || 'flat',
+            referenceVertexIndex: (typeof cb.referenceVertexIndex === 'number') ? cb.referenceVertexIndex : 0,
             reflectionType: cb.reflectionType || 'hard_wall',
             reflectionRhoCustom: (cb.reflectionRhoCustom !== null && cb.reflectionRhoCustom !== undefined) ? cb.reflectionRhoCustom : 1.0
           };
@@ -26439,6 +26524,8 @@ setInitialCollapseState();
         data.customBuildings = customs.map(function(cb) {
           return { id:cb.id, polygon:cb.polygon, baseHeightM:cb.baseHeightM||0, heightM:cb.heightM, name:cb.name,
                    vertexElevations:cb.vertexElevations||null,
+                   roofMode:cb.roofMode||'flat',
+                   referenceVertexIndex:(typeof cb.referenceVertexIndex === 'number') ? cb.referenceVertexIndex : 0,
                    reflectionType:cb.reflectionType||'hard_wall',
                    reflectionRhoCustom:(cb.reflectionRhoCustom !== null && cb.reflectionRhoCustom !== undefined) ? cb.reflectionRhoCustom : 1.0 };
         });
@@ -26505,7 +26592,9 @@ setInitialCollapseState();
             facadeOverrides: bs.facadeOverrides ? JSON.parse(JSON.stringify(bs.facadeOverrides)) : null,
             roofConstruction:bs.roofConstruction,
             roofElements: bs.roofElements ? JSON.parse(JSON.stringify(bs.roofElements)) : [],
-            manualOverride:bs.manualOverride, vertexElevations:bs.vertexElevations||null };
+            manualOverride:bs.manualOverride, vertexElevations:bs.vertexElevations||null,
+            roofMode:bs.roofMode||'flat',
+            referenceVertexIndex:(typeof bs.referenceVertexIndex === 'number') ? bs.referenceVertexIndex : 0 };
         });
       }
 
@@ -30746,7 +30835,9 @@ if (window.pdfjsLib) {
           if (bs.vertices && bs.vertices.length >= 3) {
             result.push({ polygon: bs.vertices, heightM: (bs.baseHeightM || 0) + (bs.height_m || 6),
                           isBuildingSource: true, buildingSourceId: bs.id,
-                          vertexElevations: bs.vertexElevations || null });
+                          vertexElevations: bs.vertexElevations || null,
+                          roofMode: bs.roofMode || 'flat',
+                          referenceVertexIndex: bs.referenceVertexIndex || 0 });
           }
         });
       }
@@ -30802,6 +30893,23 @@ if (window.pdfjsLib) {
       }
       html += '</div>';
       html += '<label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="bldgScreenCb" ' + (b.excluded ? '' : 'checked') + '> Include in barrier screening</label>';
+      var _osmRoof = b.roofMode || 'draped';
+      html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #eee;">';
+      html += '<div style="font-size:11px;color:#666;margin-bottom:3px;">Roof modelling:</div>';
+      html += '<div style="display:flex;gap:12px;">';
+      html += '<label style="font-size:12px;display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="radio" name="osmRoofMode" id="osmRoofFlat" value="flat"' + (_osmRoof === 'flat' ? ' checked' : '') + '> Flat</label>';
+      html += '<label style="font-size:12px;display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="radio" name="osmRoofMode" id="osmRoofDraped" value="draped"' + (_osmRoof === 'draped' ? ' checked' : '') + '> Follows terrain</label>';
+      html += '</div>';
+      html += '<div id="osmRoofRefRow" style="margin-top:3px;display:' + (_osmRoof === 'flat' ? 'flex' : 'none') + ';align-items:center;gap:6px;">';
+      var _osmRefIdx = (typeof b.referenceVertexIndex === 'number') ? b.referenceVertexIndex : 0;
+      var _osmNverts = (b.polygon || []).length;
+      html += '<label style="font-size:11px;color:#666;white-space:nowrap;">Ref. vertex:</label>';
+      html += '<select id="osmRoofRefVtx" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;">';
+      for (var _ovi = 0; _ovi < _osmNverts; _ovi++) {
+        html += '<option value="' + _ovi + '"' + (_ovi === _osmRefIdx ? ' selected' : '') + '>' + (_ovi + 1) + '</option>';
+      }
+      html += '</select></div>';
+      html += '</div>';
       html += '</div>';
       return html;
     }
@@ -30861,6 +30969,23 @@ if (window.pdfjsLib) {
               renderBuildings();
               if (typeof updateAll === 'function') updateAll();
               if (typeof render === 'function') render();
+            });
+
+            var osmRoofRadios = document.querySelectorAll('input[name="osmRoofMode"]');
+            var osmRoofRefRow = document.getElementById('osmRoofRefRow');
+            var osmRoofRefVtx = document.getElementById('osmRoofRefVtx');
+            osmRoofRadios.forEach(function(radio) {
+              radio.addEventListener('change', function() {
+                b.roofMode = this.value;
+                if (osmRoofRefRow) osmRoofRefRow.style.display = (this.value === 'flat') ? 'flex' : 'none';
+                if (typeof render === 'function') render();
+                if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+              });
+            });
+            if (osmRoofRefVtx) osmRoofRefVtx.addEventListener('change', function() {
+              b.referenceVertexIndex = parseInt(this.value) || 0;
+              if (typeof render === 'function') render();
+              if (window._recomputeNoiseMap) window._recomputeNoiseMap();
             });
 
             var demolishedCb = document.getElementById('bldgDemolishedCb');
@@ -30939,7 +31064,9 @@ if (window.pdfjsLib) {
             heightLevels: ht.levels || null,
             name: (el.tags && el.tags.name) ? el.tags.name : null,
             userHeightOverride: false,
-            excluded: false
+            excluded: false,
+            roofMode: 'draped',
+            referenceVertexIndex: 0
           });
         });
         window._buildings = buildings;
@@ -32335,6 +32462,29 @@ if (window.pdfjsLib) {
             '<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Top: <b id="cbpTopDisplay">' + (curBase + curHt).toFixed(1) + '</b> m above ground' +
               '<span id="cbpFloatNote" style="color:#c0392b;margin-left:6px;display:' + (curBase > 0 ? 'inline' : 'none') + ';">\u26a0 Elevated</span></div>' +
             '<div id="cbpTerrainInfo" style="font-size:11px;color:#6b7280;margin-bottom:8px;"></div>' +
+            (function() {
+              var _cbRoofMode = cb.roofMode || 'flat';
+              var _cbRefIdx = (typeof cb.referenceVertexIndex === 'number') ? cb.referenceVertexIndex : 0;
+              var _cbNverts = (cb.polygon || []).length;
+              var _cbVtxOpts = '';
+              for (var _cvi = 0; _cvi < _cbNverts; _cvi++) {
+                _cbVtxOpts += '<option value="' + _cvi + '"' + (_cvi === _cbRefIdx ? ' selected' : '') + '>' + (_cvi + 1) + (_cvi === 0 ? ' (first placed)' : '') + '</option>';
+              }
+              return '<div style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;margin-bottom:8px;">' +
+                '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#465a78;margin-bottom:6px;">Roof Modelling</div>' +
+                '<div style="display:flex;gap:16px;margin-bottom:4px;">' +
+                  '<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="cbpRoofMode" value="flat"' + (_cbRoofMode === 'flat' ? ' checked' : '') + '> Flat</label>' +
+                  '<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="cbpRoofMode" value="draped"' + (_cbRoofMode === 'draped' ? ' checked' : '') + '> Follows terrain</label>' +
+                '</div>' +
+                '<div id="cbpRoofFlatDetails" style="' + (_cbRoofMode === 'flat' ? '' : 'display:none;') + '">' +
+                  '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">' +
+                    '<label style="font-size:11px;color:#6b7280;white-space:nowrap;">Reference vertex:</label>' +
+                    '<select id="cbpRoofRefVtx" style="padding:2px 4px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;">' + _cbVtxOpts + '</select>' +
+                  '</div>' +
+                  '<div id="cbpRoofWarnMsg" style="font-size:11px;color:#c0392b;display:none;"></div>' +
+                '</div>' +
+              '</div>';
+            })() +
             '<div style="border-top:1px solid #f0f0f0;padding-top:8px;margin-bottom:8px;">' +
               '<label style="font-size:11px;color:#6b7280;display:block;margin-bottom:4px;">Reflection (ISO 9613-2 Table 4)</label>' +
               '<select id="cbpReflType" style="width:100%;box-sizing:border-box;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;margin-bottom:4px;">' +
@@ -32405,6 +32555,42 @@ if (window.pdfjsLib) {
           if (_cbpReflRow) _cbpReflRow.style.display = this.value === 'custom' ? 'flex' : 'none';
         });
       }
+      // Initialise roof mode controls
+      function _cbpCheckRoofWarn() {
+        var warnEl = panel.querySelector('#cbpRoofWarnMsg');
+        if (!warnEl) return;
+        if ((cb.roofMode || 'flat') !== 'flat') { warnEl.style.display = 'none'; return; }
+        var refIdx3 = (typeof cb.referenceVertexIndex === 'number') ? cb.referenceVertexIndex : 0;
+        if (!cb.vertexElevations || !cb.vertexElevations.length) { warnEl.style.display = 'none'; return; }
+        var refE3 = cb.vertexElevations[refIdx3] || 0;
+        var roofE3 = refE3 + (cb.heightM || 3);
+        var warn3 = '';
+        for (var vi3 = 0; vi3 < cb.vertexElevations.length; vi3++) {
+          if (vi3 !== refIdx3 && (cb.vertexElevations[vi3] || 0) > roofE3) {
+            warn3 = '⚠ Vertex ' + (vi3 + 1) + ' is above the roof line. Move the reference vertex to the highest-ground corner, or switch to Follows terrain.';
+            break;
+          }
+        }
+        warnEl.textContent = warn3;
+        warnEl.style.display = warn3 ? '' : 'none';
+      }
+      var cbpRoofRadios = panel.querySelectorAll('input[name="cbpRoofMode"]');
+      cbpRoofRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+          cb.roofMode = this.value;
+          var flatDetails2 = panel.querySelector('#cbpRoofFlatDetails');
+          if (flatDetails2) flatDetails2.style.display = (this.value === 'flat') ? '' : 'none';
+          _cbpCheckRoofWarn();
+          if (typeof render === 'function') render();
+        });
+      });
+      var cbpRoofRefVtxSel = panel.querySelector('#cbpRoofRefVtx');
+      if (cbpRoofRefVtxSel) cbpRoofRefVtxSel.addEventListener('change', function() {
+        cb.referenceVertexIndex = parseInt(this.value) || 0;
+        _cbpCheckRoofWarn();
+        if (typeof render === 'function') render();
+      });
+      _cbpCheckRoofWarn();
       panel.querySelector('#cbpApply').addEventListener('click', function() {
         var nv = panel.querySelector('#cbpName').value;
         var bv = parseFloat(panel.querySelector('#cbpBase').value);
@@ -32982,8 +33168,10 @@ if (window.pdfjsLib) {
           if (_bsDrawBtn2) _bsDrawBtn2.classList.remove('active');
           var bsVerts = e.layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
           var ctr = _asPolygonCentroid(bsVerts);
-          // Height popup
-          var htHtml = '<div style="min-width:220px;font-size:13px;"><b>Building source</b><br>';
+          var firstV = bsVerts[0];
+          var firstVStr = (Array.isArray(firstV) ? firstV[0].toFixed(5)+', '+firstV[1].toFixed(5) : '—');
+          // Height + roof type popup
+          var htHtml = '<div style="min-width:300px;max-width:340px;font-size:13px;"><b>Building source</b><br>';
           htHtml += '<table style="border-collapse:collapse;margin:6px 0 4px;">';
           htHtml += '<tr><td style="padding:2px 6px 2px 0;white-space:nowrap;">Base height (m):</td>';
           htHtml += '<td><input type="number" id="newBsBase" value="0.0" step="0.1" min="0" style="width:65px;padding:2px 4px;font-size:12px;"></td></tr>';
@@ -32993,9 +33181,21 @@ if (window.pdfjsLib) {
           htHtml += '<td id="newBsTopDisplay" style="font-size:12px;color:#555;">6.0m above ground</td></tr>';
           htHtml += '</table>';
           htHtml += '<div id="newBsFloatNote" style="display:none;font-size:11px;color:#c0392b;margin-bottom:4px;">&#9888; Elevated building (e.g. rooftop plant room)</div>';
-          htHtml += '<button id="newBsAdd" style="font-size:11px;padding:2px 10px;cursor:pointer;background:#7c3aed;color:#fff;border:none;border-radius:4px;">OK</button> ';
-          htHtml += '<button id="newBsCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button></div>';
-          L.popup({ maxWidth: 260, closeOnClick: false })
+          htHtml += '<div style="border-top:1px solid #e5e7eb;margin:8px 0 6px;padding-top:6px;"><b style="font-size:12px;">Roof type</b></div>';
+          htHtml += '<label style="display:flex;align-items:flex-start;gap:6px;margin-bottom:5px;cursor:pointer;">';
+          htHtml += '<input type="radio" name="newBsRoof" id="newBsRoofFlat" value="flat" checked style="margin-top:2px;flex-shrink:0;">';
+          htHtml += '<span style="font-size:12px;"><b>Flat</b> (recommended) &mdash; roof is horizontal, height measured from the first vertex placed.<br>';
+          htHtml += '<span style="color:#b45309;font-size:11px;">&#9888; Place the first vertex on the highest ground to avoid clipping through terrain uphill.</span><br>';
+          htHtml += '<span style="color:#888;font-size:11px;" id="newBsFirstVtx">First vertex: '+escapeHTML(firstVStr)+'</span></span>';
+          htHtml += '</label>';
+          htHtml += '<label style="display:flex;align-items:flex-start;gap:6px;margin-bottom:8px;cursor:pointer;">';
+          htHtml += '<input type="radio" name="newBsRoof" id="newBsRoofDraped" value="draped" style="margin-top:2px;flex-shrink:0;">';
+          htHtml += '<span style="font-size:12px;"><b>Follows terrain</b> &mdash; roof tilts with the slope; height is uniform at every vertex.<br>';
+          htHtml += '<span style="color:#888;font-size:11px;">Use for sheds or structures that genuinely slope with the land.</span></span>';
+          htHtml += '</label>';
+          htHtml += '<button id="newBsAdd" style="font-size:11px;padding:3px 10px;cursor:pointer;background:#7c3aed;color:#fff;border:none;border-radius:4px;">Confirm</button> ';
+          htHtml += '<button id="newBsCancel" style="font-size:11px;padding:3px 8px;cursor:pointer;color:#666;">Cancel placement</button></div>';
+          L.popup({ maxWidth: 360, closeOnClick: false })
             .setLatLng([ctr.lat, ctr.lng])
             .setContent(htHtml)
             .openOn(map);
@@ -33019,6 +33219,8 @@ if (window.pdfjsLib) {
               var base = parseFloat(document.getElementById('newBsBase').value) || 0;
               var ht = parseFloat(document.getElementById('newBsHeight').value);
               if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid height.'); return; }
+              var roofRadio = document.querySelector('input[name="newBsRoof"]:checked');
+              var chosenRoof = roofRadio ? roofRadio.value : 'flat';
               map.closePopup();
               // If placing an existing unplaced building source, update it instead of creating a new one
               var _pendingBsId = window._pendingBsId;
@@ -33032,6 +33234,8 @@ if (window.pdfjsLib) {
                   _existingBs.vertices = bsVerts;
                   _existingBs.height_m = ht;
                   _existingBs.baseHeightM = base;
+                  _existingBs.roofMode = chosenRoof;
+                  _existingBs.referenceVertexIndex = 0;
                   if (_terrainEnabled) _fetchVertexElevations(_existingBs);
                   renderBuildingSourceLayer();
                   openBsPanel(_existingBs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
@@ -33042,7 +33246,7 @@ if (window.pdfjsLib) {
                   return;
                 }
               }
-              var newBs = _bsMakeDefault(bsVerts, ht);
+              var newBs = _bsMakeDefault(bsVerts, ht, chosenRoof, 0);
               newBs.baseHeightM = base;
               buildingSources.push(newBs);
               if (_terrainEnabled) _fetchVertexElevations(newBs);
@@ -33115,9 +33319,10 @@ if (window.pdfjsLib) {
 
         var latLngs = e.layer.getLatLngs()[0].map(function(ll) { return [ll.lat, ll.lng]; });
         var center = e.layer.getBounds().getCenter();
+        var cbFirstVStr = (latLngs.length > 0) ? latLngs[0][0].toFixed(5)+', '+latLngs[0][1].toFixed(5) : '—';
 
-        // Show popup for height/name input
-        var html = '<div style="min-width:220px;font-size:13px;">';
+        // Show popup for height/name + roof type input
+        var html = '<div style="min-width:300px;max-width:360px;font-size:13px;">';
         html += '<b>New building</b><br>';
         html += '<div style="margin:6px 0;">';
         html += '<table style="border-collapse:collapse;margin-top:4px;">';
@@ -33129,13 +33334,25 @@ if (window.pdfjsLib) {
         html += '<td id="newCbTopDisplay" style="font-size:12px;color:#555;">6.0m above ground</td></tr>';
         html += '</table>';
         html += '<div id="newCbFloatNote" style="display:none;font-size:11px;color:#c0392b;margin-top:3px;">&#9888; Elevated building (e.g. rooftop plant room)</div>';
-        html += 'Name: <input type="text" id="newCbName" placeholder="e.g. Rooftop plant room" style="width:140px;padding:2px 4px;font-size:12px;margin-top:4px;">';
+        html += 'Name: <input type="text" id="newCbName" placeholder="e.g. Rooftop plant room" style="width:200px;padding:2px 4px;font-size:12px;margin-top:4px;">';
         html += '</div>';
-        html += '<button id="newCbAdd" style="font-size:11px;padding:2px 8px;cursor:pointer;">Add Building</button> ';
-        html += '<button id="newCbCancel" style="font-size:11px;padding:2px 8px;cursor:pointer;color:#666;">Cancel</button>';
+        html += '<div style="border-top:1px solid #e5e7eb;margin:6px 0;padding-top:6px;"><b style="font-size:12px;">Roof type</b></div>';
+        html += '<label style="display:flex;align-items:flex-start;gap:6px;margin-bottom:5px;cursor:pointer;">';
+        html += '<input type="radio" name="newCbRoof" id="newCbRoofFlat" value="flat" checked style="margin-top:2px;flex-shrink:0;">';
+        html += '<span style="font-size:12px;"><b>Flat</b> (recommended) &mdash; roof is horizontal, height from the first vertex placed.<br>';
+        html += '<span style="color:#b45309;font-size:11px;">&#9888; Place the first vertex on the highest ground to avoid clipping through terrain uphill.</span><br>';
+        html += '<span style="color:#888;font-size:11px;">First vertex: '+escapeHTML(cbFirstVStr)+'</span></span>';
+        html += '</label>';
+        html += '<label style="display:flex;align-items:flex-start;gap:6px;margin-bottom:8px;cursor:pointer;">';
+        html += '<input type="radio" name="newCbRoof" id="newCbRoofDraped" value="draped" style="margin-top:2px;flex-shrink:0;">';
+        html += '<span style="font-size:12px;"><b>Follows terrain</b> &mdash; roof tilts with the slope; height is uniform at every vertex.<br>';
+        html += '<span style="color:#888;font-size:11px;">Use for sheds or structures that genuinely slope with the land.</span></span>';
+        html += '</label>';
+        html += '<button id="newCbAdd" style="font-size:11px;padding:3px 10px;cursor:pointer;background:#465a78;color:#fff;border:none;border-radius:4px;">Confirm</button> ';
+        html += '<button id="newCbCancel" style="font-size:11px;padding:3px 8px;cursor:pointer;color:#666;">Cancel placement</button>';
         html += '</div>';
 
-        L.popup({ maxWidth: 280, closeOnClick: false })
+        L.popup({ maxWidth: 380, closeOnClick: false })
           .setLatLng(center)
           .setContent(html)
           .openOn(map);
@@ -33162,6 +33379,8 @@ if (window.pdfjsLib) {
             var ht = parseFloat(document.getElementById('newCbHeight').value);
             var name = document.getElementById('newCbName').value || 'Custom building';
             if (!Number.isFinite(ht) || ht <= 0) { alert('Please enter a valid height.'); return; }
+            var cbRoofRadio = document.querySelector('input[name="newCbRoof"]:checked');
+            var chosenCbRoof = cbRoofRadio ? cbRoofRadio.value : 'flat';
 
             var _newCb = {
               id: 'custom_' + Date.now(),
@@ -33170,7 +33389,9 @@ if (window.pdfjsLib) {
               heightM: ht,
               name: name,
               isCustom: true,
-              userHeightOverride: true
+              userHeightOverride: true,
+              roofMode: chosenCbRoof,
+              referenceVertexIndex: 0
             };
             customBuildings.push(_newCb);
             if (_terrainEnabled) _fetchVertexElevations(_newCb);
@@ -34205,13 +34426,15 @@ if (window.pdfjsLib) {
       });
       return {walls:walls, roof:roofByPeriod, total:totalByPeriod};
     }
-    function _bsMakeDefault(verts, ht) {
+    function _bsMakeDefault(verts, ht, roofMode, referenceVertexIndex) {
       return {
         id: 'bs_' + (++_bsIdCtr),
         name: 'Building source ' + _bsIdCtr,
         vertices: verts,
         baseHeightM: 0,
         height_m: ht || 6,
+        roofMode: roofMode || 'flat',
+        referenceVertexIndex: (typeof referenceVertexIndex === 'number') ? referenceVertexIndex : 0,
         lpSource: 'octave',
         interiorLp: {
           day:   { broadband: null, octave: {63:null,125:null,250:null,500:null,1000:null,2000:null,4000:null,8000:null} },
@@ -35051,8 +35274,42 @@ if (window.pdfjsLib) {
       h += '</div>';
       h += '<div style="font-size:11px;color:#555;margin-bottom:2px;padding:0 2px;" id="bsPanelTopDisplay">&#128307; Top of building: <b>' + bsTopM.toFixed(1) + ' m</b> above ground' + ((bs.baseHeightM||0) > 0 ? ' <span style="color:#c0392b;">(elevated)</span>' : '') + '</div>';
       h += '<div id="bsPanelTerrainInfo" style="font-size:11px;color:#6b7280;margin-bottom:8px;padding:0 2px;min-height:0;"></div>';
-      h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;padding:0 2px;">';
+      h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;padding:0 2px;">';
       h += '<div><span style="color:#6b7280;">Roof area</span><br><b id="bsPanelRoofArea">' + roofArea.toFixed(0) + ' m\u00b2</b></div>';
+      h += '</div>';
+
+      // \u2500\u2500 Roof modelling \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+      var _bsRoofMode = bs.roofMode || 'flat';
+      var _bsRefIdx = (typeof bs.referenceVertexIndex === 'number') ? bs.referenceVertexIndex : 0;
+      var _bsNverts = (bs.vertices || []).length;
+      var _bsRoofWarn = '';
+      if (_bsRoofMode === 'flat' && bs.vertexElevations && bs.vertexElevations.length > 0) {
+        var _refElev = bs.vertexElevations[_bsRefIdx] || 0;
+        var _roofElev = _refElev + (bs.height_m || 6);
+        for (var _vi = 0; _vi < bs.vertexElevations.length; _vi++) {
+          if (_vi !== _bsRefIdx && (bs.vertexElevations[_vi] || 0) > _roofElev) {
+            _bsRoofWarn = '\u26a0 Vertex ' + (_vi + 1) + ' is above the roof line. Move the reference vertex to the highest-ground corner, or switch to Follows terrain.';
+            break;
+          }
+        }
+      }
+      h += '<div style="border:1px solid #e9d5ff;border-radius:6px;padding:8px;margin-bottom:10px;">';
+      h += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;margin-bottom:6px;">Roof Modelling</div>';
+      h += '<div style="display:flex;gap:16px;margin-bottom:4px;">';
+      h += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="bsRoofMode" value="flat"' + (_bsRoofMode === 'flat' ? ' checked' : '') + '> Flat</label>';
+      h += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="bsRoofMode" value="draped"' + (_bsRoofMode === 'draped' ? ' checked' : '') + '> Follows terrain</label>';
+      h += '</div>';
+      h += '<div id="bsRoofFlatDetails" style="' + (_bsRoofMode === 'flat' ? '' : 'display:none;') + '">';
+      h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">';
+      h += '<label style="font-size:11px;color:#666;white-space:nowrap;">Reference vertex:</label>';
+      h += '<select id="bsRoofRefVtx" style="padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;">';
+      for (var _bvi = 0; _bvi < _bsNverts; _bvi++) {
+        h += '<option value="' + _bvi + '"' + (_bvi === _bsRefIdx ? ' selected' : '') + '>' + (_bvi + 1) + (_bvi === 0 ? ' (first placed)' : '') + '</option>';
+      }
+      h += '</select>';
+      h += '</div>';
+      h += '<div id="bsRoofWarnMsg" style="font-size:11px;color:#c0392b;' + (_bsRoofWarn ? '' : 'display:none;') + '">' + escapeHTML(_bsRoofWarn) + '</div>';
+      h += '</div>';
       h += '</div>';
 
       // Interior Lp library dropdown (searchable combo)
@@ -35406,6 +35663,46 @@ if (window.pdfjsLib) {
           if (typeof render === 'function') render();
           if (window._recomputeNoiseMap) window._recomputeNoiseMap();
         }
+      });
+
+      // ── Roof modelling controls ───────────────────────────────────────────
+      function _bsCheckRoofWarn() {
+        var warnEl = document.getElementById('bsRoofWarnMsg');
+        var flatDetails = document.getElementById('bsRoofFlatDetails');
+        if (!warnEl || !flatDetails) return;
+        if ((bs.roofMode || 'flat') !== 'flat') { warnEl.style.display = 'none'; return; }
+        var refIdx2 = (typeof bs.referenceVertexIndex === 'number') ? bs.referenceVertexIndex : 0;
+        if (!bs.vertexElevations || !bs.vertexElevations.length) { warnEl.style.display = 'none'; return; }
+        var refE = bs.vertexElevations[refIdx2] || 0;
+        var roofE = refE + (bs.height_m || 6);
+        var warn2 = '';
+        for (var vi2 = 0; vi2 < bs.vertexElevations.length; vi2++) {
+          if (vi2 !== refIdx2 && (bs.vertexElevations[vi2] || 0) > roofE) {
+            warn2 = '⚠ Vertex ' + (vi2 + 1) + ' is above the roof line. Move the reference vertex to the highest-ground corner, or switch to Follows terrain.';
+            break;
+          }
+        }
+        warnEl.textContent = warn2;
+        warnEl.style.display = warn2 ? '' : 'none';
+      }
+      var roofModeRadios = panel.querySelectorAll('input[name="bsRoofMode"]');
+      roofModeRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+          bs.roofMode = this.value;
+          var flatDetails = document.getElementById('bsRoofFlatDetails');
+          if (flatDetails) flatDetails.style.display = (this.value === 'flat') ? '' : 'none';
+          _bsCheckRoofWarn();
+          if (typeof render === 'function') render();
+          if (window._recomputeNoiseMap) window._recomputeNoiseMap();
+          if (typeof window._undoPushState === 'function') window._undoPushState('Roof mode ' + (bs.name || 'building source'));
+        });
+      });
+      var bsRoofRefVtxSel = document.getElementById('bsRoofRefVtx');
+      if (bsRoofRefVtxSel) bsRoofRefVtxSel.addEventListener('change', function() {
+        bs.referenceVertexIndex = parseInt(this.value) || 0;
+        _bsCheckRoofWarn();
+        if (typeof render === 'function') render();
+        if (window._recomputeNoiseMap) window._recomputeNoiseMap();
       });
 
       // ── Interior Lp library combo dropdown ───────────────────────────────
@@ -35810,6 +36107,10 @@ if (window.pdfjsLib) {
         if (!Number.isFinite(bs.baseHeightM)) bs.baseHeightM = 0;
         bs.lpSource = 'octave';
         if (!bs.roofElements) bs.roofElements = [];
+        if (!bs.operatingPct || typeof bs.operatingPct !== 'object') {
+          var _bsOpScalar = (typeof bs.operatingPct === 'number') ? bs.operatingPct : 100;
+          bs.operatingPct = { day: _bsOpScalar, eve: _bsOpScalar, night: _bsOpScalar };
+        }
         // Migrate old element area-only records to width×height
         if (bs.facadeOverrides) {
           Object.keys(bs.facadeOverrides).forEach(function(iStr) {
@@ -39087,7 +39388,9 @@ if (window.pdfjsLib) {
             });
             return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null, vertexElevations: b.vertexElevations || null,
                      reflectionType: b.reflectionType || 'hard_wall',
-                     reflectionRhoCustom: (b.reflectionRhoCustom !== null && b.reflectionRhoCustom !== undefined) ? b.reflectionRhoCustom : 1.0 };
+                     reflectionRhoCustom: (b.reflectionRhoCustom !== null && b.reflectionRhoCustom !== undefined) ? b.reflectionRhoCustom : 1.0,
+                     roofMode: b.roofMode || 'flat',
+                     referenceVertexIndex: b.referenceVertexIndex || 0 };
           });
 
           _noiseWorker.postMessage({
@@ -39257,7 +39560,9 @@ if (window.pdfjsLib) {
           });
           return { polygon: poly, heightM: b.heightM, baseHeightM: b.baseHeightM || 0, isBarrier: !!b.isBarrier, buildingSourceId: b.buildingSourceId || null, vertexElevations: b.vertexElevations || null,
                    reflectionType: b.reflectionType || 'hard_wall',
-                   reflectionRhoCustom: (b.reflectionRhoCustom !== null && b.reflectionRhoCustom !== undefined) ? b.reflectionRhoCustom : 1.0 };
+                   reflectionRhoCustom: (b.reflectionRhoCustom !== null && b.reflectionRhoCustom !== undefined) ? b.reflectionRhoCustom : 1.0,
+                   roofMode: b.roofMode || 'flat',
+                   referenceVertexIndex: b.referenceVertexIndex || 0 };
         });
 
         _noiseWorker.postMessage({

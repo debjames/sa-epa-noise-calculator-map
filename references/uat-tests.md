@@ -1,5 +1,67 @@
 # UAT Tests
 
+## Roof modelling — flat vs draped
+
+### Creation dialog — building source
+
+1. Enable terrain. Draw a building source polygon on sloped ground (close the polygon).
+2. **Expected:** A modal titled "Roof type" appears with two radio options: "Flat (recommended)" and "Follows terrain". "Flat" is pre-selected. First vertex coordinates are shown below the Flat option.
+3. Select "Flat" and click Confirm. Open the building source edit panel.
+4. **Expected:** The "Roof Modelling" section shows "Flat" selected and a "Reference vertex" dropdown showing vertex 1 (first placed).
+5. Create another building source, select "Follows terrain", click Confirm. Open its edit panel.
+6. **Expected:** "Follows terrain" is selected; the flat-details section (reference vertex dropdown) is hidden.
+7. Create a building source, click "Cancel placement". **Expected:** No building source is created; the polygon is discarded.
+
+### Creation dialog — custom building
+
+1. Draw a custom building polygon on sloped ground.
+2. **Expected:** A modal with roof type radio buttons appears. Same behaviour as building source dialog.
+3. Confirm with "Flat". **Expected:** Building appears; edit panel shows flat roof mode.
+
+### Edit panel — change roof mode after creation
+
+1. Open a building source edit panel (roof mode = Flat). Change radio to "Follows terrain".
+2. **Expected:** Reference vertex section hides. `render()` fires. Change is reflected in 3D if open.
+3. Change back to "Flat". **Expected:** Reference vertex section reappears.
+4. Open a custom building panel. Change roof mode and click Apply. **Expected:** Mode persists; 3D updates.
+
+### Edit panel — reference vertex warning
+
+1. On sloped terrain, draw a building source where vertex 1 is on LOW ground and vertex 3 is on higher ground.
+2. Fetch terrain (ensure `vertexElevations` is populated).
+3. Open the edit panel (roof mode = Flat, reference vertex = 1).
+4. **Expected:** A red warning reads "⚠ Vertex 3 is above the roof line. Move the reference vertex…"
+5. Change reference vertex to 3. **Expected:** Warning disappears.
+
+### Edit panel — OSM building roof mode
+
+1. Click an OSM building. In the popup, change roof mode from "Follows terrain" to "Flat".
+2. **Expected:** Reference vertex row appears. `render()` fires.
+3. Reload the page; OSM buildings re-fetch. **Expected:** Roof mode is not persisted (OSM buildings are not in save JSON unless explicitly overridden).
+
+### 3D rendering — flat vs draped
+
+1. Place a building source on a slope with terrain enabled.
+2. Open 3D view. Confirm roof: with **Flat** mode, the roof cap is horizontal. With **Follows terrain**, the roof cap tilts.
+3. Switch roof mode in edit panel, reopen 3D. **Expected:** Roof geometry updates.
+
+### Acoustic calc — flat roof diffracting edge
+
+1. Place a point source and receiver with a building source between them on sloped terrain.
+2. With roofMode = **Draped**: note the calculated attenuation at receiver.
+3. Switch to **Flat**, reference vertex = highest-ground corner. **Expected:** Attenuation changes (roof is now at a constant height; may increase or decrease depending on geometry). No console errors.
+4. With roofMode = **Flat**, reference vertex = lowest-ground corner (worst case — warning should appear). **Expected:** Roof elevation is lower than draped; attenuation is less than case 3.
+
+### Save / load round-trip
+
+1. Create a building source with roofMode = 'flat', referenceVertexIndex = 2. Save assessment.
+2. Reload. **Expected:** Building source has roofMode = 'flat' and referenceVertexIndex = 2. Edit panel confirms.
+3. Load a pre-existing save (without roofMode fields). **Expected:** Building source defaults to roofMode = 'flat', referenceVertexIndex = 0. No errors.
+
+### OSM buildings default
+
+1. Import OSM buildings. Open any building popup. **Expected:** Roof mode shows "Follows terrain" selected by default.
+
 ## Noise map appearance — opacity and palette controls
 
 ### Legend popover interaction
@@ -2361,3 +2423,25 @@ Tests confirming the three help surfaces (Methodology / Quick Reference / Help A
 ### Test 241 — No console errors
 
 - [ ] **241-1. No errors during polygon-click placement** — Perform tests 237-1 through 238-3. No console errors at any step.
+
+### Test 242 — Building source Op% in assessment cases (Music period)
+
+- [ ] **242-1. Op field defaults to 100** — Add a building source (via Custom sources wizard). Enable the Music assessment case. Expand the case. Tick the building source as the only contributor. The Op field next to the building source name shows "100" (not blank, not "[object Object]").
+
+- [ ] **242-2. Pred column populates** — With the building source ticked as the only Music contributor and at least one receiver placed, the Pred column shows numeric values for all 7 octave bands (63–4000 Hz) at every placed receiver. No "—" values in the band rows.
+
+- [ ] **242-3. Op 50% drops Pred by 3.0 dB** — Change Op to 50%. All 7 band Pred values drop by exactly 3.0 dB (10·log10(0.5) = −3.01). Verify at two or more receivers.
+
+- [ ] **242-4. Op 25% drops Pred by 6.0 dB** — Change Op to 25%. All 7 band Pred values are 6.0 dB below the 100% values.
+
+- [ ] **242-5. Op 10% drops Pred by 10.0 dB** — Change Op to 10%. Pred values are 10.0 dB below 100%.
+
+- [ ] **242-6. Op 0% shows no contribution** — Change Op to 0%. Building source contributes nothing; Pred bands show "—" (or the case shows no prediction if it was the only source).
+
+- [ ] **242-7. Mixed point + building source** — Tick a point source AND a building source. Pred column shows the logarithmic sum of both contributions — higher than either source alone.
+
+- [ ] **242-8. Save → reload round-trip** — Save the assessment. Reload the page. Load the assessment. Building source `operatingPct` is preserved. Pred column matches pre-save values exactly.
+
+- [ ] **242-9. Load old save without operatingPct** — Load a save file whose building source entry lacks `operatingPct`. The Op field defaults to 100 and Pred populates correctly. No console errors.
+
+- [ ] **242-10. Eve and Night periods** — Repeat 242-2 for Eve and Night assessment cases. Building source contributes correctly in both.

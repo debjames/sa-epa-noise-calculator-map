@@ -783,7 +783,10 @@ via `_barrierHBar(bw)`.
 - **`_fetchVertexElevations(obj)`** — async, queries `DEMCache.getElevations()` per vertex, stores absolute-ASL values in `obj.vertexElevations`. Called on creation, drag-end (partial re-fetch), and by `_fetchMissingVertexElevations()` on terrain-on and after load.
 - **`_fetchMissingVertexElevations()`** — iterates all 6 object arrays and fetches any that lack `vertexElevations`.
 - **`_interpolateBarrierTerrain(bw)`** — given a `getDominantBarrier` result, uses `bw.building.vertexElevations[iA..iB]` and the crossing intersection to linearly interpolate terrain elevation at the crossing.
-- **`_barrierHBar(bw)`** — top-level helper; returns flat `baseHeightM + barrierHeightM` when terrain off, otherwise returns `_interpolateBarrierTerrain(bw) + baseHeightM + barrierHeightM`.
+- **`_barrierHBar(bw)`** — top-level helper; returns flat `baseHeightM + barrierHeightM` when terrain off. When terrain is on, behaviour depends on `bw.building.roofMode`:
+  - `'flat'` (default for user-drawn buildings): returns `vertexElevations[referenceVertexIndex] + baseHeightM + barrierHeightM` — the roof is horizontal at the reference vertex elevation, so `hBar` is constant regardless of which edge is crossed.
+  - `'draped'` (default for OSM buildings): falls through to `_interpolateBarrierTerrain(bw)` interpolation — each top edge vertex is at `vertexElev[i] + heightM` and the crossing point is interpolated along the edge.
+  The same roofMode branch is duplicated in the inline barrier-height code in `noise-worker.js` (the worker cannot call `_barrierHBar` directly).
 - **`edgeVertexIdx`** — new field on `getDominantBarrier` result (index of `edgeStart` in `building.polygon`). Added to `getIntersectingEdges` results in `shared-calc.js`; threaded through all 3 return paths in `getDominantBarrier`.
 
 ### When the §7.4 fix actually moves the number
