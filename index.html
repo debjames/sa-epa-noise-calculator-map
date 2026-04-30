@@ -1954,6 +1954,8 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   margin-bottom: 0;
   max-width: 400px;
   pointer-events: auto;
+  /* Status panel hidden 2026-04 — restore by removing this rule. See changelog. */
+  display: none !important;
 }
 @media (max-width: 767px) {
   #map-column .map-status-row { max-width: none; }
@@ -2057,6 +2059,17 @@ body.drawer-layout .sheet { border: none; border-radius: 0; box-shadow: none; pa
   outline: none;
   color: #374151;
   background: rgba(0, 0, 0, 0.06);
+}
+
+/* ── Site pin icon ─────────────────────────────────────────────────────── */
+.site-pin-icon {
+  /* Override Leaflet's default white background on divIcon */
+  background: transparent !important;
+  border: none !important;
+}
+.site-pin-icon svg {
+  display: block;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
 }
 
 /* Phase 3: resize handle on left edge of drawer.
@@ -2504,7 +2517,7 @@ body.disclaimer-visible .container {
         <div class="card-header">
           <h2 style="margin:0;">Map</h2>
         </div>
-        <div class="p" id="mapDescPara">Click the map to place the <strong>noise source</strong> and up to <strong>4 receiver</strong> locations. Straight-line distances are calculated automatically and entered in the table below. Markers can be dragged to fine-tune positions.</div>
+        <div class="p" id="mapDescPara">Set the <strong>site location</strong> (search or press S), then add <strong>sources</strong> and up to <strong>4 receiver</strong> locations. Straight-line distances are calculated automatically. Markers can be dragged to fine-tune positions.</div>
 
         <!-- Location search -->
         <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;position:relative;">
@@ -2516,10 +2529,10 @@ body.disclaimer-visible .container {
         <!-- Status row (above map) -->
         <div class="map-status-row">
           <span id="map-status-source" style="color:#dc2626;">&#9679; Sources: not placed</span>
-          <span id="map-status-r1"     style="color:#2563eb;">&#9679; R1: not placed</span>
+          <span id="map-status-r1"     style="color:#16a34a;">&#9679; R1: not placed</span>
           <span id="map-status-r2"     style="color:#16a34a;">&#9679; R2: not placed</span>
-          <span id="map-status-r3"     style="color:#d97706;">&#9679; R3: not placed</span>
-          <span id="map-status-r4"     style="color:#7c3aed;">&#9679; R4: not placed</span>
+          <span id="map-status-r3"     style="color:#16a34a;">&#9679; R3: not placed</span>
+          <span id="map-status-r4"     style="color:#16a34a;">&#9679; R4: not placed</span>
         </div>
 
         <!-- Map + floating panels wrapper -->
@@ -2894,16 +2907,17 @@ body.disclaimer-visible .container {
                 <button class="mp-btn" id="drawBarrierBtn" title="Draw a noise barrier polyline on the map (B)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17h4l4-8 4 4h6"/></svg> Barrier<span class="mp-kbd">B</span></button>
                 <button class="mp-btn" id="drawGroundZoneBtn" title="Draw a ground absorption polygon (overrides default G value for propagation paths passing through it) (G)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 17 Q8 11 12 14 Q16 17 21 11"/><path d="M3 21h18" stroke-dasharray="2 2"/></svg> Ground absorption<span class="mp-kbd">G</span></button>
                 <div class="mp-sep"></div>
-                <!-- Group 3: Sources & receivers -->
+                <!-- Group 3: Site location, sources & receivers -->
+                <button class="mp-btn map-mode-btn" id="mapMode-place-site" title="Click map to set the site location — determines the regulatory framework (SA/VIC/NSW) (S)" style="border-left:3px solid #0d9488;"><svg width="14" height="14" viewBox="0 0 24 32" fill="none" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 0 C5 0 0 5 0 12 C0 19 12 32 12 32 C12 32 24 19 24 12 C24 5 19 0 12 0 Z" fill="#0d9488" stroke="white" stroke-width="1.5"/><circle cx="12" cy="12" r="4" fill="white"/></svg> Site location<span class="mp-kbd">S</span></button>
                 <button class="mp-btn map-mode-btn" id="mapMode-source" title="Click map to place noise source" style="display:none;border-left:3px solid #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Noise source</button>
                 <button class="mp-btn map-mode-btn" id="mapMode-addSource" title="Click map to add a new point source (P)" style="border-left:3px solid #c0392b;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><circle cx="12" cy="12" r="5" fill="#c0392b" stroke="#c0392b"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Point source<span class="mp-kbd">P</span></button>
                 <button class="mp-btn" id="drawLineSourceBtn" title="Draw a line source on the map (road, conveyor, rail, etc.) (L)" style="border-left:3px solid #d32f2f;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" stroke-width="2.5" style="vertical-align:-2px;flex-shrink:0;"><path d="M3 19 L8 9 L14 14 L19 5"/><circle cx="3" cy="19" r="2" fill="#d32f2f"/><circle cx="19" cy="5" r="2" fill="#d32f2f"/></svg> Line source<span class="mp-kbd">L</span></button>
                 <button class="mp-btn" id="drawAreaSourceBtn" title="Draw an area source polygon (car park, outdoor dining, industrial activity, etc.) (A)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(217,119,6,0.25)" stroke="#d97706" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="2" fill="#d97706" stroke="none"/></svg> Area source<span class="mp-kbd">A</span></button>
                 <button class="mp-btn" id="drawBuildingSourceBtn" title="Draw a building source polygon (noise radiating from building facade/roof) (K)" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(124,58,237,0.18)" stroke="#7c3aed" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9" stroke="#7c3aed" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="9" stroke="#7c3aed" stroke-width="1.5"/></svg> Building source<span class="mp-kbd">K</span></button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1 (1)" style="border-left:3px solid #2563eb;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1<span class="mp-kbd">1</span></button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r1" title="Click map to place Receiver 1 (1)" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 1<span class="mp-kbd">1</span></button>
                 <button class="mp-btn map-mode-btn" id="mapMode-r2" title="Click map to place Receiver 2 (2)" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 2<span class="mp-kbd">2</span></button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3 (3)" style="border-left:3px solid #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3<span class="mp-kbd">3</span></button>
-                <button class="mp-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4 (4)" style="border-left:3px solid #7c3aed;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4<span class="mp-kbd">4</span></button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r3" title="Click map to place Receiver 3 (3)" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 3<span class="mp-kbd">3</span></button>
+                <button class="mp-btn map-mode-btn" id="mapMode-r4" title="Click map to place Receiver 4 (4)" style="border-left:3px solid #16a34a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> Receiver 4<span class="mp-kbd">4</span></button>
                 <div class="mp-sep"></div>
                 <!-- Group: CoRTN road traffic (map-only) -->
                 <button class="mp-btn" id="drawCortnRoadBtn" title="Draw a CoRTN road traffic source (UK CoRTN method with Australian adjustments) (W)" style="border-left:3px solid #1565C0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1565C0" stroke-width="2" style="vertical-align:-2px;flex-shrink:0;"><path d="M5 22 L10 2 M19 22 L14 2" stroke-dasharray="3 2"/><path d="M12 4 L12 7 M12 10 L12 13 M12 16 L12 19" stroke="#1565C0" stroke-width="1.5"/></svg> Road (CoRTN)<span class="mp-kbd">W</span></button>
@@ -6630,7 +6644,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
      Colours match the 2D map markers (R1 blue, R2 green, R3 amber,
      R4 purple). Cone tip points up. Receivers without a placed
      marker are skipped. */
-  var _3D_RECEIVER_COLOURS = [0x2563EB, 0x16A34A, 0xD97706, 0x7C3AED];
+  var _3D_RECEIVER_COLOURS = [0x16A34A, 0x16A34A, 0x16A34A, 0x16A34A]; // uniform per Chunk 1; retained as array for Chunk 2 per-receiver extensibility
 
   function buildReceivers(centre) {
     if (!_3dScene || !_3dReceiversGroup) return;
@@ -7696,7 +7710,7 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
   mapGuide.innerHTML =
     '<div class="map-guide-text">' +
       '<button type="button" class="map-guide-close" aria-label="Dismiss hint" title="Dismiss">\u00d7</button>' +
-      'Search for an address or<br>click the map to place a noise source' +
+      'Search for an address or press <b>S</b> to set the site location' +
     '</div>';
   var mapInnerWrapperForGuide = mapColumn.querySelector('#mapInnerWrapper');
   if (mapInnerWrapperForGuide) mapInnerWrapperForGuide.appendChild(mapGuide);
@@ -11247,40 +11261,32 @@ function _asFormatArea(area) {
   return area.toFixed(1) + ' m\u00b2';
 }
 
-/** Effective Total Lw dB(A) for an area source in a given period */
+/** Effective Total Lw dB(A) for an area source in a given period.
+ *  lwValue is always stored as Lw/m²; area contribution always added here. */
 function _asGetEffectiveLw(as, period) {
   if (!as.activeInPeriod || !as.activeInPeriod[period]) return NaN;
   var area = _asPolygonArea(as.vertices || []);
+  if (area <= 0) return NaN;
   var qty  = (as.quantity && Number.isFinite(as.quantity[period])) ? as.quantity[period] : 1;
   var pct  = (as.operatingPct && Number.isFinite(as.operatingPct[period])) ? as.operatingPct[period] : 100;
   var lw   = (as.lwValue && Number.isFinite(as.lwValue[period])) ? as.lwValue[period] : null;
   if (lw === null) return NaN;
   var adjN  = (qty  > 0) ? 10 * Math.log10(qty)       : 0;
   var adjOp = (pct  > 0) ? 10 * Math.log10(pct / 100) : -Infinity;
-  if (as.lwMode === 'total') {
-    return lw + adjN + adjOp;
-  } else {
-    if (area <= 0) return NaN;
-    return lw + 10 * Math.log10(area) + adjN + adjOp;
-  }
+  return lw + 10 * Math.log10(area) + adjN + adjOp;
 }
 
-/** Lw/m² adjusted for qty + pct but NOT area — base power density per sub-source. */
+/** Lw/m² adjusted for qty + pct but NOT area — base power density per sub-source.
+ *  lwValue is always stored as Lw/m², so no area conversion needed. */
 function _asGetLwM2Adj(as, period) {
   if (!as.activeInPeriod || !as.activeInPeriod[period]) return NaN;
-  var area = _asPolygonArea(as.vertices || []);
   var qty  = (as.quantity    && Number.isFinite(as.quantity[period]))    ? as.quantity[period]    : 1;
   var pct  = (as.operatingPct && Number.isFinite(as.operatingPct[period])) ? as.operatingPct[period] : 100;
   var lw   = (as.lwValue     && Number.isFinite(as.lwValue[period]))     ? as.lwValue[period]     : null;
   if (lw === null) return NaN;
   var adjN  = (qty > 0) ? 10 * Math.log10(qty)       : 0;
   var adjOp = (pct > 0) ? 10 * Math.log10(pct / 100) : -Infinity;
-  if (as.lwMode === 'total') {
-    if (area <= 0) return NaN;
-    return lw - 10 * Math.log10(area) + adjN + adjOp; // distribute total over area
-  } else {
-    return lw + adjN + adjOp; // already Lw/m²
-  }
+  return lw + adjN + adjOp;
 }
 
 /** Build dB(Z) octave-band spectrum for ISO 9613-2:1996 propagation,
@@ -12866,7 +12872,7 @@ function updateReceiverLabels(state) {
   /* Map description paragraph */
   var mapDesc = document.querySelector('.card .p');
   if (mapDesc && /\d (receiver|noise sensitive area)/.test(mapDesc.textContent.toLowerCase())) {
-    mapDesc.innerHTML = 'Click the map to place the <strong>noise source</strong> and up to <strong>4 ' + termLong + '</strong> locations. Straight-line distances are calculated automatically and entered in the table below. Markers can be dragged to fine-tune positions.';
+    mapDesc.innerHTML = 'Set the <strong>site location</strong> (search or press S), then add <strong>sources</strong> and up to <strong>4 ' + termLong + '</strong> locations. Straight-line distances are calculated automatically. Markers can be dragged to fine-tune positions.';
   }
 
   /* initReceiverNames blur default */
@@ -17797,7 +17803,7 @@ function renderDetectedZones() {
   el.style.display = 'block';
 
   var NSA_LABELS = {r1: 'NSA 1', r2: 'NSA 2', r3: 'NSA 3', r4: 'NSA 4'};
-  var RECV_COLORS = {r1: '#2563eb', r2: '#059669', r3: '#d97706', r4: '#7c3aed'};
+  var RECV_COLORS = {r1: '#16a34a', r2: '#16a34a', r3: '#16a34a', r4: '#16a34a'}; // uniform per Chunk 1
 
   var h = '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Per Pub 1826.5 Figure 1, IF is derived from zones surrounding each <b>noise sensitive area</b> (NSA).</div>';
   h += '<div style="display:flex;gap:12px;margin-bottom:6px;font-size:10px;font-weight:600;">';
@@ -20216,9 +20222,25 @@ function _buildVicRuralCritTableHTML(recs, ids) {
 // Period availability — extracted to module scope (Phase 2) so
 // updateComplianceStrip() can call it. Only references global sourcePins.
 function hasLwForPeriod(period) {
-  return sourcePins.some(function(p) {
+  if (sourcePins.some(function(p) {
     return p.lat !== null && p.lw && Number.isFinite(p.lw[period]) && p.lw[period] > 0;
-  });
+  })) return true;
+  if (typeof areaSources !== 'undefined' && areaSources.some(function(as) {
+    return as.vertices && as.vertices.length >= 3 &&
+      (!as.activeInPeriod || as.activeInPeriod[period] !== false) &&
+      as.lwValue && Number.isFinite(as.lwValue[period]);
+  })) return true;
+  if (typeof lineSources !== 'undefined' && lineSources.some(function(ls) {
+    return ls.vertices && ls.vertices.length >= 2 &&
+      (!ls.activeInPeriod || ls.activeInPeriod[period] !== false) &&
+      ls.lw_m_base && Number.isFinite(ls.lw_m_base[period]);
+  })) return true;
+  if (typeof buildingSources !== 'undefined' && buildingSources.some(function(bs) {
+    return bs.vertices && bs.vertices.length >= 3 &&
+      (!bs.activeInPeriod || bs.activeInPeriod[period] !== false) &&
+      bs.interiorLp && bs.interiorLp[period] && Number.isFinite(bs.interiorLp[period].broadband);
+  })) return true;
+  return false;
 }
 
 // Debounced render — use renderDebounced() for input events to avoid
@@ -20711,9 +20733,19 @@ function updateEmptyStates() {
     (window.getReceiverLatLng && window.getReceiverLatLng('r3')) ||
     (window.getReceiverLatLng && window.getReceiverLatLng('r4'))
   );
-  var hasSource = (typeof sourcePins !== 'undefined') && sourcePins.some(function(p) {
-    return p && p.lat !== null && p.lat !== undefined;
-  });
+  var hasSource =
+    ((typeof sourcePins !== 'undefined') && sourcePins.some(function(p) {
+      return p && p.lat !== null && p.lat !== undefined;
+    })) ||
+    ((typeof areaSources !== 'undefined') && areaSources.some(function(as) {
+      return as && as.vertices && as.vertices.length >= 3;
+    })) ||
+    ((typeof lineSources !== 'undefined') && lineSources.some(function(ls) {
+      return ls && ls.vertices && ls.vertices.length >= 2;
+    })) ||
+    ((typeof buildingSources !== 'undefined') && buildingSources.some(function(bs) {
+      return bs && bs.vertices && bs.vertices.length >= 3;
+    }));
   var hasSourceData = (typeof hasLwForPeriod === 'function') &&
     (hasLwForPeriod('day') || hasLwForPeriod('eve') || hasLwForPeriod('night'));
   var hasPredictions = hasSource && hasAnyReceiver && hasSourceData;
@@ -20764,16 +20796,26 @@ function updateComplianceStrip() {
   var anyPlaced = data.some(function(d) { return d && d.placed; });
 
   // Contextual guidance based on what the user has done so far
-  var hasSource = (typeof sourcePins !== 'undefined') && sourcePins.some(function(p) {
-    return p && p.lat !== null && p.lat !== undefined;
-  });
+  var hasSource =
+    ((typeof sourcePins !== 'undefined') && sourcePins.some(function(p) {
+      return p && p.lat !== null && p.lat !== undefined;
+    })) ||
+    ((typeof areaSources !== 'undefined') && areaSources.some(function(as) {
+      return as && as.vertices && as.vertices.length >= 3;
+    })) ||
+    ((typeof lineSources !== 'undefined') && lineSources.some(function(ls) {
+      return ls && ls.vertices && ls.vertices.length >= 2;
+    })) ||
+    ((typeof buildingSources !== 'undefined') && buildingSources.some(function(bs) {
+      return bs && bs.vertices && bs.vertices.length >= 3;
+    }));
   var hasSourceData = (typeof hasLwForPeriod === 'function') &&
     (hasLwForPeriod('day') || hasLwForPeriod('eve') || hasLwForPeriod('night'));
 
   if (!anyPlaced || !hasSourceData) {
     var msg;
     if (!hasSource && !anyPlaced) {
-      msg = 'Click the map to place a noise source and receivers';
+      msg = 'Set the site location, then add sources and receivers';
     } else if (hasSource && !anyPlaced) {
       msg = 'Source placed \u2014 now add receivers at sensitive locations';
     } else if (!hasSource && anyPlaced) {
@@ -23542,7 +23584,7 @@ setInitialCollapseState();
       try {
         var data = {};
         data._format = 'resonate-noise-tool';
-        data._version = 5;
+        data._version = 6;
         data._exportedAt = new Date().toISOString();
 
         // State
@@ -23582,6 +23624,8 @@ setInitialCollapseState();
             })()
           };
         });
+        // Site pin — explicit site location anchoring the regulatory framework (v6+)
+        data.sitePin = _sitePin ? { lat: _sitePin.lat, lng: _sitePin.lng, label: _sitePin.label || 'Site location', timestamp: _sitePin.timestamp || Date.now() } : null;
         // Subject site (SA) — first source lat/lng, detected zone, and display name
         data._subjectSiteLatlng  = window._subjectSiteLatlng || null;
         data._subjectSiteZone    = window._subjectSiteZone   || null;
@@ -24885,8 +24929,36 @@ setInitialCollapseState();
       // Re-render source pins UI
       if (typeof renderSourcePins === 'function') renderSourcePins();
 
+      // ── Site pin restore / v5→v6 migration ───────────────────────────────
+      if (data.sitePin && data.sitePin.lat != null) {
+        // v6 save: explicit site pin
+        _sitePin = { lat: data.sitePin.lat, lng: data.sitePin.lng,
+                     label: data.sitePin.label || 'Site location',
+                     timestamp: data.sitePin.timestamp || Date.now() };
+      } else if ((!data._version || data._version <= 5)) {
+        // v5 migration: infer site pin from S1's position
+        var _sp5 = sourcePins.filter(function(p) { return p.lat !== null; })[0];
+        if (_sp5) {
+          _sitePin = { lat: _sp5.lat, lng: _sp5.lng,
+                       label: 'Site location (inferred from S1)',
+                       timestamp: Date.now() };
+          if (typeof showToast === 'function') {
+            setTimeout(function() {
+              showToast('Assessment updated to v6 — site location pin inferred from S1. You can move it independently.', 5000);
+            }, 1200);
+          }
+        } else {
+          _sitePin = null;
+        }
+      } else {
+        _sitePin = null;
+      }
+      // Render site pin on map
+      renderSitePin();
       // Restore subject site reference (SA)
-      if (data._subjectSiteLatlng) {
+      if (_sitePin) {
+        window._subjectSiteLatlng = L.latLng(_sitePin.lat, _sitePin.lng);
+      } else if (data._subjectSiteLatlng) {
         window._subjectSiteLatlng = data._subjectSiteLatlng;
       } else {
         var _firstPlaced = sourcePins.filter(function(p) { return p.lat !== null; })[0];
@@ -26390,6 +26462,8 @@ setInitialCollapseState();
         };
       });
 
+      // Site pin (v6+)
+      data.sitePin = (typeof _sitePin !== 'undefined' && _sitePin) ? { lat: _sitePin.lat, lng: _sitePin.lng, label: _sitePin.label || 'Site location', timestamp: _sitePin.timestamp || Date.now() } : null;
       // Subject site
       data._subjectSiteLatlng  = window._subjectSiteLatlng  || null;
       data._subjectSiteZone    = window._subjectSiteZone    || null;
@@ -27225,10 +27299,10 @@ if (window.pdfjsLib) {
   function recvLabel(n) { return (window._receiverTerm || 'Receiver') + ' ' + n; }
   var CFG = {
     source: { color: '#dc2626', get label(){ return 'Noise Source'; }, initial: 'S1', distId: null      },
-    r1:     { color: '#2563eb', get label(){ return recvLabel(1); },   initial: '1', distId: 'dist_r1' },
+    r1:     { color: '#16a34a', get label(){ return recvLabel(1); },   initial: '1', distId: 'dist_r1' },
     r2:     { color: '#16a34a', get label(){ return recvLabel(2); },   initial: '2', distId: 'dist_r2' },
-    r3:     { color: '#d97706', get label(){ return recvLabel(3); },   initial: '3', distId: 'dist_r3' },
-    r4:     { color: '#7c3aed', get label(){ return recvLabel(4); },   initial: '4', distId: 'dist_r4' }
+    r3:     { color: '#16a34a', get label(){ return recvLabel(3); },   initial: '3', distId: 'dist_r3' },
+    r4:     { color: '#16a34a', get label(){ return recvLabel(4); },   initial: '4', distId: 'dist_r4' }
   };
   /** Get config for source_N modes (dynamic, colour-coded per source) */
   function getModeCfg(mode) {
@@ -27376,6 +27450,22 @@ if (window.pdfjsLib) {
     var latlngs = {};   /* key -> {lat,lng} */
     var labelMarkers = {}; /* key -> L.marker (source dot label, separate from dot) */
     var recvLabelMarkers = {}; /* key -> L.marker (receiver Lp label, below receiver pin) */
+
+    /* ── Site pin — explicit site location that anchors the regulatory framework ── */
+    var _sitePin       = null;  /* null | {lat, lng, label, timestamp} */
+    var _sitePinMarker = null;  /* null | L.marker */
+
+    var SITE_PIN_COLOR = '#0d9488'; /* teal — distinct from green receivers and red sources */
+    var SITE_PIN_ICON  = L.divIcon({
+      className: 'site-pin-icon',
+      html: '<svg viewBox="0 0 24 32" width="24" height="32">' +
+            '<path d="M12 0 C5 0 0 5 0 12 C0 19 12 32 12 32 C12 32 24 19 24 12 C24 5 19 0 12 0 Z"' +
+            ' fill="' + SITE_PIN_COLOR + '" stroke="white" stroke-width="1.5"/>' +
+            '<circle cx="12" cy="12" r="4" fill="white"/>' +
+            '</svg>',
+      iconSize:   [24, 32],
+      iconAnchor: [12, 32]  /* bottom-centre = pin tip anchors to the map point */
+    });
     var currentMode = null;
     var _drawingActive = false; // true while Leaflet.draw polygon is being drawn
 
@@ -29438,8 +29528,8 @@ if (window.pdfjsLib) {
       return L.divIcon({
         className: '',
         html: '<div style="font-size:9px;font-weight:700;color:' + color + ';white-space:nowrap;text-align:center;pointer-events:none;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 2px #fff;">' + escapeHTML(text) + '</div>',
-        iconSize:   [36, 12],
-        iconAnchor: [18, -11],
+        iconSize:   [56, 12],
+        iconAnchor: [28, -11],
         popupAnchor: [0, 0]
       });
     }
@@ -29459,7 +29549,7 @@ if (window.pdfjsLib) {
             .filter(function(v) { return v !== '' && v != null && Number.isFinite(Number(v)); })
             .map(Number);
           if (vals.length > 0) {
-            text = Math.round(Math.max.apply(null, vals)) + '\u202fdB';
+            text = Math.round(Math.max.apply(null, vals)) + '\u202fdB(A)';
           }
         }
         lbl.setIcon(makeRecvLpIcon(text, cfg.color));
@@ -29563,7 +29653,7 @@ if (window.pdfjsLib) {
     var concentricCircles = [];
     var vicZonePolygonLayers = [];
     var _recvMapLegends = {}; // {r1: L.control, ...}
-    var RECV_CIRCLE_COLORS = {r1: '#2563eb', r2: '#059669', r3: '#d97706', r4: '#7c3aed'};
+    var RECV_CIRCLE_COLORS = {r1: '#16a34a', r2: '#16a34a', r3: '#16a34a', r4: '#16a34a'}; // uniform per Chunk 1
 
     function updateConcentricCircles() {
       // Clear existing circles and zone polygons
@@ -29784,6 +29874,11 @@ if (window.pdfjsLib) {
         if (currentState !== prevState && typeof window._requeryAllZones === 'function') {
           window._requeryAllZones();
         }
+        // Always re-query the subject site zone after async geocode completes —
+        // fixes timing issue where _requerySubjectSiteZone() in placeSitePin() ran
+        // before this callback confirmed the state (so currentState was still 'OTHER').
+        if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
+        if (typeof updateAll === 'function') updateAll();
       })
       .catch(function(err) {
         console.warn('State detection reverse geocode failed:', err);
@@ -29999,6 +30094,90 @@ if (window.pdfjsLib) {
       });
     }
 
+    /* ── Site pin render / place / move / remove ──────────────────────────── */
+
+    function renderSitePin() {
+      /* Remove any existing site pin marker */
+      if (_sitePinMarker) {
+        map.removeLayer(_sitePinMarker);
+        _sitePinMarker = null;
+      }
+      if (!_sitePin) return;
+
+      _sitePinMarker = L.marker([_sitePin.lat, _sitePin.lng], {
+        icon: SITE_PIN_ICON,
+        draggable: true,
+        zIndexOffset: 600,   /* above receivers (500) */
+        title: 'Site location'
+      }).addTo(map);
+
+      _sitePinMarker.bindTooltip('Site location', {
+        permanent: false,
+        direction: 'top',
+        offset: [0, -30]
+      });
+
+      /* Drag — live update position only */
+      _sitePinMarker.on('drag', function(e) {
+        var ll = e.target.getLatLng();
+        _sitePin.lat = ll.lat;
+        _sitePin.lng = ll.lng;
+      });
+
+      /* Drag end — trigger framework re-detection and zone re-query */
+      _sitePinMarker.on('dragend', function(e) {
+        var ll = e.target.getLatLng();
+        _sitePin.lat = ll.lat;
+        _sitePin.lng = ll.lng;
+        window._subjectSiteLatlng = ll;
+        if (typeof window._subjectSiteOnDragEnd === 'function') window._subjectSiteOnDragEnd(ll);
+        detectStateFromCoords(ll); // async — will call _requerySubjectSiteZone + updateAll on completion
+        if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone(); // sync pre-flight
+        querySourceParcel(ll);
+        if (typeof updateAll === 'function') updateAll(); // recalculate immediately if state already known
+        if (typeof window._undoPushState === 'function') window._undoPushState('Move site location');
+        if (typeof setUnsaved === 'function') setUnsaved();
+      });
+
+      /* Right-click context menu */
+      _sitePinMarker.on('contextmenu', function(e) {
+        L.DomEvent.stopPropagation(e);
+        L.DomEvent.preventDefault(e);
+        var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
+        _showMapCtxMenu(cx, cy, [
+          { id: 'move', label: 'Move', icon: '⤢', action: function() { _ctxFlashMarker(_sitePinMarker); }},
+          'sep',
+          { id: 'del', label: 'Remove site pin', icon: '🗑', cls: 'ctx-danger', action: function() {
+              removeSitePin();
+              if (typeof window._undoPushState === 'function') window._undoPushState('Remove site location');
+          }}
+        ]);
+      });
+    }
+
+    function placeSitePin(lat, lng) {
+      _sitePin = { lat: lat, lng: lng, label: 'Site location', timestamp: Date.now() };
+      renderSitePin();
+      window._subjectSiteLatlng = L.latLng(lat, lng);
+      if (typeof window._subjectSiteOnPlaced === 'function') window._subjectSiteOnPlaced({ lat: lat, lng: lng });
+      detectStateFromCoords(L.latLng(lat, lng)); // async — will call _requerySubjectSiteZone + updateAll on completion
+      if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone(); // sync pre-flight (state may already be correct)
+      querySourceParcel(L.latLng(lat, lng));
+      if (typeof updateAll === 'function') updateAll(); // recalculate criteria immediately if state already known
+      if (typeof setUnsaved === 'function') setUnsaved();
+    }
+
+    function removeSitePin() {
+      _sitePin = null;
+      renderSitePin(); /* removes marker */
+      if (typeof setUnsaved === 'function') setUnsaved();
+    }
+
+    /* Expose for load path and external callers */
+    window._placeSitePin  = function(lat, lng) { placeSitePin(lat, lng); };
+    window._removeSitePin = function()          { removeSitePin(); };
+    window._getSitePin    = function()          { return _sitePin; };
+
     function placeMarker(mode, latlng) {
       var cfg = getModeCfg(mode);
 
@@ -30080,11 +30259,7 @@ if (window.pdfjsLib) {
           };
         })(si, mode));
         /* Source dot labels always remain visible regardless of receiver toggle */
-        /* Set _subjectSiteLatlng when source_0 is placed */
-        if (si === 0) {
-          window._subjectSiteLatlng = latlng;
-          if (typeof window._subjectSiteOnPlaced === 'function') window._subjectSiteOnPlaced(latlng);
-        }
+        /* Subject site is now anchored by the site pin; S1 placement no longer sets _subjectSiteLatlng */
       } else {
         /* === Circle marker for receiver pins === */
         m = L.marker(latlng, { icon: makeIcon(cfg), draggable: true, title: cfg.label })
@@ -30159,11 +30334,7 @@ if (window.pdfjsLib) {
         syncSourceLatLng(mode, ll);
         if (labelMarkers[mode]) labelMarkers[mode].setLatLng(ll);
         if (recvLabelMarkers[mode]) recvLabelMarkers[mode].setLatLng(ll);
-        /* Update subject site reference if this is source index 0 */
-        if (isSourceMode(mode) && sourceIdxFromMode(mode) === 0) {
-          window._subjectSiteLatlng = ll;
-          if (typeof window._subjectSiteOnDragEnd === 'function') window._subjectSiteOnDragEnd(ll);
-        }
+        /* Subject site reference is now maintained by the site pin; S1 drag no longer anchors it */
         fetchPinElevation(mode, ll);
         /* Auto-detect zone — called before updateAll so it fires even if render throws */
         console.log('Zone detect triggered:', mode, ll);
@@ -30171,7 +30342,7 @@ if (window.pdfjsLib) {
         updateAll();
         if (window._recomputeNoiseMap) window._recomputeNoiseMap();
         if (isSourceMode(mode)) {
-          detectStateFromCoords(ll);
+          /* State detection now triggered only by site pin drag — sources no longer anchor the framework */
           querySourceParcel(ll);
           if (typeof detectBuildingUnderSource === 'function') {
             detectBuildingUnderSource(sourceIdxFromMode(mode));
@@ -30237,8 +30408,7 @@ if (window.pdfjsLib) {
         triggerClause6AllReceivers();
       }
 
-      /* Auto-detect state from coordinates when source is placed */
-      if (isSourceMode(mode)) detectStateFromCoords(latlng);
+      /* State detection now triggered only by site pin placement — sources no longer anchor the framework */
 
       /* Query and draw source parcel boundary (SA, VIC, NSW, QLD) */
       if (isSourceMode(mode)) querySourceParcel(latlng);
@@ -30308,7 +30478,9 @@ if (window.pdfjsLib) {
           return;
         }
         var label;
-        if (m === 'addSource') {
+        if (m === 'place-site') {
+          label = '📍 Click the map to set the site location (Esc to cancel)';
+        } else if (m === 'addSource') {
           label = '＋ Click the map to add a new source';
         } else if (isSourceMode(m)) {
           var idx = sourceIdxFromMode(m);
@@ -30393,6 +30565,12 @@ if (window.pdfjsLib) {
       }
 
       if (!currentMode) return;   // browse mode — no placement
+      if (currentMode === 'place-site') {
+        placeSitePin(e.latlng.lat, e.latlng.lng);
+        setMode(null);
+        if (typeof window._undoPushState === 'function') window._undoPushState('Place site location');
+        return;
+      }
       if (currentMode === 'addSource') {
         addNewSourcePin(e.latlng);
         return;
@@ -30413,6 +30591,12 @@ if (window.pdfjsLib) {
     // mode was active (caller should return immediately without opening their panel).
     function _dispatchPlacementClick(latlng) {
       if (!currentMode) return false;
+      if (currentMode === 'place-site') {
+        placeSitePin(latlng.lat, latlng.lng);
+        setMode(null);
+        if (typeof window._undoPushState === 'function') window._undoPushState('Place site location');
+        return true;
+      }
       if (currentMode === 'addSource') {
         addNewSourcePin(latlng);
         return true;
@@ -30519,6 +30703,18 @@ if (window.pdfjsLib) {
     });
 
     /* ---- "Add Source" toolbar button ---- */
+    /* ---- Site location button ---- */
+    var sitePinModeBtn = document.getElementById('mapMode-place-site');
+    if (sitePinModeBtn) {
+      sitePinModeBtn.addEventListener('click', function() {
+        if (currentMode === 'place-site') {
+          setMode(null); // click again to cancel
+        } else {
+          setMode('place-site');
+        }
+      });
+    }
+
     var addSrcModeBtn = document.getElementById('mapMode-addSource');
     if (addSrcModeBtn) {
       addSrcModeBtn.addEventListener('click', function() {
@@ -30537,6 +30733,9 @@ if (window.pdfjsLib) {
       pinsToggleBtn.addEventListener('click', function() {
         _allObjVisible = !_allObjVisible;
         var show = _allObjVisible;
+
+        // ── Site pin ───────────────────────────────────────────────────────────
+        if (_sitePinMarker) _sitePinMarker.setOpacity(show ? 1 : 0);
 
         // ── Point markers: source dots, source labels, receiver circles + Lp labels ──
         ORDER.forEach(function(mode) {
@@ -30621,34 +30820,42 @@ if (window.pdfjsLib) {
       searchRes.appendChild(row);
     }
 
-    /* Handle selecting a Nominatim result */
+    /* Handle selecting a Nominatim result — places the site pin at the searched address */
     function selectNominatimResult(item) {
       if (typeof window._dismissOnboardingHint === 'function') window._dismissOnboardingHint();
       var lat = parseFloat(item.lat);
       var lng = parseFloat(item.lon);
       map.setView([lat, lng], 16);
-      placeMarker('source', L.latLng(lat, lng));
+
+      /* Place (or move) the site pin at the searched address */
+      _sitePin = { lat: lat, lng: lng, label: 'Site location', timestamp: Date.now() };
+      renderSitePin();
+      window._subjectSiteLatlng = L.latLng(lat, lng);
+      if (typeof window._subjectSiteOnPlaced === 'function') window._subjectSiteOnPlaced({ lat: lat, lng: lng });
+
       searchInp.value = item.display_name;
       setLastSelectedAddress(item.display_name);
       var addrState = (item.address && item.address.state) ? item.address.state : '';
       var prevState = currentState;
-      // Map state name to abbreviation for parcel API lookup
+      // Fast-path: use Nominatim's address state to set framework (avoids async reverse-geocode)
       var ausMap = {'south australia':'SA','victoria':'VIC','new south wales':'NSW','queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
       detectedAusState = addrState ? (ausMap[addrState.toLowerCase()] || null) : null;
       if (/victoria/i.test(addrState)) { switchToState('VIC'); }
-      else if (/south australia/i.test(addrState)) {
-        switchToState('SA');
-      }
+      else if (/south australia/i.test(addrState)) { switchToState('SA'); }
       else if (/new south wales/i.test(addrState)) { switchToState('NSW'); }
       else {
         var abbrevs = {'queensland':'QLD','western australia':'WA','tasmania':'TAS','northern territory':'NT','australian capital territory':'ACT'};
         detectedStateName = addrState ? (abbrevs[addrState.toLowerCase()] || addrState) : ((item.address && item.address.country) || 'Other');
         switchToState('OTHER');
       }
-      // Re-query zones if state changed (placeMarker above ran zone query with old state)
+      // Also draw site parcel boundary and query SAPPA zone (SA)
+      querySourceParcel(L.latLng(lat, lng));
+      if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
+      // Re-query zones if state changed
       if (currentState !== prevState && typeof window._requeryAllZones === 'function') {
         window._requeryAllZones();
       }
+      if (typeof setUnsaved === 'function') setUnsaved();
       searchRes.style.display = 'none';
     }
 
@@ -30738,6 +30945,11 @@ if (window.pdfjsLib) {
       clearBtn.addEventListener('click', function () {
         /* R5: Confirmation guard — protect against accidental clear */
         if (!confirm('Clear all sources, receivers, and results?\n\nThis action can be undone with the Undo button.')) return;
+        /* remove site pin */
+        _sitePin = null;
+        renderSitePin();
+        window._subjectSiteLatlng = null;
+
         /* remove all markers + lines */
         Object.keys(markers).forEach(function (k) {
           if (markers[k]) map.removeLayer(markers[k]);
@@ -30797,7 +31009,7 @@ if (window.pdfjsLib) {
         updateSourceStatusBar(); // resets to "Sources: not placed"; also drops zone label (placed=0)
 
         if (window._clearNoiseData) window._clearNoiseData();
-        setMode('source');
+        setMode('place-site'); /* guide user to set site location first */
         if (typeof window._undoPushState === 'function') window._undoPushState('Clear all');
       });
     }
@@ -33682,7 +33894,11 @@ if (window.pdfjsLib) {
 
       function asPeriodBlock(pKey, pLabel) {
         var active    = as.activeInPeriod ? as.activeInPeriod[pKey] !== false : true;
-        var lwVal     = (as.lwValue && Number.isFinite(as.lwValue[pKey])) ? as.lwValue[pKey] : '';
+        // lwValue is always Lw/m²; convert to Total Lw for display when in 'total' mode
+        var rawLw     = (as.lwValue && Number.isFinite(as.lwValue[pKey])) ? as.lwValue[pKey] : null;
+        var lwVal     = rawLw !== null
+          ? (lwMode === 'total' && area > 0 ? Math.round((rawLw + 10 * Math.log10(area)) * 10) / 10 : rawLw)
+          : '';
         var qty       = (as.quantity && Number.isFinite(as.quantity[pKey])) ? as.quantity[pKey] : 1;
         var opPct     = (as.operatingPct && Number.isFinite(as.operatingPct[pKey])) ? as.operatingPct[pKey] : 100;
         var isOverride = as.manualOverride && as.manualOverride[pKey];
@@ -33707,7 +33923,8 @@ if (window.pdfjsLib) {
             '<input type="number" id="asPanelBand_' + pKey + '_' + f + '" value="' + val + '" step="0.5" style="' + roStyle + '" placeholder="\u2014"' + roAttr + '>' +
             '</label>';
         }).join('');
-        var calcLw  = _asGetEffectiveLw(as, pKey);
+        // per_m2 mode \u2192 show derived Total Lw; total mode \u2192 show derived Effective Lw/m\u00b2
+        var calcLw  = (lwMode === 'per_m2') ? _asGetEffectiveLw(as, pKey) : _asGetLwM2Adj(as, pKey);
         var calcStr = Number.isFinite(calcLw) ? calcLw.toFixed(1) : '\u2014';
         return '<div class="as-period-section src-period-card" data-period="' + pKey + '" style="' + (!active ? 'opacity:0.5;' : '') + '">' +
           '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">' +
@@ -33716,13 +33933,17 @@ if (window.pdfjsLib) {
               '<input type="checkbox" id="asPanelActive_' + pKey + '"' + (active ? ' checked' : '') + '> Active' +
             '</label>' +
           '</div>' +
-          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">' +
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap;">' +
             '<label style="font-size:11px;white-space:nowrap;" id="asPanelLwLbl_' + pKey + '">' + lwLabel + ' ' +
               '<input type="number" id="asPanelLw_' + pKey + '" value="' + lwVal + '" step="0.1" style="width:62px;text-align:center;font-size:12px;">' +
             '</label>' +
             '<label style="font-size:11px;white-space:nowrap;">Quantity: ' +
               '<input type="number" id="asPanelQty_' + pKey + '" value="' + qty + '" min="1" step="1" style="width:46px;text-align:center;font-size:12px;">' +
             '</label>' +
+          '</div>' +
+          '<div style="font-size:11px;color:#6b7280;margin-bottom:4px;padding-left:2px;">' +
+            '<span id="asPanelCalcLwLbl_' + pKey + '">' + (lwMode === 'per_m2' ? 'Total Lw' : 'Effective Lw/m\u00b2') + '</span>' +
+            ': <b id="asPanelCalcLw_' + pKey + '">' + calcStr + '</b> dB(A)' +
           '</div>' +
           '<div style="margin-bottom:6px;">' +
             '<label style="font-size:11px;white-space:nowrap;">Op. %: ' +
@@ -33731,7 +33952,6 @@ if (window.pdfjsLib) {
           '</div>' +
           '<div class="src-band-sublabel">Octave band Lw/m\u00b2 (dB)</div>' +
           '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;margin-bottom:4px;">' + bandInputs + '</div>' +
-          '<div style="text-align:right;margin-bottom:4px;font-size:12px;color:#555;"><span id="asPanelCalcLwLbl_' + pKey + '">' + (lwMode === 'per_m2' ? 'Total Lw' : 'Effective Lw/m\u00b2') + '</span>: <b id="asPanelCalcLw_' + pKey + '">' + calcStr + '</b> dB(A)</div>' +
           '<div><label style="font-size:11px;cursor:pointer;">' +
             '<input type="checkbox" id="asPanelOverride_' + pKey + '"' + (isOverride ? ' checked' : '') + '> Manual spectrum override' +
           '</label></div>' +
@@ -33749,8 +33969,13 @@ if (window.pdfjsLib) {
         });
         return h || '<span style="color:var(--muted);">\u2014</span>';
       })();
-      var lwHdrStr   = (as.lwValue && Number.isFinite(as.lwValue.day))
-        ? ' \u2014 ' + (lwMode === 'per_m2' ? 'Lw/m\u00b2 ' : 'Lw ') + as.lwValue.day + ' dB(A)' : '';
+      // lwValue is always Lw/m\u00b2; convert to Total Lw for header display when in 'total' mode
+      var _lwHdrRaw = (as.lwValue && Number.isFinite(as.lwValue.day)) ? as.lwValue.day : null;
+      var _lwHdrVal = _lwHdrRaw !== null
+        ? (lwMode === 'total' && area > 0 ? Math.round((_lwHdrRaw + 10 * Math.log10(area)) * 10) / 10 : _lwHdrRaw)
+        : null;
+      var lwHdrStr  = _lwHdrVal !== null
+        ? ' \u2014 ' + (lwMode === 'per_m2' ? 'Lw/m\u00b2 ' : 'Lw ') + (+_lwHdrVal).toFixed(1) + ' dB(A)' : '';
 
       return '<div id="asFloatPanel" style="position:fixed;width:360px;background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.22);z-index:5000;font-size:13px;line-height:1.4;max-height:calc(100vh - 80px);display:flex;flex-direction:column;overflow:hidden;">' +
         '<div style="background:#fff;border-left:4px solid #d97706;border-radius:8px 8px 0 0;padding:10px 14px;display:flex;align-items:center;gap:8px;cursor:move;border-bottom:1px solid #f0f0f0;flex-shrink:0;" id="asPanelHeader">' +
@@ -33780,11 +34005,12 @@ if (window.pdfjsLib) {
             '<div id="asPanelLibDrop" style="position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:#fff;border:1px solid #ddd;border-top:none;border-radius:0 0 4px 4px;z-index:200;display:none;box-shadow:0 4px 8px rgba(0,0,0,0.1);"></div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">' +
-            '<label style="font-size:11px;color:#555;white-space:nowrap;">Power input:</label>' +
+            '<label style="font-size:11px;color:#555;white-space:nowrap;">Enter as:</label>' +
             '<select id="asPanelLwMode" style="padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;">' +
-              '<option value="per_m2"' + (lwMode === 'per_m2' ? ' selected' : '') + '>Lw/m\u00b2</option>' +
-              '<option value="total"' + (lwMode === 'total' ? ' selected' : '') + '>Total Lw</option>' +
+              '<option value="per_m2"' + (lwMode === 'per_m2' ? ' selected' : '') + '>Lw/m\u00b2 (per area)</option>' +
+              '<option value="total"' + (lwMode === 'total' ? ' selected' : '') + '>Total Lw (across area)</option>' +
             '</select>' +
+            '<span title="Lw/m\u00b2 (per area): enter power density per square metre of source.\nTotal Lw (across area): enter total source power over the whole polygon.\nFormula: Total Lw = Lw/m\u00b2 + 10\u00b7log\u2081\u2080(area m\u00b2)" style="cursor:help;color:#6b7280;font-size:11px;border:1px solid #ccc;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;">?</span>' +
           '</div>' +
           '<div class="src-section-header" style="margin-top:0;">Sound Power Levels</div>' +
           asPeriodBlock('day', 'Day') +
@@ -33854,12 +34080,15 @@ if (window.pdfjsLib) {
       }
       var areaEl = document.getElementById('asPanelArea');
       if (areaEl) areaEl.textContent = _asFormatArea(area);
-      // Update header title
+      // Update header title \u2014 show Total Lw or Lw/m\u00b2 matching current mode
       var titleEl = document.getElementById('asPanelTitle');
       if (titleEl) {
-        var lwDay   = as.lwValue && Number.isFinite(as.lwValue.day) ? as.lwValue.day : null;
-        var lwStr   = (lwDay !== null) ? ' \u2014 ' + (lwMode === 'per_m2' ? 'Lw/m\u00b2 ' : 'Lw ') + lwDay + ' dB(A)' : '';
-        var nameInp = document.getElementById('asPanelName');
+        var lwDay    = as.lwValue && Number.isFinite(as.lwValue.day) ? as.lwValue.day : null;
+        var lwHdrVal = lwDay !== null
+          ? (lwMode === 'total' && area > 0 ? Math.round((lwDay + 10 * Math.log10(area)) * 10) / 10 : lwDay)
+          : null;
+        var lwStr    = lwHdrVal !== null ? ' \u2014 ' + (lwMode === 'per_m2' ? 'Lw/m\u00b2 ' : 'Lw ') + (+lwHdrVal).toFixed(1) + ' dB(A)' : '';
+        var nameInp  = document.getElementById('asPanelName');
         titleEl.textContent = (nameInp ? nameInp.value : as.name || 'Area source') + lwStr;
       }
     }
@@ -33942,25 +34171,33 @@ if (window.pdfjsLib) {
           as.height_m = found.height_m;
           var htInp = document.getElementById('asPanelHeight');
           if (htInp) htInp.value = found.height_m;
-          as.lwMode = 'per_m2';
-          var lwModeEl = document.getElementById('asPanelLwMode');
-          if (lwModeEl) lwModeEl.value = 'per_m2';
+          // Respect the user's current "Enter as" mode.
+          // per_m2 mode: treat library lw_m2_dba as Lw/m\u00b2 \u2192 store directly.
+          // total mode:  treat library lw_m2_dba as Total Lw \u2192 back-convert to
+          //              Lw/m\u00b2 = Total Lw \u2212 10\u00b7log\u2081\u2080(area) for storage; display
+          //              shows the library value unchanged in the Total Lw input.
+          var _libCurrentMode = as.lwMode || 'per_m2';
+          var _libArea = _asPolygonArea(as.vertices || []);
+          var _libDelta = (_libCurrentMode === 'total' && _libArea > 0)
+            ? -10 * Math.log10(_libArea)
+            : 0;
           var bands = [63,125,250,500,1000,2000,4000,8000];
           ['day','eve','night'].forEach(function(p) {
             as.lwValue  = as.lwValue  || {};
             as.spectrum = as.spectrum || {};
-            as.lwValue[p] = found.lw_m2_dba;
+            // Store always as Lw/m\u00b2; delta = 0 in per_m2 mode, negative in total mode.
+            as.lwValue[p] = Math.round((found.lw_m2_dba + _libDelta) * 10) / 10;
             as.spectrum[p] = {};
             var lwInp = document.getElementById('asPanelLw_' + p);
+            // Display the library value unchanged (it IS what the user chose from the library).
             if (lwInp) lwInp.value = found.lw_m2_dba;
-            var lbl = document.getElementById('asPanelLwLbl_' + p);
-            if (lbl) lbl.childNodes[0].textContent = 'Lw/m\u00b2 dB(A): ';
             bands.forEach(function(f) {
               as.spectrum[p][f] = found.spectrum_m2[f] !== undefined ? found.spectrum_m2[f] : '';
               var bandEl = document.getElementById('asPanelBand_' + p + '_' + f);
               if (bandEl) { bandEl.value = as.spectrum[p][f]; }
             });
           });
+          _asPanelUpdateCalc(as);
           triggerRecompute();
         }
         function _buildAsLibDrop(q) {
@@ -34019,23 +34256,17 @@ if (window.pdfjsLib) {
         var newMode = this.value;
         var oldMode = as.lwMode || 'per_m2';
         if (newMode === oldMode) return;
-        var area  = _asPolygonArea(as.vertices || []);
-        var delta = (area > 0) ? ((newMode === 'total') ? 10 * Math.log10(area) : -10 * Math.log10(area)) : 0;
-        var bands = [63,125,250,500,1000,2000,4000,8000];
+        var area = _asPolygonArea(as.vertices || []);
+        // lwValue is always Lw/m\u00b2 \u2014 DO NOT convert it; only update the displayed input values
         ['day','eve','night'].forEach(function(p) {
-          if (as.lwValue && Number.isFinite(as.lwValue[p])) {
-            as.lwValue[p] = Math.round((as.lwValue[p] + delta) * 10) / 10;
-            var lwInp = document.getElementById('asPanelLw_' + p);
-            if (lwInp) lwInp.value = as.lwValue[p];
-          }
-          if (as.manualOverride && as.manualOverride[p] && as.spectrum && as.spectrum[p]) {
-            bands.forEach(function(f) {
-              if (Number.isFinite(as.spectrum[p][f])) {
-                as.spectrum[p][f] = Math.round((as.spectrum[p][f] + delta) * 10) / 10;
-                var bEl = document.getElementById('asPanelBand_' + p + '_' + f);
-                if (bEl) bEl.value = as.spectrum[p][f];
-              }
-            });
+          var lw = as.lwValue && Number.isFinite(as.lwValue[p]) ? as.lwValue[p] : null;
+          var lwInp = document.getElementById('asPanelLw_' + p);
+          if (lwInp) {
+            lwInp.value = lw !== null
+              ? (newMode === 'total' && area > 0
+                  ? Math.round((lw + 10 * Math.log10(area)) * 10) / 10
+                  : lw)
+              : '';
           }
           var lbl = document.getElementById('asPanelLwLbl_' + p);
           if (lbl) lbl.childNodes[0].textContent = (newMode === 'per_m2' ? 'Lw/m\u00b2 dB(A): ' : 'Total Lw dB(A): ');
@@ -34056,7 +34287,18 @@ if (window.pdfjsLib) {
         if (lwInp) lwInp.addEventListener('input', function() {
           var v = parseFloat(this.value);
           as.lwValue = as.lwValue || {};
-          as.lwValue[pKey] = Number.isFinite(v) ? v : null;
+          // Always store as Lw/m²: back-convert from Total Lw if in 'total' mode
+          var lwMode = as.lwMode || 'per_m2';
+          var storedLw = null;
+          if (Number.isFinite(v)) {
+            if (lwMode === 'total') {
+              var area = _asPolygonArea(as.vertices || []);
+              storedLw = area > 0 ? Math.round((v - 10 * Math.log10(area)) * 10) / 10 : v;
+            } else {
+              storedLw = v;
+            }
+          }
+          as.lwValue[pKey] = storedLw;
           if (pKey === 'day') {
             if (!(as._userEdited && as._userEdited.eve)) {
               as.lwValue.eve = as.lwValue.day;
@@ -37875,6 +38117,27 @@ if (window.pdfjsLib) {
           var num = parseInt((as.id + '').replace('as_', ''));
           if (Number.isFinite(num) && num > _asIdCtr) _asIdCtr = num;
         }
+        // Migrate: old saves stored Total Lw in lwValue when lwMode='total'.
+        // New invariant: lwValue is always Lw/m². Convert on load if needed.
+        if (obj.lwMode === 'total' && obj.lwValue) {
+          var migArea = _asPolygonArea(obj.vertices || []);
+          if (migArea > 0) {
+            var migDelta = -10 * Math.log10(migArea);
+            var migBands = [63,125,250,500,1000,2000,4000,8000];
+            ['day','eve','night'].forEach(function(p) {
+              if (Number.isFinite(obj.lwValue[p])) {
+                obj.lwValue[p] = Math.round((obj.lwValue[p] + migDelta) * 10) / 10;
+              }
+              if (obj.manualOverride && obj.manualOverride[p] && obj.spectrum && obj.spectrum[p]) {
+                migBands.forEach(function(f) {
+                  if (Number.isFinite(obj.spectrum[p][f])) {
+                    obj.spectrum[p][f] = Math.round((obj.spectrum[p][f] + migDelta) * 10) / 10;
+                  }
+                });
+              }
+            });
+          }
+        }
         areaSources.push(obj);
       });
       renderAreaSourceLayer();
@@ -40006,6 +40269,9 @@ if (window.pdfjsLib) {
     /** Returns the best available source location for SA criteria derivation.
      *  Falls through: point source → line source → area source → building source. */
     window._computeSubjectSiteLatlng = function() {
+      /* Site pin is the primary anchor for the subject site location */
+      if (typeof _sitePin !== 'undefined' && _sitePin) return { lat: _sitePin.lat, lng: _sitePin.lng };
+      /* Backwards-compat fallback: infer from the first placed source (used during transition from v5 saves) */
       var ps = (typeof sourcePins !== 'undefined') ? sourcePins.find(function(p) { return p.lat !== null; }) : null;
       if (ps) return { lat: ps.lat, lng: ps.lng };
       var ls = (typeof lineSources !== 'undefined') ? lineSources.find(function(l) { return l.vertices && l.vertices.length > 0; }) : null;
@@ -40018,9 +40284,10 @@ if (window.pdfjsLib) {
     };
 
     /** Re-query the SAPPA zone for the current subject site location.
-     *  If no source is placed or state is not SA, clears the stored zone + indicator. */
+     *  Uses site pin position (primary) or _subjectSiteLatlng fallback.
+     *  If no site location is set or state is not SA, clears the stored zone + indicator. */
     window._requerySubjectSiteZone = function() {
-      var ll = window._subjectSiteLatlng;
+      var ll = (_sitePin ? L.latLng(_sitePin.lat, _sitePin.lng) : null) || window._subjectSiteLatlng;
       if (ll && currentState === 'SA') {
         queryAndSetZone('source_0', ll);
       } else {
@@ -42637,11 +42904,10 @@ if (window.pdfjsLib) {
         <ul>
           <li>Enter project number and name in the fields at the top of the page</li>
           <li>Optionally click <strong>Upload proposal</strong> to auto-fill project details from a Resonate proposal PDF</li>
-          <li>Search for an address or click the map to centre on the site <span class="help-tag">Search</span></li>
-          <li>Select state (SA / VIC / NSW) from the header badge &mdash; auto-detected once a receiver is placed; can be overridden manually</li>
+          <li><strong>Set the site location</strong> — search for an address (auto-places the site pin) or press <kbd>S</kbd> then click the map. The site pin determines the regulatory framework (SA / VIC / NSW). <span class="help-tag">Tools</span></li>
           <li>Place a source from the library or as a custom source <span class="help-tag">Tools</span></li>
           <li>Place up to 4 receivers (drag to reposition) <span class="help-tag">Tools</span></li>
-          <li>Criteria are auto-derived from the receiver location and shown in the Criteria &amp; compliance panel</li>
+          <li>Criteria are auto-derived from each receiver's location and shown in the Criteria &amp; compliance panel</li>
           <li>See <em>Methodology</em> for full details on calculations and policy logic</li>
         </ul>
       </div>
@@ -42861,7 +43127,8 @@ if (window.pdfjsLib) {
           <li><kbd>M</kbd> &nbsp;Noise map</li>
           <li><kbd>V</kbd> &nbsp;3D Scene Viewer</li>
           <li><kbd>H</kbd> &nbsp;Show / hide objects</li>
-          <li><kbd>S</kbd> &nbsp;Focus search bar</li>
+          <li><kbd>S</kbd> &nbsp;Place site location</li>
+          <li><kbd>/</kbd> &nbsp;Focus search bar</li>
           <li><kbd>?</kbd> &nbsp;Quick reference (this panel)</li>
         </ul>
         <div class="help-sub">3D Scene Viewer (when modal open)</div>
@@ -44952,6 +45219,13 @@ if (window.pdfjsLib) {
 
       /* ── Navigation ──────────────────────────────────────────── */
       case 's': case 'S':
+        /* S now activates site location placement mode (/ focuses search) */
+        _btn('mapMode-place-site');
+        _kbToast('Site location (S)');
+        e.preventDefault(); break;
+
+      case '/':
+        /* Focus search bar — was S in previous versions */
         var _si = document.getElementById('mapSearchInput');
         if (_si) { _si.focus(); _si.select(); }
         e.preventDefault(); break;

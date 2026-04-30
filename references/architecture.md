@@ -1205,7 +1205,7 @@ CSS: `.panel-empty-state { display: none; ... }` + `.panel-empty-state.show { di
 
 ### updateEmptyStates() — hooked at end of render()
 
-Computes `hasSource` (via `sourcePins.some(p.lat !== null)`), `hasAnyReceiver` (via `window.getReceiverLatLng('r1'..'r4')`), and `hasSourceData` (via `hasLwForPeriod`). For each rule, `toggle(emptyId, tableEl, show)`:
+Computes `hasSource` (checks all four source types: `sourcePins` by `p.lat !== null`; `areaSources` by `vertices.length >= 3`; `lineSources` by `vertices.length >= 2`; `buildingSources` by `vertices.length >= 3`), `hasAnyReceiver` (via `window.getReceiverLatLng('r1'..'r4')`), and `hasSourceData` (via `hasLwForPeriod` — also checks all four source types). For each rule, `toggle(emptyId, tableEl, show)`:
 - Adds/removes `.show` on the empty-state div
 - Moves the underlying table off-screen via `position: absolute; left: -9999px` (not `display: none`) when the empty state is shown, so Save/Load and Generate Report still find the table in the DOM
 
@@ -2240,16 +2240,22 @@ Groups are created fresh on every build (inside `buildAllSourcesAndReceivers()`)
 | Line source | `TubeGeometry(CatmullRomCurve3, max(16, (N−1)×8), 0.5, 8)` | `MeshLambertMaterial({ color: 0xE53E3E, transparent: true, opacity: 0.9 })` | Each vertex elevated to `terrainY + height_m` |
 | Area source | **Primary**: `BufferGeometry` from `_terrainGrid` cell quads clipped by polygon PiP. **Fallback**: `BufferGeometry` from `ShapeUtils.triangulateShape` on densified outline | `MeshLambertMaterial({ color: 0xE53E3E, transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false })` | Primary path uses terrain grid cells (centroid PiP via `_asPip2D`) with exact grid elevations + 0.05 m offset — perfect terrain parity, no interior interpolation error. Boundary outline densified at ~5 m. Fallback used when `_terrainGrid` null (terrain off / no coverage). Label at max Y of mesh vertices + 4 m. `renderOrder: 2` |
 
-#### Receiver cone colours
+#### Receiver marker colour and label conventions
 
-Exactly matches the 2D map marker palette so mental mapping between views is instant:
+All four receiver markers (2D map and 3D view) use a **uniform green `#16a34a`**. Per-receiver colour differentiation was removed in Chunk 1 to scale cleanly to the upcoming unlimited-receivers data model (Chunk 2). The uniform colour is defined in:
+- `CFG` object (2D marker colour, border, label text)
+- `_3D_RECEIVER_COLOURS` array (3D cone colour, all elements `0x16A34A`)
+- `RECV_COLORS` (VIC IF panel accent)
+- `RECV_CIRCLE_COLORS` (VIC urban concentric circles)
+- Map status row inline `color` styles
 
-| Receiver | Colour |
-|---|---|
-| R1 | `#2563EB` blue |
-| R2 | `#16A34A` green |
-| R3 | `#D97706` amber |
-| R4 | `#7C3AED` purple |
+`SPECTRUM_RECV_COLORS` (octave-band chart) retains per-receiver colours for readability — a multi-series chart requires colour differentiation.
+
+The always-visible Lp badge below each placed receiver marker shows `"xx dB(A)"` (A-weighted broadband, worst period). The `makeRecvLpIcon` iconSize is `[56, 12]` to accommodate three-digit + suffix (e.g. `"100 dB(A)"`).
+
+#### Receiver cone colours (3D view)
+
+All four cones use `0x16A34A` (uniform green, matching 2D markers — see conventions section above).
 
 Geometry is `SphereGeometry(0.8, 12, 8)`, positioned with the **sphere centre at the receiver point** (`groundY + buildingY + receiverHeight`) — natural visual for "person / ear at this point", and paired with the 0.8–1.4 m source bursts for matched marker weight. Receivers without a placed map marker are skipped entirely.
 
@@ -2435,6 +2441,27 @@ Migration actions:
 - Logs `console.info('[migrateV2ToV3] vN→3. Converted: { point, line, area, building }')`.
 - Tests: `migrate-v2-v3.test.js` (25 tests; covers custom, library, line, area, building, mixed, round-trip, edge cases).
 
+**Save format `_version: 6`** — The save JSON additionally includes:
+```js
+data.sitePin = { lat: number, lng: number, label: string, timestamp: number } | null
+```
+`_version` bumped from 5 → 6. Migration: v5 (and earlier) saves without a `sitePin` field get one inferred from the first placed `sourcePins` entry. If no source was placed, `sitePin` is `null`. S1 remains in `sourcePins` as a normal source — the site pin and S1 are at the same coordinates initially after migration but can be moved independently. A one-time toast informs the user of the migration. The `_subjectSiteLatlng` variable (used widely for SA zone detection) is now set from `_sitePin` on load/placement; sources no longer anchor it.
+
+#### Site pin data model
+
+| Field | Type | Purpose |
+|---|---|---|
+| `_sitePin` | `{lat, lng, label, timestamp} \| null` | In-memory state; null = not placed |
+| `_sitePinMarker` | `L.marker \| null` | Leaflet map marker for site pin |
+| `SITE_PIN_COLOR` | `'#0d9488'` | Teal — distinct from green receivers and red sources |
+| `SITE_PIN_ICON` | `L.divIcon` | 24×32 px teardrop SVG; `iconAnchor: [12, 32]` (pin tip) |
+
+The site pin determines the **regulatory framework** (SA / VIC / NSW) for the assessment. Per-receiver zone classification continues to use each receiver's own position within the site-determined framework.
+
+`_computeSubjectSiteLatlng()` prefers `_sitePin` over the first placed source (backwards-compat fallback retained). `_requerySubjectSiteZone()` uses `_sitePin` lat/lng when set.
+
+Sources have no special framework-anchor role. `detectStateFromCoords()` (reverse-geocode → `switchToState()`) is called only from site pin placement/drag, not from source placement/drag.
+
 ### Meteorological input panel (`#concaweMetPanel`)
 
 Visible only when `propagationMethod === 'concawe'`. Two modes controlled by radio buttons:
@@ -2488,6 +2515,38 @@ Functions defined at top-level script scope, adjacent to `generateTerrainContour
 |----------|-----------|---------|
 | `gaussianSmoothGrid(grid, width, height, sigma)` | `(Float32Array, number, number, number) → Float32Array` | Separable 1D Gaussian smooth over a flat elevation grid. Returns a new array; input is not mutated. Uses normalised convolution so NaN (no-coverage) cells don't propagate. Called on `ctGridLidar` and `ctGridSrtm` before marching squares in `generateTerrainContours`. Controlled by `TERRAIN_CONTOUR_SMOOTH_SIGMA` (default 1.5 grid cells). |
 | `generateTerrainContours()` | `() → void` | Builds merged LiDAR + SRTM elevation grids from `DEMCache`, applies Gaussian pre-smooth, runs marching squares, applies Chaikin smoothing, and adds polylines to `_terrainContourLayer`. |
+
+## Area Source — Power Storage Convention
+
+**Invariant: `as.lwValue` is always stored as Lw/m² (dB(A) per square metre), regardless of the UI Power input mode (`as.lwMode`).**
+
+The area source edit panel exposes a "Power input" dropdown (`per_m2` | `total`). This controls the *display unit* only — the underlying data is always in Lw/m².
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `as.lwValue` | `{day, eve, night}` | Lw/m² dB(A) — always, never Total Lw |
+| `as.lwMode` | `'per_m2'` \| `'total'` | Display mode only; stored in save JSON |
+| `as.spectrum[p][freq]` | dB(Z) Lw/m² per octave band | Always per-m²; never scaled to total |
+
+### Conversion at UI boundaries
+
+| Direction | Formula |
+|-----------|---------|
+| Display in Total Lw mode | `displayed = lwValue + 10·log₁₀(area_m²)` |
+| Store from Total Lw input | `lwValue = typed_value − 10·log₁₀(area_m²)` |
+
+### Acoustic helpers
+
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `_asGetEffectiveLw(as, period)` | Total Lw dB(A) | = `lwValue + 10·log₁₀(area) + adjN + adjOp` |
+| `_asGetLwM2Adj(as, period)` | Effective Lw/m² dB(A) | = `lwValue + adjN + adjOp` (no area term) |
+
+Both functions always use the per-m² formula regardless of `as.lwMode`. Neither has a mode branch.
+
+### Migration
+
+Old saves (pre–April 2026) stored Total Lw in `lwValue` when `lwMode='total'`. `_setAreaSources` (load path) detects `lwMode='total'` and back-converts `lwValue` by subtracting `10·log₁₀(area)` before pushing to `areaSources[]`. This migration runs once on load; saved JSON is not rewritten until the user saves again.
 
 ## Cache Invalidation Convention
 

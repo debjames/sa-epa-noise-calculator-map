@@ -1,5 +1,200 @@
 # UAT Tests
 
+## Site location pin
+
+### New assessment onboarding
+
+1. Open a new empty assessment (or Clear All).
+2. **Expected:** Map guide overlay reads "Search for an address or press S to set the site location". Mode banner shows "📍 Click the map to set the site location (Esc to cancel)" (Clear All activates site-pin mode automatically).
+3. Press Esc. **Expected:** Mode banner disappears; mode returns to browse.
+
+### Keyboard shortcut S — site pin mode
+
+4. Press `S`. **Expected:** Mode banner shows site pin placement text. "Site location" toolbar button highlights active.
+5. Press `S` again. **Expected:** Mode cancelled.
+
+### Keyboard shortcut / — search focus
+
+6. Press `/`. **Expected:** Search bar receives focus (cursor in search input). No mode banner.
+
+### Map click places site pin
+
+7. Press `S`. Click anywhere on the map in SA. **Expected:** Teal teardrop pin appears at the clicked location. State badge changes to SA. Mode returns to browse.
+
+### Search-to-place sets site pin (not S1)
+
+8. Clear All. Type "Rundle Mall Adelaide" in the search bar and select a result.
+9. **Expected:** Site pin (teal teardrop) appears at the address — NOT a source S1 marker. State badge shows SA. No source is placed.
+
+### Drag site pin reclassifies framework
+
+10. With site pin in SA, drag it across the SA/VIC border. **Expected:** State badge updates to VIC. Receiver criteria (if any receivers placed) update to VIC framework.
+
+### Site pin survives show/hide toggle
+
+11. Place site pin. Click "Show / hide objects" (H). **Expected:** Site pin marker hidden. Click again — site pin reappears.
+
+### Site pin cleared by Clear All
+
+12. Place site pin and sources. Click Clear All → confirm. **Expected:** Site pin removed from map. Onboarding returns to "Search… or press S to set the site location."
+
+### v5 save migration
+
+13. Load a saved v5 assessment (no `sitePin` field) that has at least one source placed.
+14. **Expected:** Site pin appears at S1's position. S1 is still present as a normal source. Toast notification informs user of migration. State badge unchanged from pre-load.
+15. Save the migrated assessment. Re-load. **Expected:** Site pin at same position; no second migration toast.
+
+### Save / reload round-trip (v6)
+
+16. Place site pin at a specific location. Save. Reload. **Expected:** Site pin re-appears at exactly the same position. State badge matches.
+
+---
+
+## Receiver display — dB(A) label and uniform colour (Chunk 1)
+
+### Marker label shows dB(A) suffix
+
+1. Place source S1. Place receivers R1 and R2.
+2. **Expected:** Lp badge below each receiver marker reads "xx dB(A)" — e.g. "62 dB(A)". Not "62 dB" or "62".
+3. Move a receiver closer to the source so Lp ≥ 100. **Expected:** "100 dB(A)" fits without truncation (label may extend slightly beyond the 14 px marker dot, which is expected).
+
+### Uniform green colour — 2D markers
+
+4. Place receivers R1, R2, R3, R4.
+5. **Expected:** All four receiver circles on the map have the same green colour (`#16a34a`) — ring border, number digit, and Lp label text are all the same green. No blue (R1), amber (R3), or purple (R4) colouring.
+
+### Uniform green colour — toolbar buttons
+
+6. Inspect the toolbar. R1, R2, R3, R4 placement buttons all have a green left-border accent (`#16a34a`). No blue/amber/purple accents.
+
+### Uniform green colour — map status row
+
+7. Before placing any receivers: status row shows "● R1: not placed", "● R2: not placed", "● R3: not placed", "● R4: not placed" — all four dots are green. No blue/amber/purple dots.
+
+### dB(A) suffix — initial state
+
+8. Immediately after placing a receiver (before any source data): badge shows "…" (ellipsis placeholder). **Expected:** placeholder unchanged — no suffix on ellipsis.
+
+### Save / reload round-trip
+
+9. Set up an assessment with R1–R4 placed and source data entered. Save. Reload.
+10. **Expected:** Marker badges show "xx dB(A)" suffix and uniform green — display is identical to pre-save state. No data-model changes from this chunk.
+
+---
+
+## Area source — library loading respects "Enter as" mode
+
+### Library load in Lw/m² mode (unchanged behaviour)
+
+1. Draw an area source. Set "Enter as:" = **Lw/m² (per area)**. Select any library entry (e.g. "People per person, raised voice—Lw 74 dB(A)").
+2. **Expected:** Lw/m² input shows **74.0**. Mode dropdown stays on "Lw/m² (per area)". Derived "Total Lw" line below the input shows 74 + 10·log₁₀(area).
+
+### Library load in Total Lw mode — value appears unchanged
+
+3. Set "Enter as:" = **Total Lw (across area)**. Select the same library entry (Lw 74 dB(A)).
+4. **Expected:** Total Lw input shows **74.0** (the library's stated value, unchanged). Mode dropdown stays on "Total Lw (across area)". Derived "Effective Lw/m²" line shows 74 − 10·log₁₀(area).
+5. **Must NOT show** the converted-up total (e.g. 121.7 dB(A)) — that was the old (wrong) behaviour.
+
+### Calculation consistency after library load in Total Lw mode
+
+6. After step 4, check bottom "Total Lw:" summary.
+7. **Expected:** Bottom Day/Eve/Night shows **74.0 dB(A)** (adjusting for Qty=1, Op%=100). Not 121.7.
+8. Place a receiver. **Expected:** Predictions panel shows results and Lw contribution visible in detail panel is consistent with Total Lw = 74 dB(A).
+
+---
+
+## Area source — header formatting and mode clarity
+
+### Header shows 1 dp
+
+1. Draw an area source. Enter Day Lw/m² = **75** (area ≈ 27 m²).
+2. **Expected:** Panel header reads "Area source — Lw/m² **75.0** dB(A)" — NOT a raw float like "75.00000000001".
+3. Switch "Enter as:" to **Total Lw (across area)**. Edit Day Total Lw to **100.0**.
+4. **Expected:** Header updates to "Area source — Lw **100.0** dB(A)". Still 1 dp, no long decimals.
+5. Switch back to **Lw/m² (per area)**. **Expected:** Header shows "Lw/m² **85.7** dB(A)".
+
+### "Enter as:" dropdown renamed and labelled
+
+6. Open any area source edit panel.
+7. **Expected:** Mode label reads "Enter as:" (not "Power input:"). Options read "Lw/m² (per area)" and "Total Lw (across area)".
+8. A `?` icon is visible next to the dropdown. Hovering over it shows a tooltip explaining both modes and the conversion formula.
+
+### Both derived values visible simultaneously in each period card
+
+9. With "Enter as:" = **Lw/m² (per area)**, enter Day = **75**.
+10. **Expected:** Directly below the Day input, a read-only line shows "Total Lw: **89.3** dB(A)".
+11. Switch to **Total Lw (across area)**. Enter Day Total Lw = **100.0**.
+12. **Expected:** Directly below the Day input, a read-only line shows "Effective Lw/m²: **85.7** dB(A)".
+
+---
+
+## Area source — predictions with no point source
+
+### Area-source-only assessment shows predictions
+
+1. Create a NEW assessment (no point sources). Draw an area source polygon (≥ 3 vertices). Enter Day Lw/m² = **75**.
+2. Place receiver R1 on the map.
+3. **Expected:** Predictions panel shows Day/Eve/Night level rows for R1 — NOT the "Enter source data and place receivers to see predictions" empty-state banner.
+4. Confirm the compliance strip at the top also reflects the source data (not empty-state guidance).
+
+### Line-source-only assessment shows predictions
+
+5. Create a NEW assessment. Draw a line source (≥ 2 vertices). Enter source data.
+6. Place receiver R1. **Expected:** Predictions panel shows results (not empty state).
+
+### Building-source-only assessment shows predictions
+
+7. Create a NEW assessment. Draw a building source polygon. Enter interior Lp data.
+8. Place receiver R1. **Expected:** Predictions panel shows results (not empty state).
+
+---
+
+## Area source — Power input mode sync
+
+### Lw/m² mode: per-card and bottom summary in sync
+
+1. Draw an area source (≈27 m²). Set Power input = **Lw/m²**. Enter Day Lw/m² = **75**.
+2. **Expected:** Per-card shows "Total Lw: **89.3** dB(A)" (75 + 10·log₁₀(27) ≈ 14.3). Bottom "Total Lw: Day: **89.3** dB(A)".
+3. Change Quantity to **5**. **Expected:** Bottom Day rises by 10·log₁₀(5) ≈ 7.0 dB → **96.3**.
+4. Change Op % to **50**. **Expected:** Bottom Day drops ~3.0 dB → **93.3**.
+
+### Toggle to Total Lw mode — values preserved
+
+5. Reset Quantity=1, Op%=100, Day Lw/m²=75. Switch Power input to **Total Lw**.
+6. **Expected:** Day Total Lw input shows **89.3**. Per-card shows "Effective Lw/m²: **75.0**". Bottom Day still **89.3**.
+
+### Total Lw mode: editing updates bottom summary
+
+7. Edit Day Total Lw to **100.0**.
+8. **Expected:** Per-card "Effective Lw/m²" updates to **85.7** (100.0 − 14.3). Bottom "Day: **100.0** dB(A)" — this is the bug fix; the bottom must update.
+
+### Toggle back to Lw/m² — intent preserved
+
+9. Switch Power input back to **Lw/m²**.
+10. **Expected:** Lw/m² input shows **85.7**. Per-card "Total Lw: **100.0**". Bottom Day still **100.0**.
+
+### Quantity and Op% in Total Lw mode
+
+11. In Total Lw mode (Day Total Lw = 100.0), change Quantity to **5**.
+12. **Expected:** Bottom Day ≈ 107.0 (100.0 + 7.0). Per-card Effective Lw/m² ≈ 92.7.
+13. Change Op % to **50**. **Expected:** Bottom Day ≈ 104.0.
+
+### Evening and Night periods are independent
+
+14. Repeat steps 1–13 for Evening and Night. Each period must be independent — changing Day must not alter Eve/Night once they have been independently edited.
+
+### Save → reload round-trip
+
+15. With Day=75 Lw/m², Eve=70, Night=65 (all in per_m2 mode), save the assessment. Reload. Open the area source panel.
+16. **Expected:** All Lw/m² values match pre-save. Bottom summary matches. No console errors.
+17. Repeat with Power input = Total Lw at save time. Reload. **Expected:** displays match pre-save after migration (bottom summary and per-card show the same values as before saving).
+
+### No console errors throughout
+
+18. Perform all steps above and confirm the browser console shows no errors or warnings.
+
+---
+
 ## Source-type parity
 
 ### Area source appears in Objects panel
