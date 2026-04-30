@@ -30807,6 +30807,8 @@ if (window.pdfjsLib) {
     }
 
     function renderBuildings() {
+      var _bldgWasOnMap = map.hasLayer(buildingLayer);
+      if (_bldgWasOnMap) map.removeLayer(buildingLayer);
       buildingLayer.clearLayers();
       buildings.forEach(function(b, bi) {
         var style = getBuildingStyle(b);
@@ -30875,6 +30877,7 @@ if (window.pdfjsLib) {
 
         buildingLayer.addLayer(poly);
       });
+      if (_bldgWasOnMap) buildingLayer.addTo(map);
 
       // Show/hide bulk reset button
       var resetAllBtn = document.getElementById('buildingsResetAllBtn');
@@ -37215,10 +37218,14 @@ if (window.pdfjsLib) {
         }
       }
       // Central trigger: recompute day+night, update tooltip summary, refresh UI
+      var _cortnMapTimer = null;
       function recalcAndRefresh() {
         try { recalcCortnRoad(cr); } catch (e) { console.warn('[CoRTN] recalc error:', e); }
         refreshResults();
-        if (window._recomputeCortnMap) window._recomputeCortnMap();
+        if (window._recomputeCortnMap) {
+          if (_cortnMapTimer) clearTimeout(_cortnMapTimer);
+          _cortnMapTimer = setTimeout(function() { window._recomputeCortnMap(); }, 400);
+        }
       }
 
       // Simple text/number binders — also recalc on every change
