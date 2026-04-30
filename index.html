@@ -20271,7 +20271,7 @@ function render() {
   if (srcDayEl) srcDayEl.textContent = (isVIC || isOTHER || isNSW) ? '' : fmt(src && src.inf_day);
   if (srcNightEl) srcNightEl.textContent = (isVIC || isOTHER || isNSW) ? '' : fmt(src && src.inf_night);
 
-  // Populate VIC zone/type columns for source
+  // Populate VIC/NSW zone columns for source
   var srcVicZoneEl = document.getElementById('src_viczone');
   if (srcVicZoneEl) {
     if (isVIC && srcKey) {
@@ -20280,6 +20280,8 @@ function render() {
       var srcZoneType = srcKey.indexOf('VIC_TYPE') === 0 ? srcCode : getVicZoneType(srcCode);
       var srcDisplay = srcLabel || (document.getElementById('src').selectedIndex >= 0 ? document.getElementById('src').options[document.getElementById('src').selectedIndex].text : srcCode);
       srcVicZoneEl.textContent = srcDisplay + (srcZoneType ? ' (Type ' + srcZoneType + ')' : '');
+    } else if (isNSW) {
+      srcVicZoneEl.textContent = _lastDetectedZoneLabels['src'] || '';
     } else {
       srcVicZoneEl.textContent = '';
     }
@@ -20293,7 +20295,7 @@ function render() {
     const rec = recs[idx];
     document.getElementById(id+"_land").textContent = (isVIC || isOTHER || isNSW) ? '' : landDisplay(rec);
 
-    // Populate VIC zone/type columns for each receiver
+    // Populate VIC/NSW zone columns for each receiver
     var recvVicZoneEl = document.getElementById(id + '_viczone');
     if (recvVicZoneEl) {
       var rKey = rKeys[idx];
@@ -20304,6 +20306,8 @@ function render() {
         var rSel = document.getElementById(id);
         var rDisplay = rLabel || (rSel && rSel.selectedIndex >= 0 ? rSel.options[rSel.selectedIndex].text : rCode);
         recvVicZoneEl.textContent = rDisplay + (rZoneType ? ' (Type ' + rZoneType + ')' : '');
+      } else if (isNSW) {
+        recvVicZoneEl.textContent = _lastDetectedZoneLabels[id] || '';
       } else {
         recvVicZoneEl.textContent = '';
       }
@@ -23625,7 +23629,7 @@ setInitialCollapseState();
           };
         });
         // Site pin — explicit site location anchoring the regulatory framework (v6+)
-        data.sitePin = _sitePin ? { lat: _sitePin.lat, lng: _sitePin.lng, label: _sitePin.label || 'Site location', timestamp: _sitePin.timestamp || Date.now() } : null;
+        data.sitePin = _sitePin ? { lat: _sitePin.lat, lng: _sitePin.lng, label: _sitePin.label || 'Site location', timestamp: _sitePin.timestamp || Date.now(), visible: _sitePinVisible } : null;
         // Subject site (SA) — first source lat/lng, detected zone, and display name
         data._subjectSiteLatlng  = window._subjectSiteLatlng || null;
         data._subjectSiteZone    = window._subjectSiteZone   || null;
@@ -24935,6 +24939,7 @@ setInitialCollapseState();
         _sitePin = { lat: data.sitePin.lat, lng: data.sitePin.lng,
                      label: data.sitePin.label || 'Site location',
                      timestamp: data.sitePin.timestamp || Date.now() };
+        _sitePinVisible = (data.sitePin.visible !== false); /* default true for old saves */
       } else if ((!data._version || data._version <= 5)) {
         // v5 migration: infer site pin from S1's position
         var _sp5 = sourcePins.filter(function(p) { return p.lat !== null; })[0];
@@ -26463,7 +26468,7 @@ setInitialCollapseState();
       });
 
       // Site pin (v6+)
-      data.sitePin = (typeof _sitePin !== 'undefined' && _sitePin) ? { lat: _sitePin.lat, lng: _sitePin.lng, label: _sitePin.label || 'Site location', timestamp: _sitePin.timestamp || Date.now() } : null;
+      data.sitePin = (typeof _sitePin !== 'undefined' && _sitePin) ? { lat: _sitePin.lat, lng: _sitePin.lng, label: _sitePin.label || 'Site location', timestamp: _sitePin.timestamp || Date.now(), visible: (typeof _sitePinVisible !== 'undefined' ? _sitePinVisible : true) } : null;
       // Subject site
       data._subjectSiteLatlng  = window._subjectSiteLatlng  || null;
       data._subjectSiteZone    = window._subjectSiteZone    || null;
@@ -27452,19 +27457,21 @@ if (window.pdfjsLib) {
     var recvLabelMarkers = {}; /* key -> L.marker (receiver Lp label, below receiver pin) */
 
     /* ── Site pin — explicit site location that anchors the regulatory framework ── */
-    var _sitePin       = null;  /* null | {lat, lng, label, timestamp} */
-    var _sitePinMarker = null;  /* null | L.marker */
+    var _sitePin        = null;  /* null | {lat, lng, label, timestamp} */
+    var _sitePinMarker  = null;  /* null | L.marker */
+    var _sitePinZoneHTML = '';   /* zone info HTML, updated by zone detection callbacks */
+    var _sitePinVisible  = true; /* whether the site pin marker is shown on the map */
 
-    var SITE_PIN_COLOR = '#0d9488'; /* teal — distinct from green receivers and red sources */
+    var SITE_PIN_COLOR = '#9ca3af'; /* light grey — unobtrusive reference marker */
     var SITE_PIN_ICON  = L.divIcon({
       className: 'site-pin-icon',
-      html: '<svg viewBox="0 0 24 32" width="24" height="32">' +
+      html: '<svg viewBox="0 0 24 32" width="16" height="21">' +
             '<path d="M12 0 C5 0 0 5 0 12 C0 19 12 32 12 32 C12 32 24 19 24 12 C24 5 19 0 12 0 Z"' +
-            ' fill="' + SITE_PIN_COLOR + '" stroke="white" stroke-width="1.5"/>' +
+            ' fill="' + SITE_PIN_COLOR + '" stroke="#6b7280" stroke-width="1.5"/>' +
             '<circle cx="12" cy="12" r="4" fill="white"/>' +
             '</svg>',
-      iconSize:   [24, 32],
-      iconAnchor: [12, 32]  /* bottom-centre = pin tip anchors to the map point */
+      iconSize:   [16, 21],
+      iconAnchor: [8, 21]  /* bottom-centre = pin tip anchors to the map point */
     });
     var currentMode = null;
     var _drawingActive = false; // true while Leaflet.draw polygon is being drawn
@@ -28335,6 +28342,16 @@ if (window.pdfjsLib) {
         }
       }
 
+      /* Last-resort: return the first key whose zone name matches, ignoring subzone.
+         Handles zones like Open Space Zone that use non-standard key formats
+         ("Open Space Zone | Residential in urban areas" instead of "(no subzone)").
+         The user can override via the zone dropdown if the auto-selected variant is wrong. */
+      for (var ki3 = 0; ki3 < keys.length; ki3++) {
+        if (keys[ki3].toLowerCase().indexOf(zoneLower + ' | ') === 0) {
+          return keys[ki3];
+        }
+      }
+
       return null;
     }
 
@@ -28376,8 +28393,9 @@ if (window.pdfjsLib) {
 
       queryZoningAtPoint(queryLat, queryLng)
         .then(function(result) {
-          /* Check marker is still at queried position (user may have moved it) */
-          var currentLl = latlngs[mode];
+          /* Check marker is still at queried position (user may have moved it).
+             For source mode with no placed source pin, accept site pin position. */
+          var currentLl = latlngs[mode] || (isSourceMode(mode) && typeof _sitePin !== 'undefined' && _sitePin ? L.latLng(_sitePin.lat, _sitePin.lng) : null);
           if (!currentLl ||
               Math.abs(currentLl.lat - queryLat) > 0.0001 ||
               Math.abs(currentLl.lng - queryLng) > 0.0001) {
@@ -28408,6 +28426,16 @@ if (window.pdfjsLib) {
               var indEl = document.getElementById('src-zone-autodetect');
               if (indEl) indEl.style.display = '';
             }
+          } else if (result.zone) {
+            /* Zone detected but not in criteria dataset — show raw zone text as
+               informational display so the table isn't blank; no criteria applied. */
+            var _fbDisp = document.getElementById(selectId + '_zdisp');
+            if (_fbDisp) {
+              var _fbName = _fbDisp.querySelector('.zone-name-line');
+              var _fbSub  = _fbDisp.querySelector('.zone-sub-line');
+              if (_fbName) _fbName.textContent = result.zone + ' Zone';
+              if (_fbSub)  _fbSub.textContent  = result.subzone ? (result.subzone + ' Subzone') : '';
+            }
           }
 
           /* Update marker popup with zone info */
@@ -28417,6 +28445,14 @@ if (window.pdfjsLib) {
             if (result.subzone) zoneLabel += ' / ' + result.subzone;
             _recvZoneHTML[mode] = '<br><i style="color:#059669;">' + escapeHTML(zoneLabel) + '</i>';
             m.setPopupContent(buildRecvPopupHTML(mode, latlngs[mode]));
+          }
+          /* If called for the subject site, also update the site pin popup */
+          if (isSourceMode(mode) && result.zone) {
+            var _spZoneLbl = result.zone;
+            if (result.subzone) _spZoneLbl += ' / ' + result.subzone;
+            _sitePinZoneHTML = '<br><i style="color:#059669;">' + escapeHTML(_spZoneLbl) + '</i>';
+            refreshSitePinPopup();
+            if (typeof _renderObjectList === 'function') _renderObjectList();
           }
 
           /* Update status label */
@@ -29256,7 +29292,8 @@ if (window.pdfjsLib) {
 
       queryVicZoningAtPoint(queryLat, queryLng)
         .then(function(result) {
-          var currentLl = latlngs[mode];
+          /* For source mode with no placed source, accept site pin position as the reference */
+          var currentLl = latlngs[mode] || (isSourceMode(mode) && typeof _sitePin !== 'undefined' && _sitePin ? L.latLng(_sitePin.lat, _sitePin.lng) : null);
           if (!currentLl ||
               Math.abs(currentLl.lat - queryLat) > 0.0001 ||
               Math.abs(currentLl.lng - queryLng) > 0.0001) {
@@ -29328,6 +29365,13 @@ if (window.pdfjsLib) {
             _recvZoneHTML[mode] = '<br><i style="color:#059669;">' + escapeHTML(label) + '</i>' +
               (zoneType ? '<br><span style="font-size:11px;color:#059669;">Type ' + zoneType + (lga ? ' \u2014 ' + escapeHTML(lga) : '') + '</span>' : '');
             m.setPopupContent(buildRecvPopupHTML(mode, latlngs[mode]));
+          }
+          /* If called for the subject site, also update the site pin popup */
+          if (isSourceMode(mode) && zoneCode) {
+            _sitePinZoneHTML = '<br><i style="color:#059669;">' + escapeHTML(label) + '</i>' +
+              (zoneType ? '<br><span style="font-size:11px;color:#059669;">Type ' + zoneType + (lga ? ' \u2014 ' + escapeHTML(lga) : '') + '</span>' : '');
+            refreshSitePinPopup();
+            if (typeof _renderObjectList === 'function') _renderObjectList();
           }
 
           if (statusEl) {
@@ -29408,7 +29452,8 @@ if (window.pdfjsLib) {
 
       queryNSWZoningAtPoint(queryLat, queryLng)
         .then(function(result) {
-          var currentLl = latlngs[mode];
+          /* For source mode with no placed source, accept site pin position as the reference */
+          var currentLl = latlngs[mode] || (isSourceMode(mode) && typeof _sitePin !== 'undefined' && _sitePin ? L.latLng(_sitePin.lat, _sitePin.lng) : null);
           if (!currentLl ||
               Math.abs(currentLl.lat - queryLat) > 0.0001 ||
               Math.abs(currentLl.lng - queryLng) > 0.0001) {
@@ -29419,6 +29464,14 @@ if (window.pdfjsLib) {
           var label = zoneCode;
           if (result.zoneName) label += ' \u2014 ' + result.zoneName;
           if (result.lga) label += ' (' + result.lga + ')';
+
+          // Store zone label for criteria table Zone column display
+          var _nswSelectId = isSourceMode(mode) ? 'src' : mode;
+          if (zoneCode) {
+            _lastDetectedZoneLabels[_nswSelectId] = label;
+          } else {
+            delete _lastDetectedZoneLabels[_nswSelectId];
+          }
 
           // Auto-set amenity area from zone code
           if (isSourceMode(mode) && zoneCode) {
@@ -29449,6 +29502,12 @@ if (window.pdfjsLib) {
           if (m) {
             _recvZoneHTML[mode] = zoneCode ? '<br><i style="color:#1e3a5f;">' + escapeHTML(label) + '</i>' : '';
             m.setPopupContent(buildRecvPopupHTML(mode, latlngs[mode]));
+          }
+          /* If called for the subject site, also update the site pin popup */
+          if (isSourceMode(mode)) {
+            _sitePinZoneHTML = zoneCode ? '<br><i style="color:#1e3a5f;">' + escapeHTML(label) + '</i>' : '';
+            refreshSitePinPopup();
+            if (typeof _renderObjectList === 'function') _renderObjectList();
           }
 
           if (statusEl) {
@@ -30007,6 +30066,36 @@ if (window.pdfjsLib) {
       return html;
     }
 
+    /** Build the HTML content for the site pin popup (similar to receiver popup). */
+    function buildSitePinPopupHTML() {
+      if (!_sitePin) return '<b>Site location</b><br><span style="font-size:11px;color:#888;">Not placed</span>';
+      var ll = _sitePin;
+      /* State badge */
+      var state = (typeof currentState !== 'undefined') ? currentState : '';
+      var stateBadge = '';
+      if (state && state !== 'OTHER') {
+        var _spStateColors = { SA: '#0d9488', VIC: '#1d4ed8', NSW: '#7c3aed' };
+        var _spSc = _spStateColors[state] || '#6b7280';
+        stateBadge = '&nbsp;<span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:' + _spSc + ';color:#fff;vertical-align:middle;">' + escapeHTML(state) + '</span>';
+      }
+      var html = '<b>Site location</b>' + stateBadge + '<br>' +
+        '<span style="font-size:11px;color:#888;">' + ll.lat.toFixed(6) + ', ' + ll.lng.toFixed(6) + '</span>' +
+        '&nbsp;<button onclick="openStreetView(' + ll.lat + ',' + ll.lng + ')" ' +
+          'title="Open Google Street View at this location (new tab). Imagery © Google." ' +
+          'style="padding:1px 7px;font-size:11px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;color:#1d4ed8;vertical-align:middle;">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;vertical-align:-1px;"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg> Street View</button>';
+      /* Zone line — populated by zone detection callbacks */
+      if (_sitePinZoneHTML) html += _sitePinZoneHTML;
+      else if (state && state !== 'OTHER') html += '<br><span style="font-size:11px;color:#9ca3af;font-style:italic;">Detecting zone…</span>';
+      return html;
+    }
+
+    /** Refresh content of the open site pin popup (called after zone detection). */
+    function refreshSitePinPopup() {
+      if (_sitePinMarker) _sitePinMarker.setPopupContent(buildSitePinPopupHTML());
+    }
+    window._refreshSitePinPopup = refreshSitePinPopup;
+
     /** Refresh the terrain section of an open receiver popup (called after elevation fetch) */
     function refreshRecvPopupTerrain(mode) {
       var terrEl = document.getElementById('recv-popup-terrain-' + mode);
@@ -30111,6 +30200,12 @@ if (window.pdfjsLib) {
         title: 'Site location'
       }).addTo(map);
 
+      /* Restore visibility state after re-render */
+      if (!_sitePinVisible) _sitePinMarker.setOpacity(0);
+
+      /* Popup — similar to receiver popup, shows coords + zone info */
+      _sitePinMarker.bindPopup(buildSitePinPopupHTML(), { maxWidth: 300, minWidth: 210 });
+
       _sitePinMarker.bindTooltip('Site location', {
         permanent: false,
         direction: 'top',
@@ -30131,10 +30226,13 @@ if (window.pdfjsLib) {
         _sitePin.lng = ll.lng;
         window._subjectSiteLatlng = ll;
         if (typeof window._subjectSiteOnDragEnd === 'function') window._subjectSiteOnDragEnd(ll);
+        _sitePinZoneHTML = ''; // stale — will be refreshed by _requerySubjectSiteZone
+        refreshSitePinPopup();
         detectStateFromCoords(ll); // async — will call _requerySubjectSiteZone + updateAll on completion
         if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone(); // sync pre-flight
         querySourceParcel(ll);
         if (typeof updateAll === 'function') updateAll(); // recalculate immediately if state already known
+        if (typeof _renderObjectList === 'function') _renderObjectList();
         if (typeof window._undoPushState === 'function') window._undoPushState('Move site location');
         if (typeof setUnsaved === 'function') setUnsaved();
       });
@@ -30146,6 +30244,7 @@ if (window.pdfjsLib) {
         var cx = e.originalEvent.clientX, cy = e.originalEvent.clientY;
         _showMapCtxMenu(cx, cy, [
           { id: 'move', label: 'Move', icon: '⤢', action: function() { _ctxFlashMarker(_sitePinMarker); }},
+          { id: 'toggle-vis', label: _sitePinVisible ? 'Hide from map' : 'Show on map', icon: _sitePinVisible ? '👁' : '◌', action: function() { _toggleSitePinVisible(); }},
           'sep',
           { id: 'del', label: 'Remove site pin', icon: '🗑', cls: 'ctx-danger', action: function() {
               removeSitePin();
@@ -30156,27 +30255,40 @@ if (window.pdfjsLib) {
     }
 
     function placeSitePin(lat, lng) {
+      _sitePinZoneHTML = ''; // stale — will be refreshed by _requerySubjectSiteZone
       _sitePin = { lat: lat, lng: lng, label: 'Site location', timestamp: Date.now() };
       renderSitePin();
+      if (_sitePinMarker) _sitePinMarker.openPopup();
       window._subjectSiteLatlng = L.latLng(lat, lng);
       if (typeof window._subjectSiteOnPlaced === 'function') window._subjectSiteOnPlaced({ lat: lat, lng: lng });
       detectStateFromCoords(L.latLng(lat, lng)); // async — will call _requerySubjectSiteZone + updateAll on completion
       if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone(); // sync pre-flight (state may already be correct)
       querySourceParcel(L.latLng(lat, lng));
       if (typeof updateAll === 'function') updateAll(); // recalculate criteria immediately if state already known
+      if (typeof _renderObjectList === 'function') _renderObjectList();
       if (typeof setUnsaved === 'function') setUnsaved();
     }
 
     function removeSitePin() {
       _sitePin = null;
+      _sitePinZoneHTML = '';
       renderSitePin(); /* removes marker */
+      if (typeof _renderObjectList === 'function') _renderObjectList();
+      if (typeof setUnsaved === 'function') setUnsaved();
+    }
+
+    function _toggleSitePinVisible() {
+      _sitePinVisible = !_sitePinVisible;
+      if (_sitePinMarker) _sitePinMarker.setOpacity(_sitePinVisible ? 1 : 0);
+      if (typeof _renderObjectList === 'function') _renderObjectList();
       if (typeof setUnsaved === 'function') setUnsaved();
     }
 
     /* Expose for load path and external callers */
-    window._placeSitePin  = function(lat, lng) { placeSitePin(lat, lng); };
-    window._removeSitePin = function()          { removeSitePin(); };
-    window._getSitePin    = function()          { return _sitePin; };
+    window._placeSitePin          = function(lat, lng) { placeSitePin(lat, lng); };
+    window._removeSitePin         = function()          { removeSitePin(); };
+    window._getSitePin            = function()          { return _sitePin; };
+    window._toggleSitePinVisible  = function()          { _toggleSitePinVisible(); };
 
     function placeMarker(mode, latlng) {
       var cfg = getModeCfg(mode);
@@ -30735,6 +30847,7 @@ if (window.pdfjsLib) {
         var show = _allObjVisible;
 
         // ── Site pin ───────────────────────────────────────────────────────────
+        _sitePinVisible = show;
         if (_sitePinMarker) _sitePinMarker.setOpacity(show ? 1 : 0);
 
         // ── Point markers: source dots, source labels, receiver circles + Lp labels ──
@@ -40283,15 +40396,18 @@ if (window.pdfjsLib) {
       return null;
     };
 
-    /** Re-query the SAPPA zone for the current subject site location.
+    /** Re-query the zone for the current subject site location for all states.
      *  Uses site pin position (primary) or _subjectSiteLatlng fallback.
-     *  If no site location is set or state is not SA, clears the stored zone + indicator. */
+     *  If no site location is set or state is OTHER, clears the stored zone + indicator. */
     window._requerySubjectSiteZone = function() {
       var ll = (_sitePin ? L.latLng(_sitePin.lat, _sitePin.lng) : null) || window._subjectSiteLatlng;
-      if (ll && currentState === 'SA') {
+      if (ll && currentState !== 'OTHER') {
+        /* queryAndSetZone dispatches to SA (SAPPA), VIC (VicPlan), or NSW (Planning Portal) */
         queryAndSetZone('source_0', ll);
       } else {
         window._subjectSiteZone = null;
+        _sitePinZoneHTML = '';
+        refreshSitePinPopup();
         var ind = document.getElementById('src-zone-autodetect');
         if (ind) ind.style.display = 'none';
       }
@@ -41191,6 +41307,37 @@ if (window.pdfjsLib) {
         return bHtml;
       }
 
+      // Site pin group (always shown — first entry)
+      var _spState = (typeof currentState !== 'undefined' && currentState && currentState !== 'OTHER') ? currentState : '';
+      html += '<div style="margin-bottom:10px;">';
+      html += '<div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Site</div>';
+      html += '<div class="obj-row" data-obj-type="sitepin" data-obj-idx="0" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:pointer;' + (_sitePinVisible ? '' : 'opacity:0.45;') + '">';
+      /* Mini grey teardrop icon */
+      html += '<svg viewBox="0 0 24 32" width="10" height="13" style="flex-shrink:0;"><path d="M12 0 C5 0 0 5 0 12 C0 19 12 32 12 32 C12 32 24 19 24 12 C24 5 19 0 12 0 Z" fill="#9ca3af" stroke="#6b7280" stroke-width="1.5"/><circle cx="12" cy="12" r="4" fill="white"/></svg>';
+      html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;"></span>';
+      if (_sitePin) {
+        var _spZoneText = '';
+        if (_sitePinZoneHTML) {
+          /* Strip HTML tags to get plain text for the detail line */
+          var _spZoneDiv = document.createElement('div');
+          _spZoneDiv.innerHTML = _sitePinZoneHTML;
+          _spZoneText = (_spZoneDiv.textContent || _spZoneDiv.innerText || '').replace(/^\s*[\r\n]/, '').trim();
+        }
+        var _spCoords = _sitePin.lat.toFixed(5) + ', ' + _sitePin.lng.toFixed(5);
+        var _spDetail = _spZoneText || _spCoords;
+        html += '<span style="flex:1;overflow:hidden;min-width:0;">' +
+          '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">Site location' +
+          (_spState ? ' <span style="display:inline-block;font-size:10px;font-weight:700;padding:0 4px;border-radius:3px;background:' + (_spState==='SA'?'#0d9488':_spState==='VIC'?'#1d4ed8':'#7c3aed') + ';color:#fff;vertical-align:middle;">' + _spState + '</span>' : '') +
+          '</div>' +
+          '<div style="font-size:10px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHTML(_spDetail) + '</div>' +
+          '</span>' +
+          '<button class="obj-eye-btn" title="' + (_sitePinVisible ? 'Hide site pin' : 'Show site pin') + '" onclick="event.stopPropagation();_toggleSitePinVisible();" style="flex-shrink:0;background:none;border:none;cursor:pointer;padding:2px 3px;color:#9ca3af;font-size:13px;line-height:1;border-radius:3px;" onmouseenter="this.style.color=\'#374151\'" onmouseleave="this.style.color=\'#9ca3af\'">' + (_sitePinVisible ? '👁' : '🚫') + '</button>';
+      } else {
+        html += '<span style="flex:1;font-size:12px;color:#bbb;font-style:italic;">not placed — press S to set</span>';
+      }
+      html += '</div>';
+      html += '</div>';
+
       // Sources group
       var hasSrc = sourcePins.length > 0 || lineSources.length > 0 || (typeof buildingSources !== 'undefined' && buildingSources.length > 0) || (typeof areaSources !== 'undefined' && areaSources.length > 0);
       html += '<div style="margin-bottom:10px;">';
@@ -41466,7 +41613,15 @@ if (window.pdfjsLib) {
       // In fullscreen the map fills the whole viewport — panning just moves the scene
       // under the user's cursor and makes objects appear to jump. Skip it.
       var inFs = document.body.classList.contains('map-fs-active');
-      if (type === 'source') {
+      if (type === 'sitepin') {
+        if (!_sitePin) {
+          /* Not placed — enter placement mode */
+          if (typeof setMode === 'function') setMode('place-site');
+          return;
+        }
+        if (!inFs) map.panTo([_sitePin.lat, _sitePin.lng]);
+        if (_sitePinMarker) _sitePinMarker.openPopup();
+      } else if (type === 'source') {
         var pin = sourcePins[idx];
         if (!pin) return;
         if (pin.lat === null) {
