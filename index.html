@@ -10104,6 +10104,8 @@ function cswSave() {
       });
     });
     lineSources.push(newLs);
+    if (typeof window._computeSubjectSiteLatlng === 'function') window._subjectSiteLatlng = window._computeSubjectSiteLatlng();
+    if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
     // Trigger UI refresh via window API (render functions are IIFE-scoped)
     if (window._recomputeNoiseMap) window._recomputeNoiseMap();
     if (typeof window._renderObjectList === 'function') window._renderObjectList();
@@ -16204,18 +16206,13 @@ function renderSourcePins() {
     var delBtn = document.createElement('button');
     delBtn.type = 'button'; delBtn.textContent = '✕';
     delBtn.style.cssText = 'font-size:13px;padding:2px 6px;border:none;background:transparent;color:#bbb;cursor:pointer;';
-    delBtn.disabled = sourcePins.length <= 1;
-    if (sourcePins.length <= 1) delBtn.style.opacity = '0.3';
     delBtn.addEventListener('click', function() {
-      if (sourcePins.length <= 1) return;
       var _delSrcLabel = 'Delete source S' + (idx + 1);
       sourcePins.splice(idx, 1);
       /* Refresh all source markers (renumbers labels S1, S2, …) */
       if (typeof window._refreshAllSourceMarkers === 'function') window._refreshAllSourceMarkers();
       /* Update subject site reference */
-      window._subjectSiteLatlng = (sourcePins.length > 0 && sourcePins[0].lat !== null)
-        ? { lat: sourcePins[0].lat, lng: sourcePins[0].lng } : null;
-      /* Re-query SA subject site zone for the new source_0 */
+      if (typeof window._computeSubjectSiteLatlng === 'function') window._subjectSiteLatlng = window._computeSubjectSiteLatlng();
       if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
       renderSourcePins();
       if (typeof updateAll === 'function') updateAll();
@@ -16565,7 +16562,7 @@ function buildSrcPanelHTML(pin, pinIdx) {
   '<div class="sfp-footer" style="flex-shrink:0;border-top:1px solid #eee;padding:10px 14px;">' +
     '<div style="font-size:12px;color:#555;background:#f9f9f9;border-radius:4px;padding:6px 8px;margin-bottom:8px;"><div style="font-weight:600;margin-bottom:3px;">Total Lw:</div><div id="sfp-total-lw-block"></div></div>' +
     '<div style="display:flex;justify-content:space-between;">' +
-      '<button id="sfp-delete" style="padding:4px 12px;background:#fee2e2;border:1px solid #fca5a5;border-radius:5px;cursor:pointer;font-size:12px;color:#b91c1c;"' + (sourcePins.length <= 1 ? ' disabled' : '') + '>Delete</button>' +
+      '<button id="sfp-delete" style="padding:4px 12px;background:#fee2e2;border:1px solid #fca5a5;border-radius:5px;cursor:pointer;font-size:12px;color:#b91c1c;">Delete</button>' +
       '<button id="sfp-close-btn" style="padding:4px 12px;background:#f3f4f6;border:1px solid #ddd;border-radius:5px;cursor:pointer;font-size:12px;">Close</button>' +
     '</div>' +
   '</div>';
@@ -16584,7 +16581,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
 
   // Delete
   var delBtn = panel.querySelector('#sfp-delete');
-  if (delBtn && !delBtn.disabled) {
+  if (delBtn) {
     delBtn.addEventListener('click', function() {
       var _delPanelLabel = 'Delete source S' + (pinIdx + 1);
       closeSrcPanel();
@@ -16594,9 +16591,7 @@ function attachSrcPanelListeners(pin, pinIdx) {
       if (typeof latlngs !== 'undefined') delete latlngs[modeKey];
       sourcePins.splice(pinIdx, 1);
       if (typeof window._refreshAllSourceMarkers === 'function') window._refreshAllSourceMarkers();
-      window._subjectSiteLatlng = (sourcePins.length > 0 && sourcePins[0].lat !== null)
-        ? { lat: sourcePins[0].lat, lng: sourcePins[0].lng } : null;
-      /* Re-query SA subject site zone for the new source_0 */
+      if (typeof window._computeSubjectSiteLatlng === 'function') window._subjectSiteLatlng = window._computeSubjectSiteLatlng();
       if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
       if (typeof renderSourcePins === 'function') renderSourcePins();
       if (typeof window.updateAll === 'function') window.updateAll();
@@ -30070,13 +30065,11 @@ if (window.pdfjsLib) {
               }},
               'sep',
               { id: 'del', label: 'Delete', icon: '🗑', cls: 'ctx-danger', action: function() {
-                  if (sourcePins.length <= 1) { showToast('Cannot delete the only source.'); return; }
                   if (!confirm('Delete source "' + (sourcePins[capturedSi].name || ('S' + (capturedSi + 1))) + '"?')) return;
                   var _delCtxLabel = 'Delete source S' + (capturedSi + 1);
                   sourcePins.splice(capturedSi, 1);
                   window._refreshAllSourceMarkers();
-                  window._subjectSiteLatlng = (sourcePins.length > 0 && sourcePins[0].lat !== null)
-                    ? { lat: sourcePins[0].lat, lng: sourcePins[0].lng } : null;
+                  if (typeof window._computeSubjectSiteLatlng === 'function') window._subjectSiteLatlng = window._computeSubjectSiteLatlng();
                   if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
                   renderSourcePins();
                   if (typeof updateAll === 'function') updateAll();
@@ -33282,6 +33275,8 @@ if (window.pdfjsLib) {
               buildingSources.push(newBs);
               if (_terrainEnabled) _fetchVertexElevations(newBs);
               renderBuildingSourceLayer();
+              if (typeof window._computeSubjectSiteLatlng === 'function') window._subjectSiteLatlng = window._computeSubjectSiteLatlng();
+              if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
               openBsPanel(newBs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
               if (typeof render === 'function') render();
               if (window._recomputeNoiseMap) window._recomputeNoiseMap();
@@ -33338,6 +33333,8 @@ if (window.pdfjsLib) {
           areaSources.push(newAs);
           if (_terrainEnabled) _fetchVertexElevations(newAs);
           renderAreaSourceLayer();
+          if (typeof window._computeSubjectSiteLatlng === 'function') window._subjectSiteLatlng = window._computeSubjectSiteLatlng();
+          if (typeof window._requerySubjectSiteZone === 'function') window._requerySubjectSiteZone();
           openAsPanel(newAs.id, Math.round(window.innerWidth / 2), Math.round(window.innerHeight / 2));
           if (typeof render === 'function') render();
           if (window._recomputeNoiseMap) window._recomputeNoiseMap();
@@ -34286,6 +34283,7 @@ if (window.pdfjsLib) {
                   areaSources.push(newAs);
                   if (_terrainEnabled) _fetchVertexElevations(newAs);
                   renderAreaSourceLayer();
+                  if (window._renderObjectList) window._renderObjectList();
                   if (typeof render === 'function') render();
                   if (window._recomputeNoiseMap) window._recomputeNoiseMap();
                   if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate area source ' + newAs.name);
@@ -34973,6 +34971,7 @@ if (window.pdfjsLib) {
                 nb.name = (capturedBs.name||'Building source') + ' (copy)';
                 nb.vertices = capturedBs.vertices.map(function(v){return[v[0]-0.00005,v[1]+0.00005];});
                 buildingSources.push(nb); renderBuildingSourceLayer();
+                if (window._renderObjectList) window._renderObjectList();
                 if (typeof render==='function') render();
                 if (window._recomputeNoiseMap) window._recomputeNoiseMap();
                 if (typeof window._undoPushState === 'function') window._undoPushState('Duplicate building source ' + nb.name);
@@ -40004,8 +40003,21 @@ if (window.pdfjsLib) {
     // Save/load noise map state
     window.updateAll = updateAll;
 
-    /** Re-query the SAPPA zone for the current subject site (source_0) location.
-     *  Called after source_0 is deleted and another pin becomes the new source_0.
+    /** Returns the best available source location for SA criteria derivation.
+     *  Falls through: point source → line source → area source → building source. */
+    window._computeSubjectSiteLatlng = function() {
+      var ps = (typeof sourcePins !== 'undefined') ? sourcePins.find(function(p) { return p.lat !== null; }) : null;
+      if (ps) return { lat: ps.lat, lng: ps.lng };
+      var ls = (typeof lineSources !== 'undefined') ? lineSources.find(function(l) { return l.vertices && l.vertices.length > 0; }) : null;
+      if (ls) return { lat: ls.vertices[0][0], lng: ls.vertices[0][1] };
+      var as = (typeof areaSources !== 'undefined') ? areaSources.find(function(a) { return a.vertices && a.vertices.length > 0; }) : null;
+      if (as) return { lat: as.vertices[0][0], lng: as.vertices[0][1] };
+      var bs = (typeof buildingSources !== 'undefined') ? buildingSources.find(function(b) { return b.vertices && b.vertices.length > 0; }) : null;
+      if (bs) return { lat: bs.vertices[0][0], lng: bs.vertices[0][1] };
+      return null;
+    };
+
+    /** Re-query the SAPPA zone for the current subject site location.
      *  If no source is placed or state is not SA, clears the stored zone + indicator. */
     window._requerySubjectSiteZone = function() {
       var ll = window._subjectSiteLatlng;
@@ -40913,7 +40925,7 @@ if (window.pdfjsLib) {
       }
 
       // Sources group
-      var hasSrc = sourcePins.length > 0 || lineSources.length > 0 || (typeof buildingSources !== 'undefined' && buildingSources.length > 0);
+      var hasSrc = sourcePins.length > 0 || lineSources.length > 0 || (typeof buildingSources !== 'undefined' && buildingSources.length > 0) || (typeof areaSources !== 'undefined' && areaSources.length > 0);
       html += '<div style="margin-bottom:10px;">';
       html += '<div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Sources</div>';
       if (!hasSrc) {
@@ -41403,7 +41415,6 @@ if (window.pdfjsLib) {
       }
       if (type === 'source') {
         if (!confirm('Delete source ' + (idx + 1) + '?')) return;
-        if (sourcePins.length <= 1) { alert('Cannot delete the last source.'); return; }
         sourcePins.splice(idx, 1);
         window._refreshAllSourceMarkers();
         if (typeof renderSourcePins === 'function') renderSourcePins();

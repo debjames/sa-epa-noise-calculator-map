@@ -1,5 +1,38 @@
 # UAT Tests
 
+## Source-type parity
+
+### Area source appears in Objects panel
+
+1. Add only an area source (no point source). Open the Objects panel.
+2. **Expected:** The Sources section shows the area source; "No sources placed" is NOT shown.
+
+### Area source duplicate appears in Objects panel
+
+1. Right-click an area source → Duplicate.
+2. **Expected:** The new copy appears immediately in the Objects panel without requiring a page reload.
+
+### Building source duplicate appears in Objects panel
+
+1. Right-click a building source → Duplicate.
+2. **Expected:** The new copy appears immediately in the Objects panel.
+
+### Delete last point source
+
+1. Ensure only one point source exists (placed on the map). Delete it using the predictions panel card × button.
+2. **Expected:** The source is deleted without an alert or block. The Objects panel shows "No sources placed" (or other sources if present).
+3. Repeat using the source float panel Delete button and the map right-click Delete menu.
+4. **Expected:** Same — deletion succeeds in all three paths.
+
+### SA criteria derivation — no point source
+
+1. Set state to SA. Add only a line source drawn over a known SA zone (e.g., residential). Do not add any point sources.
+2. **Expected:** SA zone detection fires using the line source's first vertex; the zone indicator populates in the Criteria panel.
+3. Delete the line source. Add only an area source. **Expected:** Zone detection fires from the area source's first vertex.
+4. Delete the area source. Add only a building source. **Expected:** Zone detection fires from the building source's first vertex.
+
+---
+
 ## Roof modelling — flat vs draped
 
 ### Creation dialog — building source
