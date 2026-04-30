@@ -2374,6 +2374,14 @@ body.disclaimer-visible .container {
 }
 .toolbar-overflow-menu button:hover { background: #f1f5f9; }
 
+/* Crosshair cursor, no hover effects, and tooltip suppression in placement mode.
+   pointer-events:none makes all layer elements pass-through so clicks reach
+   the map handler directly and mouseover highlights never fire. */
+#noise-map.placement-mode,
+#noise-map.placement-mode .leaflet-container { cursor: crosshair !important; }
+#noise-map.placement-mode .leaflet-interactive { pointer-events: none; cursor: crosshair !important; }
+#noise-map.placement-mode .leaflet-tooltip { display: none !important; }
+
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" integrity="sha384-NZLkVuBRMEeB4VeZz27WwTRvlhec30biQ8Xx7zG7JJnkvEKRg5qi6BNbEXo9ydwv" crossorigin="anonymous"/>
@@ -12329,6 +12337,16 @@ function detectBuildingUnderSource(pinIdx) {
     if (_pointInPolygon(pin.lat, pin.lng, b.polygon)) {
       var h = ((b.baseHeightM || 0) + (b.heightM && b.heightM > 0 ? b.heightM : 3.0));
       if (h > maxH) maxH = h;
+    }
+  }
+  if (typeof buildingSources !== 'undefined') {
+    for (var j = 0; j < buildingSources.length; j++) {
+      var bs = buildingSources[j];
+      if (!bs.vertices || bs.vertices.length < 3) continue;
+      if (_pointInPolygon(pin.lat, pin.lng, bs.vertices)) {
+        var bsh = (bs.baseHeightM || 0) + (bs.height_m || 6);
+        if (bsh > maxH) maxH = bsh;
+      }
     }
   }
   pin.buildingHeight_m = maxH;
@@ -30143,9 +30161,10 @@ if (window.pdfjsLib) {
       });
       var btn = document.getElementById('mapMode-' + mode);
       if (btn) btn.classList.add('active');
-      /* Update map cursor: crosshair while in any placement mode */
+      /* Update map cursor and tooltip suppression while in any placement mode */
       if (map && map.getContainer) {
         map.getContainer().style.cursor = mode ? 'crosshair' : '';
+        map.getContainer().classList.toggle('placement-mode', !!mode);
       }
       /* Disable planning-layer canvas pointer-events during placement so map
          clicks reach the placement handler instead of triggering layer popups.
@@ -32622,13 +32641,14 @@ if (window.pdfjsLib) {
         // Hover highlight
         line.on('mouseover', function() {
           if (_drawingActive) return;
+          if (currentMode) return;
           if (_moveMode) { map.getContainer().style.cursor = 'grab'; return; }
           line.setStyle({ weight: 7, opacity: 1.0 });
           map.getContainer().style.cursor = 'pointer';
         });
         line.on('mouseout', function() {
           line.setStyle(ub.suppressed ? BARRIER_SUPPRESSED_STYLE : BARRIER_STYLE);
-          if (!_moveMode) map.getContainer().style.cursor = '';
+          if (!_moveMode) map.getContainer().style.cursor = currentMode ? 'crosshair' : '';
         });
 
         ub._line = line;
@@ -32734,13 +32754,14 @@ if (window.pdfjsLib) {
         // Hover highlight
         poly.on('mouseover', function() {
           if (_drawingActive) return;
+          if (currentMode) return;
           if (_moveMode) { map.getContainer().style.cursor = 'grab'; return; }
           poly.setStyle({ weight: 4 });
           map.getContainer().style.cursor = 'pointer';
         });
         poly.on('mouseout', function() {
           poly.setStyle(CUSTOM_STYLE);
-          if (!_moveMode) map.getContainer().style.cursor = '';
+          if (!_moveMode) map.getContainer().style.cursor = currentMode ? 'crosshair' : '';
         });
 
         cb._polygon = poly;
@@ -33280,12 +33301,13 @@ if (window.pdfjsLib) {
       // Hover highlight
       poly.on('mouseover', function() {
         if (_drawingActive || _drawingGroundZone || _barrierDrawHandler) return;
+        if (currentMode) return;
         poly.setStyle({ weight: 3, fillOpacity: 0.45 });
         map.getContainer().style.cursor = 'pointer';
       });
       poly.on('mouseout', function() {
         poly.setStyle({ color: strokeColor, weight: 1.5, dashArray: '6 4', fillColor: fillColor, fillOpacity: 0.25 });
-        map.getContainer().style.cursor = '';
+        map.getContainer().style.cursor = currentMode ? 'crosshair' : '';
       });
 
       _groundZoneLayer.addLayer(poly);
@@ -33954,13 +33976,14 @@ if (window.pdfjsLib) {
         poly.bindTooltip('<b>' + escapeHTML(as.name || 'Area source') + '</b><br>Area: ' + _asFormatArea(area), { sticky: true });
         poly.on('mouseover', function() {
           if (_drawingActive || _drawingAreaSource) return;
+          if (currentMode) return;
           if (_moveMode) { map.getContainer().style.cursor = 'grab'; return; }
           poly.setStyle({ weight: 4, color: 'rgba(200,120,30,1)' });
           map.getContainer().style.cursor = 'pointer';
         });
         poly.on('mouseout', function() {
           poly.setStyle(AS_STYLE);
-          if (!_moveMode) map.getContainer().style.cursor = '';
+          if (!_moveMode) map.getContainer().style.cursor = currentMode ? 'crosshair' : '';
         });
         poly.on('click', (function(capturedAs) {
           return function(e) {
@@ -34643,13 +34666,14 @@ if (window.pdfjsLib) {
         poly.bindTooltip('<b>🏭 ' + escapeHTML(bs.name || 'Building source') + '</b><br>' + bsTipHt, { sticky: true });
         poly.on('mouseover', function() {
           if (_drawingActive || _drawingBuildingSource) return;
+          if (currentMode) return;
           if (_moveMode) { map.getContainer().style.cursor = 'grab'; return; }
           poly.setStyle({ weight: 5, color: 'rgba(109,40,217,1)' });
           map.getContainer().style.cursor = 'pointer';
         });
         poly.on('mouseout', function() {
           poly.setStyle(BS_STYLE);
-          if (!_moveMode) map.getContainer().style.cursor = '';
+          if (!_moveMode) map.getContainer().style.cursor = currentMode ? 'crosshair' : '';
         });
         poly.on('click', (function(capturedBs) {
           return function(e) {
@@ -36462,13 +36486,14 @@ if (window.pdfjsLib) {
         // Hover highlight
         poly.on('mouseover', function() {
           if (_drawingActive || _lsDrawHandler) return;
+          if (currentMode) return;
           if (_moveMode) { map.getContainer().style.cursor = 'grab'; return; }
           poly.setStyle({ weight: 6, opacity: 1.0 });
           map.getContainer().style.cursor = 'pointer';
         });
         poly.on('mouseout', function() {
           poly.setStyle(LS_STYLE);
-          if (!_moveMode) map.getContainer().style.cursor = '';
+          if (!_moveMode) map.getContainer().style.cursor = currentMode ? 'crosshair' : '';
         });
 
         ls._poly = poly;
@@ -40745,10 +40770,11 @@ if (window.pdfjsLib) {
         html += '<div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Site features</div>';
         userBarriers.forEach(function(ub, i) {
           var name = escapeHTML(ub.name || 'Barrier');
+          var ubHtStr = ' (' + (ub.heightM || 2).toFixed(0) + 'm)';
           html += '<div class="obj-row" data-obj-type="barrier" data-obj-idx="' + i + '" style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:4px;cursor:pointer;">';
           html += '<span style="width:14px;height:3px;background:#4CAF50;border-radius:1px;display:inline-block;flex-shrink:0;"></span>';
           html += '<span style="font-size:10px;font-weight:700;color:#6b7280;flex-shrink:0;min-width:20px;">B' + (i + 1) + '</span>';
-          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + '</span>';
+          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + name + ubHtStr + '</span>';
           html += '<button class="obj-menu-btn" onclick="event.stopPropagation();_objMenuBtn(\'barrier\',' + i + ',this)" style="background:none;border:none;cursor:pointer;font-size:16px;color:#9ca3af;padding:0 3px;line-height:1;flex-shrink:0;" title="Options">⋮</button>';
           html += '</div>';
         });
