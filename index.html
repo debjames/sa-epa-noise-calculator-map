@@ -5678,6 +5678,41 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
     return { positions: positions, indices: finalIndices };
   }
 
+  /* Densify a polygon for terrain-draped base rendering.
+     Returns { verts: [[lat,lng],…], pvbY: [sceneY,…] }.
+     Inserts intermediate points at ~5 m intervals along each edge,
+     sampling _sampleTerrainMeshAt so the base matches the rendered
+     terrain surface exactly — same technique as _buildOneBarrier. */
+  function _densifyPolyBase(polygon, baseHeightM, centre, fallbackTerrainY) {
+    var verts = [], pvbY = [];
+    var n = polygon.length;
+    if (n < 3) return null;
+    /* Skip duplicate closing vertex if polygon is explicitly closed */
+    var end = n;
+    var vF = polygon[0], vL = polygon[n - 1];
+    var latF = Array.isArray(vF) ? vF[0] : vF.lat, lngF = Array.isArray(vF) ? vF[1] : vF.lng;
+    var latL = Array.isArray(vL) ? vL[0] : vL.lat, lngL = Array.isArray(vL) ? vL[1] : vL.lng;
+    if (Math.abs(latF - latL) < 1e-9 && Math.abs(lngF - lngL) < 1e-9) end = n - 1;
+    for (var i = 0; i < end; i++) {
+      var vA = polygon[i], vB = polygon[(i + 1) % end];
+      var latA = Array.isArray(vA) ? vA[0] : vA.lat, lngA = Array.isArray(vA) ? vA[1] : vA.lng;
+      var latB = Array.isArray(vB) ? vB[0] : vB.lat, lngB = Array.isArray(vB) ? vB[1] : vB.lng;
+      var pA = latLngToLocal(latA, lngA, centre.lat, centre.lng);
+      var pB = latLngToLocal(latB, lngB, centre.lat, centre.lng);
+      var segLen = Math.sqrt((pB.x - pA.x) * (pB.x - pA.x) + (pB.z - pA.z) * (pB.z - pA.z));
+      var nSteps = Math.max(1, Math.round(segLen / 5));
+      for (var step = 0; step < nSteps; step++) {
+        var tt = step / nSteps;
+        var lat = latA + tt * (latB - latA), lng = lngA + tt * (lngB - lngA);
+        var ty = _sampleTerrainMeshAt(lat, lng);
+        verts.push([lat, lng]);
+        pvbY.push((ty !== null ? ty : fallbackTerrainY) + baseHeightM);
+      }
+    }
+    if (verts.length < 3) return null;
+    return { verts: verts, pvbY: pvbY };
+  }
+
   /* Build OSM buildings as a single merged mesh. Dense urban projects can
      have 500+ footprints — one draw call beats 500. Stored in
      _3dOsmBuildingsMesh; cleaned up by the scene.traverse dispose pass in
@@ -5729,7 +5764,13 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
             || 6;
       var topY = baseY + h;
 
-      var ext = buildExtrudedFootprint(b.polygon, baseY, topY, centre.lat, centre.lng);
+      /* Densify edges to ~5 m sub-intervals so the base tracks terrain
+         undulations between vertices (same technique as barriers). */
+      var _osmDens = _densifyPolyBase(b.polygon, b.baseHeightM || 0, centre, terrainY !== null ? terrainY : 0);
+      var _osmVerts = _osmDens ? _osmDens.verts : b.polygon;
+      var _osmPvbY  = _osmDens ? _osmDens.pvbY  : null;
+
+      var ext = buildExtrudedFootprint(_osmVerts, baseY, topY, centre.lat, centre.lng, _osmPvbY);
       if (!ext) { skipped++; continue; }
 
       /* Re-offset indices so they point into the merged vertex list */
@@ -5796,20 +5837,15 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
       var h = cb.heightM || 3;
       var topY = baseY + h;
 
-      /* Per-vertex terrain: use cached vertexElevations if available (absolute
-         ASL → subtract _3dReferenceElevation → add baseHeightM). Falls back to
-         centroid-derived baseY vertex-by-vertex inside buildExtrudedFootprint. */
-      var pvbY = null;
-      if (cb.vertexElevations && cb.vertexElevations.length) {
-        pvbY = cb.vertexElevations.map(function(e) {
-          return (e !== null && isFinite(e))
-            ? (e - _3dReferenceElevation) + (cb.baseHeightM || 0)
-            : null;
-        });
-      }
+      /* Densify edges to ~5 m sub-intervals so the base hugs terrain
+         undulations between vertices. Use _sampleTerrainMeshAt for
+         consistency with the rendered surface (same as barriers). */
+      var _cbDens = _densifyPolyBase(cb.polygon, cb.baseHeightM || 0, centre, terrainY !== null ? terrainY : 0);
+      var _cbVerts = _cbDens ? _cbDens.verts : cb.polygon;
+      var pvbY    = _cbDens ? _cbDens.pvbY  : null;
 
-      /* Flat-roof: all top vertices at a constant scene Y anchored to
-         the reference vertex elevation + building height. */
+      /* Flat-roof: constant scene Y for all top vertices. With densification
+         the top array must match the (longer) densified vertex list. */
       var pvtY = null;
       var _cbRoofMode = cb.roofMode || 'flat';
       if (_cbRoofMode === 'flat' && cb.vertexElevations && cb.vertexElevations.length) {
@@ -5817,11 +5853,11 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
         var _cbRefElev = cb.vertexElevations[_cbRefIdx];
         if (_cbRefElev !== null && isFinite(_cbRefElev)) {
           var _cbRoofSceneY = (_cbRefElev - _3dReferenceElevation) + (cb.baseHeightM || 0) + h;
-          pvtY = cb.vertexElevations.map(function() { return _cbRoofSceneY; });
+          pvtY = _cbVerts.map(function() { return _cbRoofSceneY; });
         }
       }
 
-      var ext = buildExtrudedFootprint(cb.polygon, baseY, topY, centre.lat, centre.lng, pvbY, pvtY);
+      var ext = buildExtrudedFootprint(_cbVerts, baseY, topY, centre.lat, centre.lng, pvbY, pvtY);
       if (!ext) continue;
 
       var geom = new THREE.BufferGeometry();
@@ -5860,14 +5896,9 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
       var h = bs.height_m || 6;
       var topY = baseY + h;
 
-      var pvbY = null;
-      if (bs.vertexElevations && bs.vertexElevations.length) {
-        pvbY = bs.vertexElevations.map(function(e) {
-          return (e !== null && isFinite(e))
-            ? (e - _3dReferenceElevation) + (bs.baseHeightM || 0)
-            : null;
-        });
-      }
+      var _bsDens = _densifyPolyBase(bs.vertices, bs.baseHeightM || 0, centre, terrainY !== null ? terrainY : 0);
+      var _bsVerts = _bsDens ? _bsDens.verts : bs.vertices;
+      var pvbY    = _bsDens ? _bsDens.pvbY  : null;
 
       var pvtY = null;
       var _bsRoofMode3d = bs.roofMode || 'flat';
@@ -5876,11 +5907,11 @@ var EARTH_RADIUS_M = 6371000; // WGS-84 mean Earth radius in metres
         var _bsRefElev3d = bs.vertexElevations[_bsRefIdx3d];
         if (_bsRefElev3d !== null && isFinite(_bsRefElev3d)) {
           var _bsRoofSceneY = (_bsRefElev3d - _3dReferenceElevation) + (bs.baseHeightM || 0) + h;
-          pvtY = bs.vertexElevations.map(function() { return _bsRoofSceneY; });
+          pvtY = _bsVerts.map(function() { return _bsRoofSceneY; });
         }
       }
 
-      var ext = buildExtrudedFootprint(bs.vertices, baseY, topY, centre.lat, centre.lng, pvbY, pvtY);
+      var ext = buildExtrudedFootprint(_bsVerts, baseY, topY, centre.lat, centre.lng, pvbY, pvtY);
       if (!ext) continue;
 
       var geom = new THREE.BufferGeometry();
